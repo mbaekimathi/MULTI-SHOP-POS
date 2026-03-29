@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Employee login — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block body %}
+  <div class="form-auth-bg">
+    <div class="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-end p-3 sm:p-4">
+      <div class="pointer-events-auto">{% include "partials/theme_toggle.html" %}</div>
+    </div>
+    <div class="form-auth-grid" aria-hidden="true"></div>
+    <div class="auth-layout">
+      <aside class="auth-hero">
+        <div class="auth-hero__mesh" aria-hidden="true"></div>
+        <div class="auth-hero__aurora" aria-hidden="true"></div>
+        <div class="auth-hero__orb auth-hero__orb--a" aria-hidden="true"></div>
+        <div class="auth-hero__orb auth-hero__orb--b" aria-hidden="true"></div>
+        <div class="auth-hero__content">
+          <p
+            class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand-200 backdrop-blur-sm"
+          >
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"></span>
+            Internal portal
+          </p>
+          <h2 class="mt-8 max-w-md text-3xl font-extrabold leading-tight tracking-tight text-white lg:text-4xl">
+            Secure access for <span class="text-gradient">your team</span>
+          </h2>
+          <p class="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
+            Use your 6-digit employee code and password. Only active accounts can enter the company dashboard.
+          </p>
+          <ul class="mt-10 space-y-4 text-sm text-slate-300">
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/30">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </span>
+              <span>Encrypted session and role-based access</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/30">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </span>
+              <span>Same branding and standards as our public site</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/30">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              </span>
+              <span>New hires register first — admins activate accounts</span>
+            </li>
+          </ul>
+        </div>
+        <p class="auth-hero__footer">
+          © {{ site_settings.company_name if site_settings else "Point of Sale" }} · Employee access
+        </p>
+      </aside>
+
+      <div class="auth-main w-full lg:w-auto">
+        <div class="mb-6 w-full max-w-md lg:hidden">
+          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-brand-400">
+            <span aria-hidden="true">←</span> Back to website
+          </a>
+          <div
+            class="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/90 to-slate-800/80 p-4 backdrop-blur-md ring-1 ring-white/5"
+          >
+            <p class="text-xs font-bold uppercase tracking-widest text-brand-300">Company portal</p>
+            <p class="mt-1 text-lg font-bold text-white">Employee sign-in</p>
+          </div>
+        </div>
+
+        <div class="form-card-modern w-full">
+          <div class="form-card-inner">
+            <div class="mb-2 hidden text-center lg:block">
+              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-brand-600">← Back to website</a>
+            </div>
+            <div class="text-center">
+              <a href="{{ url_for('employee_login') }}" class="inline-flex items-center justify-center gap-3">
+                <span
+                  class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-500/40 ring-2 ring-orange-200/40"
+                >
+                  {% if site_settings and site_settings.app_icon %}
+                    <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="App icon" class="h-full w-full object-cover" />
+                  {% else %}
+                    <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="App icon" class="h-full w-full object-cover" />
+                  {% endif %}
+                </span
+                >
+                <span class="text-left">
+                  <span class="block text-lg font-extrabold tracking-tight text-slate-900">
+                    {{ site_settings.company_name if site_settings else "Point of Sale" }}
+                  </span>
+                  <span class="mt-0.5 block text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Sign in</span>
+                </span>
+              </a>
+            </div>
+
+            {% include "partials/flashes.html" %}
+
+            <div class="auth-switch-card">
+              <p class="auth-switch-card__label">Shop device access</p>
+              <a
+                href="{{ url_for('public_shop_login') }}"
+                class="auth-switch-card__link js-auth-switch-link"
+                data-auth-switch="to-shop"
+              >
+                Go to shop login
+                <span aria-hidden="true">→</span>
+              </a>
+            </div>
+
+            <form method="post" action="{{ url_for('employee_login') }}" class="mt-8 space-y-6">
+              {% if request.args.get('next') %}
+                <input type="hidden" name="next" value="{{ request.args.get('next') }}" />
+              {% endif %}
+              <div>
+                <label for="employee_code" class="form-label">6-digit employee code</label>
+                <div class="form-input-wrap form-input-wrap--code">
+                  <input
+                    id="employee_code"
+                    name="employee_code"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]{6}"
+                    minlength="6"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    required
+                    class="form-input-rich form-input-code"
+                    placeholder="000000"
+                  />
+                </div>
+              </div>
+              <div>
+                <label for="password" class="form-label">Password</label>
+                <div class="form-input-wrap form-input-wrap--password">
+                  <svg class="form-input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autocomplete="current-password"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    inputmode="text"
+                    class="form-input-rich"
+                    placeholder="Enter your password"
+                    title="Min. 6 characters on signup; numbers-only allowed"
+                  />
+                  <button
+                    type="button"
+                    class="toggle-password js-toggle-password"
+                    aria-controls="password"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                  >
+                    <svg class="js-pw-eye-open h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <svg class="js-pw-eye-off hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c1.993 0 3.86-.456 5.475-1.258m-1.001-2.035A10.088 10.088 0 0112 16.5c-4.638 0-8.573-3.007-9.963-7.178m-.63-2.043A10.477 10.477 0 003.606 6.5m13.857 0A10.477 10.477 0 0120.394 12M12 4.5c1.993 0 3.86.456 5.475 1.258M6.75 12a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button type="submit" class="btn-modern w-full">Sign in</button>
+              <p class="text-center text-sm text-slate-600 dark:text-slate-400">
+                Forgot password?
+                <a
+                  href="{{ url_for('contact') }}"
+                  class="font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-2 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200"
+                  >Contact IT support</a
+                >
+              </p>
+            </form>
+
+            <p class="mt-10 border-t border-slate-200/90 pt-8 text-center text-sm text-slate-600 dark:text-slate-300">
+              No account yet?
+              <a
+                href="{{ url_for('employee_signup') }}"
+                class="font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-2 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200"
+                >Create an employee account</a
+              >
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script>
+    (function () {
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var enter = "";
+      try {
+        enter = sessionStorage.getItem("authSwitchEnter") || "";
+      } catch (e) {}
+      if (!reduced && enter === "from-shop") {
+        document.body.classList.add("auth-enter-from-left");
+      }
+      try {
+        sessionStorage.removeItem("authSwitchEnter");
+      } catch (e) {}
+
+      document.querySelectorAll(".js-auth-switch-link").forEach(function (link) {
+        link.addEventListener("click", function (e) {
+          if (reduced) return;
+          var mode = link.getAttribute("data-auth-switch") || "";
+          if (mode !== "to-shop") return;
+          e.preventDefault();
+          try {
+            sessionStorage.setItem("authSwitchEnter", "from-employee");
+          } catch (err) {}
+          document.body.classList.add("auth-leave-to-left");
+          window.setTimeout(function () {
+            window.location.href = link.href;
+          }, 240);
+        });
+      });
+
+      var employeeCodeInput = document.getElementById("employee_code");
+      if (employeeCodeInput) {
+        employeeCodeInput.addEventListener("input", function () {
+          employeeCodeInput.value = (employeeCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
+        });
+      }
+    })();
+  </script>
+  <script src="{{ url_for('static', filename='js/password-toggle.js') }}" defer></script>
+{% endblock %}

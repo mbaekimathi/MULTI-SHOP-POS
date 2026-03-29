@@ -1,0 +1,16 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop — {{ shop_name }}{% endblock %}
+{% block shop_page_title %}Shop{% endblock %}
+{% block shop_content %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop_name }}</h1>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Login successful. Redirecting you to the shop dashboard.</p>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        Ready
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,286 @@
+    {% set rs = receipt_settings %}
+    <div id="shop-settings-receipt" class="scroll-mt-24 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Receipt format</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Matches company receipt settings unless you customize for this shop.</p>
+      </div>
+
+      <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+        <input type="checkbox" name="shop_receipt_custom" value="1" class="mt-1 h-4 w-4 rounded border-[rgb(var(--rc-border))]" {% if shop_receipt_custom %}checked{% endif %} />
+        <span>
+          <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customize receipt format for this shop</span>
+          <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">When off, receipts use the same format as <strong class="font-medium text-[rgb(var(--rc-page-fg))]">IT &rarr; System settings &rarr; Receipt settings</strong>.</span>
+        </span>
+      </label>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt width</label>
+          <select
+            name="receipt_width"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="58mm" {% if rs.receipt_width == '58mm' %}selected{% endif %}>58mm / 50mm (narrow roll)</option>
+            <option value="80mm" {% if rs.receipt_width == '80mm' or not rs.receipt_width %}selected{% endif %}>80mm (Wide)</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Font size</label>
+          <select
+            name="receipt_font_size"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="8pt" {% if rs.font_size == '8pt' %}selected{% endif %}>Small (8pt)</option>
+            <option value="10pt" {% if rs.font_size == '10pt' %}selected{% endif %}>Medium (10pt)</option>
+            <option value="12pt" {% if rs.font_size == '12pt' or not rs.font_size %}selected{% endif %}>Large (12pt)</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Bold headers</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Make receipt headers bold</p>
+          </div>
+          <input type="checkbox" name="receipt_bold_headers" value="1" class="rc-receipt-switch" {% if rs.bold_headers %}checked{% endif %} />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt number format</label>
+          <select
+            name="receipt_number_format"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="sequential" {% if rs.receipt_number_format == 'sequential' or not rs.receipt_number_format %}selected{% endif %}>Sequential (0001, 0002, …)</option>
+            <option value="daily" {% if rs.receipt_number_format == 'daily' %}selected{% endif %}>Reset daily</option>
+            <option value="per_month" {% if rs.receipt_number_format == 'per_month' %}selected{% endif %}>Reset each month</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt number prefix</label>
+          <input
+            type="text"
+            name="receipt_number_prefix"
+            maxlength="32"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.receipt_number_prefix or 'T' }}"
+            placeholder="T"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Starting number</label>
+          <input
+            type="text"
+            name="receipt_starting_number"
+            maxlength="32"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.starting_number or '1001' }}"
+            placeholder="1001"
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Include tax</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Show tax line on receipts using this rate on sales</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_include_tax"
+            value="1"
+            id="receipt_include_tax"
+            class="rc-receipt-switch"
+            {% if rs.include_tax %}checked{% endif %}
+          />
+        </div>
+        <div id="receipt-tax-wrap" class="md:col-span-2 {% if not rs.include_tax %}hidden{% endif %}">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Tax rate (%)</label>
+          <input
+            type="text"
+            name="receipt_tax_percent"
+            inputmode="decimal"
+            class="w-full max-w-xs rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.tax_percent or '' }}"
+            placeholder="e.g. 16"
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show payment details</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Display payment details info on receipts</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_show_payment_details"
+            value="1"
+            id="receipt_show_payment_details"
+            class="rc-receipt-switch"
+            {% if rs.show_payment_details %}checked{% endif %}
+          />
+        </div>
+        <div id="receipt-payment-wrap" class="space-y-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 p-4 md:col-span-2 {% if not rs.show_payment_details %}hidden{% endif %}">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment instruction type</label>
+            <select
+              name="receipt_payment_type"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            >
+              <option value="buy_goods" {% if rs.payment_detail_type == 'buy_goods' or not rs.payment_detail_type %}selected{% endif %}>Buy goods</option>
+              <option value="paybill" {% if rs.payment_detail_type == 'paybill' %}selected{% endif %}>Pay bill</option>
+              <option value="send_money" {% if rs.payment_detail_type == 'send_money' %}selected{% endif %}>Send money</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (till / paybill / phone etc.)</label>
+            <textarea
+              name="receipt_payment_detail_text"
+              rows="3"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="e.g. Till: 123456 Â· Business: Your Shop Ltd"
+            >{{ rs.payment_detail_text or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">What to show on receipts</h3>
+      <div class="mt-4 grid gap-3 md:grid-cols-2">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show logo</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Company logo on the receipt</p>
+          </div>
+          <input type="checkbox" name="receipt_show_logo" value="1" class="rc-receipt-switch" {% if rs.show_logo %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show address</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Business address</p>
+          </div>
+          <input type="checkbox" name="receipt_show_address" value="1" class="rc-receipt-switch" {% if rs.show_address %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show contact</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Phone, email, or other contact lines</p>
+          </div>
+          <input type="checkbox" name="receipt_show_contact" value="1" class="rc-receipt-switch" {% if rs.show_contact %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show who served</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Cashier or staff name on the receipt</p>
+          </div>
+          <input type="checkbox" name="receipt_show_server" value="1" class="rc-receipt-switch" {% if rs.show_server %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show date and time</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Print date and time of sale</p>
+          </div>
+          <input type="checkbox" name="receipt_show_datetime" value="1" class="rc-receipt-switch" {% if rs.show_datetime %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show QR code on receipt</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Print a scannable QR on thermal receipts when the POS supports it</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_qr_enabled"
+            value="1"
+            id="receipt_qr_enabled"
+            class="rc-receipt-switch"
+            role="switch"
+            aria-checked="{% if rs.receipt_qr_enabled %}true{% else %}false{% endif %}"
+            aria-label="Show QR code on receipt"
+            {% if rs.receipt_qr_enabled %}checked{% endif %}
+          />
+        </div>
+      </div>
+
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">QR code on receipt</h3>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">When &ldquo;Show QR code on receipt&rdquo; is on, choose what the QR encodes.</p>
+      <div class="mt-4 space-y-4">
+        <div id="receipt-qr-options" class="space-y-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 p-4 {% if not rs.receipt_qr_enabled %}hidden{% endif %}">
+          <fieldset class="space-y-3">
+            <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">QR encodes</legend>
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent p-2 hover:bg-[rgb(var(--rc-surface))]/80">
+              <input
+                type="radio"
+                name="receipt_qr_mode"
+                value="website"
+                class="mt-1 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]"
+                {% if rs.receipt_qr_mode == 'website' %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Website page</span>
+                <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">Open a URL you provide (e.g. your shop site, loyalty page, or terms).</span>
+              </span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent p-2 hover:bg-[rgb(var(--rc-surface))]/80">
+              <input
+                type="radio"
+                name="receipt_qr_mode"
+                value="receipt_details"
+                class="mt-1 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]"
+                {% if rs.receipt_qr_mode != 'website' %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Receipt number &amp; details</span>
+                <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">Encode receipt ID, date/time, and amount in the QR (e.g. for verification or returns).</span>
+              </span>
+            </label>
+          </fieldset>
+          <div id="receipt-qr-url-wrap" class="{% if rs.receipt_qr_mode != 'website' %}hidden{% endif %}">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Website URL</label>
+            <input
+              type="url"
+              name="receipt_qr_website_url"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="https://example.com/your-page"
+              value="{{ rs.receipt_qr_website_url or '' }}"
+              autocomplete="url"
+            />
+          </div>
+        </div>
+      </div>
+
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Receipt header &amp; footer</h3>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Optional text printed at the top and bottom of each receipt.</p>
+      <div class="mt-4 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Header</label>
+          <textarea
+            name="receipt_header"
+            rows="5"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            placeholder="Lines printed below the logo / title…"
+          >{{ rs.receipt_header or '' }}</textarea>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Footer</label>
+          <textarea
+            name="receipt_footer"
+            rows="5"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            placeholder="Thank you, policies, social handles…"
+          >{{ rs.receipt_footer or '' }}</textarea>
+        </div>
+      </div>
+
+      <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
+        <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Print preview</h3>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Approximate thermal layout (black on white). Updates as you change settings above — not saved until you click Save settings.</p>
+        <div class="mt-6 flex justify-center px-2">
+          <div
+            id="receipt-print-preview"
+            class="receipt-preview-paper overflow-hidden rounded-sm border border-neutral-300 bg-white text-black shadow-lg ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
+            style="width: 80mm; max-width: 100%"
+            role="region"
+            aria-label="Receipt print preview"
+          >
+            <div id="receipt-preview-body" class="receipt-preview-body px-3 py-4 font-mono leading-snug"></div>
+          </div>
+        </div>
+        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Preview width follows &ldquo;Receipt width&rdquo;; font size follows &ldquo;Font size&rdquo;.</p>
+      </div>
+    </div>
+

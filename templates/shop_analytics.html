@@ -1,0 +1,996 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop analytics — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop analytics{% endblock %}
+{% block shop_sidebar_links %}
+  {% set av = analytics_view or 'revenue' %}
+  <a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'revenue' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Revenue analytics
+  </a>
+  <a href="{{ url_for('shop_item_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'item' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+    </svg>
+    Item analytics
+  </a>
+  <a href="{{ url_for('shop_period_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'period' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    Period analytics
+  </a>
+  <a href="{{ url_for('shop_sales_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'sales' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h5M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+    </svg>
+    Sales analytics
+  </a>
+  <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'credit' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
+    </svg>
+    Credit analytics
+  </a>
+  <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'customer' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+    Customer analytics
+  </a>
+  <a href="{{ url_for('shop_stock_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'stock' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />
+    </svg>
+    Stock analytics
+  </a>
+{% endblock %}
+{% block shop_content %}
+  {% set f = analytics_filter or {} %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">View performance metrics for this shop.</p>
+        <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
+          Active range: {{ (analytics_filter or {}).range_label or 'Current selection' }}
+        </p>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        {{ (analytics_view or 'revenue')|replace('_',' ') }} analytics
+      </div>
+    </div>
+  </div>
+
+  <form method="get" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
+    <div class="flex flex-wrap items-end gap-2.5">
+      <div class="min-w-[10rem] flex-1">
+        <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
+        <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+          <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+
+      <div id="filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+        <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+        <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <div id="filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+          <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+          <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+      </div>
+
+      <div id="filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+        <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+        <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <div id="filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+        <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+        <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
+    </div>
+  </form>
+
+  {% if (analytics_view or 'revenue') == 'revenue' %}
+    {% set rd = revenue_data or {} %}
+    {% set sale = rd.sale or {} %}
+    {% set credit = rd.credit or {} %}
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/90">Sale revenue</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((sale.amount or 0)|float) }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ sale.count or 0 }} sale transactions</p>
+      </div>
+      <div class="rounded-2xl border border-orange-400/30 bg-orange-500/[0.08] p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-300/90">Credit revenue</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((credit.amount or 0)|float) }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ credit.count or 0 }} credit transactions</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 sm:col-span-2 lg:col-span-1">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Total revenue</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((rd.total_amount or 0)|float) }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ rd.total_count or 0 }} total transactions</p>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Daily breakdown</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sale vs Credit</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Date</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Sale</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Credit</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Total</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Tx</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in rd.daily or [] %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.sale_amount or 0)|float) }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.credit_amount or 0)|float) }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.total_amount or 0)|float) }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ row.tx_count or 0 }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No revenue data for the selected filter yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% set max_total = 0 %}
+    {% for row in rd.daily or [] %}
+      {% if (row.total_amount or 0)|float > max_total %}
+        {% set max_total = (row.total_amount or 0)|float %}
+      {% endif %}
+    {% endfor %}
+    {% if max_total <= 0 %}
+      {% set max_total = 1 %}
+    {% endif %}
+    <div class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+      <div class="mb-3 flex items-center justify-between">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Revenue trend (visual)</h3>
+        <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+          <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-emerald-400"></span>Sale</span>
+          <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-orange-400"></span>Credit</span>
+        </div>
+      </div>
+      <div class="space-y-2">
+        {% for row in rd.daily or [] %}
+          {% set sale_amt = (row.sale_amount or 0)|float %}
+          {% set credit_amt = (row.credit_amount or 0)|float %}
+          {% set total_amt = (row.total_amount or 0)|float %}
+          {% set total_width = ((total_amt / max_total) * 100)|round(2) %}
+          {% if total_amt > 0 %}
+            {% set sale_width = ((sale_amt / total_amt) * 100)|round(2) %}
+            {% set credit_width = ((credit_amt / total_amt) * 100)|round(2) %}
+          {% else %}
+            {% set sale_width = 0 %}
+            {% set credit_width = 0 %}
+          {% endif %}
+          <div class="grid items-center gap-2 sm:grid-cols-[6.5rem_1fr_auto]">
+            <div class="text-xs font-semibold text-[rgb(var(--rc-page-fg))]">{{ row.day }}</div>
+            <div class="h-3.5 rounded-full bg-[rgb(var(--rc-surface-2))] ring-1 ring-[rgb(var(--rc-border))]/70">
+              <div class="flex h-full overflow-hidden rounded-full" style="width: {{ total_width }}%;">
+                <div class="h-full bg-emerald-400/90" style="width: {{ sale_width }}%;"></div>
+                <div class="h-full bg-orange-400/90" style="width: {{ credit_width }}%;"></div>
+              </div>
+            </div>
+            <div class="min-w-[5rem] text-right text-xs font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_amt) }}</div>
+          </div>
+        {% else %}
+          <p class="rounded-xl border border-dashed border-[rgb(var(--rc-border))] px-3 py-6 text-center text-sm text-[rgb(var(--rc-muted))]">
+            No trend data to visualize yet. Complete sales to see revenue movement.
+          </p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="mt-3 grid gap-3 lg:grid-cols-[1.3fr_0.7fr]">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Line trend chart</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Daily movement</span>
+        </div>
+        <div class="relative h-56 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/35 p-2">
+          <canvas id="revenue-trend-canvas" class="h-full w-full" aria-label="Revenue trend chart"></canvas>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Revenue share</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Sale vs credit</span>
+        </div>
+        <div class="flex items-center justify-center">
+          <canvas id="revenue-share-canvas" class="h-48 w-48" aria-label="Revenue share chart"></canvas>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <div class="rounded-lg border border-emerald-400/30 bg-emerald-500/[0.08] px-3 py-2">
+            <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300/90">Sale %</p>
+            <p id="revenue-sale-pct" class="mt-0.5 font-black tabular-nums text-[rgb(var(--rc-page-fg))]">0%</p>
+          </div>
+          <div class="rounded-lg border border-orange-400/30 bg-orange-500/[0.08] px-3 py-2">
+            <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-orange-300/90">Credit %</p>
+            <p id="revenue-credit-pct" class="mt-0.5 font-black tabular-nums text-[rgb(var(--rc-page-fg))]">0%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <script>
+    (function () {
+      var mode = document.getElementById("analytics-filter-mode");
+      var day = document.getElementById("filter-single-day");
+      var period = document.getElementById("filter-period");
+      var month = document.getElementById("filter-month");
+      var year = document.getElementById("filter-year");
+      if (!mode) return;
+      function sync() {
+        var m = mode.value || "single_day";
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (period) period.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+  {% if (analytics_view or 'revenue') == 'revenue' %}
+    <script>
+      (function () {
+        var points = {{ (revenue_data.daily or [])|tojson }};
+        var saleTotal = {{ ((revenue_data.sale or {}).amount or 0)|tojson }};
+        var creditTotal = {{ ((revenue_data.credit or {}).amount or 0)|tojson }};
+
+        function toNum(x) {
+          var n = parseFloat(x);
+          return isNaN(n) ? 0 : n;
+        }
+
+        function drawTrend() {
+          var canvas = document.getElementById("revenue-trend-canvas");
+          if (!canvas || !canvas.getContext) return;
+          var rect = canvas.getBoundingClientRect();
+          canvas.width = Math.max(320, Math.floor(rect.width * (window.devicePixelRatio || 1)));
+          canvas.height = Math.max(180, Math.floor(rect.height * (window.devicePixelRatio || 1)));
+          var ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          var w = canvas.width;
+          var h = canvas.height;
+          var pad = { l: 36, r: 12, t: 12, b: 22 };
+          var plotW = w - pad.l - pad.r;
+          var plotH = h - pad.t - pad.b;
+          ctx.clearRect(0, 0, w, h);
+
+          var arr = (points || []).slice().reverse();
+          if (!arr.length) {
+            ctx.fillStyle = "rgba(148,163,184,0.9)";
+            ctx.font = "600 12px sans-serif";
+            ctx.fillText("No trend data yet", pad.l, h / 2);
+            return;
+          }
+
+          var maxY = 1;
+          arr.forEach(function (p) {
+            maxY = Math.max(maxY, toNum(p.sale_amount), toNum(p.credit_amount), toNum(p.total_amount));
+          });
+          maxY *= 1.12;
+
+          function xAt(i) {
+            if (arr.length === 1) return pad.l + plotW / 2;
+            return pad.l + (i / (arr.length - 1)) * plotW;
+          }
+          function yAt(v) {
+            return pad.t + (1 - toNum(v) / maxY) * plotH;
+          }
+
+          ctx.strokeStyle = "rgba(148,163,184,0.25)";
+          ctx.lineWidth = 1;
+          for (var g = 0; g <= 4; g++) {
+            var gy = pad.t + (g / 4) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(pad.l, gy);
+            ctx.lineTo(w - pad.r, gy);
+            ctx.stroke();
+          }
+
+          function drawSeries(key, stroke, fill) {
+            ctx.beginPath();
+            arr.forEach(function (p, i) {
+              var x = xAt(i);
+              var y = yAt(p[key]);
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            });
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.lineTo(xAt(arr.length - 1), yAt(0));
+            ctx.lineTo(xAt(0), yAt(0));
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+          }
+
+          drawSeries("sale_amount", "rgba(52,211,153,1)", "rgba(16,185,129,0.16)");
+          drawSeries("credit_amount", "rgba(251,146,60,1)", "rgba(249,115,22,0.12)");
+
+          ctx.fillStyle = "rgba(148,163,184,0.9)";
+          ctx.font = "600 10px sans-serif";
+          var first = arr[0] && arr[0].day ? String(arr[0].day) : "";
+          var last = arr[arr.length - 1] && arr[arr.length - 1].day ? String(arr[arr.length - 1].day) : "";
+          if (first) ctx.fillText(first, pad.l, h - 6);
+          if (last) {
+            var tw = ctx.measureText(last).width;
+            ctx.fillText(last, w - pad.r - tw, h - 6);
+          }
+        }
+
+        function drawDonut() {
+          var canvas = document.getElementById("revenue-share-canvas");
+          if (!canvas || !canvas.getContext) return;
+          var rect = canvas.getBoundingClientRect();
+          canvas.width = Math.max(160, Math.floor(rect.width * (window.devicePixelRatio || 1)));
+          canvas.height = Math.max(160, Math.floor(rect.height * (window.devicePixelRatio || 1)));
+          var ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          var w = canvas.width;
+          var h = canvas.height;
+          var cx = w / 2;
+          var cy = h / 2;
+          var r = Math.min(w, h) * 0.38;
+          var lw = Math.max(12, Math.floor(r * 0.34));
+          var total = toNum(saleTotal) + toNum(creditTotal);
+          var saleRatio = total > 0 ? toNum(saleTotal) / total : 0;
+          var creditRatio = total > 0 ? toNum(creditTotal) / total : 0;
+          var start = -Math.PI / 2;
+
+          ctx.clearRect(0, 0, w, h);
+          ctx.lineWidth = lw;
+          ctx.lineCap = "round";
+
+          ctx.beginPath();
+          ctx.strokeStyle = "rgba(148,163,184,0.2)";
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+
+          if (total > 0) {
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(52,211,153,1)";
+            ctx.arc(cx, cy, r, start, start + Math.PI * 2 * saleRatio);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(251,146,60,1)";
+            ctx.arc(cx, cy, r, start + Math.PI * 2 * saleRatio, start + Math.PI * 2 * (saleRatio + creditRatio));
+            ctx.stroke();
+          }
+
+          ctx.fillStyle = "rgba(226,232,240,0.95)";
+          ctx.textAlign = "center";
+          ctx.font = "700 11px sans-serif";
+          ctx.fillText("Total", cx, cy - 6);
+          ctx.font = "800 14px sans-serif";
+          ctx.fillText(total.toFixed(2), cx, cy + 14);
+
+          var sEl = document.getElementById("revenue-sale-pct");
+          var cEl = document.getElementById("revenue-credit-pct");
+          if (sEl) sEl.textContent = (saleRatio * 100).toFixed(1) + "%";
+          if (cEl) cEl.textContent = (creditRatio * 100).toFixed(1) + "%";
+        }
+
+        drawTrend();
+        drawDonut();
+        window.addEventListener("resize", function () {
+          drawTrend();
+          drawDonut();
+        });
+      })();
+    </script>
+  {% endif %}
+  {% if (analytics_view or '') == 'item' %}
+    {% set idt = item_data or {} %}
+    {% set peak_day = idt.peak_day or {} %}
+    {% set peak_hour = idt.peak_hour or {} %}
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Qty sold</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ idt.total_qty or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Items sold</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ idt.distinct_items or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Most sold day</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_day.day or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ peak_day.qty_sold or 0 }} qty sold</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Most sold time</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_hour.hour or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ peak_hour.qty_sold or 0 }} qty sold</p>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Top sold items</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Quantity and revenue</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Item</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Qty sold</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Revenue</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Sale lines</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in idt.top_items or [] %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ row.qty_sold or 0 }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.revenue or 0)|float) }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ row.sale_lines or 0 }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No item sales data for the selected filter yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+  {% if (analytics_view or '') == 'period' %}
+    {% set pd = period_data or {} %}
+    {% set top_emp = pd.top_employee or {} %}
+    {% set least_emp = pd.least_employee or {} %}
+    {% set peak_day = pd.peak_day or {} %}
+    {% set peak_hour = pd.peak_hour or {} %}
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Transactions</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ pd.total_tx_count or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Revenue</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((pd.total_revenue or 0)|float) }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak day</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_day.day or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_day.revenue or 0)|float) }} revenue</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak time</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_hour.hour or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_hour.revenue or 0)|float) }} revenue</p>
+      </div>
+    </div>
+
+    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Sales by hour</h3>
+          <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Time trend</span>
+        </div>
+        <div class="relative h-56 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/35 p-2">
+          <canvas id="period-hourly-canvas" class="h-full w-full" aria-label="Period hourly sales chart"></canvas>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Employee performance</h3>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <div class="rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] p-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300/90">Most sales</p>
+            <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ top_emp.employee_name or "-" }}</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ top_emp.employee_code or "" }} {% if top_emp.employee_code %}·{% endif %} {{ "%.2f"|format((top_emp.revenue or 0)|float) }}</p>
+          </div>
+          <div class="rounded-xl border border-rose-400/30 bg-rose-500/[0.08] p-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-rose-300/90">Least sales</p>
+            <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ least_emp.employee_name or "-" }}</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ least_emp.employee_code or "" }} {% if least_emp.employee_code %}·{% endif %} {{ "%.2f"|format((least_emp.revenue or 0)|float) }}</p>
+          </div>
+        </div>
+        <p class="mt-2 text-[11px] text-[rgb(var(--rc-muted))]">
+          Based on completed checkouts in selected filter period.
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Employee sales ranking</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Most to least</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Employee</th>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Code</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Transactions</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Revenue</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in pd.employees or [] %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                <td class="px-4 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or "-" }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.tx_count or 0 }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.revenue or 0)|float) }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No sales data for employees in the selected period yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+  {% if (analytics_view or '') == 'period' %}
+    <script>
+      (function () {
+        var hourly = {{ (period_data.hourly or [])|tojson }};
+        var canvas = document.getElementById("period-hourly-canvas");
+        if (!canvas || !canvas.getContext) return;
+
+        function toNum(x) {
+          var n = parseFloat(x);
+          return isNaN(n) ? 0 : n;
+        }
+
+        function draw() {
+          var rect = canvas.getBoundingClientRect();
+          canvas.width = Math.max(320, Math.floor(rect.width * (window.devicePixelRatio || 1)));
+          canvas.height = Math.max(180, Math.floor(rect.height * (window.devicePixelRatio || 1)));
+          var ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          var w = canvas.width;
+          var h = canvas.height;
+          var pad = { l: 30, r: 10, t: 12, b: 24 };
+          var plotW = w - pad.l - pad.r;
+          var plotH = h - pad.t - pad.b;
+          ctx.clearRect(0, 0, w, h);
+
+          if (!hourly || !hourly.length) {
+            ctx.fillStyle = "rgba(148,163,184,0.9)";
+            ctx.font = "600 12px sans-serif";
+            ctx.fillText("No hourly data yet", pad.l, h / 2);
+            return;
+          }
+
+          var maxY = 1;
+          hourly.forEach(function (p) {
+            maxY = Math.max(maxY, toNum(p.revenue));
+          });
+          maxY *= 1.15;
+
+          var count = hourly.length;
+          var barGap = 4;
+          var barW = Math.max(6, (plotW - barGap * (count - 1)) / count);
+
+          ctx.fillStyle = "rgba(148,163,184,0.24)";
+          for (var g = 0; g <= 4; g++) {
+            var gy = pad.t + (g / 4) * plotH;
+            ctx.fillRect(pad.l, gy, plotW, 1);
+          }
+
+          hourly.forEach(function (p, i) {
+            var v = toNum(p.revenue);
+            var bh = maxY > 0 ? (v / maxY) * plotH : 0;
+            var x = pad.l + i * (barW + barGap);
+            var y = pad.t + (plotH - bh);
+            var grd = ctx.createLinearGradient(0, y, 0, y + bh);
+            grd.addColorStop(0, "rgba(56,189,248,0.95)");
+            grd.addColorStop(1, "rgba(14,116,144,0.75)");
+            ctx.fillStyle = grd;
+            ctx.fillRect(x, y, barW, bh);
+          });
+
+          ctx.fillStyle = "rgba(148,163,184,0.9)";
+          ctx.font = "600 10px sans-serif";
+          var first = hourly[0] && hourly[0].hour ? String(hourly[0].hour) : "";
+          var last = hourly[count - 1] && hourly[count - 1].hour ? String(hourly[count - 1].hour) : "";
+          if (first) ctx.fillText(first, pad.l, h - 6);
+          if (last) {
+            var tw = ctx.measureText(last).width;
+            ctx.fillText(last, w - pad.r - tw, h - 6);
+          }
+        }
+
+        draw();
+        window.addEventListener("resize", draw);
+      })();
+    </script>
+  {% endif %}
+  {% if (analytics_view or '') == 'sales' %}
+    {% set sd = sales_data or {} %}
+    {% set top_emp = sd.top_employee or {} %}
+    {% set least_emp = sd.least_employee or {} %}
+    {% set peak_day = sd.peak_day or {} %}
+    {% set peak_hour = sd.peak_hour or {} %}
+    <div class="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] px-4 py-2 text-xs font-bold text-emerald-300/90">
+      Sales-only analysis (credit excluded).
+    </div>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Sales transactions</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ sd.total_tx_count or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Sales revenue</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((sd.total_revenue or 0)|float) }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak sales day</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_day.day or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_day.revenue or 0)|float) }} revenue</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak sales time</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_hour.hour or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_hour.revenue or 0)|float) }} revenue</p>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Sales employee ranking</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Most to least</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Employee</th>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Code</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Transactions</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Revenue</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in sd.employees or [] %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                <td class="px-4 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or "-" }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.tx_count or 0 }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.revenue or 0)|float) }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No sales-only data for this filter yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+  {% if (analytics_view or '') == 'credit' %}
+    {% set cd = credit_data or {} %}
+    {% set top_emp = cd.top_employee or {} %}
+    {% set least_emp = cd.least_employee or {} %}
+    {% set top_customer = cd.top_customer or {} %}
+    {% set customer_details = cd.customer_details or {} %}
+    {% set peak_day = cd.peak_day or {} %}
+    {% set peak_hour = cd.peak_hour or {} %}
+    <div class="mt-3 rounded-xl border border-orange-400/30 bg-orange-500/[0.08] px-4 py-2 text-xs font-bold text-orange-300/90">
+      Credit-only analysis (direct sales excluded).
+    </div>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Credit transactions</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ cd.total_tx_count or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Credit revenue</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((cd.total_revenue or 0)|float) }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak credit day</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_day.day or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_day.revenue or 0)|float) }} revenue</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak credit time</p>
+        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_hour.hour or "-" }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_hour.revenue or 0)|float) }} revenue</p>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Credit employee ranking</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Most to least</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Employee</th>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Code</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Transactions</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Revenue</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in cd.employees or [] %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                <td class="px-4 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or "-" }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.tx_count or 0 }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.revenue or 0)|float) }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No credit-only data for this filter yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Credit customers analytics</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Each credit customer</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Customer</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Transactions</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Amount due</th>
+              <th class="px-4 py-2 text-center font-bold uppercase tracking-wider">View</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in cd.customers or [] %}
+              {% set c_key = (row.customer_name or 'Unknown customer') ~ '|||' ~ (row.customer_phone or '-') %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">
+                  <p class="font-semibold">{{ row.customer_name }}</p>
+                  <p class="text-[11px] text-[rgb(var(--rc-muted))]">{{ row.customer_phone or "-" }}</p>
+                </td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.tx_count or 0 }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.amount_due or row.credit_total or 0)|float) }}</td>
+                <td class="px-4 py-2 text-center">
+                  <button
+                    type="button"
+                    class="credit-customer-view inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:border-[rgb(var(--rc-primary))]/45 hover:bg-[rgb(var(--rc-surface))]"
+                    data-customer-key="{{ c_key }}"
+                    aria-label="View customer credit details"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No credit customer analytics for this filter yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="credit-customer-modal" class="pointer-events-none fixed inset-0 z-[95] hidden opacity-0 transition" aria-hidden="true">
+      <div class="absolute inset-0 bg-black/55"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="w-full max-w-3xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
+          <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+            <div>
+              <h4 id="credit-customer-modal-title" class="text-sm font-black text-[rgb(var(--rc-page-fg))]">Customer credit details</h4>
+              <p id="credit-customer-modal-subtitle" class="text-[11px] text-[rgb(var(--rc-muted))]"></p>
+            </div>
+            <button type="button" id="credit-customer-modal-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs font-bold text-[rgb(var(--rc-page-fg))]">Close</button>
+          </div>
+          <div id="credit-customer-modal-body" class="max-h-[70vh] space-y-3 overflow-y-auto p-4"></div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  {% if (analytics_view or '') == 'credit' %}
+    <script>
+      (function () {
+        var detailsMap = {{ (credit_data.customer_details or {})|tojson }};
+        var modal = document.getElementById("credit-customer-modal");
+        var body = document.getElementById("credit-customer-modal-body");
+        var title = document.getElementById("credit-customer-modal-title");
+        var subtitle = document.getElementById("credit-customer-modal-subtitle");
+        var closeBtn = document.getElementById("credit-customer-modal-close");
+        if (!modal || !body) return;
+
+        function esc(s) {
+          var d = document.createElement("div");
+          d.textContent = String(s == null ? "" : s);
+          return d.innerHTML;
+        }
+
+        function fmt(n) {
+          var x = parseFloat(n);
+          if (isNaN(x)) x = 0;
+          return x.toFixed(2);
+        }
+
+        function openModal(customerKey) {
+          var sales = detailsMap[customerKey] || [];
+          var parts = String(customerKey || "").split("|||");
+          var customerName = parts[0] || "Customer";
+          var customerPhone = parts[1] || "-";
+          title.textContent = customerName;
+          subtitle.textContent = customerPhone;
+
+          if (!sales.length) {
+            body.innerHTML = '<p class="text-sm text-[rgb(var(--rc-muted))]">No purchase details found for this customer in the selected range.</p>';
+          } else {
+            body.innerHTML = sales.map(function (s) {
+              var items = (s.items || []).map(function (it) {
+                return (
+                  '<tr>' +
+                  '<td class="px-2 py-1 text-left">' + esc(it.item_name) + '</td>' +
+                  '<td class="px-2 py-1 text-right tabular-nums">' + esc(String(it.qty || 0)) + '</td>' +
+                  '<td class="px-2 py-1 text-right tabular-nums">' + esc(fmt(it.line_total || 0)) + '</td>' +
+                  '</tr>'
+                );
+              }).join("");
+              return (
+                '<section class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-3">' +
+                '<div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">' +
+                '<span class="font-semibold text-[rgb(var(--rc-page-fg))]">When: ' + esc(s.created_at || "-") + '</span>' +
+                '<span class="text-[rgb(var(--rc-muted))]">Served by: ' + esc(s.employee_name || "Unknown") + (s.employee_code ? " (" + esc(s.employee_code) + ")" : "") + '</span>' +
+                '<span class="font-black tabular-nums text-[rgb(var(--rc-page-fg))]">Total: ' + esc(fmt(s.total_amount || 0)) + '</span>' +
+                '</div>' +
+                '<div class="overflow-x-auto">' +
+                '<table class="min-w-full text-xs"><thead><tr class="text-[rgb(var(--rc-muted))]">' +
+                '<th class="px-2 py-1 text-left font-bold uppercase tracking-wider">Item bought</th>' +
+                '<th class="px-2 py-1 text-right font-bold uppercase tracking-wider">Qty</th>' +
+                '<th class="px-2 py-1 text-right font-bold uppercase tracking-wider">Amount</th>' +
+                '</tr></thead><tbody>' + items + '</tbody></table>' +
+                '</div>' +
+                '</section>'
+              );
+            }).join("");
+          }
+
+          modal.classList.remove("hidden");
+          requestAnimationFrame(function () {
+            modal.classList.remove("pointer-events-none", "opacity-0");
+          });
+          modal.setAttribute("aria-hidden", "false");
+        }
+
+        function closeModal() {
+          modal.classList.add("pointer-events-none", "opacity-0");
+          modal.setAttribute("aria-hidden", "true");
+          setTimeout(function () { modal.classList.add("hidden"); }, 180);
+        }
+
+        document.addEventListener("click", function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest(".credit-customer-view") : null;
+          if (btn) {
+            openModal(btn.getAttribute("data-customer-key") || "");
+            return;
+          }
+          if (!modal.classList.contains("hidden") && (e.target === modal || (e.target && e.target === modal.firstElementChild))) {
+            closeModal();
+          }
+        });
+
+        if (closeBtn) closeBtn.addEventListener("click", closeModal);
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+        });
+      })();
+    </script>
+  {% endif %}
+  {% if (analytics_view or '') == 'customer' %}
+    {% set cd = customer_data or {} %}
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Customers</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ cd.distinct_customers or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Transactions</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ cd.total_tx_count or 0 }}</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Amount bought</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((cd.total_amount or 0)|float) }}</p>
+      </div>
+    </div>
+
+    <div class="mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Customer analytics for this shop</h3>
+        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shop scope only</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Customer</th>
+              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Phone</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Transactions</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Sales</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Credit</th>
+              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Total</th>
+              <th class="px-4 py-2 text-center font-bold uppercase tracking-wider">View</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+            {% for row in cd.customers or [] %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.customer_name }}</td>
+                <td class="px-4 py-2 text-[rgb(var(--rc-muted))]">{{ row.customer_phone }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.tx_count or 0 }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-emerald-400">{{ "%.2f"|format((row.sale_amount or 0)|float) }}</td>
+                <td class="px-4 py-2 text-right tabular-nums text-amber-400">{{ "%.2f"|format((row.credit_amount or 0)|float) }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.total_amount or 0)|float) }}</td>
+                <td class="px-4 py-2 text-center">
+                  <a
+                    href="{{ url_for('shop_customer_analytics_detail', shop_id=shop.id, customer_name=row.customer_name, customer_phone=row.customer_phone, mode=f.mode, single_day=f.single_day, start_date=f.start_date, end_date=f.end_date, month=f.month, year=f.year) }}"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:border-[rgb(var(--rc-primary))]/45 hover:bg-[rgb(var(--rc-surface))]"
+                    aria-label="View customer analytics"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                    </svg>
+                  </a>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No customer analytics for this shop in the selected filter.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

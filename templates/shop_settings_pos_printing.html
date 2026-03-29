@@ -1,0 +1,81 @@
+{% extends "shop_layout.html" %}
+{% block title %}POS printing — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}POS printing{% endblock %}
+{% block head %}
+  {% include "partials/shop_settings_switch_styles.html" %}
+{% endblock %}
+{% block shop_sidebar_links %}
+  {% set shop_settings_nav_active = 'pos_printing' %}
+  {% include "partials/shop_settings_nav.html" %}
+{% endblock %}
+{% block shop_content %}
+  {% set ps = printing_settings %}
+  <form method="post" action="{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}" class="space-y-8">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">POS printing</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Matches company settings unless you customize for this shop.</p>
+      </div>
+
+      <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+        <input type="checkbox" name="shop_printing_custom" value="1" class="mt-1 h-4 w-4 rounded border-[rgb(var(--rc-border))]" {% if shop_printing_custom %}checked{% endif %} />
+        <span>
+          <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customize POS printing for this shop</span>
+          <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">When off, the shop POS uses the same printing options as <strong class="font-medium text-[rgb(var(--rc-page-fg))]">IT → System settings → Point of sale</strong>.</span>
+        </span>
+      </label>
+
+      <div class="mt-6 space-y-6">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Reserved for future enforcement.</p>
+          </div>
+          <input type="checkbox" name="printing_compulsory_sale" value="1" class="rc-receipt-switch" {% if ps.print_compulsory_sale %}checked{% endif %} />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Allow discounting (edit line prices)</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers can change unit prices on the POS cart.</p>
+          </div>
+          <input type="checkbox" name="printing_allow_line_price_edit" value="1" class="rc-receipt-switch" {% if ps.allow_line_price_edit %}checked{% endif %} />
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipts to print per sale</label>
+          <select
+            name="printing_receipt_copies"
+            class="w-full max-w-xl rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="1" {% if ps.receipt_copies == '1' or not ps.receipt_copies %}selected{% endif %}>1 — Customer only</option>
+            <option value="2" {% if ps.receipt_copies == '2' %}selected{% endif %}>2 — Customer + company (no prices)</option>
+            <option value="3" {% if ps.receipt_copies == '3' %}selected{% endif %}>3 — Customer + company (no prices) + cashier</option>
+          </select>
+        </div>
+
+        <div>
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Allowed printer types (POS setup)</p>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
+              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</span>
+              <input type="checkbox" name="printing_allow_bluetooth" value="1" class="rc-receipt-switch" {% if ps.printer_allow_bluetooth %}checked{% endif %} />
+            </div>
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
+              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Network</span>
+              <input type="checkbox" name="printing_allow_network" value="1" class="rc-receipt-switch" {% if ps.printer_allow_network %}checked{% endif %} />
+            </div>
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
+              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">USB</span>
+              <input type="checkbox" name="printing_allow_usb" value="1" class="rc-receipt-switch" {% if ps.printer_allow_usb %}checked{% endif %} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save POS printing</button>
+    </div>
+  </form>
+{% endblock %}

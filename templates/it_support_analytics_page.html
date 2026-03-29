@@ -1,0 +1,1492 @@
+{% extends "employee_layout.html" %}
+{% block title %}{{ analytics_title }} — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}{{ analytics_title }}{% endblock %}
+{% block sidebar_links %}
+  {% if analytics_key == 'shop' %}
+    {% set sv = shop_view or 'revenue' %}
+    <a href="{{ url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Select shop</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='revenue') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'revenue' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop revenue analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='item') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'item' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop item analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='sales') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'sales' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop sales analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='credit') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'credit' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop credit analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='customer') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'customer' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop customer analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='period') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'period' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop period analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='stock') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'stock' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop stock analytics</a>
+  {% else %}
+    <a href="{{ url_for('it_support_revenue_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Revenue analytics</a>
+    <a href="{{ url_for('it_support_item_analytics_page') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Item analytics</a>
+    <a href="{{ url_for('it_support_sales_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Sales analytics</a>
+    <a href="{{ url_for('it_support_credit_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Credit analytics</a>
+    <a href="{{ url_for('it_support_period_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Period analytics</a>
+    <a href="{{ url_for('it_support_employee_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Employee analytics</a>
+    <a href="{{ url_for('it_support_customer_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Customer analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop analytics</a>
+  {% endif %}
+{% endblock %}
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set rd = revenue_data or {} %}
+  {% set idata = item_data or {} %}
+  {% set pdata = period_data or {} %}
+  {% set edata = employee_data or {} %}
+  {% set sdata = sales_data or {} %}
+  {% set cdata = credit_data or {} %}
+  {% set cust = customer_data or {} %}
+  {% set sv = shop_view or 'revenue' %}
+  {% set svd = shop_view_data or {} %}
+  <form method="get" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+    <div class="flex flex-wrap items-end gap-2.5">
+      <div class="min-w-[10rem] flex-1">
+        <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
+        <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+          <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+
+      <div id="filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+        <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+        <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <div id="filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+          <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+          <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+      </div>
+
+      <div id="filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+        <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+        <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <div id="filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+        <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+        <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
+    </div>
+  </form>
+
+  {% if analytics_key == 'revenue' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total revenue</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(rd.total_amount or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Cash sales</div>
+        <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(rd.sale_amount or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Credit sales</div>
+        <div class="mt-2 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(rd.credit_amount or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Transactions</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ rd.tx_count or 0 }}</div>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Revenue by shop</h3>
+      {% if not rd.shops %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No revenue records for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[760px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in rd.shops %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount) }}</td>
+                    <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount) }}</td>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.total_amount) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All transactions</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (rd.transactions or [])|length }} rows (max 2000)
+        </span>
+      </div>
+      {% if not rd.transactions %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[1100px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Items</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for tx in rd.transactions %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                    <td class="px-3 py-2 whitespace-nowrap {% if tx.sale_type == 'sale' %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ tx.sale_type|upper }}</td>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ "%.2f"|format(tx.total_amount) }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.item_count }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.customer_name or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.customer_phone or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.employee_code or '-' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'item' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total qty sold</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ idata.total_qty or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Item revenue</div>
+        <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(idata.total_revenue or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sale lines</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ idata.line_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Distinct items</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ idata.distinct_items or 0 }}</div>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items</h3>
+      {% if not idata.top_items %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No item sales found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[700px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty sold</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Lines</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in idata.top_items %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.qty_sold }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.line_count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Item performance by shop</h3>
+      {% if not idata.shops %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop item data found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[760px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty sold</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Lines</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in idata.shops %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.total_qty }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.total_revenue) }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.line_count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All item transaction lines</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (idata.lines or [])|length }} rows (max 3000)
+        </span>
+      </div>
+      {% if not idata.lines %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No item lines found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[1200px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Unit price</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Line total</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in idata.lines %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ row.created_at }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ row.shop_name }}{% if row.shop_code %} ({{ row.shop_code }}){% endif %}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.qty }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(row.unit_price) }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.line_total) }}</td>
+                    <td class="px-3 py-2 whitespace-nowrap {% if row.sale_type == 'sale' %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ row.sale_type|upper }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_name or '-' }}{% if row.employee_code %} ({{ row.employee_code }}){% endif %}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.customer_name or '-' }}{% if row.customer_phone %} ({{ row.customer_phone }}){% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'period' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Transactions</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ pdata.total_tx_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total revenue</div>
+        <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(pdata.total_revenue or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Peak day</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if pdata.peak_day %}{{ pdata.peak_day.day }} ({{ "%.2f"|format(pdata.peak_day.revenue) }}){% else %}-{% endif %}
+        </div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Peak hour</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if pdata.peak_hour %}{{ pdata.peak_hour.hour }} ({{ "%.2f"|format(pdata.peak_hour.revenue) }}){% else %}-{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily performance</h3>
+        {% if not pdata.daily %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No daily data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[420px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Day</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in pdata.daily %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly performance</h3>
+        {% if not pdata.hourly %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No hourly data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[420px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Hour</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in pdata.hourly %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.hour }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee performance</h3>
+        {% if not pdata.employees %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[520px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in pdata.employees %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or '-' }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shop performance</h3>
+        {% if not pdata.shops %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[520px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in pdata.shops %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code or '-' }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'employee' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Transactions</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ edata.total_tx_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Revenue</div>
+        <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(edata.total_revenue or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Employees</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ edata.distinct_employees or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Top performer</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if edata.top_employee %}{{ edata.top_employee.employee_name }}{% if edata.top_employee.employee_code %} ({{ edata.top_employee.employee_code }}){% endif %}{% else %}-{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee ranking</h3>
+      {% if not edata.employees %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee records for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[820px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in edata.employees %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount) }}</td>
+                    <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount) }}</td>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.revenue) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee performance by shop</h3>
+      {% if not edata.employee_shop_rows %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee-shop data for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[920px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in edata.employee_shop_rows %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All employee transactions</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (edata.transactions or [])|length }} rows (max 3000)
+        </span>
+      </div>
+      {% if not edata.transactions %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee transactions found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[1180px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Items</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for tx in edata.transactions %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ tx.employee_name or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_code or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                    <td class="px-3 py-2 whitespace-nowrap {% if tx.sale_type == 'sale' %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ tx.sale_type|upper }}</td>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.total_amount) }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.item_count }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.customer_name or '-' }}{% if tx.customer_phone %} ({{ tx.customer_phone }}){% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'sales' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sales transactions</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ sdata.total_tx_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sales revenue</div>
+        <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(sdata.total_revenue or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Peak day</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if sdata.peak_day %}{{ sdata.peak_day.day }} ({{ "%.2f"|format(sdata.peak_day.revenue) }}){% else %}-{% endif %}
+        </div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Peak hour</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if sdata.peak_hour %}{{ sdata.peak_hour.hour }} ({{ "%.2f"|format(sdata.peak_hour.revenue) }}){% else %}-{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily sales trend</h3>
+        {% if not sdata.daily %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No sales data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[420px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Day</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in sdata.daily %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly sales trend</h3>
+        {% if not sdata.hourly %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No hourly sales data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[420px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Hour</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in sdata.hourly %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.hour }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Sales by shop</h3>
+        {% if not sdata.shops %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop sales data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[520px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in sdata.shops %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code or '-' }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Sales by employee</h3>
+        {% if not sdata.employees %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee sales data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[520px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in sdata.employees %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or '-' }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All sales transactions</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (sdata.transactions or [])|length }} rows (max 3000)
+        </span>
+      </div>
+      {% if not sdata.transactions %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No sales transactions found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[1080px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Items</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for tx in sdata.transactions %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                    <td class="px-3 py-2 font-semibold text-emerald-400">{{ "%.2f"|format(tx.total_amount) }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.item_count }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_code or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.customer_name or '-' }}{% if tx.customer_phone %} ({{ tx.customer_phone }}){% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'credit' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Credit transactions</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ cdata.total_tx_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Credit value</div>
+        <div class="mt-2 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(cdata.total_revenue or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Peak day</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if cdata.peak_day %}{{ cdata.peak_day.day }} ({{ "%.2f"|format(cdata.peak_day.revenue) }}){% else %}-{% endif %}
+        </div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Peak hour</div>
+        <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if cdata.peak_hour %}{{ cdata.peak_hour.hour }} ({{ "%.2f"|format(cdata.peak_hour.revenue) }}){% else %}-{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily credit trend</h3>
+        {% if not cdata.daily %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No credit data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[420px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Day</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in cdata.daily %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly credit trend</h3>
+        {% if not cdata.hourly %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No hourly credit data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[420px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Hour</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in cdata.hourly %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.hour }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-3">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by shop</h3>
+        {% if not cdata.shops %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop credit data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[460px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in cdata.shops %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by employee</h3>
+        {% if not cdata.employees %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee credit data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[460px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in cdata.employees %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by customer</h3>
+        {% if not cdata.customers %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No customer credit data for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[520px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in cdata.customers %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.customer_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.customer_phone }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All credit transactions</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (cdata.transactions or [])|length }} rows (max 3000)
+        </span>
+      </div>
+      {% if not cdata.transactions %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No credit transactions found for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[1080px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Items</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for tx in cdata.transactions %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                    <td class="px-3 py-2 font-semibold text-amber-400">{{ "%.2f"|format(tx.total_amount) }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.item_count }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_code or '-' }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.customer_name or '-' }}{% if tx.customer_phone %} ({{ tx.customer_phone }}){% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'customer' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Customers</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ cust.distinct_customers or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Transactions</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ cust.total_tx_count or 0 }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Amount bought</div>
+        <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(cust.total_amount or 0) }}</div>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customers</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (cust.customers or [])|length }} rows
+        </span>
+      </div>
+      {% if not cust.customers %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No customer records for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[960px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in cust.customers %}
+                  <tr>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ row.customer_name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.customer_phone }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount) }}</td>
+                    <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount) }}</td>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.total_amount) }}</td>
+                    <td class="px-3 py-2">
+                      <a
+                        href="{{ url_for('it_support_customer_transactions', customer_name=row.customer_name, customer_phone=row.customer_phone) }}"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                        title="View customer transactions"
+                        aria-label="View customer transactions"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                        </svg>
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if analytics_key == 'shop' %}
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Select shop first</h3>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Choose a shop. Sidebar links always point to analytics for the selected shop.
+      </p>
+      <form method="get" class="mt-4 flex flex-wrap items-end gap-3">
+        <div class="min-w-[18rem] flex-1">
+          <label for="shop_id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shop</label>
+          <select id="shop_id" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option value="">Select shop...</option>
+            {% for s in shops or [] %}
+              <option value="{{ s.id }}" {% if selected_shop_id and selected_shop_id == s.id %}selected{% endif %}>
+                {{ s.shop_name }}{% if s.shop_code %} ({{ s.shop_code }}){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <input type="hidden" name="shop_view" value="{{ sv }}" />
+        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-sm font-semibold">Load shop analytics links</button>
+      </form>
+      <p class="mt-3 text-xs text-[rgb(var(--rc-muted))]">
+        Current shop: {% if selected_shop_id %}<span class="font-semibold text-[rgb(var(--rc-page-fg))]">ID {{ selected_shop_id }}</span>{% else %}<span class="font-semibold">None</span>{% endif %}.
+      </p>
+    </div>
+
+    {% if selected_shop_id %}
+      <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shop analytics view: {{ sv|upper }}</h3>
+        {% if sv == 'revenue' %}
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Total revenue</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(svd.total_amount or 0) }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Sales</div><div class="mt-1 text-xl font-bold text-emerald-400">{{ "%.2f"|format((svd.sale or {}).amount or 0) }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Credit</div><div class="mt-1 text-xl font-bold text-amber-400">{{ "%.2f"|format((svd.credit or {}).amount or 0) }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Transactions</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.total_count or 0 }}</div></div>
+          </div>
+          <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily revenue trend</h4>
+            {% if not svd.daily %}
+              <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No daily rows for this filter.</p>
+            {% else %}
+              <div class="mt-2 overflow-x-auto">
+                <table class="min-w-[620px] w-full text-sm">
+                  <thead class="text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Day</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Sales</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Credit</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Total</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for r in svd.daily %}
+                      <tr>
+                        <td class="px-2 py-1">{{ r.day }}</td>
+                        <td class="px-2 py-1 text-emerald-400">{{ "%.2f"|format(r.sale_amount or 0) }}</td>
+                        <td class="px-2 py-1 text-amber-400">{{ "%.2f"|format(r.credit_amount or 0) }}</td>
+                        <td class="px-2 py-1 font-semibold">{{ "%.2f"|format(r.total_amount or 0) }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% endif %}
+          </div>
+        {% elif sv == 'item' %}
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Total qty</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.total_qty or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Revenue</div><div class="mt-1 text-xl font-bold text-emerald-400">{{ "%.2f"|format(svd.total_revenue or 0) }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Lines</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.line_count or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Items</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.distinct_items or 0 }}</div></div>
+          </div>
+          <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top sold items</h4>
+            {% if not svd.top_items %}
+              <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No top item rows for this filter.</p>
+            {% else %}
+              <div class="mt-2 overflow-x-auto">
+                <table class="min-w-[560px] w-full text-sm">
+                  <thead class="text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Item</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Qty sold</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Revenue</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Lines</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for r in svd.top_items %}
+                      <tr>
+                        <td class="px-2 py-1">{{ r.item_name }}</td>
+                        <td class="px-2 py-1">{{ r.qty_sold }}</td>
+                        <td class="px-2 py-1 text-emerald-400">{{ "%.2f"|format(r.revenue or 0) }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.sale_lines or 0 }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% endif %}
+          </div>
+        {% elif sv == 'sales' or sv == 'credit' or sv == 'period' %}
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Transactions</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.total_tx_count or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Revenue</div><div class="mt-1 text-xl font-bold text-emerald-400">{{ "%.2f"|format(svd.total_revenue or 0) }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Peak day</div><div class="mt-1 text-sm font-bold text-[rgb(var(--rc-page-fg))]">{% if svd.peak_day %}{{ svd.peak_day.day }}{% else %}-{% endif %}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Peak hour</div><div class="mt-1 text-sm font-bold text-[rgb(var(--rc-page-fg))]">{% if svd.peak_hour %}{{ svd.peak_hour.hour }}{% else %}-{% endif %}</div></div>
+          </div>
+          <div class="mt-4 grid gap-4 xl:grid-cols-2">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+              <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily trend</h4>
+              {% if not svd.daily %}
+                <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No daily rows.</p>
+              {% else %}
+                <div class="mt-2 overflow-x-auto">
+                  <table class="min-w-[420px] w-full text-sm">
+                    <thead class="text-[rgb(var(--rc-muted))]">
+                      <tr>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Day</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                      {% for r in svd.daily %}
+                        <tr>
+                          <td class="px-2 py-1">{{ r.day }}</td>
+                          <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                          <td class="px-2 py-1 text-emerald-400">{{ "%.2f"|format(r.revenue or 0) }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+            </div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+              <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly trend</h4>
+              {% if not svd.hourly %}
+                <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No hourly rows.</p>
+              {% else %}
+                <div class="mt-2 overflow-x-auto">
+                  <table class="min-w-[420px] w-full text-sm">
+                    <thead class="text-[rgb(var(--rc-muted))]">
+                      <tr>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Hour</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                      {% for r in svd.hourly %}
+                        <tr>
+                          <td class="px-2 py-1">{{ r.hour }}</td>
+                          <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                          <td class="px-2 py-1 text-emerald-400">{{ "%.2f"|format(r.revenue or 0) }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          {% if svd.employees %}
+            <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+              <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee performance</h4>
+              <div class="mt-2 overflow-x-auto">
+                <table class="min-w-[560px] w-full text-sm">
+                  <thead class="text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Employee</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Code</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for r in svd.employees %}
+                      <tr>
+                        <td class="px-2 py-1">{{ r.employee_name }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.employee_code or '-' }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                        <td class="px-2 py-1 text-emerald-400">{{ "%.2f"|format(r.revenue or 0) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+          {% if sv == 'credit' and svd.customers %}
+            <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+              <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by customer</h4>
+              <div class="mt-2 overflow-x-auto">
+                <table class="min-w-[620px] w-full text-sm">
+                  <thead class="text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Customer</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Phone</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for r in svd.customers %}
+                      <tr>
+                        <td class="px-2 py-1">{{ r.customer_name }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.customer_phone }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                        <td class="px-2 py-1 text-amber-400">{{ "%.2f"|format(r.credit_total or r.revenue or 0) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        {% elif sv == 'customer' %}
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Customers</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.distinct_customers or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Transactions</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.total_tx_count or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Amount bought</div><div class="mt-1 text-xl font-bold text-emerald-400">{{ "%.2f"|format(svd.total_amount or 0) }}</div></div>
+          </div>
+          <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shop customer analytics</h4>
+            {% if not svd.customers %}
+              <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No customer records for this shop and filter.</p>
+            {% else %}
+              <div class="mt-2 overflow-x-auto">
+                <table class="min-w-[820px] w-full text-sm">
+                  <thead class="text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Customer</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Phone</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Sales</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Credit</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Total</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">View</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for r in svd.customers %}
+                      <tr>
+                        <td class="px-2 py-1">{{ r.customer_name }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.customer_phone }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                        <td class="px-2 py-1 text-emerald-400">{{ "%.2f"|format(r.sale_amount or 0) }}</td>
+                        <td class="px-2 py-1 text-amber-400">{{ "%.2f"|format(r.credit_amount or 0) }}</td>
+                        <td class="px-2 py-1 font-semibold">{{ "%.2f"|format(r.total_amount or 0) }}</td>
+                        <td class="px-2 py-1">
+                          <a
+                            href="{{ url_for('it_support_customer_transactions', customer_name=r.customer_name, customer_phone=r.customer_phone, shop_id=selected_shop_id, mode=f.mode, single_day=f.single_day, start_date=f.start_date, end_date=f.end_date, month=f.month, year=f.year) }}"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
+                            aria-label="View customer transactions for this shop"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                            </svg>
+                          </a>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% endif %}
+          </div>
+        {% elif sv == 'stock' %}
+          <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Transactions</div><div class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ svd.tx_count or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Qty in</div><div class="mt-1 text-xl font-bold text-emerald-400">{{ svd.qty_in or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Qty out</div><div class="mt-1 text-xl font-bold text-rose-400">{{ svd.qty_out or 0 }}</div></div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-xs text-[rgb(var(--rc-muted))]">Net</div><div class="mt-1 text-xl font-bold {% if (svd.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ svd.net_qty or 0 }}</div></div>
+          </div>
+          <div class="mt-4 grid gap-4 xl:grid-cols-2">
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+              <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock in items</h4>
+              {% if not svd.top_in_items %}
+                <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No stock-in records.</p>
+              {% else %}
+                <div class="mt-2 overflow-x-auto">
+                  <table class="min-w-[480px] w-full text-sm">
+                    <thead class="text-[rgb(var(--rc-muted))]">
+                      <tr>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Item</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Category</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                      {% for r in svd.top_in_items %}
+                        <tr>
+                          <td class="px-2 py-1">{{ r.name }}</td>
+                          <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.category }}</td>
+                          <td class="px-2 py-1 text-emerald-400">{{ r.qty }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+            </div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+              <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock out items</h4>
+              {% if not svd.top_out_items %}
+                <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No stock-out records.</p>
+              {% else %}
+                <div class="mt-2 overflow-x-auto">
+                  <table class="min-w-[480px] w-full text-sm">
+                    <thead class="text-[rgb(var(--rc-muted))]">
+                      <tr>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Item</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Category</th>
+                        <th class="px-2 py-1 text-left text-xs font-bold uppercase">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                      {% for r in svd.top_out_items %}
+                        <tr>
+                          <td class="px-2 py-1">{{ r.name }}</td>
+                          <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.category }}</td>
+                          <td class="px-2 py-1 text-rose-400">{{ r.qty }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily stock movement</h4>
+            {% if not svd.daily %}
+              <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No daily stock movement rows.</p>
+            {% else %}
+              <div class="mt-2 overflow-x-auto">
+                <table class="min-w-[620px] w-full text-sm">
+                  <thead class="text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Day</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Tx</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">In</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Out</th>
+                      <th class="px-2 py-1 text-left text-xs font-bold uppercase">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for r in svd.daily %}
+                      <tr>
+                        <td class="px-2 py-1">{{ r.day }}</td>
+                        <td class="px-2 py-1 text-[rgb(var(--rc-muted))]">{{ r.tx_count or 0 }}</td>
+                        <td class="px-2 py-1 text-emerald-400">{{ r.qty_in or 0 }}</td>
+                        <td class="px-2 py-1 text-rose-400">{{ r.qty_out or 0 }}</td>
+                        <td class="px-2 py-1 {% if (r.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ r.net_qty or 0 }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <script>
+    (function () {
+      var mode = document.getElementById("analytics-filter-mode");
+      var day = document.getElementById("filter-single-day");
+      var period = document.getElementById("filter-period");
+      var month = document.getElementById("filter-month");
+      var year = document.getElementById("filter-year");
+      if (!mode) return;
+      function sync() {
+        var m = mode.value || "single_day";
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (period) period.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

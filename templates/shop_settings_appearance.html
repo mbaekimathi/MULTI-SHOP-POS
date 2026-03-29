@@ -1,0 +1,64 @@
+{% extends "shop_layout.html" %}
+{% block title %}Appearance — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Appearance{% endblock %}
+{% block shop_sidebar_links %}
+  {% set shop_settings_nav_active = 'appearance' %}
+  {% include "partials/shop_settings_nav.html" %}
+{% endblock %}
+{% block shop_content %}
+  <form method="post" action="{{ url_for('shop_settings_appearance', shop_id=shop.id) }}" class="space-y-8">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Theme and colors for this shop session. POS printing and receipt options are on their own pages.</p>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Default theme</label>
+          <select
+            name="default_theme"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="dark" {% if (shop.default_theme or 'dark') == 'dark' %}selected{% endif %}>Dark</option>
+            <option value="light" {% if (shop.default_theme or 'dark') == 'light' %}selected{% endif %}>Light</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Font family</label>
+          <select
+            name="font_family"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="Plus Jakarta Sans" {% if (shop.font_family or 'Plus Jakarta Sans') == 'Plus Jakarta Sans' %}selected{% endif %}>Plus Jakarta Sans</option>
+            <option value="Inter" {% if (shop.font_family or '') == 'Inter' %}selected{% endif %}>Inter</option>
+            <option value="System UI" {% if (shop.font_family or '') == 'System UI' %}selected{% endif %}>System UI</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Primary color</label>
+          <input
+            name="primary_color"
+            type="color"
+            class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2"
+            value="{{ shop.primary_color or '#10b981' }}"
+          />
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Accent color</label>
+          <input
+            name="accent_color"
+            type="color"
+            class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2"
+            value="{{ shop.accent_color or '#14b8a6' }}"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save appearance</button>
+    </div>
+  </form>
+{% endblock %}

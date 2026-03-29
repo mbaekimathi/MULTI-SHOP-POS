@@ -1,0 +1,55 @@
+{% if portal_employee %}
+  <details class="group relative">
+    <summary
+      class="flex cursor-pointer list-none items-center gap-3 rounded-xl py-1 pl-1 pr-2 transition hover:bg-[rgb(var(--rc-surface-2))] [&::-webkit-details-marker]:hidden"
+    >
+      {% if portal_employee.profile_image %}
+        <img
+          src="{{ url_for('static', filename=portal_employee.profile_image) }}"
+          alt=""
+          class="h-9 w-9 shrink-0 rounded-full border border-[rgb(var(--rc-border))] object-cover"
+        />
+      {% else %}
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-sm font-bold text-[rgb(var(--rc-muted))]"
+          >{{ (portal_employee.name or '?')[0] }}</span
+        >
+      {% endif %}
+      <div class="hidden min-w-0 text-left sm:block">
+        <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ portal_employee.name }}</p>
+        <p class="truncate text-xs text-brand-700 dark:text-brand-300/90">{{ portal_employee.role_label }}</p>
+      </div>
+      <svg
+        class="hidden h-4 w-4 shrink-0 text-[rgb(var(--rc-muted))] transition group-open:rotate-180 sm:block"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </summary>
+    <div
+      class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-1 shadow-xl backdrop-blur-md"
+      role="menu"
+    >
+      <a
+        href="{{ portal_employee.profile_settings_url }}"
+        class="block px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+        role="menuitem"
+        >Profile settings</a
+      >
+      <form method="post" action="{{ url_for('employee_logout') }}" class="border-t border-[rgb(var(--rc-border))]">
+        <button
+          type="submit"
+          class="w-full px-4 py-2.5 text-left text-sm text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10"
+          role="menuitem"
+        >
+          Sign out
+        </button>
+      </form>
+    </div>
+  </details>
+{% elif nav_employee %}
+  <span class="truncate text-xs text-slate-500">{{ nav_employee.name }}</span>
+{% endif %}

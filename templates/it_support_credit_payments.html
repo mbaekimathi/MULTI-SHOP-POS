@@ -1,0 +1,71 @@
+{% extends "employee_layout.html" %}
+{% block title %}Credit payments — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Credit payments{% endblock %}
+
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_register_shop') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">My shops</a>
+  <a href="{{ url_for('it_support_item_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Item management page</a>
+  <a href="{{ url_for('it_support_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Analytics page</a>
+  <a href="{{ url_for('it_support_credit_payments') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments (all shops)</a>
+  <a href="{{ url_for('it_support_store_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Store management</a>
+  <a href="{{ url_for('it_support_hr_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">HR management page</a>
+  <a href="{{ url_for('it_support_website_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Website management page</a>
+{% endblock %}
+
+{% block employee_content %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">All shops credit balances</h2>
+    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">View customers with outstanding credit and receive payments using FIFO clearing.</p>
+  </div>
+
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    {% if not customers %}
+      <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances.</p>
+    {% else %}
+      <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+        <div class="overflow-x-auto">
+          <table class="min-w-[1060px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for c in customers %}
+                <tr>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ c.shop_name }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ c.shop_code or '-' }}</td>
+                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ c.tx_count }}</td>
+                  <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(c.credit_total) }}</td>
+                  <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(c.paid_total) }}</td>
+                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(c.balance) }}</td>
+                  <td class="px-3 py-2">
+                    <a href="{{ url_for('it_support_credit_payments_customer', shop_id=c.shop_id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
+                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                       aria-label="View customer credit">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+

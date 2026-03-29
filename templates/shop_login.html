@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Shop login — {{ shop.shop_name if shop else "Shop" }}{% endblock %}
+{% block content %}
+  <section class="mx-auto max-w-lg px-4 py-12 sm:px-6">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 sm:p-8">
+      <h1 class="text-xl font-semibold text-[rgb(var(--rc-page-fg))]">Shop login</h1>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+        {{ shop.shop_name }} ({{ shop.shop_code }}) — {{ shop.shop_location }}
+      </p>
+
+      {% include "partials/flashes.html" %}
+
+      <form method="post" action="{{ url_for('shop_login', shop_id=shop.id) }}" class="mt-6 space-y-5">
+        <div>
+          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop code</label>
+          <input
+            value="{{ shop.shop_code }}"
+            readonly
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          />
+        </div>
+        <div>
+          <label for="shop_password" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop password</label>
+          <input
+            id="shop_password"
+            name="shop_password"
+            type="password"
+            required
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            placeholder="Enter shop password"
+          />
+        </div>
+        <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-2.5 text-sm">
+          Login to shop
+        </button>
+      </form>
+    </div>
+  </section>
+{% endblock %}

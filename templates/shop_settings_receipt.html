@@ -1,0 +1,313 @@
+{% extends "shop_layout.html" %}
+{% block title %}Receipt settings — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Receipt settings{% endblock %}
+{% block head %}
+  {% include "partials/shop_settings_switch_styles.html" %}
+{% endblock %}
+{% block shop_sidebar_links %}
+  {% set shop_settings_nav_active = 'receipt' %}
+  {% include "partials/shop_settings_nav.html" %}
+{% endblock %}
+{% block shop_content %}
+  <form method="post" action="{{ url_for('shop_settings_receipt', shop_id=shop.id) }}" class="space-y-8">
+    {% include "partials/shop_settings_receipt_inner.html" %}
+    <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save receipt settings</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      function initReceiptSettingsToggles() {
+        var root = document.getElementById("shop-settings-receipt");
+        if (!root) return;
+        var pay = document.getElementById("receipt_show_payment_details");
+        var payW = document.getElementById("receipt-payment-wrap");
+        var tax = document.getElementById("receipt_include_tax");
+        var taxW = document.getElementById("receipt-tax-wrap");
+        var qrEn = document.getElementById("receipt_qr_enabled");
+        var qrOpt = document.getElementById("receipt-qr-options");
+        var qrUrlWrap = document.getElementById("receipt-qr-url-wrap");
+        function syncQrUrl() {
+          var website = root.querySelector('input[name="receipt_qr_mode"][value="website"]');
+          if (qrUrlWrap) qrUrlWrap.classList.toggle("hidden", !website || !website.checked);
+        }
+        function syncQr() {
+          if (qrOpt) qrOpt.classList.toggle("hidden", !qrEn || !qrEn.checked);
+          syncQrUrl();
+        }
+        function sync() {
+          if (payW) payW.classList.toggle("hidden", !pay || !pay.checked);
+          if (taxW) taxW.classList.toggle("hidden", !tax || !tax.checked);
+          syncQr();
+          if (window.updateReceiptPreview) window.updateReceiptPreview();
+        }
+        if (pay) pay.addEventListener("change", sync);
+        if (tax) tax.addEventListener("change", sync);
+        if (qrEn) {
+          qrEn.addEventListener("change", function () {
+            qrEn.setAttribute("aria-checked", qrEn.checked ? "true" : "false");
+            sync();
+          });
+        }
+        root.querySelectorAll('input[name="receipt_qr_mode"]').forEach(function (r) {
+          r.addEventListener("change", syncQrUrl);
+        });
+        sync();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initReceiptSettingsToggles);
+      } else {
+        initReceiptSettingsToggles();
+      }
+    })();
+
+    (function () {
+      var tab = document.getElementById("shop-settings-receipt");
+      if (!tab) return;
+      var body = document.getElementById("receipt-preview-body");
+      var paper = document.getElementById("receipt-print-preview");
+      window.RECEIPT_PREVIEW_META = {
+        companyName: {{ (site_settings.company_name if site_settings else "Point of Sale")|tojson }},
+        companyEmail: {{ (site_settings.company_email if site_settings else "")|tojson }},
+        companyPhone: {{ (site_settings.company_phone if site_settings else "")|tojson }},
+        companyAddress: "",
+        appIconUrl: {{ (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'))|tojson }},
+      };
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+      }
+
+      function val(name) {
+        var el = tab.querySelector('[name="' + name + '"]');
+        if (!el) return "";
+        if (el.type === "checkbox") return el.checked;
+        return el.value;
+      }
+
+      function radioVal(name) {
+        var el = tab.querySelector('[name="' + name + '"]:checked');
+        return el ? el.value : "";
+      }
+
+      function updateReceiptPreview() {
+        if (!body || !paper) return;
+        var meta = window.RECEIPT_PREVIEW_META || {};
+        var width = String(val("receipt_width") || "80mm").trim().toLowerCase();
+        var narrow = width === "58mm" || width === "50mm" || width === "50";
+        paper.style.width = narrow ? "58mm" : "80mm";
+
+        var fsize = val("receipt_font_size") || "12pt";
+        var fsMap = { "8pt": "8px", "10pt": "10px", "12pt": "12px" };
+        body.style.fontSize = fsMap[fsize] || "12px";
+
+        var boldH = !!val("receipt_bold_headers");
+        var prefix = String(val("receipt_number_prefix") || "T").trim() || "T";
+        var startNum = String(val("receipt_starting_number") || "1001").trim() || "1001";
+        var receiptNo = prefix + "-" + startNum;
+        var demoDate = new Date().toLocaleString();
+
+        var showLogo = !!val("receipt_show_logo");
+        var showAddr = !!val("receipt_show_address");
+        var showContact = !!val("receipt_show_contact");
+        var showServer = !!val("receipt_show_server");
+        var showDt = !!val("receipt_show_datetime");
+
+        var incTax = !!val("receipt_include_tax");
+        var taxPct = parseFloat(String(val("receipt_tax_percent") || "0").replace(",", ".")) || 0;
+
+        var showPay = !!val("receipt_show_payment_details");
+        var payType = String(val("receipt_payment_type") || "buy_goods");
+        var payTypeLabel =
+          { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" }[payType] || payType;
+        var payText = String(val("receipt_payment_detail_text") || "").trim();
+
+        var header = String(val("receipt_header") || "").trim();
+        var footer = String(val("receipt_footer") || "").trim();
+
+        var qrOn = !!val("receipt_qr_enabled");
+        var qrMode = radioVal("receipt_qr_mode") || "receipt_details";
+        var qrUrl = String(val("receipt_qr_website_url") || "").trim();
+
+        var demoLines = [
+          { name: "Coffee · Regular", qty: 2, total: 9.0 },
+          { name: "Bread · Loaf", qty: 1, total: 2.0 },
+        ];
+        var subtotal = 11.0;
+        var taxAmt = incTax ? subtotal * (taxPct / 100) : 0;
+        var grand = subtotal + taxAmt;
+
+        var th = boldH ? "font-weight:700" : "font-weight:600";
+        var html = "";
+        html += '<div style="text-align:center;font-weight:700;font-size:1.05em;letter-spacing:0.03em">' + esc(meta.companyName || "Point of Sale") + "</div>";
+        html += '<div style="text-align:center;opacity:0.75;font-size:0.85em;margin-top:2px">THERMAL RECEIPT</div>';
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+
+        if (showLogo) {
+          html +=
+            '<div style="text-align:center;margin-bottom:8px"><img src="' +
+            esc(meta.appIconUrl || "") +
+            '" alt="" style="height:3rem;width:3rem;object-fit:contain" /></div>';
+        }
+
+        if (header) {
+          html +=
+            '<div style="text-align:center;font-size:0.85em;white-space:pre-wrap;margin-bottom:8px">' +
+            esc(header) +
+            "</div>";
+        }
+
+        if (showAddr) {
+          html +=
+            '<div style="text-align:center;font-size:0.85em;opacity:0.75;margin-bottom:4px">' +
+            (meta.companyAddress
+              ? esc(meta.companyAddress)
+              : '<span style="opacity:0.5">[Business address]</span>') +
+            "</div>";
+        }
+
+        if (showContact) {
+          var bits = [];
+          if (meta.companyPhone) bits.push(meta.companyPhone);
+          if (meta.companyEmail) bits.push(meta.companyEmail);
+          html +=
+            '<div style="text-align:center;font-size:0.85em;margin-bottom:6px">' +
+            (bits.length ? esc(bits.join(" · ")) : '<span style="opacity:0.5">[Phone / email]</span>') +
+            "</div>";
+        }
+
+        html += '<div style="font-size:0.85em">';
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px"><span>Receipt</span><span style="font-weight:600">' +
+          esc(receiptNo) +
+          "</span></div>";
+        if (showDt) {
+          html +=
+            '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Date</span><span>' +
+            esc(demoDate) +
+            "</span></div>";
+        }
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Type</span><span style="font-weight:600">Sale</span></div>';
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Customer</span><span>Walk-in customer</span></div>';
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Phone</span><span>-</span></div>';
+        if (showServer) {
+          html +=
+            '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Cashier</span><span>Jane Doe (123456)</span></div>';
+        }
+        html += "</div>";
+
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.85em"><thead><tr>';
+        html += '<td style="' + th + ';text-align:left;width:58%;padding:1px 0">Item</td>';
+        html += '<td style="' + th + ';text-align:center;width:12%;padding:1px 0">Qty</td>';
+        html += '<td style="' + th + ';text-align:right;width:30%;padding:1px 0">Amt</td>';
+        html += "</tr></thead><tbody>";
+        demoLines.forEach(function (l) {
+          html +=
+            '<tr><td colspan="3" style="padding-top:4px;vertical-align:top">' + esc(l.name) + "</td></tr>";
+          html +=
+            '<tr><td></td><td style="text-align:center">' +
+            String(l.qty) +
+            '</td><td style="text-align:right">' +
+            l.total.toFixed(2) +
+            "</td></tr>";
+        });
+        html += "</tbody></table>";
+
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        if (incTax) {
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700"><span>Subtotal</span><span>' +
+            subtotal.toFixed(2) +
+            "</span></div>";
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:0.85em;margin-top:4px"><span>Tax (' +
+            esc(String(taxPct)) +
+            "%)</span><span>" +
+            taxAmt.toFixed(2) +
+            "</span></div>";
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700;margin-top:4px"><span>Total</span><span>' +
+            grand.toFixed(2) +
+            "</span></div>";
+        } else {
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700"><span>Total</span><span>' +
+            subtotal.toFixed(2) +
+            "</span></div>";
+        }
+
+        if (showPay) {
+          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+          html += '<div style="font-size:0.85em;font-weight:600">' + esc(payTypeLabel) + "</div>";
+          if (payText) {
+            html +=
+              '<div style="font-size:0.85em;margin-top:4px;white-space:pre-wrap">' + esc(payText) + "</div>";
+          }
+        }
+
+        if (qrOn) {
+          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+          html += '<div style="text-align:center">';
+          html +=
+            '<div style="display:inline-flex;height:5rem;width:5rem;align-items:center;justify-content:center;border:2px dashed #999;border-radius:4px;background:#f5f5f5;font-size:8px;color:#666">QR</div>';
+          if (qrMode === "website" && qrUrl) {
+            html +=
+              '<div style="font-size:9px;margin-top:6px;word-break:break-all;opacity:0.85">' +
+              esc(qrUrl) +
+              "</div>";
+          } else if (qrMode === "website") {
+            html +=
+              '<div style="font-size:9px;margin-top:6px;opacity:0.55">[Website URL]</div>';
+          } else {
+            html +=
+              '<div style="font-size:9px;margin-top:6px;opacity:0.75">Receipt: ' +
+              esc(receiptNo) +
+              " · …</div>";
+          }
+          html += "</div>";
+        }
+
+        if (footer) {
+          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+          html +=
+            '<div style="text-align:center;font-size:0.85em;white-space:pre-wrap">' + esc(footer) + "</div>";
+        }
+
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        html += '<div style="text-align:center;font-size:0.85em;opacity:0.7">Thank you</div>';
+        html += '<div style="text-align:center;font-size:0.75em;opacity:0.45;margin-top:2px">Powered by Richcom POS</div>';
+
+        body.innerHTML = html;
+      }
+
+      window.updateReceiptPreview = updateReceiptPreview;
+
+      function bindPreview() {
+        tab.querySelectorAll("input, select, textarea").forEach(function (el) {
+          el.addEventListener("input", updateReceiptPreview);
+          el.addEventListener("change", updateReceiptPreview);
+        });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () {
+          bindPreview();
+          updateReceiptPreview();
+        });
+      } else {
+        bindPreview();
+        updateReceiptPreview();
+      }
+    })();
+  </script>
+{% endblock %}

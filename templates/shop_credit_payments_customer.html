@@ -1,0 +1,104 @@
+{% extends "shop_layout.html" %}
+{% block title %}Customer credit — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Customer credit{% endblock %}
+
+{% block shop_sidebar_links %}
+  <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments</a>
+{% endblock %}
+
+{% block shop_content %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ customer_name }}</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Phone: {{ customer_phone }}</p>
+      </div>
+      <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]">Back</a>
+    </div>
+  </div>
+
+  <div class="mt-3 grid gap-3 sm:grid-cols-3">
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Credit total</div><div class="mt-2 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(total_credit or 0) }}</div></div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(total_paid or 0) }}</div></div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance</div><div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_due or 0) }}</div></div>
+  </div>
+
+  <div class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Receive payment (FIFO clearing)</h3>
+    <form method="post" action="{{ url_for('shop_credit_payments_pay', shop_id=shop.id) }}" class="mt-3 flex flex-wrap items-end gap-2.5">
+      <input type="hidden" name="customer_name" value="{{ customer_name }}" />
+      <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
+      <div class="min-w-[12rem] flex-1">
+        <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Amount paid</label>
+        <input name="amount" type="number" step="0.01" min="0" required class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+      </div>
+      <div class="min-w-[14rem] flex-1">
+        <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Note (optional)</label>
+        <input name="note" type="text" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. Cash payment" />
+      </div>
+      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-sm font-semibold">Pay</button>
+    </form>
+    <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Payments clear the oldest outstanding credit sale first, then continue until the amount is used.</p>
+  </div>
+
+  <div class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit transactions</h3>
+    {% if not transactions %}
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No credit transactions for this customer.</p>
+    {% else %}
+      <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+        <div class="overflow-x-auto">
+          <table class="min-w-[980px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sale</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for tx in transactions %}
+                <tr>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">#{{ tx.id }}</td>
+                  <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(tx.total_amount) }}</td>
+                  <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(tx.paid_amount) }}</td>
+                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.remaining_amount) }}</td>
+                  <td class="px-3 py-2">
+                    {% if tx.credit_status == 'paid' %}
+                      <span class="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">paid</span>
+                    {% elif tx.credit_status == 'partially_paid' %}
+                      <span class="rounded-full border border-amber-300/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">partially paid</span>
+                    {% else %}
+                      <span class="rounded-full border border-slate-300/30 bg-slate-500/10 px-2 py-0.5 text-xs font-semibold text-slate-200">not paid</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name }}{% if tx.employee_code %} ({{ tx.employee_code }}){% endif %}</td>
+                  <td class="px-3 py-2">
+                    <a
+                      href="{{ url_for('shop_credit_sale_detail', shop_id=shop.id, sale_id=tx.id) }}"
+                      class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                      aria-label="View credit sale details"
+                      title="View credit sale details"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+

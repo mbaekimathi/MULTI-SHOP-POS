@@ -1,0 +1,963 @@
+{% extends "employee_layout.html" %}
+{% block head %}
+  <style>
+    .rc-receipt-switch {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 2.75rem;
+      height: 1.5rem;
+      border-radius: 9999px;
+      background: rgb(var(--rc-border));
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .rc-receipt-switch:checked {
+      background: rgb(var(--rc-primary));
+    }
+    .rc-receipt-switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 3px;
+      width: 1.125rem;
+      height: 1.125rem;
+      border-radius: 9999px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      transition: transform 0.2s ease;
+    }
+    .rc-receipt-switch:checked::after {
+      transform: translateX(1.15rem);
+    }
+  </style>
+{% endblock %}
+{% block title %}System settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}System settings{% endblock %}
+{% block sidebar_links %}
+  {# Default: full settings nav — hidden while viewing POS / printing / receipt sub-areas #}
+  <div id="settings-sidebar-default" class="flex flex-col gap-1">
+    <a
+      href="{{ url_for('it_support_system_settings') }}#system"
+      data-settings-tab="system"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      System settings
+    </a>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#company"
+      data-settings-tab="company"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M9 8h6m-6 4h6m-6 4h6M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16" />
+      </svg>
+      Company settings
+    </a>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#website"
+      data-settings-tab="website"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5-2.5 4-5.5 4-9s-1.5-6.5-4-9c-2.5 2.5-4 5.5-4 9s1.5 6.5 4 9zm-8-9h16" />
+      </svg>
+      Website settings
+    </a>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#pos"
+      data-settings-tab="pos"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
+      </svg>
+      Point of sale
+    </a>
+  </div>
+
+  {# POS area only: replace sidebar while hash is #pos, #printing, or #receipt #}
+  <div id="settings-sidebar-pos" class="hidden flex flex-col gap-1">
+    <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Point of sale</p>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#pos"
+      data-settings-tab="pos"
+      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
+      </svg>
+      Point of sale settings
+    </a>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#printing"
+      data-settings-tab="printing"
+      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4M15 9h6M4 6h16M4 10h16M4 14h10M4 18h10" />
+      </svg>
+      Printing settings
+    </a>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#receipt"
+      data-settings-tab="receipt"
+      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+      </svg>
+      Receipt settings
+    </a>
+    <a
+      href="{{ url_for('it_support_system_settings') }}#system"
+      class="mt-1 text-xs font-semibold text-[rgb(var(--rc-muted))] underline-offset-2 hover:text-[rgb(var(--rc-primary))] hover:underline"
+    >
+      ← All system settings
+    </a>
+  </div>
+{% endblock %}
+{% block employee_content %}
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('it_support_system_settings') }}" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+    <input type="hidden" name="return_hash" id="return_hash" value="#system" />
+    <div id="tab-system" data-panel="system">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">System settings</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Theme defaults for the portal UI.</p>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Default theme</label>
+          <select name="default_theme" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option value="dark" {% if site_settings and site_settings.default_theme == 'dark' %}selected{% endif %}>Dark</option>
+            <option value="light" {% if site_settings and site_settings.default_theme == 'light' %}selected{% endif %}>Light</option>
+            <option value="system" {% if site_settings and site_settings.default_theme == 'system' %}selected{% endif %}>System</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Font family</label>
+          <select name="font_family" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option {% if site_settings and site_settings.font_family == 'Plus Jakarta Sans' %}selected{% endif %}>Plus Jakarta Sans</option>
+            <option {% if site_settings and site_settings.font_family == 'System UI' %}selected{% endif %}>System UI</option>
+            <option {% if site_settings and site_settings.font_family == 'Inter' %}selected{% endif %}>Inter</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Primary color</label>
+          <input name="primary_color" type="color" class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2" value="{{ site_settings.primary_color if site_settings else '#f97316' }}" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Accent color</label>
+          <input name="accent_color" type="color" class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2" value="{{ site_settings.accent_color if site_settings else '#fb923c' }}" />
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-company" data-panel="company" class="hidden">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Company identity and contact details.</p>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Company name</label>
+          <input
+            name="company_name"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ site_settings.company_name if site_settings else 'Point of Sale' }}"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Email</label>
+          <input name="company_email" type="email" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_email if site_settings else '' }}" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Phone</label>
+          <input name="company_phone" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_phone if site_settings else '' }}" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">App icon</label>
+          <p class="mb-2 text-sm text-[rgb(var(--rc-muted))]">Used as the website icon and the default logo in the UI.</p>
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="h-14 w-14 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
+              {% if site_settings and site_settings.app_icon %}
+                <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="App icon" class="h-full w-full object-cover" />
+              {% else %}
+                <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="Default app icon" class="h-full w-full object-cover" />
+              {% endif %}
+            </div>
+            <div class="flex-1 min-w-[16rem]">
+              <input name="app_icon" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.ico,.svg" class="block w-full text-sm text-[rgb(var(--rc-muted))]" />
+              <label class="mt-2 inline-flex items-center gap-2 text-sm text-[rgb(var(--rc-muted))]">
+                <input type="checkbox" name="remove_app_icon" value="1" class="h-4 w-4 rounded border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]" />
+                Remove custom icon (use default)
+              </label>
+            </div>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Facebook</label>
+          <input name="company_facebook" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_facebook if site_settings else '' }}" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Instagram</label>
+          <input name="company_instagram" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_instagram if site_settings else '' }}" />
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-website" data-panel="website" class="hidden">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Website settings</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Public website configuration.</p>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Website title</label>
+          <input class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="{{ site_settings.company_name if site_settings else 'Point of Sale' }}" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Meta description</label>
+          <textarea rows="4" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="Short description for search engines..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-pos" data-panel="pos" class="hidden">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Point of sale settings</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">POS configuration placeholders.</p>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Currency</label>
+          <select class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option>USD</option>
+            <option>EUR</option>
+            <option>GBP</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Tax rate (%)</label>
+          <input type="number" min="0" step="0.01" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-printing" data-panel="printing" class="hidden">
+      {% set ps = printing_settings %}
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Printing settings</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Control POS printing behavior, receipt copies, and which printer connection types staff may use.</p>
+      </div>
+
+      <div class="mt-6 space-y-6">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Not enforced in the current POS flow: checkout always triggers printing — browser print (like Ctrl+P) when no printer is saved, or thermal (ESC/POS / thermal layout) when a printer is configured.</p>
+          </div>
+          <input type="checkbox" name="printing_compulsory_sale" value="1" class="rc-receipt-switch" {% if ps.print_compulsory_sale %}checked{% endif %} />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Allow discounting (edit line prices)</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers can change the unit price of each item in the cart on the POS.</p>
+          </div>
+          <input type="checkbox" name="printing_allow_line_price_edit" value="1" class="rc-receipt-switch" {% if ps.allow_line_price_edit %}checked{% endif %} />
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipts to print per sale</label>
+          <p class="mb-2 text-xs text-[rgb(var(--rc-muted))]">The POS currently prints <strong class="font-medium text-[rgb(var(--rc-page-fg))]">one customer receipt only</strong> per checkout. This option is kept for future use (extra company/cashier copies).</p>
+          <select
+            name="printing_receipt_copies"
+            class="w-full max-w-xl rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="1" {% if ps.receipt_copies == '1' or not ps.receipt_copies %}selected{% endif %}>1 — Customer only</option>
+            <option value="2" {% if ps.receipt_copies == '2' %}selected{% endif %}>2 — Customer + company (no prices)</option>
+            <option value="3" {% if ps.receipt_copies == '3' %}selected{% endif %}>3 — Customer + company (no prices) + cashier</option>
+          </select>
+        </div>
+
+        <div>
+          <p class="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Allowed printer types (POS setup)</p>
+          <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">Turn off any connection type you do not want to offer when pairing printers on the shop POS.</p>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
+              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</span>
+              <input type="checkbox" name="printing_allow_bluetooth" value="1" class="rc-receipt-switch" {% if ps.printer_allow_bluetooth %}checked{% endif %} />
+            </div>
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
+              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Network</span>
+              <input type="checkbox" name="printing_allow_network" value="1" class="rc-receipt-switch" {% if ps.printer_allow_network %}checked{% endif %} />
+            </div>
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
+              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">USB</span>
+              <input type="checkbox" name="printing_allow_usb" value="1" class="rc-receipt-switch" {% if ps.printer_allow_usb %}checked{% endif %} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-receipt" data-panel="receipt" class="hidden">
+      {% set rs = receipt_settings %}
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Receipt format</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Customize the appearance and layout of your receipts.</p>
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt width</label>
+          <select
+            name="receipt_width"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="58mm" {% if rs.receipt_width == '58mm' %}selected{% endif %}>58mm / 50mm (narrow roll)</option>
+            <option value="80mm" {% if rs.receipt_width == '80mm' or not rs.receipt_width %}selected{% endif %}>80mm (Wide)</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Font size</label>
+          <select
+            name="receipt_font_size"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="8pt" {% if rs.font_size == '8pt' %}selected{% endif %}>Small (8pt)</option>
+            <option value="10pt" {% if rs.font_size == '10pt' %}selected{% endif %}>Medium (10pt)</option>
+            <option value="12pt" {% if rs.font_size == '12pt' or not rs.font_size %}selected{% endif %}>Large (12pt)</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Bold headers</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Make receipt headers bold</p>
+          </div>
+          <input type="checkbox" name="receipt_bold_headers" value="1" class="rc-receipt-switch" {% if rs.bold_headers %}checked{% endif %} />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt number format</label>
+          <select
+            name="receipt_number_format"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          >
+            <option value="sequential" {% if rs.receipt_number_format == 'sequential' or not rs.receipt_number_format %}selected{% endif %}>Sequential (0001, 0002, …)</option>
+            <option value="daily" {% if rs.receipt_number_format == 'daily' %}selected{% endif %}>Reset daily</option>
+            <option value="per_month" {% if rs.receipt_number_format == 'per_month' %}selected{% endif %}>Reset each month</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt number prefix</label>
+          <input
+            type="text"
+            name="receipt_number_prefix"
+            maxlength="32"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.receipt_number_prefix or 'T' }}"
+            placeholder="T"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Starting number</label>
+          <input
+            type="text"
+            name="receipt_starting_number"
+            maxlength="32"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.starting_number or '1001' }}"
+            placeholder="1001"
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Include tax</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Show tax line on receipts using this rate on sales</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_include_tax"
+            value="1"
+            id="receipt_include_tax"
+            class="rc-receipt-switch"
+            {% if rs.include_tax %}checked{% endif %}
+          />
+        </div>
+        <div id="receipt-tax-wrap" class="md:col-span-2 {% if not rs.include_tax %}hidden{% endif %}">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Tax rate (%)</label>
+          <input
+            type="text"
+            name="receipt_tax_percent"
+            inputmode="decimal"
+            class="w-full max-w-xs rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.tax_percent or '' }}"
+            placeholder="e.g. 16"
+          />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show payment details</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Display payment details info on receipts</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_show_payment_details"
+            value="1"
+            id="receipt_show_payment_details"
+            class="rc-receipt-switch"
+            {% if rs.show_payment_details %}checked{% endif %}
+          />
+        </div>
+        <div id="receipt-payment-wrap" class="space-y-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 p-4 md:col-span-2 {% if not rs.show_payment_details %}hidden{% endif %}">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment instruction type</label>
+            <select
+              name="receipt_payment_type"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            >
+              <option value="buy_goods" {% if rs.payment_detail_type == 'buy_goods' or not rs.payment_detail_type %}selected{% endif %}>Buy goods</option>
+              <option value="paybill" {% if rs.payment_detail_type == 'paybill' %}selected{% endif %}>Pay bill</option>
+              <option value="send_money" {% if rs.payment_detail_type == 'send_money' %}selected{% endif %}>Send money</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (till / paybill / phone etc.)</label>
+            <textarea
+              name="receipt_payment_detail_text"
+              rows="3"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="e.g. Till: 123456 · Business: Your Shop Ltd"
+            >{{ rs.payment_detail_text or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">What to show on receipts</h3>
+      <div class="mt-4 grid gap-3 md:grid-cols-2">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show logo</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Company logo on the receipt</p>
+          </div>
+          <input type="checkbox" name="receipt_show_logo" value="1" class="rc-receipt-switch" {% if rs.show_logo %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show address</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Business address</p>
+          </div>
+          <input type="checkbox" name="receipt_show_address" value="1" class="rc-receipt-switch" {% if rs.show_address %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show contact</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Phone, email, or other contact lines</p>
+          </div>
+          <input type="checkbox" name="receipt_show_contact" value="1" class="rc-receipt-switch" {% if rs.show_contact %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show who served</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Cashier or staff name on the receipt</p>
+          </div>
+          <input type="checkbox" name="receipt_show_server" value="1" class="rc-receipt-switch" {% if rs.show_server %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show date and time</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Print date and time of sale</p>
+          </div>
+          <input type="checkbox" name="receipt_show_datetime" value="1" class="rc-receipt-switch" {% if rs.show_datetime %}checked{% endif %} />
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 md:col-span-2">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show QR code on receipt</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Print a scannable QR on thermal receipts when the POS supports it</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_qr_enabled"
+            value="1"
+            id="receipt_qr_enabled"
+            class="rc-receipt-switch"
+            role="switch"
+            aria-checked="{% if rs.receipt_qr_enabled %}true{% else %}false{% endif %}"
+            aria-label="Show QR code on receipt"
+            {% if rs.receipt_qr_enabled %}checked{% endif %}
+          />
+        </div>
+      </div>
+
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">QR code on receipt</h3>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">When “Show QR code on receipt” is on, choose what the QR encodes.</p>
+      <div class="mt-4 space-y-4">
+        <div id="receipt-qr-options" class="space-y-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 p-4 {% if not rs.receipt_qr_enabled %}hidden{% endif %}">
+          <fieldset class="space-y-3">
+            <legend class="mb-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">QR encodes</legend>
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent p-2 hover:bg-[rgb(var(--rc-surface))]/80">
+              <input
+                type="radio"
+                name="receipt_qr_mode"
+                value="website"
+                class="mt-1 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]"
+                {% if rs.receipt_qr_mode == 'website' %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Website page</span>
+                <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">Open a URL you provide (e.g. your shop site, loyalty page, or terms).</span>
+              </span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent p-2 hover:bg-[rgb(var(--rc-surface))]/80">
+              <input
+                type="radio"
+                name="receipt_qr_mode"
+                value="receipt_details"
+                class="mt-1 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]"
+                {% if rs.receipt_qr_mode != 'website' %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Receipt number &amp; details</span>
+                <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">Encode receipt ID, date/time, and amount in the QR (e.g. for verification or returns).</span>
+              </span>
+            </label>
+          </fieldset>
+          <div id="receipt-qr-url-wrap" class="{% if rs.receipt_qr_mode != 'website' %}hidden{% endif %}">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Website URL</label>
+            <input
+              type="url"
+              name="receipt_qr_website_url"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="https://example.com/your-page"
+              value="{{ rs.receipt_qr_website_url or '' }}"
+              autocomplete="url"
+            />
+          </div>
+        </div>
+      </div>
+
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Receipt header &amp; footer</h3>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Optional text printed at the top and bottom of each receipt (e.g. tagline, return policy, thank-you message).</p>
+      <div class="mt-4 grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Header</label>
+          <textarea
+            name="receipt_header"
+            rows="5"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            placeholder="Lines printed below the logo / title…"
+          >{{ rs.receipt_header or '' }}</textarea>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Footer</label>
+          <textarea
+            name="receipt_footer"
+            rows="5"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            placeholder="Thank you, policies, social handles…"
+          >{{ rs.receipt_footer or '' }}</textarea>
+        </div>
+      </div>
+
+      <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
+        <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Print preview</h3>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          Approximate thermal layout (black on white). Updates as you change settings above — not saved until you click Save settings.
+        </p>
+        <div class="mt-6 flex justify-center px-2">
+          <div
+            id="receipt-print-preview"
+            class="receipt-preview-paper overflow-hidden rounded-sm border border-neutral-300 bg-white text-black shadow-lg ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
+            style="width: 80mm; max-width: 100%"
+            role="region"
+            aria-label="Receipt print preview"
+          >
+            <div id="receipt-preview-body" class="receipt-preview-body px-3 py-4 font-mono leading-snug"></div>
+          </div>
+        </div>
+        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Preview width follows “Receipt width”; font size follows “Font size”.</p>
+      </div>
+    </div>
+    <div class="mt-8 flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+      <button
+        type="submit"
+        class="btn-rc btn-rc-primary px-6 py-2.5 text-sm"
+      >
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16v2a2 2 0 01-2 2H7a2 2 0 01-2-2v-2M7 12l5 5 5-5M12 3v14" />
+        </svg>
+        Save settings
+      </button>
+      <a
+        href="{{ url_for('employee_dashboard', role='it_support') }}"
+        class="btn-rc btn-rc-ghost px-6 py-2.5 text-sm font-medium"
+      >
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7 7-7m-7 7h18" />
+        </svg>
+        Back to dashboard
+      </a>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var DEFAULT_TAB = "system";
+      var POS_TABS = { pos: 1, printing: 1, receipt: 1 };
+
+      function normalize(tab) {
+        if (tab === "system" || tab === "company" || tab === "website" || tab === "pos" || tab === "printing" || tab === "receipt") {
+          return tab;
+        }
+        return DEFAULT_TAB;
+      }
+
+      function setActive(tab) {
+        tab = normalize(tab);
+
+        document.querySelectorAll("[data-panel]").forEach(function (el) {
+          el.classList.toggle("hidden", el.getAttribute("data-panel") !== tab);
+        });
+
+        var defEl = document.getElementById("settings-sidebar-default");
+        var posEl = document.getElementById("settings-sidebar-pos");
+        var inPosGroup = !!POS_TABS[tab];
+        if (defEl) defEl.classList.toggle("hidden", inPosGroup);
+        if (posEl) posEl.classList.toggle("hidden", !inPosGroup);
+
+        document.querySelectorAll("a[data-settings-tab]").forEach(function (a) {
+          var g = a.closest("#settings-sidebar-default, #settings-sidebar-pos");
+          if (g && g.classList.contains("hidden")) {
+            a.setAttribute("aria-current", "false");
+            return;
+          }
+          var active = a.getAttribute("data-settings-tab") === tab;
+          a.classList.toggle("bg-[rgb(var(--rc-surface-2))]", active);
+          a.classList.toggle("text-[rgb(var(--rc-page-fg))]", true);
+          a.setAttribute("aria-current", active ? "page" : "false");
+        });
+      }
+
+      function fromHash() {
+        var h = (window.location.hash || "").replace("#", "");
+        return normalize(h || DEFAULT_TAB);
+      }
+
+      window.addEventListener("hashchange", function () {
+        setActive(fromHash());
+      });
+
+      setActive(fromHash());
+
+      var rh = document.getElementById("return_hash");
+      function syncReturnHash() {
+        if (!rh) return;
+        rh.value = window.location.hash || "#system";
+      }
+      window.addEventListener("hashchange", syncReturnHash);
+      syncReturnHash();
+    })();
+
+    (function () {
+      function initReceiptSettingsToggles() {
+        var pay = document.getElementById("receipt_show_payment_details");
+        var payW = document.getElementById("receipt-payment-wrap");
+        var tax = document.getElementById("receipt_include_tax");
+        var taxW = document.getElementById("receipt-tax-wrap");
+        var qrEn = document.getElementById("receipt_qr_enabled");
+        var qrOpt = document.getElementById("receipt-qr-options");
+        var qrUrlWrap = document.getElementById("receipt-qr-url-wrap");
+        function syncQrUrl() {
+          var website = document.querySelector('input[name="receipt_qr_mode"][value="website"]');
+          if (qrUrlWrap) qrUrlWrap.classList.toggle("hidden", !website || !website.checked);
+        }
+        function syncQr() {
+          if (qrOpt) qrOpt.classList.toggle("hidden", !qrEn || !qrEn.checked);
+          syncQrUrl();
+        }
+        function sync() {
+          if (payW) payW.classList.toggle("hidden", !pay || !pay.checked);
+          if (taxW) taxW.classList.toggle("hidden", !tax || !tax.checked);
+          syncQr();
+          if (window.updateReceiptPreview) window.updateReceiptPreview();
+        }
+        if (pay) pay.addEventListener("change", sync);
+        if (tax) tax.addEventListener("change", sync);
+        if (qrEn) {
+          qrEn.addEventListener("change", function () {
+            qrEn.setAttribute("aria-checked", qrEn.checked ? "true" : "false");
+            sync();
+          });
+        }
+        document.querySelectorAll('input[name="receipt_qr_mode"]').forEach(function (r) {
+          r.addEventListener("change", syncQrUrl);
+        });
+        sync();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initReceiptSettingsToggles);
+      } else {
+        initReceiptSettingsToggles();
+      }
+    })();
+
+    (function () {
+      var tab = document.getElementById("tab-receipt");
+      if (!tab) return;
+      var body = document.getElementById("receipt-preview-body");
+      var paper = document.getElementById("receipt-print-preview");
+      window.RECEIPT_PREVIEW_META = {
+        companyName: {{ (site_settings.company_name if site_settings else "Point of Sale")|tojson }},
+        companyEmail: {{ (site_settings.company_email if site_settings else "")|tojson }},
+        companyPhone: {{ (site_settings.company_phone if site_settings else "")|tojson }},
+        companyAddress: "",
+        appIconUrl: {{ (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'))|tojson }},
+      };
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+      }
+
+      function val(name) {
+        var el = tab.querySelector('[name="' + name + '"]');
+        if (!el) return "";
+        if (el.type === "checkbox") return el.checked;
+        return el.value;
+      }
+
+      function radioVal(name) {
+        var el = tab.querySelector('[name="' + name + '"]:checked');
+        return el ? el.value : "";
+      }
+
+      function updateReceiptPreview() {
+        if (!body || !paper) return;
+        var meta = window.RECEIPT_PREVIEW_META || {};
+        var width = String(val("receipt_width") || "80mm").trim().toLowerCase();
+        var narrow = width === "58mm" || width === "50mm" || width === "50";
+        paper.style.width = narrow ? "58mm" : "80mm";
+
+        var fsize = val("receipt_font_size") || "12pt";
+        var fsMap = { "8pt": "8px", "10pt": "10px", "12pt": "12px" };
+        body.style.fontSize = fsMap[fsize] || "12px";
+
+        var boldH = !!val("receipt_bold_headers");
+        var prefix = String(val("receipt_number_prefix") || "T").trim() || "T";
+        var startNum = String(val("receipt_starting_number") || "1001").trim() || "1001";
+        var receiptNo = prefix + "-" + startNum;
+        var demoDate = new Date().toLocaleString();
+
+        var showLogo = !!val("receipt_show_logo");
+        var showAddr = !!val("receipt_show_address");
+        var showContact = !!val("receipt_show_contact");
+        var showServer = !!val("receipt_show_server");
+        var showDt = !!val("receipt_show_datetime");
+
+        var incTax = !!val("receipt_include_tax");
+        var taxPct = parseFloat(String(val("receipt_tax_percent") || "0").replace(",", ".")) || 0;
+
+        var showPay = !!val("receipt_show_payment_details");
+        var payType = String(val("receipt_payment_type") || "buy_goods");
+        var payTypeLabel =
+          { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" }[payType] || payType;
+        var payText = String(val("receipt_payment_detail_text") || "").trim();
+
+        var header = String(val("receipt_header") || "").trim();
+        var footer = String(val("receipt_footer") || "").trim();
+
+        var qrOn = !!val("receipt_qr_enabled");
+        var qrMode = radioVal("receipt_qr_mode") || "receipt_details";
+        var qrUrl = String(val("receipt_qr_website_url") || "").trim();
+
+        var demoLines = [
+          { name: "Coffee · Regular", qty: 2, total: 9.0 },
+          { name: "Bread · Loaf", qty: 1, total: 2.0 },
+        ];
+        var subtotal = 11.0;
+        var taxAmt = incTax ? subtotal * (taxPct / 100) : 0;
+        var grand = subtotal + taxAmt;
+
+        var th = boldH ? "font-weight:700" : "font-weight:600";
+        var html = "";
+        html += '<div style="text-align:center;font-weight:700;font-size:1.05em;letter-spacing:0.03em">' + esc(meta.companyName || "Point of Sale") + "</div>";
+        html += '<div style="text-align:center;opacity:0.75;font-size:0.85em;margin-top:2px">THERMAL RECEIPT</div>';
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+
+        if (showLogo) {
+          html +=
+            '<div style="text-align:center;margin-bottom:8px"><img src="' +
+            esc(meta.appIconUrl || "") +
+            '" alt="" style="height:3rem;width:3rem;object-fit:contain" /></div>';
+        }
+
+        if (header) {
+          html +=
+            '<div style="text-align:center;font-size:0.85em;white-space:pre-wrap;margin-bottom:8px">' +
+            esc(header) +
+            "</div>";
+        }
+
+        if (showAddr) {
+          html +=
+            '<div style="text-align:center;font-size:0.85em;opacity:0.75;margin-bottom:4px">' +
+            (meta.companyAddress
+              ? esc(meta.companyAddress)
+              : '<span style="opacity:0.5">[Business address]</span>') +
+            "</div>";
+        }
+
+        if (showContact) {
+          var bits = [];
+          if (meta.companyPhone) bits.push(meta.companyPhone);
+          if (meta.companyEmail) bits.push(meta.companyEmail);
+          html +=
+            '<div style="text-align:center;font-size:0.85em;margin-bottom:6px">' +
+            (bits.length ? esc(bits.join(" · ")) : '<span style="opacity:0.5">[Phone / email]</span>') +
+            "</div>";
+        }
+
+        html += '<div style="font-size:0.85em">';
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px"><span>Receipt</span><span style="font-weight:600">' +
+          esc(receiptNo) +
+          "</span></div>";
+        if (showDt) {
+          html +=
+            '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Date</span><span>' +
+            esc(demoDate) +
+            "</span></div>";
+        }
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Type</span><span style="font-weight:600">Sale</span></div>';
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Customer</span><span>Walk-in customer</span></div>';
+        html +=
+          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Phone</span><span>-</span></div>';
+        if (showServer) {
+          html +=
+            '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Cashier</span><span>Jane Doe (123456)</span></div>';
+        }
+        html += "</div>";
+
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.85em"><thead><tr>';
+        html += '<td style="' + th + ';text-align:left;width:58%;padding:1px 0">Item</td>';
+        html += '<td style="' + th + ';text-align:center;width:12%;padding:1px 0">Qty</td>';
+        html += '<td style="' + th + ';text-align:right;width:30%;padding:1px 0">Amt</td>';
+        html += "</tr></thead><tbody>";
+        demoLines.forEach(function (l) {
+          html +=
+            '<tr><td colspan="3" style="padding-top:4px;vertical-align:top">' + esc(l.name) + "</td></tr>";
+          html +=
+            '<tr><td></td><td style="text-align:center">' +
+            String(l.qty) +
+            '</td><td style="text-align:right">' +
+            l.total.toFixed(2) +
+            "</td></tr>";
+        });
+        html += "</tbody></table>";
+
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        if (incTax) {
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700"><span>Subtotal</span><span>' +
+            subtotal.toFixed(2) +
+            "</span></div>";
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:0.85em;margin-top:4px"><span>Tax (' +
+            esc(String(taxPct)) +
+            "%)</span><span>" +
+            taxAmt.toFixed(2) +
+            "</span></div>";
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700;margin-top:4px"><span>Total</span><span>' +
+            grand.toFixed(2) +
+            "</span></div>";
+        } else {
+          html +=
+            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700"><span>Total</span><span>' +
+            subtotal.toFixed(2) +
+            "</span></div>";
+        }
+
+        if (showPay) {
+          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+          html += '<div style="font-size:0.85em;font-weight:600">' + esc(payTypeLabel) + "</div>";
+          if (payText) {
+            html +=
+              '<div style="font-size:0.85em;margin-top:4px;white-space:pre-wrap">' + esc(payText) + "</div>";
+          }
+        }
+
+        if (qrOn) {
+          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+          html += '<div style="text-align:center">';
+          html +=
+            '<div style="display:inline-flex;height:5rem;width:5rem;align-items:center;justify-content:center;border:2px dashed #999;border-radius:4px;background:#f5f5f5;font-size:8px;color:#666">QR</div>';
+          if (qrMode === "website" && qrUrl) {
+            html +=
+              '<div style="font-size:9px;margin-top:6px;word-break:break-all;opacity:0.85">' +
+              esc(qrUrl) +
+              "</div>";
+          } else if (qrMode === "website") {
+            html +=
+              '<div style="font-size:9px;margin-top:6px;opacity:0.55">[Website URL]</div>';
+          } else {
+            html +=
+              '<div style="font-size:9px;margin-top:6px;opacity:0.75">Receipt: ' +
+              esc(receiptNo) +
+              " · …</div>";
+          }
+          html += "</div>";
+        }
+
+        if (footer) {
+          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+          html +=
+            '<div style="text-align:center;font-size:0.85em;white-space:pre-wrap">' + esc(footer) + "</div>";
+        }
+
+        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        html += '<div style="text-align:center;font-size:0.85em;opacity:0.7">Thank you</div>';
+        html += '<div style="text-align:center;font-size:0.75em;opacity:0.45;margin-top:2px">Powered by Richcom POS</div>';
+
+        body.innerHTML = html;
+      }
+
+      window.updateReceiptPreview = updateReceiptPreview;
+
+      function bindPreview() {
+        tab.querySelectorAll("input, select, textarea").forEach(function (el) {
+          el.addEventListener("input", updateReceiptPreview);
+          el.addEventListener("change", updateReceiptPreview);
+        });
+      }
+
+      window.addEventListener("hashchange", function () {
+        if ((location.hash || "").replace("#", "") === "receipt") {
+          setTimeout(updateReceiptPreview, 0);
+        }
+      });
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () {
+          bindPreview();
+          updateReceiptPreview();
+        });
+      } else {
+        bindPreview();
+        updateReceiptPreview();
+      }
+    })();
+  </script>
+{% endblock %}
+

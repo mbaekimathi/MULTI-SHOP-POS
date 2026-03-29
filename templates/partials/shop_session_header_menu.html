@@ -1,0 +1,59 @@
+{# Shop session: profile trigger + dropdown (Log out). Expects ``shop`` in context. #}
+<div class="relative" data-shop-header-dd>
+  <button
+    type="button"
+    id="shop-header-dd-btn"
+    class="inline-flex max-w-[min(15rem,56vw)] items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-left shadow-sm ring-1 ring-black/5 transition hover:bg-[rgb(var(--rc-surface-2))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:gap-2.5 sm:px-3 sm:py-2 dark:ring-white/10"
+    aria-expanded="false"
+    aria-haspopup="true"
+    aria-controls="shop-header-dd-panel"
+  >
+    {% if shop.shop_logo %}
+      <img
+        src="{{ url_for('static', filename=shop.shop_logo) }}"
+        alt=""
+        class="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-black/10"
+        width="32"
+        height="32"
+      />
+    {% else %}
+      <span
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white shadow-inner ring-1 ring-white/15"
+        style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
+        aria-hidden="true"
+        >{{ (shop.shop_name[:1] if shop.shop_name else '?')|e }}</span
+      >
+    {% endif %}
+    <span class="min-w-0 flex-1">
+      <span class="block truncate text-xs font-bold leading-tight text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</span>
+      <span class="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shop account</span>
+    </span>
+    <svg
+      class="shop-header-dd-chevron h-4 w-4 shrink-0 text-[rgb(var(--rc-muted))] transition-transform duration-200"
+      data-shop-dd-chevron
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </button>
+  <div
+    id="shop-header-dd-panel"
+    class="shop-header-dd-panel absolute right-0 top-full z-[80] mt-1.5 hidden min-w-[13rem] max-w-[min(18rem,92vw)] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-1 shadow-xl ring-1 ring-black/10 dark:ring-white/10"
+    role="menu"
+    hidden
+  >
+    <a
+      href="{{ url_for('shop_logout', shop_id=shop.id) }}"
+      class="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-400"
+      role="menuitem"
+    >
+      <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+      </svg>
+      Log out
+    </a>
+  </div>
+</div>

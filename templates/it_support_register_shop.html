@@ -1,0 +1,187 @@
+{% extends "employee_layout.html" %}
+{% block title %}My shops — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}My shops{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-6xl space-y-6">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 sm:p-8">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">My shops</h2>
+          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+            Register a new shop with required details. Shop name, code, and location are stored in uppercase.
+          </p>
+        </div>
+        <button
+          type="button"
+          id="toggle-shop-form"
+          class="btn-rc btn-rc-primary h-10 w-10 p-0"
+          aria-expanded="false"
+          aria-controls="shop-form-wrap"
+          title="Show add shop form"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      </div>
+
+      {% include "partials/flashes.html" %}
+
+      <div id="shop-form-wrap" class="mt-6 hidden">
+      <form method="post" action="{{ url_for('it_support_register_shop') }}" class="space-y-5">
+        <div class="grid gap-5 md:grid-cols-2">
+          <div>
+            <label for="shop_name" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop name</label>
+            <input
+              id="shop_name"
+              name="shop_name"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              placeholder="E.G. MAIN STREET BRANCH"
+            />
+          </div>
+          <div>
+            <label for="shop_code" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop code</label>
+            <input
+              id="shop_code"
+              name="shop_code"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              placeholder="E.G. SHOP-001"
+            />
+          </div>
+        </div>
+
+        <div class="grid gap-5 md:grid-cols-2">
+          <div>
+            <label for="shop_password" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop password</label>
+            <input
+              id="shop_password"
+              name="shop_password"
+              type="password"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="Enter secure password"
+            />
+          </div>
+          <div>
+            <label for="shop_location" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop location</label>
+            <input
+              id="shop_location"
+              name="shop_location"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              placeholder="E.G. NAIROBI CBD"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 pt-2">
+          <button
+            type="submit"
+            class="btn-rc btn-rc-primary px-6 py-2.5 text-sm"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add shop
+          </button>
+          <a
+            href="{{ url_for('employee_dashboard', role='it_support') }}"
+            class="btn-rc btn-rc-ghost px-6 py-2.5 text-sm font-medium"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7 7-7m-7 7h18" />
+            </svg>
+            Back to dashboard
+          </a>
+        </div>
+      </form>
+      </div>
+    </div>
+
+    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))] px-5 py-4">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Registered shops</h3>
+        <span class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ (shops or [])|length }} total</span>
+      </div>
+      {% if not shops %}
+        <p class="px-5 py-4 text-sm text-[rgb(var(--rc-muted))]">No shops registered yet.</p>
+      {% else %}
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop name</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop code</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Location</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for s in shops %}
+                <tr>
+                  <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ s.shop_code }}</td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ s.shop_location }}</td>
+                  <td class="px-4 py-3">
+                    <span
+                      class="inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
+                      {% if s.status == 'active' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}"
+                    >
+                      {% if s.status == 'active' %}Displayed{% else %}Hidden{% endif %}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex flex-wrap gap-2">
+                      <a href="{{ url_for('shop_portal', shop_id=s.id) }}" class="btn-rc btn-rc-info px-3 py-1.5 text-xs">
+                        View shop
+                      </a>
+                      <form method="post" action="{{ url_for('it_support_shop_toggle_status', shop_id=s.id) }}">
+                        <button
+                          type="submit"
+                          class="btn-rc {% if s.status == 'active' %}btn-rc-warning{% else %}btn-rc-success{% endif %} px-3 py-1.5 text-xs"
+                        >
+                          {% if s.status == 'active' %}Hide{% else %}Display{% endif %}
+                        </button>
+                      </form>
+                      <form method="post" action="{{ url_for('it_support_shop_delete', shop_id=s.id) }}">
+                        <button type="submit" class="btn-rc btn-rc-danger px-3 py-1.5 text-xs" onclick="return confirm('Delete this shop permanently?');">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var btn = document.getElementById("toggle-shop-form");
+      var wrap = document.getElementById("shop-form-wrap");
+      if (!btn || !wrap) return;
+
+      function sync() {
+        var open = !wrap.classList.contains("hidden");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+
+      btn.addEventListener("click", function () {
+        wrap.classList.toggle("hidden");
+        sync();
+      });
+
+      sync();
+    })();
+  </script>
+{% endblock %}

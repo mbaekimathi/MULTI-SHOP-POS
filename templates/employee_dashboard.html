@@ -1,0 +1,78 @@
+{% extends "employee_layout.html" %}
+{% block title %}Dashboard — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Dashboard{% endblock %}
+{% block sidebar_links %}
+  {% if request.view_args and request.view_args.get('role') == 'it_support' %}
+    <a
+      href="{{ url_for('it_support_register_shop') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10l1-5h16l1 5M5 10v9a2 2 0 002 2h10a2 2 0 002-2v-9M9 14h6" />
+      </svg>
+      My shops
+    </a>
+
+    <a
+      href="{{ url_for('it_support_item_management') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+      </svg>
+      Item management page
+    </a>
+
+    <a
+      href="{{ url_for('it_support_analytics') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m4 14v-6m4 6V9m4 10v-4m4 4V7" />
+      </svg>
+      Analytics page
+    </a>
+
+    <a
+      href="{{ url_for('it_support_credit_payments') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
+      </svg>
+      Credit payments (all shops)
+    </a>
+
+    <a
+      href="{{ url_for('it_support_store_management') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9l1-4h16l1 4M5 9v10a2 2 0 002 2h10a2 2 0 002-2V9" />
+      </svg>
+      Store management
+    </a>
+
+    <a
+      href="{{ url_for('it_support_hr_management') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm10 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+      </svg>
+      HR management page
+    </a>
+
+    <a
+      href="{{ url_for('it_support_website_management') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5-2.5 4-5.5 4-9s-1.5-6.5-4-9c-2.5 2.5-4 5.5-4 9s1.5 6.5 4 9zm-8-9h16" />
+      </svg>
+      Website management page
+    </a>
+
+  {% endif %}
+{% endblock %}
+{% block employee_content %}{% endblock %}

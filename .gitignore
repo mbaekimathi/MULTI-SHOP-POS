@@ -1,0 +1,26 @@
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Backups / archives (do not push)
+*.zip
+
+# User uploads (keep folder placeholders only)
+static/uploads/items/
+static/uploads/profiles/*
+!static/uploads/profiles/.gitkeep

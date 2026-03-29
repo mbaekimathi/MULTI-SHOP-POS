@@ -1,0 +1,32 @@
+{# Expects: shop, shop_settings_nav_active — one of: appearance | pos_printing | receipt #}
+<p class="mt-2 shrink-0 px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop settings</p>
+<a
+  href="{{ url_for('shop_settings_appearance', shop_id=shop.id) }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if shop_settings_nav_active == 'appearance' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if shop_settings_nav_active == 'appearance' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+  </svg>
+  Appearance
+</a>
+<a
+  href="{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if shop_settings_nav_active == 'pos_printing' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if shop_settings_nav_active == 'pos_printing' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4M15 9h6M4 6h16M4 10h16M4 14h10M4 18h10" />
+  </svg>
+  POS printing
+</a>
+<a
+  href="{{ url_for('shop_settings_receipt', shop_id=shop.id) }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if shop_settings_nav_active == 'receipt' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if shop_settings_nav_active == 'receipt' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+  </svg>
+  Receipt settings
+</a>

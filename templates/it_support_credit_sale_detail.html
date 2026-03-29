@@ -1,0 +1,76 @@
+{% extends "employee_layout.html" %}
+{% block title %}Credit sale details — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Credit sale details{% endblock %}
+
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_credit_payments') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments (all shops)</a>
+{% endblock %}
+
+{% block employee_content %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Credit sale #{{ sale.id }}</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">{{ sale.created_at }}</p>
+        <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop ID: {{ shop_id }}</p>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Customer: <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ sale.customer_name }}</span> ({{ sale.customer_phone }})</p>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Served by: <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ sale.employee_name }}</span> ({{ sale.employee_code }})</p>
+      </div>
+      <a href="{{ url_for('it_support_credit_payments_customer', shop_id=shop_id, customer_name=sale.customer_name, customer_phone=sale.customer_phone) }}"
+         class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]">
+        Back to customer
+      </a>
+    </div>
+  </div>
+
+  <div class="mt-4 grid gap-3 sm:grid-cols-3">
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Amount</div><div class="mt-2 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(sale.total_amount) }}</div></div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(sale.paid_amount) }}</div></div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance</div>
+      <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(sale.remaining_amount) }}</div>
+      <div class="mt-2">
+        {% if sale.credit_status == 'paid' %}
+          <span class="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">paid</span>
+        {% elif sale.credit_status == 'partially_paid' %}
+          <span class="rounded-full border border-amber-300/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">partially paid</span>
+        {% else %}
+          <span class="rounded-full border border-slate-300/30 bg-slate-500/10 px-2 py-0.5 text-xs font-semibold text-slate-200">not paid</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items</h3>
+    {% if not items %}
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No items recorded for this sale.</p>
+    {% else %}
+      <div class="mt-2 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+        <div class="overflow-x-auto">
+          <table class="min-w-[820px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Unit price</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Line total</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for it in items %}
+                <tr>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ it.item_name }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ it.qty }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(it.unit_price) }}</td>
+                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(it.line_total) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+

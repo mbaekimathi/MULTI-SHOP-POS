@@ -1,0 +1,241 @@
+{% extends "employee_layout.html" %}
+{% block title %}Item management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Item management{% endblock %}
+{% block sidebar_links %}
+  <a
+    href="{{ url_for('it_support_register_item') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+    </svg>
+    Register item
+  </a>
+  <a
+    href="{{ url_for('it_support_stock_management') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+    </svg>
+    Stock management
+  </a>
+  <a
+    href="{{ url_for('it_support_item_analytics') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m4 14v-6m4 6V9m4 10v-4m4 4V7" />
+    </svg>
+    Item analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_item_audit') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6M9 8h6M7 4h10a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" />
+    </svg>
+    Item audit
+  </a>
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-6xl">
+    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Items</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Registered items appear here.</p>
+      </div>
+      <a
+        href="{{ url_for('it_support_register_item') }}"
+        class="btn-rc btn-rc-primary px-5 py-2.5 text-sm sm:w-auto"
+      >
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Register item
+      </a>
+    </div>
+
+    {% if not items %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 text-sm text-[rgb(var(--rc-muted))]">
+        No items yet.
+      </div>
+    {% else %}
+      <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Image</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Category</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Name</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Price</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Company stock</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Stock update</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for grp in (items|sort(attribute='category')|groupby('category')) %}
+                <tr>
+                  <td colspan="8" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-page-fg))]">
+                        {{ grp.grouper }}
+                      </span>
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                        ({{ grp.list|length }} item{% if grp.list|length != 1 %}s{% endif %})
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+
+                {% for item in grp.list %}
+                  <tr class="align-top">
+                    <td class="px-4 py-3">
+                      {% if item.image_path %}
+                        <img
+                          src="{{ url_for('static', filename=item.image_path) }}"
+                          alt=""
+                          class="h-12 w-12 rounded-lg object-cover border border-[rgb(var(--rc-border))]"
+                        />
+                      {% else %}
+                        <div class="h-12 w-12 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>
+                      {% endif %}
+                    </td>
+                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-75">{{ item.category }}</td>
+                    <td class="px-4 py-3">
+                      <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ item.name }}</div>
+                      {% if item.description %}
+                        <div class="mt-1 text-xs text-[rgb(var(--rc-muted))] opacity-90">{{ item.description }}</div>
+                      {% endif %}
+                    </td>
+                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
+                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.stock_qty }}</td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-3">
+                        <form method="post" action="{{ url_for('it_support_item_toggle_status', item_id=item.id) }}">
+                          <button
+                            type="submit"
+                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
+                            {% if item.status == 'active' %}
+                              bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
+                            {% else %}
+                              bg-rose-600 ring-rose-700 hover:bg-rose-700
+                            {% endif %}"
+                            role="switch"
+                            aria-checked="{% if item.status == 'active' %}true{% else %}false{% endif %}"
+                            title="{% if item.status == 'active' %}Suspend item{% else %}Activate item{% endif %}"
+                          >
+                            <span class="sr-only">{% if item.status == 'active' %}Active (toggle to suspend){% else %}Suspended (toggle to activate){% endif %}</span>
+                            <span
+                              class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm"
+                              aria-hidden="true"
+                            >
+                              <span
+                                class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
+                                {% if item.status == 'active' %}translate-x-5{% else %}translate-x-0{% endif %}"
+                              ></span>
+                            </span>
+                          </button>
+                        </form>
+
+                        <span
+                          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
+                          {% if item.status == 'active' %}
+                            bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
+                          {% else %}
+                            bg-rose-500/10 text-rose-300 ring-rose-400/20
+                          {% endif %}"
+                        >
+                          <span class="h-1.5 w-1.5 rounded-full {% if item.status == 'active' %}bg-emerald-400 animate-pulse{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
+                          {% if item.status == 'active' %}Active{% else %}Suspended{% endif %}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-3">
+                        <form method="post" action="{{ url_for('it_support_item_toggle_stock_update', item_id=item.id) }}">
+                          <button
+                            type="submit"
+                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
+                            {% if item.stock_update_enabled %}
+                              bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
+                            {% else %}
+                              bg-rose-600 ring-rose-700 hover:bg-rose-700
+                            {% endif %}"
+                            role="switch"
+                            aria-checked="{% if item.stock_update_enabled %}true{% else %}false{% endif %}"
+                            title="{% if item.stock_update_enabled %}Disable stock update{% else %}Enable stock update{% endif %}"
+                          >
+                            <span class="sr-only">{% if item.stock_update_enabled %}Stock update enabled (toggle to disable){% else %}Stock update disabled (toggle to enable){% endif %}</span>
+                            <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
+                              <span
+                                class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
+                                {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"
+                              ></span>
+                            </span>
+                          </button>
+                        </form>
+
+                        <span
+                          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
+                          {% if item.stock_update_enabled %}
+                            bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
+                          {% else %}
+                            bg-rose-500/10 text-rose-300 ring-rose-400/20
+                          {% endif %}"
+                        >
+                          {% if item.stock_update_enabled %}
+                            <svg class="h-3.5 w-3.5 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Enabled
+                          {% else %}
+                            <svg class="h-3.5 w-3.5 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636L5.636 18.364M6 6l12 12" />
+                            </svg>
+                            Disabled
+                          {% endif %}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="flex flex-wrap gap-2">
+                        <a
+                          href="{{ url_for('it_support_item_edit', item_id=item.id) }}"
+                          class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Edit
+                        </a>
+
+                        <form method="post" action="{{ url_for('it_support_item_delete', item_id=item.id) }}">
+                          <button
+                            type="submit"
+                            class="btn-rc btn-rc-danger px-3 py-1.5 text-xs"
+                            onclick="return confirm('Delete this item permanently?');"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h4a2 2 0 012 2v2" />
+                            </svg>
+                            Delete
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+

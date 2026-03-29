@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Contact — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block body %}
+{% include "partials/nav.html" %}
+  <main id="top" class="pt-28 sm:pt-32">
+    <section id="contact" class="border-t border-slate-200/80 bg-slate-50 py-20 dark:border-white/5 dark:bg-slate-950 sm:py-28">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <div class="grid gap-12 lg:grid-cols-2">
+          <div class="reveal">
+            <h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">Get in touch</h1>
+            <p class="mt-4 text-slate-600 dark:text-slate-400">
+              Share your project details. We respond within one business day.
+            </p>
+            <dl class="mt-10 space-y-4 text-sm">
+              <div class="flex gap-3">
+                <dt class="w-24 shrink-0 text-slate-500">Email</dt>
+                <dd>
+                  {% if site_settings and site_settings.company_email %}
+                    <a
+                      class="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                      href="mailto:{{ site_settings.company_email }}"
+                      >{{ site_settings.company_email }}</a
+                    >
+                  {% else %}
+                    <span class="text-slate-600 dark:text-slate-400">Not set</span>
+                  {% endif %}
+                </dd>
+              </div>
+              <div class="flex gap-3">
+                <dt class="w-24 shrink-0 text-slate-500">Phone</dt>
+                <dd>
+                  {% if site_settings and site_settings.company_phone %}
+                    <a
+                      class="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                      href="tel:{{ site_settings.company_phone }}"
+                      >{{ site_settings.company_phone }}</a
+                    >
+                  {% else %}
+                    <span class="text-slate-600 dark:text-slate-400">Not set</span>
+                  {% endif %}
+                </dd>
+              </div>
+              <div class="flex gap-3">
+                <dt class="w-24 shrink-0 text-slate-500">Hours</dt>
+                <dd class="text-slate-700 dark:text-slate-300">Mon–Fri, 8:00–18:00 (local)</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="reveal">
+{% include "partials/contact_form.html" %}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% include "partials/footer.html" %}
+{% include "partials/nav_toggle_script.html" %}
+{% endblock %}

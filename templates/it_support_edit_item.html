@@ -1,0 +1,110 @@
+{% extends "employee_layout.html" %}
+{% block title %}Edit item — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Edit item{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-3xl">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 sm:p-8">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Edit item</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+        Category, name, and description will be saved in uppercase. Stock quantity can be edited only if stock update is enabled.
+      </p>
+
+      {% include "partials/flashes.html" %}
+
+      <form method="post" action="{{ url_for('it_support_item_edit', item_id=item.id) }}" enctype="multipart/form-data" class="mt-6 space-y-5">
+        <div class="grid gap-5 md:grid-cols-2">
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Item category</label>
+            <input
+              name="category"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              value="{{ item.category }}"
+            />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Item name</label>
+            <input
+              name="name"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              value="{{ item.name }}"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Item description</label>
+          <textarea
+            name="description"
+            rows="4"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+          >{{ item.description or "" }}</textarea>
+        </div>
+
+        <div class="grid gap-5 md:grid-cols-2">
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Item price</label>
+            <input
+              name="price"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ item.price }}"
+            />
+          </div>
+        </div>
+
+        <div class="grid gap-5 md:grid-cols-2">
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Replace image (optional)</label>
+            <input
+              name="image"
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+              class="block w-full text-sm text-[rgb(var(--rc-muted))]"
+            />
+            {% if item.image_path %}
+              <label class="mt-3 inline-flex items-center gap-2 text-sm text-[rgb(var(--rc-muted))]">
+                <input type="checkbox" name="remove_image" value="1" class="rounded border-slate-300 bg-white" />
+                Remove current image
+              </label>
+            {% endif %}
+          </div>
+          <div class="sm:flex sm:items-end">
+            <div class="w-full">
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Status</label>
+              <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))]">
+                {{ item.status }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3 pt-2">
+          <button
+            type="submit"
+            class="btn-rc btn-rc-primary px-6 py-2.5 text-sm"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16v2a2 2 0 01-2 2H7a2 2 0 01-2-2v-2M7 12l5 5 5-5M12 3v14" />
+            </svg>
+            Save changes
+          </button>
+          <a
+            href="{{ url_for('it_support_item_management') }}"
+            class="btn-rc btn-rc-ghost px-6 py-2.5 text-sm font-medium"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7 7-7m-7 7h18" />
+            </svg>
+            Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+

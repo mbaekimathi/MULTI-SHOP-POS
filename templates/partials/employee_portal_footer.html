@@ -1,0 +1,13 @@
+<footer class="shrink-0 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-4 md:px-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <p class="text-xs text-[rgb(var(--rc-muted))]">
+      © <span id="portal-footer-year"></span> {{ site_settings.company_name if site_settings else "Point of Sale" }}. Internal use.
+    </p>
+    <div class="flex flex-col gap-1 sm:items-end">
+      <p class="text-[11px] text-[rgb(var(--rc-muted))]">
+        Powered by <span class="font-semibold text-[rgb(var(--rc-muted))]">JOS</span>
+        <span class="font-mono text-[rgb(var(--rc-muted))]">v{{ jos_version }}</span>
+      </p>
+    </div>
+  </div>
+</footer>

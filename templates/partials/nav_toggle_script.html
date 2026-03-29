@@ -1,0 +1,21 @@
+  <script>
+    (function () {
+      var btn = document.getElementById("nav-toggle");
+      var menu = document.getElementById("mobile-menu");
+      if (btn && menu) {
+        function setOpen(open) {
+          if (open) menu.classList.remove("max-md:hidden");
+          else menu.classList.add("max-md:hidden");
+          btn.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+        btn.addEventListener("click", function () {
+          setOpen(menu.classList.contains("max-md:hidden"));
+        });
+        menu.querySelectorAll("a").forEach(function (a) {
+          a.addEventListener("click", function () {
+            if (window.matchMedia("(max-width: 767px)").matches) setOpen(false);
+          });
+        });
+      }
+    })();
+  </script>

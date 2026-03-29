@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block body %}
+  <div class="flex min-h-screen flex-col md:flex-row">
+    <div
+      id="employee-sidebar-backdrop"
+      class="fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
+      aria-hidden="true"
+    ></div>
+
+    <aside
+      id="employee-sidebar"
+      class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] backdrop-blur-md transition-transform duration-200 ease-out md:sticky md:top-0 md:z-0 md:h-screen md:translate-x-0"
+      aria-label="Portal navigation"
+    >
+      <div class="flex h-14 shrink-0 items-center gap-2 border-b border-[rgb(var(--rc-border))] px-4 md:h-16">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/30"
+          >R</span
+        >
+        <div class="min-w-0 leading-tight">
+          <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+            {{ site_settings.company_name if site_settings else "Point of Sale" }}
+          </p>
+          <p class="truncate text-xs text-[rgb(var(--rc-muted))]">Employee portal</p>
+        </div>
+        <button
+          type="button"
+          id="employee-sidebar-close"
+          class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] md:hidden"
+          aria-label="Close sidebar"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      {% if portal_employee %}
+        <p class="border-b border-[rgb(var(--rc-border))] px-4 pb-2 pt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">
+          Navigate
+        </p>
+      {% endif %}
+      <nav class="flex min-h-0 flex-1 flex-col p-3">
+        <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+          {% include "partials/employee_portal_sidebar_nav.html" %}
+          {% block sidebar_links %}{% endblock %}
+        </div>
+        {% if portal_employee %}
+          <div class="mt-2 flex shrink-0 flex-col gap-1 border-t border-[rgb(var(--rc-border))] pt-2">
+            {% if portal_employee.role_key == 'it_support' %}
+              <a
+                href="{{ url_for('it_support_system_settings') }}"
+                class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+                {% if request.endpoint == 'it_support_system_settings' %}aria-current="page"{% endif %}
+              >
+                <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                  />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                System settings
+              </a>
+            {% endif %}
+            <a
+              href="{{ portal_employee.profile_settings_url }}"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'employee_profile_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+              {% if request.endpoint == 'employee_profile_settings' %}aria-current="page"{% endif %}
+            >
+              <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              My settings
+            </a>
+          </div>
+        {% endif %}
+        <div class="mt-2 shrink-0 border-t border-[rgb(var(--rc-border))]"></div>
+        <form method="post" action="{{ url_for('employee_logout') }}" class="shrink-0 pt-2">
+          <button
+            type="submit"
+            class="btn-rc btn-rc-danger w-full px-3 py-2.5 text-sm"
+          >
+            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
+            </svg>
+            Logout
+          </button>
+        </form>
+      </nav>
+    </aside>
+
+    <div class="flex min-h-screen min-w-0 flex-1 flex-col">
+      <header
+        class="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 backdrop-blur-md md:h-16 md:px-6"
+      >
+        <div class="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            id="employee-sidebar-open"
+            class="inline-flex rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))] md:hidden"
+            aria-expanded="false"
+            aria-controls="employee-sidebar"
+          >
+            <span class="sr-only">Open menu</span>
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h1 class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))] md:text-base">
+            {% block portal_page_title %}Portal{% endblock %}
+          </h1>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          {% include "partials/theme_toggle.html" %}
+          {% include "partials/employee_portal_header_user.html" %}
+        </div>
+      </header>
+      <main class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {% include "partials/flashes.html" %}
+        {% block employee_content %}{% endblock %}
+      </main>
+      {% include "partials/employee_portal_footer.html" %}
+    </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/employee-portal.js') }}" defer></script>
+{% endblock %}

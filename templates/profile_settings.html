@@ -1,0 +1,105 @@
+{% extends "employee_layout.html" %}
+{% block title %}Profile settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Profile settings{% endblock %}
+{% block employee_content %}
+  <div class="glass-card mx-auto max-w-2xl rounded-2xl p-8 sm:p-10">
+    <p class="text-sm text-slate-600 dark:text-slate-400">
+      Update your contact details and profile photo. Employee code and role are managed by an administrator.
+    </p>
+
+    <form
+      method="post"
+      action="{{ url_for('employee_profile_settings') }}"
+      enctype="multipart/form-data"
+      class="mt-8 space-y-6"
+    >
+      <div>
+        <label for="full_name" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Full name</label>
+        <input
+          type="text"
+          id="full_name"
+          name="full_name"
+          required
+          value="{{ employee.full_name }}"
+          class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none ring-brand-500/0 transition focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/25 dark:border-white/10 dark:bg-slate-900/80 dark:text-white dark:placeholder-slate-500 dark:focus:border-brand-500/40 dark:focus:ring-brand-500/30"
+        />
+      </div>
+      <div>
+        <label for="email" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          required
+          value="{{ employee.email }}"
+          autocomplete="email"
+          class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none ring-brand-500/0 transition focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/25 dark:border-white/10 dark:bg-slate-900/80 dark:text-white dark:placeholder-slate-500 dark:focus:border-brand-500/40 dark:focus:ring-brand-500/30"
+        />
+      </div>
+      <div>
+        <label for="phone" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</label>
+        <input
+          type="text"
+          id="phone"
+          name="phone"
+          required
+          value="{{ employee.phone }}"
+          autocomplete="tel"
+          class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder-slate-400 outline-none ring-brand-500/0 transition focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/25 dark:border-white/10 dark:bg-slate-900/80 dark:text-white dark:placeholder-slate-500 dark:focus:border-brand-500/40 dark:focus:ring-brand-500/30"
+        />
+      </div>
+
+      <div>
+        <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Profile photo</span>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+          {% if employee.profile_image %}
+            <img
+              src="{{ url_for('static', filename=employee.profile_image) }}"
+              alt=""
+              class="h-20 w-20 shrink-0 rounded-xl border border-slate-200 object-cover dark:border-white/10"
+            />
+          {% else %}
+            <div
+              class="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-xl font-bold text-slate-500 dark:border-white/10 dark:bg-slate-800"
+            >
+              {{ employee.full_name[:1] }}
+            </div>
+          {% endif %}
+          <div class="min-w-0 flex-1 space-y-3">
+            <input
+              type="file"
+              name="profile"
+              accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+              class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-brand-500/15 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-brand-800 hover:file:bg-brand-500/25 dark:text-slate-400 dark:file:bg-brand-500/20 dark:file:text-brand-200 dark:hover:file:bg-brand-500/30"
+            />
+            {% if employee.profile_image %}
+              <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  name="remove_photo"
+                  value="1"
+                  class="rounded border-slate-300 bg-white dark:border-white/20 dark:bg-slate-900"
+                />
+                Remove current photo
+              </label>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3 pt-2">
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition hover:brightness-110"
+        >
+          Save changes
+        </button>
+        <a
+          href="{% if portal_employee %}{{ portal_employee.dashboard_url }}{% else %}{{ url_for('index') }}{% endif %}"
+          class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+          >Cancel</a
+        >
+      </div>
+    </form>
+  </div>
+{% endblock %}

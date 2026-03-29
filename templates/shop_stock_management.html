@@ -1,0 +1,461 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop stock management — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop stock management{% endblock %}
+{% block shop_sidebar_links %}
+  <a href="{{ url_for('shop_stock_management', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 16v-2m8-6h-2M6 12H4m14.364 5.364l-1.414-1.414M7.05 7.05L5.636 5.636m12.728 0L16.95 7.05M7.05 16.95l-1.414 1.414" />
+    </svg>
+    Shop stock management
+  </a>
+  <a href="{{ url_for('shop_stock_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Shop stock analytics
+  </a>
+  <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    Shop stock audits
+  </a>
+{% endblock %}
+{% block shop_content %}
+  <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
+    <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      <div class="flex items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-5 py-4">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items</h3>
+        <span class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ (items or [])|length }} total</span>
+      </div>
+      {% if not items %}
+        <p class="px-5 py-4 text-sm text-[rgb(var(--rc-muted))]">No items available.</p>
+      {% else %}
+        {# Mobile: card list (no horizontal scroll) #}
+        <div class="divide-y divide-[rgb(var(--rc-border))] md:hidden">
+          {% for it in items %}
+            <div class="p-4 {% if selected_item_id and (it.id|string) == (selected_item_id|string) %}bg-[rgb(var(--rc-surface-2))]{% endif %}">
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="truncate text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ it.category }}</p>
+                  <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</p>
+                  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+                    <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1">
+                      SHOP: <span class="font-extrabold text-[rgb(var(--rc-page-fg))]">{{ it.shop_stock_qty }}</span>
+                    </span>
+                    <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1">
+                      COMPANY: <span class="font-extrabold text-[rgb(var(--rc-page-fg))]">{{ it.company_stock_qty }}</span>
+                    </span>
+                    <span class="inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if it.stock_update_enabled %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}">
+                      SHOP STOCK UPDATE: {% if it.stock_update_enabled %}ON{% else %}OFF{% endif %}
+                    </span>
+                  </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <a
+                    href="{{ url_for('shop_stock_management', shop_id=shop.id, item_id=it.id, mode='in') }}"
+                    class="btn-rc btn-rc-success h-10 w-10 p-0"
+                    title="Open stock in for this item"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </a>
+                  <a
+                    href="{{ url_for('shop_stock_management', shop_id=shop.id, item_id=it.id, mode='out') }}"
+                    class="btn-rc btn-rc-danger h-10 w-10 p-0"
+                    title="Open stock out for this item"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        {# Tablet/PC: table #}
+        <div class="hidden overflow-x-auto md:block">
+          <table class="min-w-[720px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Item</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Company stock</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Shop stock</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop stock update</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Select</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for it in items %}
+                <tr class="{% if selected_item_id and (it.id|string) == (selected_item_id|string) %}bg-[rgb(var(--rc-surface-2))]{% endif %}">
+                  <td class="px-3 py-3 sm:px-4">
+                    <div class="flex items-center gap-3">
+                      {% if it.image_path %}
+                        <img src="{{ url_for('static', filename=it.image_path) }}" alt="" class="h-10 w-10 rounded-lg object-cover border border-[rgb(var(--rc-border))]" />
+                      {% else %}
+                        <div class="h-10 w-10 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>
+                      {% endif %}
+                      <div class="min-w-0">
+                        <p class="truncate text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ it.category }}</p>
+                        <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-3 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85 sm:px-4">{{ it.company_stock_qty }}</td>
+                  <td class="px-3 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85 sm:px-4">{{ it.shop_stock_qty }}</td>
+                  <td class="px-4 py-3">
+                    <span class="inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if it.stock_update_enabled %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}">
+                      {% if it.stock_update_enabled %}ON{% else %}OFF{% endif %}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3 sm:px-4">
+                    <div class="flex items-center gap-2">
+                      <a
+                        href="{{ url_for('shop_stock_management', shop_id=shop.id, item_id=it.id, mode='in') }}"
+                        class="btn-rc btn-rc-success h-9 w-9 p-0"
+                        title="Open stock in for this item"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                      </a>
+                      <a
+                        href="{{ url_for('shop_stock_management', shop_id=shop.id, item_id=it.id, mode='out') }}"
+                        class="btn-rc btn-rc-danger h-9 w-9 p-0"
+                        title="Open stock out for this item"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
+                        </svg>
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if mode == 'out' %}Stock out{% else %}Stock in{% endif %} {% if selected_item_id %}for item #{{ selected_item_id }}{% endif %}
+        </h3>
+        <div class="flex w-full items-center gap-2 sm:w-auto">
+          <a
+            href="{{ url_for('shop_stock_management', shop_id=shop.id, item_id=selected_item_id, mode='in') }}"
+            class="btn-rc btn-rc-ghost flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider sm:flex-none {% if mode != 'out' %}bg-[rgb(var(--rc-surface-2))]{% endif %}"
+          >Stock in</a>
+          <a
+            href="{{ url_for('shop_stock_management', shop_id=shop.id, item_id=selected_item_id, mode='out') }}"
+            class="btn-rc btn-rc-ghost flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider sm:flex-none {% if mode == 'out' %}bg-[rgb(var(--rc-surface-2))]{% endif %}"
+          >Stock out</a>
+        </div>
+      </div>
+
+      {% if not selected_item_id %}
+        <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">Select an item from the list.</p>
+      {% else %}
+        <div class="mt-4 grid gap-4">
+          {% if mode != 'out' %}
+            <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, mode='in') }}" class="grid gap-3 md:grid-cols-2">
+              <input type="hidden" name="action" value="request_company" />
+              <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
+
+              <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">
+                Request stock from <span class="font-semibold text-[rgb(var(--rc-page-fg))]">company stock</span>.
+                This works only when <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Shop stock update</span> is <span class="font-semibold text-emerald-300">ON</span>.
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Quantity</label>
+                <input name="qty" type="number" min="1" step="1" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="1" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Notes (optional)</label>
+                <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. WEEKLY RESTOCK" />
+              </div>
+              <div class="md:col-span-2">
+                <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-2.5 text-sm">
+                  Request from company stock
+                </button>
+              </div>
+            </form>
+
+            <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, mode='in') }}" class="grid gap-3 md:grid-cols-2">
+              <input type="hidden" name="action" value="manual_in" />
+              <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
+
+              <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">
+                Manual shop stock-in (used when shop stock update is <span class="font-semibold text-rose-300">OFF</span>).
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Quantity</label>
+                <input name="qty" type="number" min="1" step="1" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="1" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Buying price</label>
+                <input name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Place bought from</label>
+                <input name="place_brought_from" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. CITY WHOLESALE MARKET" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Notes (optional)</label>
+                <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="OPTIONAL NOTES" />
+              </div>
+              <div class="md:col-span-2">
+                <button type="submit" class="btn-rc btn-rc-success w-full px-6 py-2.5 text-sm">
+                  Manual stock in
+                </button>
+              </div>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, mode='out') }}" class="grid gap-3 md:grid-cols-2">
+              <input type="hidden" name="action" value="return_company" />
+              <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
+
+              <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">
+                Return stock to <span class="font-semibold text-[rgb(var(--rc-page-fg))]">company stock</span>.
+                This works only when <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Shop stock update</span> is <span class="font-semibold text-emerald-300">ON</span>.
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Reason</label>
+                <select name="reason" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase">
+                  <option value="">SELECT REASON</option>
+                  <option value="return">RETURN</option>
+                  <option value="waste">WASTE</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Quantity</label>
+                <input name="qty" type="number" min="1" step="1" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="1" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Refunded</label>
+                <select name="refunded" class="js-refunded w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase">
+                  <option value="no" selected>NO</option>
+                  <option value="yes">YES</option>
+                </select>
+              </div>
+              <div class="js-refund-amount-wrap hidden md:col-span-2">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Refund amount</label>
+                <input name="refund_amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Notes (optional)</label>
+                <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. RETURNED TO HQ" />
+              </div>
+              <div class="md:col-span-2">
+                <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-2.5 text-sm">
+                  Return to company stock
+                </button>
+              </div>
+            </form>
+
+            <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, mode='out') }}" class="grid gap-3 md:grid-cols-2">
+              <input type="hidden" name="action" value="manual_out" />
+              <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
+
+              <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">
+                Manual shop stock-out (does not affect company stock).
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Reason</label>
+                <select name="reason" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase">
+                  <option value="">SELECT REASON</option>
+                  <option value="return">RETURN</option>
+                  <option value="waste">WASTE</option>
+                  <option value="display">DISPLAY</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Quantity</label>
+                <input name="qty" type="number" min="1" step="1" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="1" />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Refunded</label>
+                <select name="refunded" class="js-refunded w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase">
+                  <option value="no" selected>NO</option>
+                  <option value="yes">YES</option>
+                </select>
+              </div>
+              <div class="js-refund-amount-wrap hidden md:col-span-2">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Refund amount</label>
+                <input name="refund_amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Notes (optional)</label>
+                <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="OPTIONAL NOTES" />
+              </div>
+              <div class="md:col-span-2">
+                <button type="submit" class="btn-rc btn-rc-danger w-full px-6 py-2.5 text-sm">
+                  Manual stock out
+                </button>
+              </div>
+            </form>
+          {% endif %}
+
+          <div class="mt-2 border-t border-[rgb(var(--rc-border))] pt-4">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Transactions</h4>
+            {% if not transactions %}
+              <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
+            {% else %}
+              {# Mobile: transaction cards #}
+              <div class="mt-3 grid gap-3 md:hidden">
+                {% for tx in transactions %}
+                  <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <div class="text-xs font-extrabold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                        {{ (tx.direction or '').upper() }} • {{ (tx.source or '').upper() }}
+                      </div>
+                      <div class="text-xs font-semibold text-[rgb(var(--rc-muted))]">{{ tx.created_at }}</div>
+                    </div>
+
+                    <div class="mt-3 grid gap-2 text-sm">
+                      <div class="flex items-center justify-between">
+                        <span class="text-[rgb(var(--rc-muted))]">QTY</span>
+                        <span class="font-extrabold text-[rgb(var(--rc-page-fg))]">{{ tx.qty }}</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-[rgb(var(--rc-muted))]">SHOP (BEFORE → AFTER)</span>
+                        <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.shop_stock_before }} → {{ tx.shop_stock_after }}</span>
+                      </div>
+                      {% if tx.company_stock_before is not none or tx.company_stock_after is not none %}
+                        <div class="flex items-center justify-between">
+                          <span class="text-[rgb(var(--rc-muted))]">COMPANY (BEFORE → AFTER)</span>
+                          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.company_stock_before if tx.company_stock_before is not none else '-' }} → {{ tx.company_stock_after if tx.company_stock_after is not none else '-' }}</span>
+                        </div>
+                      {% endif %}
+                      {% if tx.buying_price is not none %}
+                        <div class="flex items-center justify-between">
+                          <span class="text-[rgb(var(--rc-muted))]">BUYING PRICE</span>
+                          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.buying_price) }}</span>
+                        </div>
+                      {% endif %}
+                      {% if tx.place_brought_from %}
+                        <div class="flex items-center justify-between gap-4">
+                          <span class="shrink-0 text-[rgb(var(--rc-muted))]">PLACE</span>
+                          <span class="min-w-0 truncate font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.place_brought_from }}</span>
+                        </div>
+                      {% endif %}
+                      {% if tx.reason %}
+                        <div class="flex items-center justify-between">
+                          <span class="text-[rgb(var(--rc-muted))]">REASON</span>
+                          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ (tx.reason or '').upper() }}</span>
+                        </div>
+                      {% endif %}
+                      {% if tx.refunded %}
+                        <div class="flex items-center justify-between">
+                          <span class="text-[rgb(var(--rc-muted))]">REFUNDED</span>
+                          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">YES{% if tx.refund_amount is not none %} ({{ "%.2f"|format(tx.refund_amount) }}){% endif %}</span>
+                        </div>
+                      {% endif %}
+                      {% if tx.note %}
+                        <div class="mt-2 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
+                          {{ tx.note }}
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+
+              {# Tablet/PC: transaction table (auto-fit by breakpoints) #}
+              <div class="mt-3 hidden overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] md:block">
+                <div class="overflow-x-auto">
+                  <table class="min-w-[720px] w-full text-sm">
+                    <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                      <tr>
+                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Direction</th>
+                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Source</th>
+                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
+                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop before</th>
+                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop after</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider xl:table-cell">Company before</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider xl:table-cell">Company after</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Buying price</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Place</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Reason</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Refunded</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Refund amount</th>
+                        <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider xl:table-cell">Note</th>
+                        <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                      {% for tx in transactions %}
+                        <tr>
+                          <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
+                          <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
+                          <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.qty }}</td>
+                          <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.shop_stock_before }}</td>
+                          <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.shop_stock_after }}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap xl:table-cell">{{ tx.company_stock_before if tx.company_stock_before is not none else '-' }}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap xl:table-cell">{{ tx.company_stock_after if tx.company_stock_after is not none else '-' }}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{% if tx.buying_price is not none %}{{ "%.2f"|format(tx.buying_price) }}{% else %}-{% endif %}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] lg:table-cell">
+                            <span class="block max-w-[180px] truncate">{{ tx.place_brought_from or '' }}</span>
+                          </td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{{ tx.reason or '' }}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{% if tx.refunded %}YES{% else %}NO{% endif %}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{% if tx.refunded and tx.refund_amount is not none %}{{ "%.2f"|format(tx.refund_amount) }}{% else %}-{% endif %}</td>
+                          <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] xl:table-cell">
+                            <span class="block max-w-[220px] truncate">{{ tx.note or '' }}</span>
+                          </td>
+                          <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% if mode == 'out' %}
+    <script>
+      (function () {
+        var selects = document.querySelectorAll(".js-refunded");
+        if (!selects || !selects.length) return;
+
+        function syncOne(sel) {
+          var form = sel && sel.closest("form");
+          if (!form) return;
+          var wrap = form.querySelector(".js-refund-amount-wrap");
+          var amount = wrap ? wrap.querySelector('input[name="refund_amount"]') : null;
+          if (!wrap || !amount) return;
+
+          var yes = (sel.value || "").toLowerCase() === "yes";
+          wrap.classList.toggle("hidden", !yes);
+          amount.required = yes;
+          if (!yes) amount.value = "";
+        }
+
+        selects.forEach(function (sel) {
+          sel.addEventListener("change", function () {
+            syncOne(sel);
+          });
+          syncOne(sel);
+        });
+      })();
+    </script>
+  {% endif %}
+{% endblock %}
+
