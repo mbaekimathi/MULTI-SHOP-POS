@@ -1,5 +1,8 @@
-# Secrets — never commit
+# Secrets — never commit. Each machine (dev / cPanel) keeps its own .env; pushing would not
+# "update" hosted credentials safely and could leak secrets. Use .env.example as the template only.
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
