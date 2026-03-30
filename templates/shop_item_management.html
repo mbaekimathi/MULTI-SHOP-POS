@@ -20,7 +20,7 @@
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Items</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">All registered items (read-only).</p>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Original and selling prices; shops can update selling price for POS.</p>
       </div>
       {# Removed shop-level Display/Hide pills to match requested UI #}
     </div>
@@ -38,7 +38,8 @@
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Image</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Category</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Name</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Price</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Original selling</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Selling price</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Shop stock</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Display</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Shop stock update</th>
@@ -47,7 +48,7 @@
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for grp in (items|sort(attribute='category')|groupby('category')) %}
                 <tr>
-                  <td colspan="7" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
+                  <td colspan="8" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
                     <div class="flex items-center gap-2">
                       <span class="text-xs font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-page-fg))]">
                         {{ grp.grouper }}
@@ -79,7 +80,29 @@
                         <div class="mt-1 text-xs text-[rgb(var(--rc-muted))] opacity-90">{{ item.description }}</div>
                       {% endif %}
                     </td>
-                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
+                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ "%.2f"|format(item.price) }}</td>
+                    <td class="px-4 py-3 align-top">
+                      {% if (session.get('shop_id') == shop.id) or (session.get('employee_role') or '') in ['super_admin', 'it_support'] %}
+                        <form
+                          method="post"
+                          action="{{ url_for('shop_item_update_selling_price', shop_id=shop.id, item_id=item.id) }}"
+                          class="flex flex-wrap items-center gap-2"
+                        >
+                          <input
+                            type="number"
+                            name="selling_price"
+                            step="0.01"
+                            min="0"
+                            required
+                            value="{{ '%.2f'|format(item.selling_price if item.selling_price is not none else item.price) }}"
+                            class="w-28 min-w-0 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]"
+                          />
+                          <button type="submit" class="btn-rc btn-rc-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide">Save</button>
+                        </form>
+                      {% else %}
+                        <span class="font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</span>
+                      {% endif %}
+                    </td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.shop_stock_qty }}</td>
 
                     <td class="px-4 py-3">

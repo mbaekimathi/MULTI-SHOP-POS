@@ -48,7 +48,7 @@
 
         <div class="grid gap-5 md:grid-cols-2">
           <div>
-            <label for="price" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Item price</label>
+            <label for="price" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Original selling price</label>
             <input
               id="price"
               name="price"
@@ -59,7 +59,24 @@
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
               placeholder="0.00"
             />
+            <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]">Catalog baseline from IT support.</p>
           </div>
+          <div>
+            <label for="selling_price" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Selling price (POS)</label>
+            <input
+              id="selling_price"
+              name="selling_price"
+              type="number"
+              min="0"
+              step="0.01"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="Same as original if empty"
+            />
+            <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]">Current price charged at POS. Leave blank to match original.</p>
+          </div>
+        </div>
+
+        <div class="grid gap-5 md:grid-cols-2">
           <div>
             <label for="image" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Upload item image (optional)</label>
             <input

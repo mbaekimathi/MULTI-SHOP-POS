@@ -296,6 +296,7 @@ def init_items_table():
         name VARCHAR(200) NOT NULL,
         description TEXT NULL,
         price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        selling_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         image_path VARCHAR(500) NULL,
         stock_qty INT NOT NULL DEFAULT 0,
         stock_update_enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -314,6 +315,11 @@ def init_items_table():
                 cur.execute("ALTER TABLE items ADD COLUMN stock_qty INT NOT NULL DEFAULT 0")
             if not column_exists("items", "stock_update_enabled"):
                 cur.execute("ALTER TABLE items ADD COLUMN stock_update_enabled TINYINT(1) NOT NULL DEFAULT 1")
+            if not column_exists("items", "selling_price"):
+                cur.execute(
+                    "ALTER TABLE items ADD COLUMN selling_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER price"
+                )
+                cur.execute("UPDATE items SET selling_price = price")
         logger.info("Table items is ready.")
         return True
     except pymysql.Error as e:
@@ -329,14 +335,27 @@ def create_item(
     image_path: Optional[str],
     status: str = "active",
     created_by_employee_id: Optional[int] = None,
+    selling_price=None,
 ):
+    """``price`` = original selling price (catalog baseline). ``selling_price`` = current POS price (defaults to ``price``)."""
+    try:
+        original_p = float(price)
+    except (TypeError, ValueError):
+        original_p = 0.0
+    if selling_price is None:
+        sell_p = original_p
+    else:
+        try:
+            sell_p = float(selling_price)
+        except (TypeError, ValueError):
+            sell_p = original_p
     sql = """
     INSERT INTO items (
-        category, name, description, price, image_path,
+        category, name, description, price, selling_price, image_path,
         stock_qty, stock_update_enabled,
         status, created_by_employee_id
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     with get_cursor(commit=True) as cur:
         cur.execute(
@@ -345,7 +364,8 @@ def create_item(
                 category,
                 name,
                 description or None,
-                price,
+                original_p,
+                sell_p,
                 image_path or None,
                 0,
                 1,
@@ -358,7 +378,7 @@ def create_item(
 
 def list_items(limit: int = 200):
     sql = """
-    SELECT id, category, name, description, price, image_path, stock_qty, stock_update_enabled, status, created_at
+    SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status, created_at
     FROM items
     ORDER BY created_at DESC
     LIMIT %s
@@ -370,7 +390,7 @@ def list_items(limit: int = 200):
 
 def list_active_items(limit: int = 200):
     sql = """
-    SELECT id, category, name, description, price, image_path, stock_qty, stock_update_enabled, status, created_at
+    SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status, created_at
     FROM items
     WHERE status='active'
     ORDER BY created_at DESC
@@ -383,7 +403,7 @@ def list_active_items(limit: int = 200):
 
 def get_item_by_id(item_id: int):
     sql = """
-    SELECT id, category, name, description, price, image_path, stock_qty, stock_update_enabled, status, created_at
+    SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status, created_at
     FROM items
     WHERE id = %s
     LIMIT 1
@@ -400,12 +420,13 @@ def update_item(
     name: str,
     description: str,
     price,
+    selling_price,
     image_path,
     stock_qty: int,
 ):
     sql = """
     UPDATE items
-    SET category=%s, name=%s, description=%s, price=%s, image_path=%s, stock_qty=%s
+    SET category=%s, name=%s, description=%s, price=%s, selling_price=%s, image_path=%s, stock_qty=%s
     WHERE id=%s
     """
     with get_cursor(commit=True) as cur:
@@ -416,12 +437,32 @@ def update_item(
                 name,
                 description or None,
                 price,
+                selling_price,
                 image_path,
                 int(stock_qty),
                 int(item_id),
             ),
         )
         return True
+
+
+def update_item_selling_price_for_shop(shop_id: int, item_id: int, selling_price) -> bool:
+    """Update ``items.selling_price`` only when the item is linked to the shop (shop portal)."""
+    try:
+        sp = float(selling_price)
+    except (TypeError, ValueError):
+        return False
+    if sp < 0:
+        return False
+    sql = """
+    UPDATE items i
+    INNER JOIN shop_items si ON si.item_id = i.id AND si.shop_id = %s
+    SET i.selling_price = %s
+    WHERE i.id = %s AND i.status = 'active'
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (int(shop_id), sp, int(item_id)))
+        return cur.rowcount > 0
 
 
 def toggle_item_status(item_id: int) -> bool:
@@ -3589,6 +3630,7 @@ def list_shop_items(shop_id: int, limit: int = 500):
         i.name,
         i.description,
         i.price,
+        i.selling_price,
         i.image_path,
         si.shop_stock_qty,
         si.stock_update_enabled,
@@ -3622,7 +3664,8 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
         i.category,
         i.name,
         i.description,
-        i.price,
+        i.price AS original_selling_price,
+        i.selling_price,
         i.image_path,
         si.shop_stock_qty,
         si.displayed
@@ -3638,6 +3681,16 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
     for r in rows:
         r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
         r["displayed"] = int(r.get("displayed") or 0)
+        try:
+            orig = float(r.get("original_selling_price") or 0)
+        except (TypeError, ValueError):
+            orig = 0.0
+        try:
+            sell = float(r.get("selling_price") if r.get("selling_price") is not None else orig)
+        except (TypeError, ValueError):
+            sell = orig
+        r["price"] = sell
+        r["original_selling_price"] = orig
     return rows
 
 

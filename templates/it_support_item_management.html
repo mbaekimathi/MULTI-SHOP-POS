@@ -70,7 +70,8 @@
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Image</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Category</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Name</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Price</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Original selling</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Selling price</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Company stock</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Stock update</th>
@@ -80,7 +81,7 @@
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for grp in (items|sort(attribute='category')|groupby('category')) %}
                 <tr>
-                  <td colspan="8" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
+                  <td colspan="9" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
                     <div class="flex items-center gap-2">
                       <span class="text-xs font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-page-fg))]">
                         {{ grp.grouper }}
@@ -113,6 +114,7 @@
                       {% endif %}
                     </td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
+                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.stock_qty }}</td>
                     <td class="px-4 py-3">
                       <div class="flex items-center gap-3">

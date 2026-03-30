@@ -1160,9 +1160,10 @@ def it_support_register_item():
         name = (request.form.get("name") or "").strip().upper()
         description = (request.form.get("description") or "").strip().upper()
         price_raw = (request.form.get("price") or "").strip()
+        selling_raw = (request.form.get("selling_price") or "").strip()
 
         if not category or not name or not price_raw:
-            flash("Please fill item category, item name, and item price.", "error")
+            flash("Please fill item category, item name, and original selling price.", "error")
             return redirect(url_for("it_support_register_item"))
 
         try:
@@ -1170,8 +1171,18 @@ def it_support_register_item():
             if price < 0:
                 raise ValueError()
         except Exception:
-            flash("Item price must be a valid number.", "error")
+            flash("Original selling price must be a valid number.", "error")
             return redirect(url_for("it_support_register_item"))
+
+        selling_price = None
+        if selling_raw:
+            try:
+                selling_price = float(selling_raw)
+                if selling_price < 0:
+                    raise ValueError()
+            except Exception:
+                flash("Selling price must be a valid number.", "error")
+                return redirect(url_for("it_support_register_item"))
 
         img = request.files.get("image")
         image_path = _save_item_upload(img) if img and img.filename else None
@@ -1187,6 +1198,7 @@ def it_support_register_item():
                 name=name,
                 description=description,
                 price=price,
+                selling_price=selling_price,
                 image_path=image_path,
                 status="active",
                 created_by_employee_id=session.get("employee_id"),
@@ -1396,9 +1408,10 @@ def it_support_item_edit(item_id: int):
         name = (request.form.get("name") or "").strip().upper()
         description = (request.form.get("description") or "").strip().upper()
         price_raw = (request.form.get("price") or "").strip()
+        selling_raw = (request.form.get("selling_price") or "").strip()
 
         if not category or not name or not price_raw:
-            flash("Please fill item category, item name, and item price.", "error")
+            flash("Please fill item category, item name, and original selling price.", "error")
             return redirect(url_for("it_support_item_edit", item_id=item_id))
 
         try:
@@ -1406,7 +1419,18 @@ def it_support_item_edit(item_id: int):
             if price < 0:
                 raise ValueError()
         except Exception:
-            flash("Item price must be a valid number.", "error")
+            flash("Original selling price must be a valid number.", "error")
+            return redirect(url_for("it_support_item_edit", item_id=item_id))
+
+        if not selling_raw:
+            flash("Selling price is required.", "error")
+            return redirect(url_for("it_support_item_edit", item_id=item_id))
+        try:
+            selling_price = float(selling_raw)
+            if selling_price < 0:
+                raise ValueError()
+        except Exception:
+            flash("Selling price must be a valid number.", "error")
             return redirect(url_for("it_support_item_edit", item_id=item_id))
 
         # Stock quantity is managed only via stock management transactions.
@@ -1432,6 +1456,7 @@ def it_support_item_edit(item_id: int):
                 name=name,
                 description=description,
                 price=price,
+                selling_price=selling_price,
                 image_path=image_path,
                 stock_qty=stock_qty,
             )
@@ -2006,7 +2031,7 @@ def shop_logout(shop_id: int):
         session.pop("shop_id", None)
         session.pop("shop_name", None)
         flash("You have been signed out from this shop.", "success")
-    return redirect(url_for("shop_login", shop_id=shop_id))
+    return redirect(url_for("index"))
 
 
 @app.route("/shops/<int:shop_id>/profile")
@@ -2071,11 +2096,16 @@ def shop_pos_catalog_json(shop_id: int):
             price = float(it.get("price") or 0)
         except (TypeError, ValueError):
             price = 0.0
+        try:
+            orig = float(it.get("original_selling_price") or 0)
+        except (TypeError, ValueError):
+            orig = 0.0
         items.append(
             {
                 "id": int(it.get("id") or 0),
                 "shop_stock_qty": int(it.get("shop_stock_qty") or 0),
                 "price": round(price, 2),
+                "original_selling_price": round(orig, 2),
             }
         )
     return jsonify({"ok": True, "items": items})
@@ -3511,6 +3541,34 @@ def shop_item_toggle_stock_update_enabled(shop_id: int, item_id: int):
         ok = False
 
     flash("Shop stock update setting updated." if ok else "Could not update shop stock setting.", "success" if ok else "error")
+    return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+
+@app.route("/shops/<int:shop_id>/shop-item/<int:item_id>/selling-price", methods=["POST"])
+def shop_item_update_selling_price(shop_id: int, item_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    raw = (request.form.get("selling_price") or "").strip()
+    try:
+        sp = float(raw)
+        if sp < 0:
+            raise ValueError()
+    except Exception:
+        flash("Enter a valid selling price.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    try:
+        from database import ensure_shop_items_for_shop, update_item_selling_price_for_shop
+
+        ensure_shop_items_for_shop(shop_id)
+        ok = update_item_selling_price_for_shop(shop_id=shop_id, item_id=item_id, selling_price=sp)
+    except Exception:
+        ok = False
+
+    flash("Selling price updated." if ok else "Could not update selling price.", "success" if ok else "error")
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 

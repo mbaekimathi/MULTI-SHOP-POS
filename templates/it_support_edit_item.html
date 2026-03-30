@@ -44,7 +44,7 @@
 
         <div class="grid gap-5 md:grid-cols-2">
           <div>
-            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Item price</label>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Original selling price</label>
             <input
               name="price"
               type="number"
@@ -53,6 +53,18 @@
               required
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
               value="{{ item.price }}"
+            />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Selling price (POS)</label>
+            <input
+              name="selling_price"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ item.selling_price if item.selling_price is not none else item.price }}"
             />
           </div>
         </div>
