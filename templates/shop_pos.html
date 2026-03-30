@@ -728,9 +728,10 @@
                       <div
                         class="pos-item-card-media flex h-14 w-full shrink-0 items-center justify-center overflow-hidden rounded-t-[0.45rem] bg-[rgb(var(--rc-surface-2))] p-1 sm:h-16"
                       >
-                        {% if it.image_path %}
+                        {% set _item_img = static_upload_url(it.image_path) %}
+                        {% if _item_img %}
                           <img
-                            src="{{ url_for('static', filename=it.image_path) }}"
+                            src="{{ _item_img }}"
                             alt=""
                             class="max-h-full max-w-full object-contain object-center transition duration-300 group-hover:scale-[1.03]"
                             loading="lazy"

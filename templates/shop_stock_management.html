@@ -93,8 +93,9 @@
                 <tr class="{% if selected_item_id and (it.id|string) == (selected_item_id|string) %}bg-[rgb(var(--rc-surface-2))]{% endif %}">
                   <td class="px-3 py-3 sm:px-4">
                     <div class="flex items-center gap-3">
-                      {% if it.image_path %}
-                        <img src="{{ url_for('static', filename=it.image_path) }}" alt="" class="h-10 w-10 rounded-lg object-cover border border-[rgb(var(--rc-border))]" />
+                      {% set _item_img = static_upload_url(it.image_path) %}
+                      {% if _item_img %}
+                        <img src="{{ _item_img }}" alt="" class="h-10 w-10 rounded-lg object-cover border border-[rgb(var(--rc-border))]" loading="lazy" decoding="async" />
                       {% else %}
                         <div class="h-10 w-10 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>
                       {% endif %}

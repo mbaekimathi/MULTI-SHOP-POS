@@ -96,11 +96,14 @@
                 {% for item in grp.list %}
                   <tr class="align-top">
                     <td class="px-4 py-3">
-                      {% if item.image_path %}
+                      {% set _item_img = static_upload_url(item.image_path) %}
+                      {% if _item_img %}
                         <img
-                          src="{{ url_for('static', filename=item.image_path) }}"
+                          src="{{ _item_img }}"
                           alt=""
                           class="h-12 w-12 rounded-lg object-cover border border-[rgb(var(--rc-border))]"
+                          loading="lazy"
+                          decoding="async"
                         />
                       {% else %}
                         <div class="h-12 w-12 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>

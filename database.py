@@ -401,6 +401,72 @@ def list_active_items(limit: int = 200):
         return cur.fetchall() or []
 
 
+def list_public_equipment_catalog(limit_items: int = 500):
+    """
+    Active items for public /equipment page: ordered by total POS qty sold (all shops),
+    then category and name. Includes qty_sold for badges and featured picks.
+    """
+    sql = """
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        i.description,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        COALESCE(sq.qty_sold, 0) AS qty_sold
+    FROM items i
+    LEFT JOIN (
+        SELECT item_id, SUM(qty) AS qty_sold
+        FROM shop_pos_sale_items
+        WHERE item_id IS NOT NULL
+        GROUP BY item_id
+    ) sq ON sq.item_id = i.id
+    WHERE i.status = 'active'
+    ORDER BY qty_sold DESC, i.category ASC, i.name ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(limit_items),))
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        return []
+    out = []
+    for r in rows:
+        rr = dict(r)
+        try:
+            rr["qty_sold"] = int(rr.get("qty_sold") or 0)
+        except (TypeError, ValueError):
+            rr["qty_sold"] = 0
+        try:
+            sell = float(rr.get("selling_price") if rr.get("selling_price") is not None else rr.get("price") or 0)
+        except (TypeError, ValueError):
+            sell = 0.0
+        try:
+            orig = float(rr.get("price") or 0)
+        except (TypeError, ValueError):
+            orig = 0.0
+        rr["display_price"] = round(sell, 2)
+        rr["original_price"] = round(orig, 2)
+        ip = rr.get("image_path")
+        if isinstance(ip, bytes):
+            ip = ip.decode("utf-8", errors="replace")
+        ip = (str(ip).strip() if ip is not None else "") or None
+        if ip:
+            ip = ip.replace("\\", "/")
+            while ip.startswith("/"):
+                ip = ip[1:]
+            if ip.lower().startswith("static/"):
+                ip = ip[7:]
+            rr["image_path"] = ip
+        else:
+            rr["image_path"] = None
+        out.append(rr)
+    return out
+
+
 def get_item_by_id(item_id: int):
     sql = """
     SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status, created_at

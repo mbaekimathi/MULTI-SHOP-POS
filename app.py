@@ -237,6 +237,37 @@ def _build_analytics_filter():
     }
 
 
+def _normalize_static_relative_path(path) -> str:
+    """Normalize DB paths for Flask url_for('static', filename=...)."""
+    if path is None:
+        return ""
+    if isinstance(path, bytes):
+        path = path.decode("utf-8", errors="replace")
+    s = str(path).strip()
+    if not s:
+        return ""
+    if s.lower().startswith(("http://", "https://")):
+        return s
+    s = s.replace("\\", "/")
+    while s.startswith("/"):
+        s = s[1:]
+    low = s.lower()
+    if low.startswith("static/"):
+        s = s[7:]
+    return s
+
+
+@app.template_global()
+def static_upload_url(path) -> str:
+    """Public URL for files under static/ (e.g. uploads/items/...) or an absolute image URL."""
+    s = _normalize_static_relative_path(path)
+    if not s:
+        return ""
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    return url_for("static", filename=s)
+
+
 @app.context_processor
 def inject_site_settings():
     defaults = {
@@ -431,7 +462,35 @@ def solutions():
 
 @app.route("/equipment")
 def equipment():
-    return render_template("equipment.html")
+    from collections import OrderedDict
+
+    try:
+        from database import list_public_equipment_catalog
+
+        catalog_rows = list_public_equipment_catalog(limit_items=500)
+    except Exception:
+        catalog_rows = []
+
+    by_category: OrderedDict = OrderedDict()
+    for row in catalog_rows:
+        cat = (row.get("category") or "Other").strip() or "Other"
+        if cat not in by_category:
+            by_category[cat] = []
+        by_category[cat].append(row)
+    for cat in list(by_category.keys()):
+        by_category[cat].sort(key=lambda r: (-int(r.get("qty_sold") or 0), (r.get("name") or "").upper()))
+
+    sorted_categories = sorted(by_category.keys(), key=lambda c: c.upper())
+    catalog_by_category = OrderedDict((c, by_category[c]) for c in sorted_categories)
+
+    featured_items = catalog_rows[:8] if catalog_rows else []
+
+    return render_template(
+        "equipment.html",
+        catalog_by_category=catalog_by_category,
+        featured_items=featured_items,
+        catalog_count=len(catalog_rows),
+    )
 
 
 @app.route("/quote")
