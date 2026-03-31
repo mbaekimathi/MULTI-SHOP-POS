@@ -65,6 +65,16 @@
               </a>
             {% endif %}
             <a
+              href="{{ notifications_url if notifications_url else url_for('notifications') }}"
+              class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint in ('notifications', 'shop_notifications') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+              {% if request.endpoint in ('notifications', 'shop_notifications') %}aria-current="page"{% endif %}
+            >
+              <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
+              </svg>
+              Notifications
+            </a>
+            <a
               href="{{ portal_employee.profile_settings_url }}"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'employee_profile_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
               {% if request.endpoint == 'employee_profile_settings' %}aria-current="page"{% endif %}
@@ -114,6 +124,7 @@
         </div>
         <div class="flex shrink-0 items-center gap-2">
           {% include "partials/theme_toggle.html" %}
+          {% include "partials/notification_bell.html" %}
           {% include "partials/employee_portal_header_user.html" %}
         </div>
       </header>

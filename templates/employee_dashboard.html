@@ -2,7 +2,7 @@
 {% block title %}Dashboard — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Dashboard{% endblock %}
 {% block sidebar_links %}
-  {% if request.view_args and request.view_args.get('role') == 'it_support' %}
+  {% if request.view_args and request.view_args.get('role') in ('it_support', 'super_admin') %}
     <a
       href="{{ url_for('it_support_register_shop') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
@@ -31,6 +31,16 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m4 14v-6m4 6V9m4 10v-4m4 4V7" />
       </svg>
       Analytics page
+    </a>
+
+    <a
+      href="{{ url_for('it_support_leads') }}"
+      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    >
+      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      Leads &amp; quotations
     </a>
 
     <a

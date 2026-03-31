@@ -7,23 +7,26 @@
         class="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 sm:px-5"
       >
         <a
+          class="order-1 flex min-w-0 shrink-0 items-center gap-2"
           href="{% if nav_employee %}{{ nav_employee.dashboard_url }}{% else %}{{ url_for('employee_login') }}{% endif %}"
-          class="flex items-center gap-2"
           title="{% if nav_employee %}Employee portal{% else %}Company login{% endif %}"
         >
-          <span class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/30">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/30">
             {% if site_settings and site_settings.app_icon %}
-              <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="App icon" class="h-full w-full object-cover" />
+              <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full object-cover" />
             {% else %}
-              <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="App icon" class="h-full w-full object-cover" />
+              <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="" class="h-full w-full object-cover" />
             {% endif %}
           </span>
-          <span class="text-sm font-semibold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-base">
+          <span class="truncate text-sm font-semibold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-base">
             {{ site_settings.company_name if site_settings else "Point of Sale" }}
           </span>
         </a>
-        <div class="ml-auto flex items-center gap-2">
+        <div class="order-2 flex shrink-0 items-center gap-2 md:order-3">
           {% include "partials/theme_toggle.html" %}
+          {% if nav_employee %}
+            {% include "partials/notification_bell.html" %}
+          {% endif %}
           <button
             type="button"
             class="inline-flex items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))] md:hidden"
@@ -39,40 +42,28 @@
         </div>
         <div
           id="mobile-menu"
-          class="flex w-full flex-col gap-1 pt-2 max-md:hidden md:mt-0 md:flex md:w-auto md:flex-row md:items-center md:gap-8 md:pt-0"
+          class="order-3 flex w-full max-md:hidden basis-full flex-col gap-0.5 pt-1 md:order-2 md:flex md:w-auto md:max-w-none md:basis-auto md:flex-1 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-x-0.5 md:gap-y-1 md:pt-0 lg:gap-x-1"
         >
-          <a
-            class="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white"
-            href="{{ url_for('services') }}"
-            >Services</a
-          >
-          <a
-            class="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white"
-            href="{{ url_for('solutions') }}"
-            >Solutions</a
-          >
-          <a
-            class="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white"
-            href="{{ url_for('equipment') }}"
-            >Equipment</a
-          >
-          <a
-            class="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white"
-            href="{{ url_for('contact') }}"
-            >Contact</a
-          >
+          <a class="nav-pill" href="{{ url_for('services') }}">Services</a>
+          <a class="nav-pill" href="{{ url_for('solutions') }}">Solutions</a>
+          <a class="nav-pill" href="{{ url_for('equipment') }}">Equipment</a>
+          <a class="nav-pill" href="{{ url_for('contact') }}">Contact</a>
           <details class="group relative">
-            <summary class="list-none cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white">
+            <summary
+              class="nav-pill cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden"
+            >
               Login
             </summary>
-            <div class="mt-1 min-w-44 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1 shadow-xl md:absolute md:right-0 md:top-full md:mt-2">
-              <a href="{{ url_for('employee_login') }}" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white">Employee login</a>
-              <a href="{{ url_for('public_shop_login') }}" class="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/5 dark:hover:text-white">Shop login</a>
+            <div
+              class="mt-1 min-w-[11rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1 shadow-xl md:absolute md:left-0 md:top-full md:z-50 md:mt-2"
+            >
+              <a href="{{ url_for('employee_login') }}" class="nav-pill block w-full">Employee login</a>
+              <a href="{{ url_for('public_shop_login') }}" class="nav-pill block w-full">Shop login</a>
             </div>
           </details>
           <a
             href="{{ url_for('quote') }}"
-            class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition hover:brightness-110"
+            class="nav-quote-cta ml-0.5 inline-flex shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-lg transition md:ml-1"
             >Get a quote</a
           >
         </div>

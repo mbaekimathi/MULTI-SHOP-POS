@@ -5,6 +5,7 @@ All MySQL access uses PyMySQL (`pymysql`). Credentials come from environment var
 if this module is imported before `app.py` runs.
 """
 
+import json
 import logging
 import os
 import re
@@ -1021,6 +1022,63 @@ def init_shop_customers_table():
         return False
 
 
+def init_public_customers_table() -> bool:
+    """Persist website (/quote) customers for phone-first lookup/autofill."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS public_customers (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        customer_name VARCHAR(190) NOT NULL,
+        phone VARCHAR(40) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_public_customer_phone (phone),
+        KEY idx_public_customer_updated (updated_at),
+        KEY idx_public_customer_name (customer_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table public_customers is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init public_customers: %s", e)
+        return False
+
+
+def get_public_customer_by_phone(phone: str):
+    p = (phone or "").strip()
+    if not p:
+        return None
+    sql = "SELECT id, customer_name, phone, created_at, updated_at FROM public_customers WHERE phone=%s LIMIT 1"
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (p,))
+            return cur.fetchone()
+    except pymysql.Error:
+        return None
+
+
+def upsert_public_customer(customer_name: str, phone: str) -> bool:
+    name = (customer_name or "").strip()
+    p = (phone or "").strip()
+    if len(name) < 2 or not p:
+        return False
+    sql = """
+    INSERT INTO public_customers (customer_name, phone)
+    VALUES (%s, %s)
+    ON DUPLICATE KEY UPDATE
+      customer_name = VALUES(customer_name),
+      updated_at = CURRENT_TIMESTAMP
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (name[:190], p[:40]))
+            return cur.rowcount > 0
+    except pymysql.Error:
+        return False
+
+
 def init_shop_pos_sales_table():
     """Persist POS checkouts for analytics (sale vs credit revenue)."""
     sql = """
@@ -1415,6 +1473,255 @@ def init_shop_pos_sale_items_table():
     except pymysql.Error as e:
         logger.warning("Could not init shop_pos_sale_items: %s", e)
         return False
+
+
+def init_shop_pos_quotations_table():
+    """POS quotations (leads): printed like a receipt but no sale row or stock movement."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS shop_pos_quotations (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NULL,
+        quote_basis ENUM('sale', 'credit') NOT NULL DEFAULT 'sale',
+        quote_channel ENUM('walkin', 'online') NOT NULL DEFAULT 'walkin',
+        customer_name VARCHAR(190) NULL,
+        customer_phone VARCHAR(40) NULL,
+        total_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        item_count INT NOT NULL DEFAULT 0,
+        lines_json LONGTEXT NOT NULL,
+        employee_id INT NULL,
+        employee_code CHAR(6) NULL,
+        employee_name VARCHAR(190) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_shop_pos_q_shop_created (shop_id, created_at),
+        KEY idx_shop_pos_q_customer (shop_id, customer_phone, customer_name),
+        KEY idx_shop_pos_q_channel_created (quote_channel, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+            if table_exists("shop_pos_quotations"):
+                if not column_exists("shop_pos_quotations", "quote_channel"):
+                    try:
+                        cur.execute(
+                            """
+                            ALTER TABLE shop_pos_quotations
+                            ADD COLUMN quote_channel ENUM('walkin', 'online') NOT NULL DEFAULT 'walkin'
+                            AFTER quote_basis
+                            """
+                        )
+                        logger.info("Added shop_pos_quotations.quote_channel.")
+                    except pymysql.Error as e:
+                        logger.warning("Could not add quote_channel: %s", e)
+                try:
+                    cur.execute(
+                        "ALTER TABLE shop_pos_quotations MODIFY shop_id INT NULL"
+                    )
+                except pymysql.Error as e:
+                    logger.warning("Could not relax shop_pos_quotations.shop_id: %s", e)
+        logger.info("Table shop_pos_quotations is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init shop_pos_quotations: %s", e)
+        return False
+
+
+def create_shop_pos_quotation(
+    *,
+    shop_id: Optional[int],
+    quote_basis: str,
+    quote_channel: str = "walkin",
+    total_amount: float,
+    item_count: int,
+    customer_name: Optional[str] = None,
+    customer_phone: Optional[str] = None,
+    employee_id: Optional[int] = None,
+    employee_code: Optional[str] = None,
+    employee_name: Optional[str] = None,
+    lines: Optional[list] = None,
+) -> Tuple[Optional[int], Optional[str]]:
+    basis = (quote_basis or "").strip().lower()
+    if basis not in ("sale", "credit"):
+        return None, "Invalid quotation type."
+    channel = (quote_channel or "walkin").strip().lower()
+    if channel not in ("walkin", "online"):
+        return None, "Invalid quote channel."
+    if channel == "walkin" and shop_id is None:
+        return None, "Shop is required for walk-in quotations."
+    try:
+        amount = float(total_amount)
+    except Exception:
+        return None, "Invalid total."
+    if amount < 0:
+        return None, "Invalid total."
+    try:
+        count = int(item_count)
+    except Exception:
+        count = 0
+    if count < 0:
+        count = 0
+
+    serializable = []
+    for ln in lines or []:
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "").strip()
+        if not nm:
+            continue
+        try:
+            qty = int(ln.get("qty") or 0)
+        except Exception:
+            qty = 0
+        if qty <= 0:
+            continue
+        try:
+            unit_price = float(ln.get("price") or 0)
+        except Exception:
+            unit_price = 0.0
+        try:
+            line_total = float(ln.get("total") or 0)
+        except Exception:
+            line_total = unit_price * qty
+        item_id = ln.get("id")
+        try:
+            item_id = int(item_id) if item_id is not None else None
+        except Exception:
+            item_id = None
+        serializable.append(
+            {
+                "id": item_id,
+                "name": nm[:200],
+                "qty": qty,
+                "price": unit_price,
+                "total": line_total,
+            }
+        )
+
+    try:
+        blob = json.dumps(serializable, separators=(",", ":"), ensure_ascii=False)
+    except (TypeError, ValueError):
+        blob = "[]"
+
+    sql = """
+    INSERT INTO shop_pos_quotations
+        (shop_id, quote_basis, quote_channel, total_amount, item_count, customer_name, customer_phone,
+         lines_json, employee_id, employee_code, employee_name)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                sql,
+                (
+                    int(shop_id) if shop_id is not None else None,
+                    basis,
+                    channel,
+                    amount,
+                    count,
+                    (customer_name or "").strip()[:190] or None,
+                    (customer_phone or "").strip()[:40] or None,
+                    blob,
+                    int(employee_id) if employee_id is not None else None,
+                    (employee_code or "").strip()[:6] or None,
+                    (employee_name or "").strip()[:190] or None,
+                ),
+            )
+            qid = int(cur.lastrowid or 0)
+            return (qid if qid else None), None
+    except pymysql.Error as e:
+        logger.warning("Could not insert shop_pos_quotation: %s", e)
+        return None, None
+
+
+def list_shop_pos_quotations(
+    shop_id: int,
+    limit: int = 500,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    clauses = ["shop_id=%s"]
+    params: list = [int(shop_id)]
+    if date_from:
+        clauses.append("DATE(created_at) >= %s")
+        params.append(str(date_from)[:10])
+    if date_to:
+        clauses.append("DATE(created_at) <= %s")
+        params.append(str(date_to)[:10])
+    where_sql = " AND ".join(clauses)
+    sql = f"""
+    SELECT id, shop_id, quote_basis, quote_channel, customer_name, customer_phone, total_amount, item_count,
+           lines_json, employee_id, employee_code, employee_name, created_at
+    FROM shop_pos_quotations
+    WHERE {where_sql}
+    ORDER BY created_at DESC, id DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        return []
+    out = []
+    for r in rows:
+        rr = dict(r)
+        raw = rr.get("lines_json") or "[]"
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        try:
+            rr["lines"] = json.loads(raw) if raw else []
+        except (TypeError, ValueError):
+            rr["lines"] = []
+        rr.pop("lines_json", None)
+        out.append(rr)
+    return out
+
+
+def list_all_pos_quotations_for_it(
+    limit: int = 2000,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    clauses = ["1=1"]
+    params: list = []
+    if date_from:
+        clauses.append("DATE(q.created_at) >= %s")
+        params.append(str(date_from)[:10])
+    if date_to:
+        clauses.append("DATE(q.created_at) <= %s")
+        params.append(str(date_to)[:10])
+    where_sql = " AND ".join(clauses)
+    sql = f"""
+    SELECT q.id, q.shop_id, q.quote_basis, q.quote_channel, q.customer_name, q.customer_phone, q.total_amount, q.item_count,
+           q.lines_json, q.employee_id, q.employee_code, q.employee_name, q.created_at,
+           s.shop_name, s.shop_code
+    FROM shop_pos_quotations q
+    LEFT JOIN shops s ON s.id = q.shop_id
+    WHERE {where_sql}
+    ORDER BY q.created_at DESC, q.id DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        return []
+    out = []
+    for r in rows:
+        rr = dict(r)
+        raw = rr.get("lines_json") or "[]"
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        try:
+            rr["lines"] = json.loads(raw) if raw else []
+        except (TypeError, ValueError):
+            rr["lines"] = []
+        rr.pop("lines_json", None)
+        out.append(rr)
+    return out
 
 
 def create_shop_pos_sale(
@@ -4000,7 +4307,512 @@ def get_shop_stock_analytics(shop_id: int, analytics_filter: dict):
             ]
     except pymysql.Error:
         return out
+
+
+def get_company_stock_analytics(analytics_filter: dict):
+    """Company-wide stock movement analytics (all shops) for a date filter."""
+    range_where, range_params = _analytics_where_clause(analytics_filter, "sst")
+    where_sql = f"{range_where}"
+    params = list(range_params)
+
+    totals_sql = f"""
+    SELECT
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(CASE WHEN sst.direction='in' THEN sst.qty ELSE 0 END), 0) AS qty_in,
+        COALESCE(SUM(CASE WHEN sst.direction='out' THEN sst.qty ELSE 0 END), 0) AS qty_out,
+        COUNT(DISTINCT sst.item_id) AS distinct_items,
+        COUNT(DISTINCT sst.shop_id) AS distinct_shops
+    FROM shop_stock_transactions sst
+    WHERE {where_sql}
+    """
+    top_in_sql = f"""
+    SELECT
+        sst.item_id,
+        i.category,
+        i.name,
+        COALESCE(SUM(sst.qty), 0) AS qty
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    WHERE {where_sql} AND sst.direction='in'
+    GROUP BY sst.item_id, i.category, i.name
+    ORDER BY qty DESC, i.name ASC
+    LIMIT 10
+    """
+    top_out_sql = f"""
+    SELECT
+        sst.item_id,
+        i.category,
+        i.name,
+        COALESCE(SUM(sst.qty), 0) AS qty
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    WHERE {where_sql} AND sst.direction='out'
+    GROUP BY sst.item_id, i.category, i.name
+    ORDER BY qty DESC, i.name ASC
+    LIMIT 10
+    """
+    by_day_sql = f"""
+    SELECT
+        DATE(sst.created_at) AS day,
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(CASE WHEN sst.direction='in' THEN sst.qty ELSE 0 END), 0) AS qty_in,
+        COALESCE(SUM(CASE WHEN sst.direction='out' THEN sst.qty ELSE 0 END), 0) AS qty_out
+    FROM shop_stock_transactions sst
+    WHERE {where_sql}
+    GROUP BY DATE(sst.created_at)
+    ORDER BY day DESC
+    LIMIT 31
+    """
+    top_shops_sql = f"""
+    SELECT
+        sst.shop_id,
+        s.shop_name,
+        s.shop_code,
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(CASE WHEN sst.direction='in' THEN sst.qty ELSE 0 END), 0) AS qty_in,
+        COALESCE(SUM(CASE WHEN sst.direction='out' THEN sst.qty ELSE 0 END), 0) AS qty_out
+    FROM shop_stock_transactions sst
+    JOIN shops s ON s.id = sst.shop_id
+    WHERE {where_sql}
+    GROUP BY sst.shop_id, s.shop_name, s.shop_code
+    ORDER BY (qty_in + qty_out) DESC, s.shop_name ASC
+    LIMIT 12
+    """
+
+    out = {
+        "tx_count": 0,
+        "qty_in": 0,
+        "qty_out": 0,
+        "net_qty": 0,
+        "distinct_items": 0,
+        "distinct_shops": 0,
+        "top_in_items": [],
+        "top_out_items": [],
+        "daily": [],
+        "top_shops": [],
+    }
+    try:
+        with get_cursor() as cur:
+            cur.execute(totals_sql, tuple(params))
+            t = cur.fetchone() or {}
+            out["tx_count"] = int(t.get("tx_count") or 0)
+            out["qty_in"] = int(t.get("qty_in") or 0)
+            out["qty_out"] = int(t.get("qty_out") or 0)
+            out["net_qty"] = out["qty_in"] - out["qty_out"]
+            out["distinct_items"] = int(t.get("distinct_items") or 0)
+            out["distinct_shops"] = int(t.get("distinct_shops") or 0)
+
+            cur.execute(top_in_sql, tuple(params))
+            out["top_in_items"] = [
+                {
+                    "item_id": r.get("item_id"),
+                    "category": r.get("category") or "",
+                    "name": r.get("name") or "Item",
+                    "qty": int(r.get("qty") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+
+            cur.execute(top_out_sql, tuple(params))
+            out["top_out_items"] = [
+                {
+                    "item_id": r.get("item_id"),
+                    "category": r.get("category") or "",
+                    "name": r.get("name") or "Item",
+                    "qty": int(r.get("qty") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+
+            cur.execute(by_day_sql, tuple(params))
+            out["daily"] = [
+                {
+                    "day": str(r.get("day") or ""),
+                    "tx_count": int(r.get("tx_count") or 0),
+                    "qty_in": int(r.get("qty_in") or 0),
+                    "qty_out": int(r.get("qty_out") or 0),
+                    "net_qty": int(r.get("qty_in") or 0) - int(r.get("qty_out") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+
+            cur.execute(top_shops_sql, tuple(params))
+            out["top_shops"] = [
+                {
+                    "shop_id": r.get("shop_id"),
+                    "shop_name": r.get("shop_name") or "",
+                    "shop_code": r.get("shop_code") or "",
+                    "tx_count": int(r.get("tx_count") or 0),
+                    "qty_in": int(r.get("qty_in") or 0),
+                    "qty_out": int(r.get("qty_out") or 0),
+                    "net_qty": int(r.get("qty_in") or 0) - int(r.get("qty_out") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+    except pymysql.Error:
+        return out
     return out
+
+
+def get_company_stock_status(*, limit_items: int = 1000):
+    """
+    Return company stock matrix:
+      - company_stock: items.stock_qty
+      - per shop stock: shop_items.shop_stock_qty
+    Result is (shops, rows) where rows is list of dicts with keys:
+      id, category, name, company_stock_qty, total_stock_qty, per_shop (dict shop_id->qty)
+    """
+    shops = []
+    try:
+        shops = list_shops(limit=500) or []
+    except Exception:
+        shops = []
+    shop_ids = []
+    for s in shops:
+        try:
+            shop_ids.append(int(s.get("id")))
+        except Exception:
+            continue
+
+    # Build a pivot query: one column per shop_id.
+    pivot_bits = []
+    for sid in shop_ids:
+        pivot_bits.append(
+            f"COALESCE(SUM(CASE WHEN si.shop_id={sid} THEN si.shop_stock_qty ELSE 0 END),0) AS shop_{sid}"
+        )
+    pivot_sql = ",\n        ".join(pivot_bits) if pivot_bits else "0 AS shop_0"
+
+    sql = f"""
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        COALESCE(i.stock_qty, 0) AS company_stock_qty,
+        {pivot_sql}
+    FROM items i
+    LEFT JOIN shop_items si ON si.item_id = i.id
+    GROUP BY i.id, i.category, i.name, i.stock_qty
+    ORDER BY i.name ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(limit_items),))
+            raw = cur.fetchall() or []
+    except pymysql.Error:
+        return shops, []
+
+    rows = []
+    for r in raw:
+        rr = dict(r)
+        per_shop = {}
+        total = 0
+        try:
+            total += int(rr.get("company_stock_qty") or 0)
+        except Exception:
+            pass
+        for sid in shop_ids:
+            k = f"shop_{sid}"
+            try:
+                q = int(rr.get(k) or 0)
+            except Exception:
+                q = 0
+            per_shop[str(sid)] = q
+            total += q
+            rr.pop(k, None)
+        rr["per_shop"] = per_shop
+        rr["total_stock_qty"] = total
+        rows.append(rr)
+    return shops, rows
+
+
+def get_company_stock_movement_analytics(analytics_filter: dict, shop_id: Optional[int] = None):
+    """
+    Stock movement analytics across company + shops, with optional shop-only filter.
+    - Company movements come from stock_transactions.
+    - Shop movements come from shop_stock_transactions.
+    """
+    st_where, st_params = _analytics_where_clause(analytics_filter, "st")
+    sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
+    union_sql = f"""
+    (
+      SELECT NULL AS shop_id, 'company' AS scope, st.item_id, st.direction, st.qty, st.created_at
+      FROM stock_transactions st
+      WHERE {st_where}
+      UNION ALL
+      SELECT sst.shop_id AS shop_id, 'shop' AS scope, sst.item_id, sst.direction, sst.qty, sst.created_at
+      FROM shop_stock_transactions sst
+      WHERE {sst_where}
+    )
+    """
+    base_params = list(st_params) + list(sst_params)
+    mv_where = "1=1"
+    mv_params: list = []
+    if shop_id is not None:
+        mv_where = "mv.scope='shop' AND mv.shop_id=%s"
+        mv_params.append(int(shop_id))
+
+    totals_sql = f"""
+    SELECT
+      COUNT(*) AS tx_count,
+      COALESCE(SUM(CASE WHEN mv.direction='in' THEN mv.qty ELSE 0 END), 0) AS qty_in,
+      COALESCE(SUM(CASE WHEN mv.direction='out' THEN mv.qty ELSE 0 END), 0) AS qty_out,
+      COUNT(DISTINCT mv.item_id) AS distinct_items,
+      COUNT(DISTINCT CASE WHEN mv.scope='shop' THEN mv.shop_id END) AS distinct_shops
+    FROM {union_sql} mv
+    WHERE {mv_where}
+    """
+    top_items_sql = f"""
+    SELECT
+      mv.item_id,
+      i.category,
+      i.name,
+      COALESCE(SUM(CASE WHEN mv.direction='in' THEN mv.qty ELSE 0 END), 0) AS qty_in,
+      COALESCE(SUM(CASE WHEN mv.direction='out' THEN mv.qty ELSE 0 END), 0) AS qty_out
+    FROM {union_sql} mv
+    JOIN items i ON i.id = mv.item_id
+    WHERE {mv_where}
+    GROUP BY mv.item_id, i.category, i.name
+    ORDER BY (qty_in + qty_out) DESC, i.name ASC
+    LIMIT 20
+    """
+    daily_sql = f"""
+    SELECT
+      DATE(mv.created_at) AS day,
+      COUNT(*) AS tx_count,
+      COALESCE(SUM(CASE WHEN mv.direction='in' THEN mv.qty ELSE 0 END), 0) AS qty_in,
+      COALESCE(SUM(CASE WHEN mv.direction='out' THEN mv.qty ELSE 0 END), 0) AS qty_out
+    FROM {union_sql} mv
+    WHERE {mv_where}
+    GROUP BY DATE(mv.created_at)
+    ORDER BY day DESC
+    LIMIT 31
+    """
+    by_shop_sql = f"""
+    SELECT
+      mv.shop_id,
+      s.shop_name,
+      s.shop_code,
+      COUNT(*) AS tx_count,
+      COALESCE(SUM(CASE WHEN mv.direction='in' THEN mv.qty ELSE 0 END), 0) AS qty_in,
+      COALESCE(SUM(CASE WHEN mv.direction='out' THEN mv.qty ELSE 0 END), 0) AS qty_out
+    FROM {union_sql} mv
+    JOIN shops s ON s.id = mv.shop_id
+    WHERE mv.scope='shop' AND {mv_where}
+    GROUP BY mv.shop_id, s.shop_name, s.shop_code
+    ORDER BY (qty_in + qty_out) DESC, s.shop_name ASC
+    LIMIT 50
+    """
+    by_scope_sql = f"""
+    SELECT
+      mv.scope,
+      mv.direction,
+      COUNT(*) AS tx_count,
+      COALESCE(SUM(mv.qty), 0) AS qty
+    FROM {union_sql} mv
+    WHERE {mv_where}
+    GROUP BY mv.scope, mv.direction
+    ORDER BY mv.scope ASC, mv.direction ASC
+    """
+
+    out = {
+        "tx_count": 0,
+        "qty_in": 0,
+        "qty_out": 0,
+        "net_qty": 0,
+        "distinct_items": 0,
+        "distinct_shops": 0,
+        "top_items": [],
+        "daily": [],
+        "by_shop": [],
+        "scope_rows": [],
+    }
+    params = tuple(base_params + mv_params)
+    try:
+        with get_cursor() as cur:
+            cur.execute(totals_sql, params)
+            t = cur.fetchone() or {}
+            out["tx_count"] = int(t.get("tx_count") or 0)
+            out["qty_in"] = int(t.get("qty_in") or 0)
+            out["qty_out"] = int(t.get("qty_out") or 0)
+            out["net_qty"] = out["qty_in"] - out["qty_out"]
+            out["distinct_items"] = int(t.get("distinct_items") or 0)
+            out["distinct_shops"] = int(t.get("distinct_shops") or 0)
+
+            cur.execute(top_items_sql, params)
+            out["top_items"] = [
+                {
+                    "item_id": r.get("item_id"),
+                    "category": r.get("category") or "",
+                    "name": r.get("name") or "Item",
+                    "qty_in": int(r.get("qty_in") or 0),
+                    "qty_out": int(r.get("qty_out") or 0),
+                    "total": int(r.get("qty_in") or 0) + int(r.get("qty_out") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+
+            cur.execute(daily_sql, params)
+            out["daily"] = [
+                {
+                    "day": str(r.get("day") or ""),
+                    "tx_count": int(r.get("tx_count") or 0),
+                    "qty_in": int(r.get("qty_in") or 0),
+                    "qty_out": int(r.get("qty_out") or 0),
+                    "net_qty": int(r.get("qty_in") or 0) - int(r.get("qty_out") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+
+            cur.execute(by_shop_sql, params)
+            out["by_shop"] = [
+                {
+                    "shop_id": r.get("shop_id"),
+                    "shop_name": r.get("shop_name") or "",
+                    "shop_code": r.get("shop_code") or "",
+                    "tx_count": int(r.get("tx_count") or 0),
+                    "qty_in": int(r.get("qty_in") or 0),
+                    "qty_out": int(r.get("qty_out") or 0),
+                    "net_qty": int(r.get("qty_in") or 0) - int(r.get("qty_out") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+
+            cur.execute(by_scope_sql, params)
+            out["scope_rows"] = [
+                {
+                    "scope": (r.get("scope") or "").upper(),
+                    "direction": (r.get("direction") or "").upper(),
+                    "tx_count": int(r.get("tx_count") or 0),
+                    "qty": int(r.get("qty") or 0),
+                }
+                for r in (cur.fetchall() or [])
+            ]
+    except pymysql.Error:
+        return out
+    return out
+
+
+def list_company_stock_movements(analytics_filter: dict, shop_id: Optional[int] = None, limit: int = 1000):
+    """Detailed stock movement log across company + shops."""
+    st_where, st_params = _analytics_where_clause(analytics_filter, "st")
+    sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
+
+    # Company stock movements.
+    company_sql = f"""
+    SELECT
+      st.created_at,
+      st.item_id,
+      i.name AS item_name,
+      st.direction,
+      st.qty,
+      'COMPANY' AS from_where,
+      CASE WHEN st.direction='in' THEN 'COMPANY' ELSE 'OUTSIDE' END AS to_where,
+      COALESCE(e.full_name, 'UNKNOWN') AS moved_by
+    FROM stock_transactions st
+    JOIN items i ON i.id = st.item_id
+    LEFT JOIN employees e ON e.id = st.created_by_employee_id
+    WHERE {st_where}
+    """
+
+    # Shop stock movements with explicit from/to labels.
+    shop_sql = f"""
+    SELECT
+      sst.created_at,
+      sst.item_id,
+      i.name AS item_name,
+      sst.direction,
+      sst.qty,
+      CASE
+        WHEN sst.source='company' AND sst.direction='in' THEN 'COMPANY'
+        WHEN sst.source='company' AND sst.direction='out' THEN sh.shop_name
+        WHEN sst.source='transfer' AND sst.direction='out' THEN sh.shop_name
+        WHEN sst.source='transfer' AND sst.direction='in' THEN 'TRANSFER IN'
+        ELSE sh.shop_name
+      END AS from_where,
+      CASE
+        WHEN sst.source='company' AND sst.direction='in' THEN sh.shop_name
+        WHEN sst.source='company' AND sst.direction='out' THEN 'COMPANY'
+        WHEN sst.source='transfer' AND sst.direction='out' THEN 'TRANSFER OUT'
+        WHEN sst.source='transfer' AND sst.direction='in' THEN sh.shop_name
+        WHEN sst.direction='out' AND UPPER(COALESCE(sst.reason,''))='POS' THEN 'CLIENT'
+        WHEN sst.direction='out' THEN 'OUTSIDE'
+        ELSE sh.shop_name
+      END AS to_where,
+      COALESCE(e.full_name, 'UNKNOWN') AS moved_by
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    JOIN shops sh ON sh.id = sst.shop_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {sst_where}
+    """
+
+    params = list(st_params) + list(sst_params)
+    where_sql = ""
+    if shop_id is not None:
+        # Limit to movements touching selected shop for shop-side rows.
+        where_sql = "WHERE (mv.from_where=%s OR mv.to_where=%s)"
+        try:
+            sname = None
+            with get_cursor() as cur:
+                cur.execute("SELECT shop_name FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
+                rr = cur.fetchone() or {}
+                sname = rr.get("shop_name")
+        except pymysql.Error:
+            sname = None
+        if sname:
+            params.extend([sname, sname])
+
+    sql = f"""
+    SELECT * FROM (
+      {company_sql}
+      UNION ALL
+      {shop_sql}
+    ) mv
+    {where_sql}
+    ORDER BY mv.created_at DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        return []
+    out = []
+    for r in rows:
+        rr = dict(r)
+        rr["qty"] = int(rr.get("qty") or 0)
+        rr["item_name"] = rr.get("item_name") or "Item"
+        rr["from_where"] = rr.get("from_where") or "UNKNOWN"
+        rr["to_where"] = rr.get("to_where") or "UNKNOWN"
+        rr["moved_by"] = rr.get("moved_by") or "UNKNOWN"
+        out.append(rr)
+    return out
+
+
+def get_shop_stock_qty_map_for_item(item_id: int) -> dict:
+    """Return {shop_id: shop_stock_qty} for one item across all shops."""
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT shop_id, shop_stock_qty
+                FROM shop_items
+                WHERE item_id=%s
+                """,
+                (int(item_id),),
+            )
+            rows = cur.fetchall() or []
+        out = {}
+        for r in rows:
+            sid = int(r.get("shop_id") or 0)
+            if sid > 0:
+                out[sid] = int(r.get("shop_stock_qty") or 0)
+        return out
+    except pymysql.Error:
+        return {}
 
 
 def shop_request_stock_from_company(
@@ -4282,6 +5094,97 @@ def shop_manual_stock_out(
         return True
 
 
+def shop_transfer_stock_between_shops(
+    *,
+    from_shop_id: int,
+    to_shop_id: int,
+    item_id: int,
+    qty: int,
+    note: Optional[str] = None,
+    created_by_employee_id: Optional[int] = None,
+) -> bool:
+    """Move stock for one item from one shop to another (atomic)."""
+    qty = int(qty)
+    if qty <= 0:
+        return False
+    if int(from_shop_id) == int(to_shop_id):
+        return False
+
+    with get_cursor(commit=True) as cur:
+        # Lock source + destination rows.
+        cur.execute(
+            "SELECT shop_stock_qty, stock_update_enabled FROM shop_items WHERE shop_id=%s AND item_id=%s FOR UPDATE",
+            (int(from_shop_id), int(item_id)),
+        )
+        src = cur.fetchone()
+        if not src or int(src.get("stock_update_enabled") or 0) != 1:
+            return False
+        src_before = int(src.get("shop_stock_qty") or 0)
+        if src_before < qty:
+            return False
+
+        cur.execute(
+            "SELECT shop_stock_qty, stock_update_enabled FROM shop_items WHERE shop_id=%s AND item_id=%s FOR UPDATE",
+            (int(to_shop_id), int(item_id)),
+        )
+        dst = cur.fetchone()
+        if not dst or int(dst.get("stock_update_enabled") or 0) != 1:
+            return False
+        dst_before = int(dst.get("shop_stock_qty") or 0)
+
+        src_after = src_before - qty
+        dst_after = dst_before + qty
+
+        cur.execute(
+            "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+            (src_after, int(from_shop_id), int(item_id)),
+        )
+        cur.execute(
+            "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+            (dst_after, int(to_shop_id), int(item_id)),
+        )
+
+        # Record OUT transaction for source shop.
+        cur.execute(
+            """
+            INSERT INTO shop_stock_transactions
+                (shop_id, item_id, direction, source, qty, shop_stock_before, shop_stock_after,
+                 reason, note, created_by_employee_id)
+            VALUES (%s,%s,'out','transfer',%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                int(from_shop_id),
+                int(item_id),
+                qty,
+                src_before,
+                src_after,
+                "TRANSFER",
+                note or None,
+                created_by_employee_id,
+            ),
+        )
+        # Record IN transaction for destination shop.
+        cur.execute(
+            """
+            INSERT INTO shop_stock_transactions
+                (shop_id, item_id, direction, source, qty, shop_stock_before, shop_stock_after,
+                 reason, note, created_by_employee_id)
+            VALUES (%s,%s,'in','transfer',%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                int(to_shop_id),
+                int(item_id),
+                qty,
+                dst_before,
+                dst_after,
+                "TRANSFER",
+                note or None,
+                created_by_employee_id,
+            ),
+        )
+        return True
+
+
 def get_site_settings(keys: Optional[list[str]] = None) -> dict:
     """Fetch settings as a dict. If keys is provided, fetch only those keys."""
     if keys:
@@ -4321,6 +5224,501 @@ def set_site_settings(values: dict) -> bool:
         return False
 
 
+def init_shop_stock_requests_table() -> bool:
+    sql = """
+    CREATE TABLE IF NOT EXISTS shop_stock_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        requesting_shop_id INT NOT NULL,
+        source_type ENUM('company','shop') NOT NULL,
+        source_shop_id INT NULL,
+        item_id INT NOT NULL,
+        qty INT NOT NULL,
+        status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+        note VARCHAR(255) NULL,
+        requested_by_employee_id INT NULL,
+        reviewed_by_employee_id INT NULL,
+        review_note VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP NULL DEFAULT NULL,
+        INDEX idx_shop_stock_requests_requesting_shop (requesting_shop_id),
+        INDEX idx_shop_stock_requests_source_shop (source_shop_id),
+        INDEX idx_shop_stock_requests_item (item_id),
+        INDEX idx_shop_stock_requests_status (status),
+        CONSTRAINT fk_ssr_requesting_shop FOREIGN KEY (requesting_shop_id) REFERENCES shops(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ssr_source_shop FOREIGN KEY (source_shop_id) REFERENCES shops(id) ON DELETE SET NULL,
+        CONSTRAINT fk_ssr_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ssr_requested_by FOREIGN KEY (requested_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL,
+        CONSTRAINT fk_ssr_reviewed_by FOREIGN KEY (reviewed_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+            if not column_exists("shop_stock_requests", "request_type"):
+                cur.execute(
+                    "ALTER TABLE shop_stock_requests ADD COLUMN request_type ENUM('stock_in','return_to_company') NOT NULL DEFAULT 'stock_in' AFTER requesting_shop_id"
+                )
+            return True
+    except pymysql.Error:
+        return False
+
+
+def init_notifications_table() -> bool:
+    sql = """
+    CREATE TABLE IF NOT EXISTS app_notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(180) NOT NULL,
+        message VARCHAR(500) NOT NULL,
+        employee_id INT NULL,
+        shop_id INT NULL,
+        audience_role ENUM('all','admin_only') NOT NULL DEFAULT 'all',
+        link_url VARCHAR(500) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_app_notifications_employee (employee_id),
+        INDEX idx_app_notifications_shop (shop_id),
+        INDEX idx_app_notifications_created (created_at),
+        CONSTRAINT fk_app_notifications_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+        CONSTRAINT fk_app_notifications_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+            return True
+    except pymysql.Error:
+        return False
+
+
+def create_notification(
+    *,
+    title: str,
+    message: str,
+    employee_id: Optional[int] = None,
+    shop_id: Optional[int] = None,
+    audience_role: str = "all",
+    link_url: Optional[str] = None,
+) -> bool:
+    audience_role = (audience_role or "all").strip().lower()
+    if audience_role not in ("all", "admin_only"):
+        audience_role = "all"
+    sql = """
+    INSERT INTO app_notifications (title, message, employee_id, shop_id, audience_role, link_url)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                sql,
+                (
+                    (title or "").strip()[:180] or "Notification",
+                    (message or "").strip()[:500] or "",
+                    int(employee_id) if employee_id else None,
+                    int(shop_id) if shop_id else None,
+                    audience_role,
+                    (link_url or "").strip()[:500] or None,
+                ),
+            )
+        return True
+    except pymysql.Error:
+        return False
+
+
+def list_notifications_for_session(
+    *,
+    employee_id: Optional[int],
+    shop_id: Optional[int],
+    role_key: str,
+    limit: int = 100,
+):
+    role_key = (role_key or "").strip().lower()
+    is_admin = role_key in ("it_support", "super_admin")
+    limit = max(1, min(int(limit), 500))
+    try:
+        with get_cursor() as cur:
+            if is_admin:
+                cur.execute(
+                    """
+                    SELECT id, title, message, employee_id, shop_id, audience_role, link_url, created_at
+                    FROM app_notifications
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+            else:
+                conds = []
+                params = []
+                if employee_id:
+                    conds.append("employee_id=%s")
+                    params.append(int(employee_id))
+                if shop_id:
+                    conds.append("shop_id=%s")
+                    params.append(int(shop_id))
+                conds.append("(employee_id IS NULL AND shop_id IS NULL AND audience_role='all')")
+                where_sql = " OR ".join(conds)
+                cur.execute(
+                    f"""
+                    SELECT id, title, message, employee_id, shop_id, audience_role, link_url, created_at
+                    FROM app_notifications
+                    WHERE ({where_sql})
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT %s
+                    """,
+                    tuple(params + [limit]),
+                )
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def count_notifications_for_session(*, employee_id: Optional[int], shop_id: Optional[int], role_key: str) -> int:
+    role_key = (role_key or "").strip().lower()
+    is_admin = role_key in ("it_support", "super_admin")
+    try:
+        with get_cursor() as cur:
+            if is_admin:
+                cur.execute("SELECT COUNT(*) AS c FROM app_notifications")
+                row = cur.fetchone() or {}
+                return int(row.get("c") or 0)
+            conds = []
+            params = []
+            if employee_id:
+                conds.append("employee_id=%s")
+                params.append(int(employee_id))
+            if shop_id:
+                conds.append("shop_id=%s")
+                params.append(int(shop_id))
+            conds.append("(employee_id IS NULL AND shop_id IS NULL AND audience_role='all')")
+            where_sql = " OR ".join(conds)
+            cur.execute(
+                f"SELECT COUNT(*) AS c FROM app_notifications WHERE ({where_sql})",
+                tuple(params),
+            )
+            row = cur.fetchone() or {}
+            return int(row.get("c") or 0)
+    except pymysql.Error:
+        return 0
+
+
+def create_shop_stock_request(
+    *,
+    requesting_shop_id: int,
+    request_type: str = "stock_in",
+    source_type: str,
+    source_shop_id: Optional[int],
+    item_id: int,
+    qty: int,
+    note: Optional[str] = None,
+    requested_by_employee_id: Optional[int] = None,
+) -> Optional[int]:
+    request_type = (request_type or "stock_in").strip().lower()
+    if request_type not in ("stock_in", "return_to_company"):
+        return None
+    source_type = (source_type or "").strip().lower()
+    if source_type not in ("company", "shop"):
+        return None
+    qty = int(qty)
+    if qty <= 0:
+        return None
+    requesting_shop_id = int(requesting_shop_id)
+    item_id = int(item_id)
+    if request_type == "return_to_company":
+        source_type = "company"
+        source_shop_id = None
+    elif source_type == "company":
+        source_shop_id = None
+    else:
+        if not source_shop_id:
+            return None
+        source_shop_id = int(source_shop_id)
+        if source_shop_id == requesting_shop_id:
+            return None
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute("SELECT id FROM shops WHERE id=%s LIMIT 1", (requesting_shop_id,))
+            if not cur.fetchone():
+                return None
+            if request_type == "return_to_company":
+                cur.execute(
+                    "SELECT shop_stock_qty, stock_update_enabled FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
+                    (requesting_shop_id, item_id),
+                )
+                src = cur.fetchone()
+                if not src or int(src.get("stock_update_enabled") or 0) != 1:
+                    return None
+            elif source_type == "shop":
+                cur.execute("SELECT id FROM shops WHERE id=%s LIMIT 1", (source_shop_id,))
+                if not cur.fetchone():
+                    return None
+                cur.execute(
+                    "SELECT shop_stock_qty, stock_update_enabled FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
+                    (source_shop_id, item_id),
+                )
+                src = cur.fetchone()
+                if not src or int(src.get("stock_update_enabled") or 0) != 1:
+                    return None
+            else:
+                cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
+                item = cur.fetchone()
+                if not item or item.get("status") != "active":
+                    return None
+            has_request_type = column_exists("shop_stock_requests", "request_type")
+            if has_request_type:
+                cur.execute(
+                    """
+                    INSERT INTO shop_stock_requests
+                        (requesting_shop_id, request_type, source_type, source_shop_id, item_id, qty, note, requested_by_employee_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        requesting_shop_id,
+                        request_type,
+                        source_type,
+                        source_shop_id,
+                        item_id,
+                        qty,
+                        (note or "").strip()[:255] or None,
+                        int(requested_by_employee_id) if requested_by_employee_id else None,
+                    ),
+                )
+            else:
+                # Backward-compatible path before request_type migration is applied.
+                cur.execute(
+                    """
+                    INSERT INTO shop_stock_requests
+                        (requesting_shop_id, source_type, source_shop_id, item_id, qty, note, requested_by_employee_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        requesting_shop_id,
+                        source_type,
+                        source_shop_id,
+                        item_id,
+                        qty,
+                        (note or "").strip()[:255] or None,
+                        int(requested_by_employee_id) if requested_by_employee_id else None,
+                    ),
+                )
+            return int(cur.lastrowid or 0) or None
+    except pymysql.Error:
+        return None
+
+
+def list_stock_requests_for_session(
+    *,
+    role_key: str,
+    viewer_shop_id: Optional[int],
+    limit: int = 200,
+):
+    role_key = (role_key or "").strip().lower()
+    is_admin = role_key in ("it_support", "super_admin")
+    limit = max(1, min(int(limit), 1000))
+    try:
+        with get_cursor() as cur:
+            req_type_col = "r.request_type" if column_exists("shop_stock_requests", "request_type") else "'stock_in'"
+            if is_admin:
+                cur.execute(
+                    """
+                    SELECT r.id, r.requesting_shop_id, """ + req_type_col + """ AS request_type, r.source_type, r.source_shop_id, r.item_id, r.qty, r.status,
+                           r.note, r.requested_by_employee_id, r.reviewed_by_employee_id, r.review_note,
+                           r.created_at, r.reviewed_at,
+                           rq.shop_name AS requesting_shop_name,
+                           ss.shop_name AS source_shop_name,
+                           i.item_name
+                    FROM shop_stock_requests r
+                    JOIN shops rq ON rq.id = r.requesting_shop_id
+                    LEFT JOIN shops ss ON ss.id = r.source_shop_id
+                    JOIN items i ON i.id = r.item_id
+                    ORDER BY r.created_at DESC, r.id DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT r.id, r.requesting_shop_id, """ + req_type_col + """ AS request_type, r.source_type, r.source_shop_id, r.item_id, r.qty, r.status,
+                           r.note, r.requested_by_employee_id, r.reviewed_by_employee_id, r.review_note,
+                           r.created_at, r.reviewed_at,
+                           rq.shop_name AS requesting_shop_name,
+                           ss.shop_name AS source_shop_name,
+                           i.item_name
+                    FROM shop_stock_requests r
+                    JOIN shops rq ON rq.id = r.requesting_shop_id
+                    LEFT JOIN shops ss ON ss.id = r.source_shop_id
+                    JOIN items i ON i.id = r.item_id
+                    WHERE r.requesting_shop_id=%s OR r.source_shop_id=%s
+                    ORDER BY r.created_at DESC, r.id DESC
+                    LIMIT %s
+                    """,
+                    (int(viewer_shop_id or 0), int(viewer_shop_id or 0), limit),
+                )
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def _can_review_request(row: dict, *, approver_role: str, approver_shop_id: Optional[int]) -> bool:
+    approver_role = (approver_role or "").strip().lower()
+    if approver_role in ("it_support", "super_admin"):
+        return True
+    if (row.get("request_type") or "").lower() == "return_to_company":
+        return False
+    if (row.get("source_type") or "").lower() == "shop":
+        try:
+            return int(approver_shop_id or 0) == int(row.get("source_shop_id") or 0)
+        except Exception:
+            return False
+    return False
+
+
+def review_stock_request(
+    *,
+    request_id: int,
+    approve: bool,
+    approver_employee_id: Optional[int],
+    approver_role: str,
+    approver_shop_id: Optional[int],
+    review_note: Optional[str] = None,
+) -> bool:
+    request_id = int(request_id)
+    if request_id <= 0:
+        return False
+    try:
+        with get_cursor(commit=True) as cur:
+            req_type_col = "request_type" if column_exists("shop_stock_requests", "request_type") else "'stock_in' AS request_type"
+            cur.execute(
+                """
+                SELECT id, requesting_shop_id, """ + req_type_col + """, source_type, source_shop_id, item_id, qty, status, note, requested_by_employee_id
+                FROM shop_stock_requests
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (request_id,),
+            )
+            req = cur.fetchone()
+            if not req or (req.get("status") or "").lower() != "pending":
+                return False
+            if not _can_review_request(req, approver_role=approver_role, approver_shop_id=approver_shop_id):
+                return False
+
+            if approve:
+                ok = False
+                if (req.get("request_type") or "").lower() == "return_to_company":
+                    ok = shop_return_stock_to_company(
+                        shop_id=int(req["requesting_shop_id"]),
+                        item_id=int(req["item_id"]),
+                        qty=int(req["qty"]),
+                        reason="return",
+                        refunded=False,
+                        refund_amount=None,
+                        note=(req.get("note") or "").strip() or f"Approved return request #{request_id}",
+                        created_by_employee_id=approver_employee_id,
+                    )
+                elif (req.get("source_type") or "").lower() == "company":
+                    ok = shop_request_stock_from_company(
+                        shop_id=int(req["requesting_shop_id"]),
+                        item_id=int(req["item_id"]),
+                        qty=int(req["qty"]),
+                        note=(req.get("note") or "").strip() or f"Approved request #{request_id}",
+                        created_by_employee_id=approver_employee_id,
+                    )
+                else:
+                    ok = shop_transfer_stock_between_shops(
+                        from_shop_id=int(req["source_shop_id"]),
+                        to_shop_id=int(req["requesting_shop_id"]),
+                        item_id=int(req["item_id"]),
+                        qty=int(req["qty"]),
+                        note=(req.get("note") or "").strip() or f"Approved request #{request_id}",
+                        created_by_employee_id=approver_employee_id,
+                    )
+                if not ok:
+                    return False
+                new_status = "approved"
+            else:
+                new_status = "rejected"
+
+            cur.execute(
+                """
+                UPDATE shop_stock_requests
+                SET status=%s, reviewed_by_employee_id=%s, review_note=%s, reviewed_at=NOW()
+                WHERE id=%s
+                """,
+                (
+                    new_status,
+                    int(approver_employee_id) if approver_employee_id else None,
+                    (review_note or "").strip()[:255] or None,
+                    request_id,
+                ),
+            )
+
+            status_word = "approved" if approve else "rejected"
+            item_label = f"Item #{int(req['item_id'])}"
+            base_msg = f"Stock request #{request_id} ({item_label}, qty {int(req['qty'])}) was {status_word}."
+            cur.execute(
+                """
+                INSERT INTO app_notifications (title, message, employee_id, shop_id, audience_role, link_url)
+                VALUES (%s, %s, %s, %s, 'all', %s)
+                """,
+                (
+                    f"Stock request {status_word}",
+                    base_msg,
+                    int(req["requested_by_employee_id"]) if req.get("requested_by_employee_id") else None,
+                    int(req["requesting_shop_id"]),
+                    None,
+                ),
+            )
+            return True
+    except pymysql.Error:
+        return False
+
+
+def can_fulfill_stock_request(request_id: int) -> bool:
+    """True when current source stock can satisfy this pending request."""
+    try:
+        with get_cursor() as cur:
+            req_type_col = "request_type" if column_exists("shop_stock_requests", "request_type") else "'stock_in' AS request_type"
+            cur.execute(
+                """
+                SELECT id, requesting_shop_id, """ + req_type_col + """, source_type, source_shop_id, item_id, qty, status
+                FROM shop_stock_requests
+                WHERE id=%s
+                LIMIT 1
+                """,
+                (int(request_id),),
+            )
+            req = cur.fetchone()
+            if not req:
+                return False
+            if (req.get("status") or "").lower() != "pending":
+                return False
+            qty = int(req.get("qty") or 0)
+            if qty <= 0:
+                return False
+            request_type = (req.get("request_type") or "stock_in").lower()
+            source_type = (req.get("source_type") or "").lower()
+            item_id = int(req.get("item_id") or 0)
+            if request_type == "return_to_company":
+                cur.execute(
+                    "SELECT shop_stock_qty, stock_update_enabled FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
+                    (int(req.get("requesting_shop_id") or 0), item_id),
+                )
+                row = cur.fetchone()
+                return bool(row) and int(row.get("stock_update_enabled") or 0) == 1 and int(row.get("shop_stock_qty") or 0) >= qty
+            if source_type == "company":
+                cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
+                row = cur.fetchone()
+                return bool(row) and row.get("status") == "active" and int(row.get("stock_qty") or 0) >= qty
+            if source_type == "shop":
+                cur.execute(
+                    "SELECT shop_stock_qty, stock_update_enabled FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
+                    (int(req.get("source_shop_id") or 0), item_id),
+                )
+                row = cur.fetchone()
+                return bool(row) and int(row.get("stock_update_enabled") or 0) == 1 and int(row.get("shop_stock_qty") or 0) >= qty
+            return False
+    except pymysql.Error:
+        return False
 _EXPECTED_SCHEMA_TABLES = (
     "contact_messages",
     "employees",
@@ -4333,9 +5731,13 @@ _EXPECTED_SCHEMA_TABLES = (
     "shop_printer_settings",
     "shop_print_agent_jobs",
     "shop_customers",
+    "public_customers",
     "shop_pos_sales",
     "shop_pos_sale_items",
+    "shop_pos_quotations",
     "shop_credit_payments",
+    "shop_stock_requests",
+    "app_notifications",
 )
 
 
@@ -4367,9 +5769,13 @@ def init_schema() -> bool:
     ok_shop_printer = init_shop_printer_settings_table()
     ok_shop_print_agent = init_shop_print_agent_jobs_table()
     ok_shop_customers = init_shop_customers_table()
+    ok_public_customers = init_public_customers_table()
     ok_shop_pos_sales = init_shop_pos_sales_table()
     ok_shop_pos_sale_items = init_shop_pos_sale_items_table()
+    ok_shop_pos_quotations = init_shop_pos_quotations_table()
     ok_credit = ensure_shop_credit_payments_schema()
+    ok_shop_stock_requests = init_shop_stock_requests_table()
+    ok_notifications = init_notifications_table()
     steps_ok = (
         ok_contact
         and ok_employees
@@ -4382,9 +5788,13 @@ def init_schema() -> bool:
         and ok_shop_printer
         and ok_shop_print_agent
         and ok_shop_customers
+        and ok_public_customers
         and ok_shop_pos_sales
         and ok_shop_pos_sale_items
+        and ok_shop_pos_quotations
         and ok_credit
+        and ok_shop_stock_requests
+        and ok_notifications
     )
     if not steps_ok:
         logger.warning("Database schema initialization did not complete successfully.")

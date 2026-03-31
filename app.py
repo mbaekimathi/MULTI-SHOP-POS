@@ -1,3 +1,4 @@
+import calendar
 import hmac
 import json
 import logging
@@ -337,6 +338,32 @@ def inject_portal_context():
     }
 
 
+@app.context_processor
+def inject_notification_context():
+    uid = session.get("employee_id")
+    if not uid:
+        return {"notification_count": 0, "notifications_url": None}
+    role_key = (session.get("employee_role") or "employee").strip().lower()
+    shop_id = _effective_viewer_shop_id(role_key)
+    try:
+        from database import count_notifications_for_session
+
+        notification_count = count_notifications_for_session(
+            employee_id=int(uid),
+            shop_id=int(shop_id) if shop_id else None,
+            role_key=role_key,
+        )
+    except Exception:
+        notification_count = 0
+    notifications_url = (
+        url_for("shop_notifications", shop_id=int(shop_id)) if shop_id else url_for("notifications")
+    )
+    return {
+        "notification_count": int(notification_count or 0),
+        "notifications_url": notifications_url,
+    }
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -495,7 +522,29 @@ def equipment():
 
 @app.route("/quote")
 def quote():
-    return render_template("quote.html")
+    try:
+        from database import list_public_equipment_catalog
+
+        quote_items = list_public_equipment_catalog(limit_items=1000)
+    except Exception:
+        quote_items = []
+    quote_categories = sorted(
+        {((r.get("category") or "Other").strip() or "Other") for r in quote_items},
+        key=lambda x: x.upper(),
+    )
+    try:
+        from database import get_site_settings
+
+        raw_phone = (get_site_settings(["company_phone"]) or {}).get("company_phone") or ""
+    except Exception:
+        raw_phone = ""
+    quote_whatsapp_digits = re.sub(r"\D", "", str(raw_phone))
+    return render_template(
+        "quote.html",
+        quote_items=quote_items,
+        quote_categories=quote_categories,
+        quote_whatsapp_digits=quote_whatsapp_digits,
+    )
 
 
 @app.route("/contact", methods=["GET", "POST"])
@@ -1272,13 +1321,13 @@ def it_support_register_item():
     return render_template("it_support_register_item.html")
 
 
-@app.route("/it_support/item-management/stock-management", methods=["GET", "POST"])
-@login_required
-def it_support_stock_management():
-    _it_support_only()
+def _it_support_stock_page(direction: str):
+    """Shared logic for IT stock in/out pages."""
+    direction = (direction or "in").strip().lower()
+    if direction not in ("in", "out"):
+        direction = "in"
 
     if request.method == "POST":
-        action = (request.form.get("action") or "").strip()
         item_id_raw = (request.form.get("item_id") or "").strip()
         qty_raw = (request.form.get("qty") or "").strip()
         buying_price_raw = (request.form.get("buying_price") or "").strip()
@@ -1292,18 +1341,15 @@ def it_support_stock_management():
             item_id = int(item_id_raw)
         except Exception:
             flash("Invalid item.", "error")
-            return redirect(url_for("it_support_stock_management"))
-
-        direction = "in" if action == "stock_in" else "out" if action == "stock_out" else None
-        if direction is None:
-            flash("Invalid action.", "error")
-            return redirect(url_for("it_support_stock_management"))
+            return redirect(url_for("it_support_stock_in" if direction == "in" else "it_support_stock_out"))
 
         try:
             qty = int(float(qty_raw))
         except Exception:
             flash("Quantity must be a whole number.", "error")
-            return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+            return redirect(
+                url_for("it_support_stock_in" if direction == "in" else "it_support_stock_out", item_id=item_id)
+            )
 
         buying_price = None
         refund_amount = None
@@ -1311,36 +1357,36 @@ def it_support_stock_management():
         if direction == "in":
             if not buying_price_raw:
                 flash("Buying price is required for stock in.", "error")
-                return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                return redirect(url_for("it_support_stock_in", item_id=item_id))
             if not place_brought_from:
                 flash("Place brought from is required for stock in.", "error")
-                return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                return redirect(url_for("it_support_stock_in", item_id=item_id))
             try:
                 buying_price = float(buying_price_raw)
                 if buying_price < 0:
                     raise ValueError()
             except Exception:
                 flash("Buying price must be a valid number.", "error")
-                return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                return redirect(url_for("it_support_stock_in", item_id=item_id))
         else:
             allowed_reasons = {"return", "waste", "display"}
             if stock_out_reason not in allowed_reasons:
                 flash("Please choose a valid stock out reason.", "error")
-                return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                return redirect(url_for("it_support_stock_out", item_id=item_id))
             if refunded_raw not in ("yes", "no"):
                 flash("Please choose if the stock out is refunded.", "error")
-                return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                return redirect(url_for("it_support_stock_out", item_id=item_id))
             if refunded:
                 if not refund_amount_raw:
                     flash("Refund amount is required when refunded is YES.", "error")
-                    return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                    return redirect(url_for("it_support_stock_out", item_id=item_id))
                 try:
                     refund_amount = float(refund_amount_raw)
                     if refund_amount < 0:
                         raise ValueError()
                 except Exception:
                     flash("Refund amount must be a valid number.", "error")
-                    return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+                    return redirect(url_for("it_support_stock_out", item_id=item_id))
 
         try:
             from database import create_stock_transaction
@@ -1362,30 +1408,325 @@ def it_support_stock_management():
 
         if not ok:
             flash("Could not update stock. Ensure item is ACTIVE and stock update is enabled.", "error")
-            return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+            return redirect(
+                url_for("it_support_stock_in" if direction == "in" else "it_support_stock_out", item_id=item_id)
+            )
 
         flash("Stock updated.", "success")
-        return redirect(url_for("it_support_stock_management", item_id=item_id, mode=direction))
+        return redirect(url_for("it_support_stock_in" if direction == "in" else "it_support_stock_out", item_id=item_id))
 
-    mode = (request.args.get("mode") or "in").strip().lower()
-    if mode not in ("in", "out"):
-        mode = "in"
     item_id = request.args.get("item_id", type=int)
-
     try:
         from database import list_stock_manage_items, list_stock_transactions
 
         items = list_stock_manage_items(limit=500)
-        txs = list_stock_transactions(item_id, direction=mode, limit=200) if item_id else []
+        txs = list_stock_transactions(item_id, direction=direction, limit=200) if item_id else []
     except Exception:
         items, txs = [], []
 
+    selected_item = None
+    if item_id and items:
+        for it in items:
+            try:
+                if int(it.get("id")) == int(item_id):
+                    selected_item = it
+                    break
+            except Exception:
+                continue
+    return items, item_id, selected_item, txs
+
+
+@app.route("/it_support/item-management/stock-management")
+@login_required
+def it_support_stock_management():
+    """Stock item list page. Choose item + action to continue."""
+    _it_support_only()
+    try:
+        from database import list_stock_manage_items
+
+        items = list_stock_manage_items(limit=500)
+    except Exception:
+        items = []
+    return render_template("it_support_stock_management.html", items=items)
+
+
+@app.route("/it_support/item-management/stock-in", methods=["GET", "POST"])
+@login_required
+def it_support_stock_in():
+    _it_support_only()
+    items, item_id, selected_item, txs = _it_support_stock_page("in")
+    if not item_id:
+        flash("Select an item from Stock management first.", "error")
+        return redirect(url_for("it_support_stock_management"))
     return render_template(
-        "it_support_stock_management.html",
-        items=items,
+        "it_support_stock_in.html",
         selected_item_id=item_id,
-        mode=mode,
+        selected_item=selected_item,
         transactions=txs,
+    )
+
+
+@app.route("/it_support/item-management/stock-out", methods=["GET", "POST"])
+@login_required
+def it_support_stock_out():
+    _it_support_only()
+    items, item_id, selected_item, txs = _it_support_stock_page("out")
+    if not item_id:
+        flash("Select an item from Stock management first.", "error")
+        return redirect(url_for("it_support_stock_management"))
+    return render_template(
+        "it_support_stock_out.html",
+        selected_item_id=item_id,
+        selected_item=selected_item,
+        transactions=txs,
+    )
+
+
+@app.route("/it_support/stock-status")
+@login_required
+def it_support_company_stock_analytics():
+    _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    try:
+        from database import get_company_stock_analytics
+
+        stock_data = get_company_stock_analytics(analytics_filter=analytics_filter)
+    except Exception:
+        stock_data = {}
+    try:
+        from database import get_company_stock_status
+
+        shops, stock_rows = get_company_stock_status(limit_items=2000)
+    except Exception:
+        shops, stock_rows = [], []
+    return render_template(
+        "it_support_stock_analytics.html",
+        analytics_filter=analytics_filter,
+        stock_data=stock_data,
+        stock_shops=shops,
+        stock_rows=stock_rows,
+    )
+
+
+@app.route("/it_support/stock-status/section")
+@login_required
+def it_support_stock_status():
+    _it_support_or_super_admin_only()
+    return redirect(url_for("it_support_company_stock_analytics") + "#stock-status")
+
+
+@app.route("/it_support/stock-analytics")
+@login_required
+def it_support_stock_analytics_legacy():
+    _it_support_or_super_admin_only()
+    return redirect(url_for("it_support_company_stock_analytics"))
+
+
+@app.route("/it_support/stock-movement-analysis")
+@login_required
+def it_support_stock_movement_analysis():
+    _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    selected_shop_id = request.args.get("shop_id", type=int)
+    try:
+        from database import (
+            get_company_stock_movement_analytics,
+            list_company_stock_movements,
+            list_shops,
+        )
+
+        shops = list_shops(limit=500)
+        movement = get_company_stock_movement_analytics(
+            analytics_filter=analytics_filter,
+            shop_id=selected_shop_id,
+        )
+        movement_rows = list_company_stock_movements(
+            analytics_filter=analytics_filter,
+            shop_id=selected_shop_id,
+            limit=1500,
+        )
+    except Exception:
+        shops = []
+        movement = {}
+        movement_rows = []
+    return render_template(
+        "it_support_stock_movement_analysis.html",
+        analytics_filter=analytics_filter,
+        movement_data=movement,
+        movement_rows=movement_rows,
+        shops=shops,
+        selected_shop_id=selected_shop_id,
+    )
+
+
+@app.route("/it_support/stock-profitability-analysis")
+@login_required
+def it_support_stock_profitability_analysis():
+    _it_support_or_super_admin_only()
+    return redirect(url_for("it_support_company_stock_analytics") + "#stock-profitability")
+
+
+@app.route("/it_support/stock-reports")
+@login_required
+def it_support_stock_reports():
+    _it_support_or_super_admin_only()
+    return redirect(url_for("it_support_company_stock_analytics") + "#stock-reports")
+
+
+@app.route("/it_support/stock-settings")
+@login_required
+def it_support_stock_settings():
+    _it_support_or_super_admin_only()
+    return redirect(url_for("it_support_system_settings") + "#pos")
+
+
+@app.route("/it_support/company-stock-update", methods=["GET", "POST"])
+@login_required
+def it_support_company_stock_update():
+    _it_support_or_super_admin_only()
+    try:
+        from database import get_company_stock_status, list_shops, list_stock_manage_items
+
+        shops = list_shops(limit=500)
+        items = list_stock_manage_items(limit=2000)
+        _, stock_rows = get_company_stock_status(limit_items=2000)
+    except Exception:
+        shops, items, stock_rows = [], [], []
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "").strip().lower()
+        note = (request.form.get("note") or "").strip().upper() or None
+
+        item_ids = request.form.getlist("item_id[]")
+        qtys = request.form.getlist("qty[]")
+
+        lines = []
+        for i in range(min(len(item_ids), len(qtys), 200)):
+            iid_raw = (item_ids[i] or "").strip()
+            qty_raw = (qtys[i] or "").strip()
+            if not iid_raw or not qty_raw:
+                continue
+            try:
+                iid = int(iid_raw)
+                q = int(float(qty_raw))
+            except Exception:
+                continue
+            if q <= 0:
+                continue
+            lines.append((iid, q))
+
+        if not lines:
+            flash("Add at least one item and quantity.", "error")
+            return redirect(url_for("it_support_company_stock_update"))
+
+        emp_id = session.get("employee_id")
+        ok_count = 0
+        fail_count = 0
+
+        try:
+            from database import (
+                ensure_shop_items_for_shop,
+                shop_manual_stock_out,
+                shop_request_stock_from_company,
+                shop_return_stock_to_company,
+                shop_transfer_stock_between_shops,
+            )
+
+            if action == "stock_in":
+                shop_id = request.form.get("shop_id", type=int)
+                if not shop_id:
+                    flash("Select a shop for stock in.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                ensure_shop_items_for_shop(shop_id)
+                for iid, q in lines:
+                    ok = shop_request_stock_from_company(
+                        shop_id=shop_id,
+                        item_id=iid,
+                        qty=q,
+                        note=note,
+                        created_by_employee_id=emp_id,
+                    )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+
+            elif action == "stock_out":
+                shop_id = request.form.get("shop_id", type=int)
+                reason = (request.form.get("stock_out_reason") or "").strip().lower()
+                if not shop_id:
+                    flash("Select a shop for stock out.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                if reason not in ("return", "waste"):
+                    flash("Choose RETURN or WASTE.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                ensure_shop_items_for_shop(shop_id)
+                for iid, q in lines:
+                    if reason == "return":
+                        ok = shop_return_stock_to_company(
+                            shop_id=shop_id,
+                            item_id=iid,
+                            qty=q,
+                            reason="return",
+                            refunded=False,
+                            refund_amount=None,
+                            note=note,
+                            created_by_employee_id=emp_id,
+                        )
+                    else:
+                        # Waste reduces shop stock only.
+                        ok = shop_manual_stock_out(
+                            shop_id=shop_id,
+                            item_id=iid,
+                            qty=q,
+                            reason="waste",
+                            refunded=False,
+                            refund_amount=None,
+                            note=note,
+                            created_by_employee_id=emp_id,
+                        )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+
+            elif action == "transfer":
+                from_shop_id = request.form.get("from_shop_id", type=int)
+                to_shop_id = request.form.get("to_shop_id", type=int)
+                if not from_shop_id or not to_shop_id or int(from_shop_id) == int(to_shop_id):
+                    flash("Select different FROM and TO shops for transfer.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                ensure_shop_items_for_shop(from_shop_id)
+                ensure_shop_items_for_shop(to_shop_id)
+                for iid, q in lines:
+                    ok = shop_transfer_stock_between_shops(
+                        from_shop_id=from_shop_id,
+                        to_shop_id=to_shop_id,
+                        item_id=iid,
+                        qty=q,
+                        note=note,
+                        created_by_employee_id=emp_id,
+                    )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+            else:
+                flash("Invalid action.", "error")
+                return redirect(url_for("it_support_company_stock_update"))
+
+        except Exception as e:
+            app.logger.exception("Company stock update failed: %s", e)
+            flash(f"Could not update stock. {type(e).__name__}: {e}", "error")
+            return redirect(url_for("it_support_company_stock_update"))
+
+        if ok_count and not fail_count:
+            flash(f"Stock updated for {ok_count} item(s).", "success")
+        elif ok_count and fail_count:
+            flash(f"Stock updated for {ok_count} item(s); {fail_count} failed.", "warning")
+        else:
+            flash("No items were updated. Check quantities and stock availability.", "error")
+        return redirect(url_for("it_support_company_stock_update"))
+
+    return render_template(
+        "it_support_company_stock_update.html",
+        shops=shops,
+        items=items,
+        stock_rows=stock_rows,
     )
 
 
@@ -1976,7 +2317,7 @@ def it_support_credit_sale_detail():
 @login_required
 def it_support_store_management():
     _it_support_only()
-    return render_template("it_support_store_management.html")
+    return redirect(url_for("it_support_stock_management"))
 
 
 @app.route("/it_support/register-shop", methods=["GET", "POST"])
@@ -2327,6 +2668,300 @@ def shop_pos_record_sale(shop_id: int):
         status = 400 if sale_err else 500
         return jsonify({"ok": False, "error": msg}), status
     return jsonify({"ok": True})
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/record-quote", methods=["POST"])
+def shop_pos_record_quote(shop_id: int):
+    """Save a POS quotation (lead): no sale row, no stock movement. Used before printing a quote receipt."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    data = request.get_json(force=True, silent=True) or {}
+    quote_basis = (data.get("quote_basis") or "sale").strip().lower()
+    if quote_basis not in ("sale", "credit"):
+        return jsonify({"ok": False, "error": "Invalid quotation type."}), 400
+
+    try:
+        total_amount = float(data.get("total_amount") or 0)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid total amount."}), 400
+    if total_amount < 0:
+        return jsonify({"ok": False, "error": "Invalid total amount."}), 400
+
+    try:
+        item_count = int(data.get("item_count") or 0)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid item count."}), 400
+    if item_count < 0:
+        item_count = 0
+
+    emp = data.get("employee") or {}
+    try:
+        from database import create_shop_pos_quotation
+
+        qid, err = create_shop_pos_quotation(
+            shop_id=shop_id,
+            quote_basis=quote_basis,
+            quote_channel="walkin",
+            total_amount=total_amount,
+            item_count=item_count,
+            customer_name=(data.get("customer_name") or "").strip() or None,
+            customer_phone=(data.get("customer_phone") or "").strip() or None,
+            employee_id=emp.get("id"),
+            employee_code=(emp.get("employee_code") or "").strip() or None,
+            employee_name=(emp.get("full_name") or "").strip() or None,
+            lines=data.get("lines") if isinstance(data.get("lines"), list) else [],
+        )
+    except Exception:
+        qid, err = None, None
+    if not qid:
+        msg = err or "Could not save quotation."
+        status = 400 if err else 500
+        return jsonify({"ok": False, "error": msg}), status
+    return jsonify({"ok": True, "quote_id": qid})
+
+
+def _parse_iso_date_query(s: Optional[str]) -> Optional[date]:
+    if not s or not str(s).strip():
+        return None
+    try:
+        return datetime.strptime(str(s).strip()[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _leads_date_filter_from_request(args) -> tuple:
+    """Return (date_from_iso, date_to_iso, template_ctx) for quotation listings."""
+    mode = (args.get("range") or "all").strip().lower()
+    if mode not in ("all", "day", "period", "month", "year"):
+        mode = "all"
+    today = date.today()
+    d_from: Optional[date] = None
+    d_to: Optional[date] = None
+    ctx = {
+        "filter_range": mode,
+        "filter_date": (args.get("date") or "").strip(),
+        "filter_start": (args.get("start") or "").strip(),
+        "filter_end": (args.get("end") or "").strip(),
+        "filter_month": (args.get("month") or "").strip(),
+        "filter_year": (args.get("year") or "").strip(),
+    }
+    if mode == "day":
+        d = _parse_iso_date_query(args.get("date")) or today
+        d_from = d_to = d
+        ctx["filter_date"] = d.isoformat()
+    elif mode == "period":
+        a = _parse_iso_date_query(args.get("start"))
+        b = _parse_iso_date_query(args.get("end"))
+        if a and b:
+            if a > b:
+                a, b = b, a
+            d_from, d_to = a, b
+        elif a:
+            d_from = d_to = a
+        elif b:
+            d_from = d_to = b
+    elif mode == "month":
+        raw = ctx["filter_month"]
+        parsed = False
+        if raw and len(raw) >= 7:
+            try:
+                y = int(raw[:4])
+                m = int(raw[5:7])
+                if 1 <= m <= 12:
+                    last = calendar.monthrange(y, m)[1]
+                    d_from = date(y, m, 1)
+                    d_to = date(y, m, last)
+                    parsed = True
+            except (ValueError, TypeError):
+                parsed = False
+        if not parsed:
+            y, m = today.year, today.month
+            last = calendar.monthrange(y, m)[1]
+            d_from = date(y, m, 1)
+            d_to = date(y, m, last)
+            ctx["filter_month"] = f"{y:04d}-{m:02d}"
+    elif mode == "year":
+        y_raw = ctx["filter_year"] or str(today.year)
+        try:
+            y = int(str(y_raw).strip())
+            if 2000 <= y <= 2100:
+                d_from = date(y, 1, 1)
+                d_to = date(y, 12, 31)
+                ctx["filter_year"] = str(y)
+        except (ValueError, TypeError):
+            pass
+        if not d_from:
+            y = today.year
+            d_from = date(y, 1, 1)
+            d_to = date(y, 12, 31)
+            ctx["filter_year"] = str(y)
+
+    df = d_from.isoformat() if d_from else None
+    dt = d_to.isoformat() if d_to else None
+    return df, dt, ctx
+
+
+@app.route("/shops/<int:shop_id>/leads")
+def shop_leads(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    df, dt, filt = _leads_date_filter_from_request(request.args)
+    try:
+        from database import list_shop_pos_quotations
+
+        quotes = list_shop_pos_quotations(shop_id, limit=500, date_from=df, date_to=dt)
+    except Exception:
+        quotes = []
+    quote_lines_by_id = {str(q["id"]): (q.get("lines") or []) for q in quotes}
+    return render_template(
+        "shop_leads.html",
+        shop=shop,
+        quotes=quotes,
+        quote_lines_by_id=quote_lines_by_id,
+        leads_filter=filt,
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/it_support/leads")
+@login_required
+def it_support_leads():
+    _it_support_or_super_admin_only()
+    df, dt, filt = _leads_date_filter_from_request(request.args)
+    try:
+        from database import list_all_pos_quotations_for_it
+
+        quotes = list_all_pos_quotations_for_it(limit=2000, date_from=df, date_to=dt)
+    except Exception:
+        quotes = []
+    quote_lines_by_id = {str(q["id"]): (q.get("lines") or []) for q in quotes}
+    return render_template(
+        "it_support_leads.html",
+        quotes=quotes,
+        quote_lines_by_id=quote_lines_by_id,
+        leads_filter=filt,
+    )
+
+
+@app.route("/quote/submit", methods=["POST"])
+def public_quote_submit():
+    """Persist website /quote cart as an online lead (no shop branch, no stock change)."""
+    data = request.get_json(force=True, silent=True) or {}
+    lines_in = data.get("lines") if isinstance(data.get("lines"), list) else []
+    if not lines_in:
+        return jsonify({"ok": False, "error": "No items selected."}), 400
+    if len(lines_in) > 80:
+        return jsonify({"ok": False, "error": "Too many items."}), 400
+    lines = []
+    total_qty = 0
+    total_amount = 0.0
+    for ln in lines_in[:80]:
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "").strip()
+        if not nm:
+            continue
+        try:
+            qty = int(ln.get("qty") or 1)
+        except (TypeError, ValueError):
+            qty = 1
+        if qty < 1:
+            qty = 1
+        if qty > 999:
+            qty = 999
+        try:
+            unit = float(ln.get("price") or 0)
+        except (TypeError, ValueError):
+            unit = 0.0
+        lt = ln.get("total")
+        try:
+            lt = float(lt) if lt is not None else unit * qty
+        except (TypeError, ValueError):
+            lt = unit * qty
+        iid = ln.get("id")
+        try:
+            iid = int(iid) if iid is not None else None
+        except (TypeError, ValueError):
+            iid = None
+        lines.append({"id": iid, "name": nm[:200], "qty": qty, "price": unit, "total": lt})
+        total_qty += qty
+        total_amount += lt
+    if not lines:
+        return jsonify({"ok": False, "error": "No valid line items."}), 400
+
+    raw_phone = (data.get("customer_phone") or "").strip()
+    digits = re.sub(r"\D", "", raw_phone)
+    customer_phone = raw_phone.strip()[:40] if raw_phone else None
+    customer_name = (data.get("customer_name") or "").strip()[:190] if data.get("customer_name") else ""
+    # Phone-first registration: if user provided at least 10 digits, require a name and upsert customer.
+    if digits and len(digits) >= 10:
+        if len(customer_name) < 2:
+            return jsonify({"ok": False, "error": "Enter your name to register this phone number."}), 400
+        try:
+            from database import upsert_public_customer
+
+            upsert_public_customer(customer_name, customer_phone or digits)
+        except Exception:
+            pass
+    try:
+        from database import create_shop_pos_quotation
+
+        qid, err = create_shop_pos_quotation(
+            shop_id=None,
+            quote_basis="sale",
+            quote_channel="online",
+            total_amount=total_amount,
+            item_count=total_qty,
+            customer_name=customer_name or None,
+            customer_phone=customer_phone or None,
+            employee_id=None,
+            employee_code=None,
+            employee_name=None,
+            lines=lines,
+        )
+    except Exception:
+        qid, err = None, None
+    if not qid:
+        msg = err or "Could not save quotation."
+        status = 400 if err else 500
+        return jsonify({"ok": False, "error": msg}), status
+    return jsonify({"ok": True, "quote_id": qid})
+
+
+@app.route("/quote/customer-lookup", methods=["POST"])
+def public_quote_customer_lookup():
+    data = request.get_json(force=True, silent=True) or {}
+    phone = (data.get("phone") or "").strip()
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) < 10:
+        return jsonify({"ok": False, "error": "Enter a valid phone number."}), 400
+    try:
+        from database import get_public_customer_by_phone
+
+        row = get_public_customer_by_phone(phone)
+    except Exception:
+        row = None
+    if not row:
+        return jsonify({"ok": True, "customer": None})
+    return jsonify(
+        {
+            "ok": True,
+            "customer": {
+                "id": row["id"],
+                "customer_name": row["customer_name"],
+                "phone": row["phone"],
+            },
+        }
+    )
 
 
 def _normalize_subnet_scan_prefix(raw) -> str:
@@ -3364,13 +3999,13 @@ def shop_item_management(shop_id: int):
 
 
 @app.route("/shops/<int:shop_id>/shop-stock-management", methods=["GET", "POST"])
-def shop_stock_management(shop_id: int):
+def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | None = None):
     shop = _get_shop_or_404(shop_id)
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
 
-    mode = (request.args.get("mode") or "in").strip().lower()
+    mode = (mode or request.args.get("mode") or "in").strip().lower()
     if mode not in ("in", "out"):
         mode = "in"
 
@@ -3381,8 +4016,6 @@ def shop_stock_management(shop_id: int):
         buying_price_raw = (request.form.get("buying_price") or "").strip()
         place_brought_from = (request.form.get("place_brought_from") or "").strip().upper()
         reason = (request.form.get("reason") or "").strip().lower()
-        refunded_raw = (request.form.get("refunded") or "").strip().lower()
-        refund_amount_raw = (request.form.get("refund_amount") or "").strip()
         note = (request.form.get("note") or "").strip().upper()
 
         try:
@@ -3400,6 +4033,8 @@ def shop_stock_management(shop_id: int):
         try:
             from database import (
                 ensure_shop_items_for_shop,
+                create_notification,
+                create_shop_stock_request,
                 shop_manual_stock_in,
                 shop_manual_stock_out,
                 shop_request_stock_from_company,
@@ -3408,7 +4043,60 @@ def shop_stock_management(shop_id: int):
 
             ensure_shop_items_for_shop(shop_id)
 
-            if action == "request_company":
+            if action == "request_stock":
+                source_target = (request.form.get("request_source_target") or "company").strip().lower()
+                source_type = "company"
+                source_shop_id = None
+                if source_target.startswith("shop:"):
+                    source_type = "shop"
+                    try:
+                        source_shop_id = int(source_target.split(":", 1)[1])
+                    except Exception:
+                        source_shop_id = None
+                req_id = create_shop_stock_request(
+                    requesting_shop_id=shop_id,
+                    request_type="stock_in",
+                    source_type=source_type,
+                    source_shop_id=source_shop_id,
+                    item_id=item_id,
+                    qty=qty,
+                    note=note or None,
+                    requested_by_employee_id=session.get("employee_id"),
+                )
+                if not req_id:
+                    flash("Could not create stock request. Check source and stock availability.", "error")
+                else:
+                    create_notification(
+                        title="New stock request",
+                        message=f"Shop #{shop_id} requested item #{item_id} qty {qty}.",
+                        shop_id=shop_id,
+                        audience_role="admin_only",
+                        link_url=url_for("notifications"),
+                    )
+                    flash("Stock request submitted for approval.", "success")
+            elif action == "request_return":
+                req_id = create_shop_stock_request(
+                    requesting_shop_id=shop_id,
+                    request_type="return_to_company",
+                    source_type="company",
+                    source_shop_id=None,
+                    item_id=item_id,
+                    qty=qty,
+                    note=note or None,
+                    requested_by_employee_id=session.get("employee_id"),
+                )
+                if not req_id:
+                    flash("Could not create return request. Check shop stock availability.", "error")
+                else:
+                    create_notification(
+                        title="New return request",
+                        message=f"Shop #{shop_id} requested return of item #{item_id} qty {qty}.",
+                        shop_id=shop_id,
+                        audience_role="admin_only",
+                        link_url=url_for("notifications"),
+                    )
+                    flash("Return request submitted for company approval.", "success")
+            elif action == "request_company":
                 ok = shop_request_stock_from_company(
                     shop_id=shop_id,
                     item_id=item_id,
@@ -3421,17 +4109,13 @@ def shop_stock_management(shop_id: int):
                 else:
                     flash("Stock requested from company.", "success")
             elif action == "return_company":
-                refunded = refunded_raw == "yes"
-                refund_amount = None
-                if refunded:
-                    refund_amount = refund_amount_raw
                 ok = shop_return_stock_to_company(
                     shop_id=shop_id,
                     item_id=item_id,
                     qty=qty,
                     reason=reason,
-                    refunded=refunded,
-                    refund_amount=refund_amount,
+                    refunded=False,
+                    refund_amount=None,
                     note=note or None,
                     created_by_employee_id=session.get("employee_id"),
                 )
@@ -3454,17 +4138,13 @@ def shop_stock_management(shop_id: int):
                 else:
                     flash("Shop stock updated.", "success")
             elif action == "manual_out":
-                refunded = refunded_raw == "yes"
-                refund_amount = None
-                if refunded:
-                    refund_amount = refund_amount_raw
                 ok = shop_manual_stock_out(
                     shop_id=shop_id,
                     item_id=item_id,
                     qty=qty,
                     reason=reason,
-                    refunded=refunded,
-                    refund_amount=refund_amount,
+                    refunded=False,
+                    refund_amount=None,
                     note=note or None,
                     created_by_employee_id=session.get("employee_id"),
                 )
@@ -3478,23 +4158,69 @@ def shop_stock_management(shop_id: int):
             app.logger.exception("Shop stock management failed: %s", e)
             flash(f"Could not update shop stock. {type(e).__name__}: {e}", "error")
 
-        return redirect(url_for("shop_stock_management", shop_id=shop_id, item_id=item_id, mode=mode))
+        if item_id:
+            return redirect(url_for("shop_stock_management_item", shop_id=shop_id, mode=mode, item_id=item_id))
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, mode=mode))
 
-    selected_item_id = request.args.get("item_id", type=int)
+    selected_item_id = item_id or request.args.get("item_id", type=int)
     try:
-        from database import ensure_shop_items_for_shop, list_shop_stock_manage_items, list_shop_stock_transactions
+        from database import (
+            ensure_shop_items_for_shop,
+            list_shop_stock_manage_items,
+            list_shop_stock_transactions,
+            list_shops,
+            list_stock_requests_for_session,
+            get_shop_stock_qty_map_for_item,
+        )
 
         ensure_shop_items_for_shop(shop_id)
         items = list_shop_stock_manage_items(shop_id=shop_id, limit=500)
         txs = list_shop_stock_transactions(shop_id=shop_id, item_id=selected_item_id, limit=200) if selected_item_id else []
+        selected_item = None
+        if selected_item_id and items:
+            selected_item = next((it for it in items if int(it.get("id", 0)) == int(selected_item_id)), None)
+        source_shops = [s for s in (list_shops(limit=500) or []) if int(s.get("id") or 0) != int(shop_id)]
+        shop_qty_map = get_shop_stock_qty_map_for_item(selected_item_id) if selected_item_id else {}
+        source_targets = [
+            {
+                "value": "company",
+                "label": "Company",
+                "qty_left": int((selected_item or {}).get("company_stock_qty") or 0),
+            }
+        ]
+        for s in source_shops:
+            sid = int(s.get("id") or 0)
+            source_targets.append(
+                {
+                    "value": f"shop:{sid}",
+                    "label": s.get("shop_name") or f"Shop #{sid}",
+                    "qty_left": int(shop_qty_map.get(sid) or 0),
+                }
+            )
+        request_rows = list_stock_requests_for_session(
+            role_key=(session.get("employee_role") or "employee"),
+            viewer_shop_id=shop_id,
+            limit=200,
+        )
+        item_request_rows = (
+            [r for r in (request_rows or []) if int(r.get("item_id") or 0) == int(selected_item_id)]
+            if selected_item_id
+            else (request_rows or [])
+        )
     except Exception:
-        items, txs = [], []
+        items, txs, selected_item, source_shops, source_targets, request_rows, item_request_rows = [], [], None, [], [], [], []
 
     return render_template(
         "shop_stock_management.html",
         shop=shop,
         items=items,
         selected_item_id=selected_item_id,
+        selected_item=selected_item,
+        item_page=(request.endpoint == "shop_stock_management_item"),
+        source_shops=source_shops,
+        source_targets=source_targets,
+        stock_requests=request_rows,
+        item_stock_requests=item_request_rows,
         mode=mode,
         transactions=txs,
         theme_key=f"richcom-theme-shop-{shop['id']}",
@@ -3503,6 +4229,173 @@ def shop_stock_management(shop_id: int):
         primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
         accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
     )
+
+
+@app.route(
+    "/shops/<int:shop_id>/shop-stock-management/<string:mode>/<int:item_id>",
+    methods=["GET"],
+    endpoint="shop_stock_management_item",
+)
+def shop_stock_management_item(shop_id: int, mode: str, item_id: int):
+    return shop_stock_management(shop_id=shop_id, mode=mode, item_id=item_id)
+
+
+def _can_user_review_stock_request(row: dict, *, role_key: str, viewer_shop_id: int | None) -> bool:
+    role_key = (role_key or "employee").strip().lower()
+    if role_key in ("it_support", "super_admin"):
+        return True
+    # Company-only approvals for return-to-company requests.
+    if (row.get("request_type") or "").lower() == "return_to_company":
+        return False
+    # Shop-to-shop: only the source shop can approve/decline.
+    if (row.get("source_type") or "").lower() == "shop":
+        try:
+            return int(viewer_shop_id or 0) == int(row.get("source_shop_id") or 0)
+        except Exception:
+            return False
+    return False
+
+
+def _effective_viewer_shop_id(role_key: str) -> int | None:
+    """Best-effort shop scope for non-admin users (session first, then assigned shop)."""
+    role_key = (role_key or "employee").strip().lower()
+    sid = session.get("shop_id")
+    if sid:
+        try:
+            return int(sid)
+        except Exception:
+            return None
+    if role_key in ("it_support", "super_admin"):
+        return None
+    uid = session.get("employee_id")
+    if not uid:
+        return None
+    try:
+        from database import get_employee_by_id
+
+        row = get_employee_by_id(int(uid)) or {}
+        shop_id = row.get("shop_id")
+        return int(shop_id) if shop_id else None
+    except Exception:
+        return None
+
+
+@app.route("/notifications")
+@login_required
+def notifications():
+    role_key = (session.get("employee_role") or "employee").strip().lower()
+    shop_id = _effective_viewer_shop_id(role_key)
+    if shop_id:
+        return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
+    try:
+        from database import list_notifications_for_session, list_stock_requests_for_session, can_fulfill_stock_request
+
+        rows = list_notifications_for_session(
+            employee_id=session.get("employee_id"),
+            shop_id=None,
+            role_key=role_key,
+            limit=300,
+        )
+        stock_requests = list_stock_requests_for_session(
+            role_key=role_key,
+            viewer_shop_id=None,
+            limit=300,
+        )
+    except Exception:
+        rows, stock_requests = [], []
+    viewer_shop_id = _effective_viewer_shop_id(role_key)
+    for r in stock_requests or []:
+        r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=viewer_shop_id)
+        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
+    return render_template("notifications.html", notifications=rows, stock_requests=stock_requests)
+
+
+@app.route("/shops/<int:shop_id>/notifications")
+@login_required
+def shop_notifications(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    role_key = (session.get("employee_role") or "employee").strip().lower()
+    try:
+        from database import list_notifications_for_session, list_stock_requests_for_session, can_fulfill_stock_request
+
+        rows = list_notifications_for_session(
+            employee_id=session.get("employee_id"),
+            shop_id=shop_id,
+            role_key=role_key,
+            limit=300,
+        )
+        stock_requests = list_stock_requests_for_session(
+            role_key=role_key,
+            viewer_shop_id=shop_id,
+            limit=300,
+        )
+    except Exception:
+        rows, stock_requests = [], []
+    for r in stock_requests or []:
+        r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=shop_id)
+        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
+    return render_template(
+        "shop_notifications.html",
+        shop=shop,
+        notifications=rows,
+        stock_requests=stock_requests,
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/notifications/stock-requests/<int:request_id>/approve", methods=["POST"])
+@login_required
+def approve_stock_request(request_id: int):
+    role_key = (session.get("employee_role") or "employee").strip().lower()
+    shop_id = session.get("shop_id")
+    try:
+        from database import review_stock_request
+
+        ok = review_stock_request(
+            request_id=request_id,
+            approve=True,
+            approver_employee_id=session.get("employee_id"),
+            approver_role=role_key,
+            approver_shop_id=int(shop_id) if shop_id else None,
+            review_note=(request.form.get("review_note") or "").strip() or None,
+        )
+    except Exception:
+        ok = False
+    flash("Stock request approved." if ok else "Could not approve stock request.", "success" if ok else "error")
+    if shop_id:
+        return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
+    return redirect(url_for("notifications"))
+
+
+@app.route("/notifications/stock-requests/<int:request_id>/reject", methods=["POST"])
+@login_required
+def reject_stock_request(request_id: int):
+    role_key = (session.get("employee_role") or "employee").strip().lower()
+    shop_id = session.get("shop_id")
+    try:
+        from database import review_stock_request
+
+        ok = review_stock_request(
+            request_id=request_id,
+            approve=False,
+            approver_employee_id=session.get("employee_id"),
+            approver_role=role_key,
+            approver_shop_id=int(shop_id) if shop_id else None,
+            review_note=(request.form.get("review_note") or "").strip() or None,
+        )
+    except Exception:
+        ok = False
+    flash("Stock request rejected." if ok else "Could not reject stock request.", "success" if ok else "error")
+    if shop_id:
+        return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
+    return redirect(url_for("notifications"))
 
 
 @app.route("/shops/<int:shop_id>/shop-stock-analytics")

@@ -1,0 +1,79 @@
+{% extends "employee_layout.html" %}
+{% block title %}Stock in — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Stock in{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-6xl">
+    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Stock in</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Item: <strong class="text-[rgb(var(--rc-page-fg))]">{{ selected_item.name if selected_item else ("#" ~ selected_item_id) }}</strong></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('it_support_stock_out', item_id=selected_item_id) }}" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Stock out for this item</a>
+        <a href="{{ url_for('it_support_stock_management') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to list</a>
+      </div>
+    </div>
+
+    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
+      <form method="post" action="{{ url_for('it_support_stock_in') }}" class="mt-1 grid gap-3 md:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
+            <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Quantity</label>
+              <input name="qty" type="number" min="1" step="1" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="1" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Note (optional)</label>
+              <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. SUPPLIER DELIVERY" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Buying price</label>
+              <input name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Place brought from</label>
+              <input name="place_brought_from" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. CITY WHOLESALE MARKET" />
+            </div>
+            <div class="md:col-span-2">
+              <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-2.5 text-sm">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Stock in
+              </button>
+            </div>
+          </form>
+      <div class="mt-6 border-t border-[rgb(var(--rc-border))] pt-4">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Recent stock in</h4>
+          {% if not transactions %}
+            <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No stock in transactions yet.</p>
+          {% else %}
+            <div class="mt-3 overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Date</th>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Qty</th>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Buying</th>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">From</th>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Note</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for tx in transactions %}
+                    <tr>
+                      <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ tx.created_at }}</td>
+                      <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.qty }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(tx.buying_price or 0) }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.place_brought_from or "—" }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.note or "—" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+      </div>
+    </section>
+  </div>
+{% endblock %}
+

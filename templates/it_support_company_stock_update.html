@@ -1,0 +1,185 @@
+{% extends "employee_layout.html" %}
+{% block title %}Company stock update — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Company stock update{% endblock %}
+{% block employee_content %}
+  {% set rows = stock_rows or [] %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock update</h2>
+          <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+            Choose an action, select shop(s), then add multiple items and quantities.
+          </p>
+        </div>
+        <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock status</a>
+      </div>
+    </div>
+
+    <form method="post" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <div class="grid gap-4 lg:grid-cols-3">
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Action</label>
+          <select id="action" name="action" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option value="stock_in">Stock in (company → shop)</option>
+            <option value="stock_out">Stock out (shop → return/waste)</option>
+            <option value="transfer">Transfer (shop → shop)</option>
+          </select>
+        </div>
+
+        <div id="shop-one-wrap">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop</label>
+          <select id="shop_id" name="shop_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option value="">Select shop</option>
+            {% for s in shops %}
+              <option value="{{ s.id }}">{{ s.shop_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div id="shop-transfer-wrap" class="hidden">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Transfer</label>
+          <div class="grid grid-cols-2 gap-2">
+            <select id="from_shop_id" name="from_shop_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="">From shop</option>
+              {% for s in shops %}
+                <option value="{{ s.id }}">{{ s.shop_name }}</option>
+              {% endfor %}
+            </select>
+            <select id="to_shop_id" name="to_shop_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="">To shop</option>
+              {% for s in shops %}
+                <option value="{{ s.id }}">{{ s.shop_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div id="stock-out-reason-wrap" class="hidden">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Stock out type</label>
+          <select name="stock_out_reason" id="stock_out_reason" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <option value="return">Return (adds back to company)</option>
+            <option value="waste">Waste (deduct from shop only)</option>
+          </select>
+        </div>
+
+        <div class="lg:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Note (optional)</label>
+          <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. WEEKLY REPLENISHMENT" />
+        </div>
+      </div>
+
+      <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))]">
+        <div class="flex items-center justify-between gap-2 bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and current stock</h3>
+        </div>
+        {% if not rows %}
+          <p class="px-4 py-4 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
+        {% else %}
+        <div class="overflow-x-auto border-t border-[rgb(var(--rc-border))]">
+          <table class="min-w-[980px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Item</th>
+                <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Company stock</th>
+                <th id="shop-a-header" class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Shop A stock</th>
+                <th id="shop-b-header" class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Shop B stock</th>
+                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Qty to move</th>
+              </tr>
+            </thead>
+            <tbody id="lines" class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in rows %}
+                <tr class="line" data-item-id="{{ r.id }}" data-company-stock="{{ r.company_stock_qty or 0 }}" data-per-shop='{{ (r.per_shop or {})|tojson|e }}'>
+                  <td class="px-3 py-2">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.category or "—" }} · ITEM #{{ r.id }}</div>
+                    <input type="hidden" name="item_id[]" value="{{ r.id }}" />
+                  </td>
+                  <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.company_stock_qty or 0 }}</td>
+                  <td class="shop-a-cell px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">0</td>
+                  <td class="shop-b-cell px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">0</td>
+                  <td class="px-3 py-2">
+                    <input name="qty[]" type="number" min="0" step="1" class="w-36 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0" />
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="mt-5">
+        <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-3 text-sm">Submit stock update</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    (function () {
+      var action = document.getElementById("action");
+      var oneWrap = document.getElementById("shop-one-wrap");
+      var transferWrap = document.getElementById("shop-transfer-wrap");
+      var outReasonWrap = document.getElementById("stock-out-reason-wrap");
+      var shopIdEl = document.getElementById("shop_id");
+      var fromShopEl = document.getElementById("from_shop_id");
+      var toShopEl = document.getElementById("to_shop_id");
+      var shopAHeader = document.getElementById("shop-a-header");
+      var shopBHeader = document.getElementById("shop-b-header");
+      var lines = document.getElementById("lines");
+      var shopNameById = {};
+      {% for s in shops %}
+      shopNameById["{{ s.id }}"] = {{ (s.shop_name or ("Shop " ~ s.id))|tojson }};
+      {% endfor %}
+
+      function syncActionUI() {
+        var v = (action && action.value) || "stock_in";
+        if (transferWrap) transferWrap.classList.toggle("hidden", v !== "transfer");
+        if (oneWrap) oneWrap.classList.toggle("hidden", v === "transfer");
+        if (outReasonWrap) outReasonWrap.classList.toggle("hidden", v !== "stock_out");
+        syncStockColumns();
+      }
+      if (action) action.addEventListener("change", syncActionUI);
+
+      function safeParsePerShop(s) {
+        try {
+          return JSON.parse(s || "{}");
+        } catch (e) {
+          return {};
+        }
+      }
+
+      function syncStockColumns() {
+        if (!lines) return;
+        var v = (action && action.value) || "stock_in";
+        var shopAId = "";
+        var shopBId = "";
+        if (v === "transfer") {
+          shopAId = (fromShopEl && fromShopEl.value) || "";
+          shopBId = (toShopEl && toShopEl.value) || "";
+          if (shopAHeader) shopAHeader.textContent = (shopNameById[shopAId] || "From shop") + " stock";
+          if (shopBHeader) shopBHeader.textContent = (shopNameById[shopBId] || "To shop") + " stock";
+        } else {
+          shopAId = (shopIdEl && shopIdEl.value) || "";
+          if (shopAHeader) shopAHeader.textContent = (shopNameById[shopAId] || "Selected shop") + " stock";
+          if (shopBHeader) shopBHeader.textContent = "Shop B stock";
+        }
+        lines.querySelectorAll("tr.line").forEach(function (tr) {
+          var map = safeParsePerShop(tr.getAttribute("data-per-shop"));
+          var a = map[String(shopAId)] || 0;
+          var b = map[String(shopBId)] || 0;
+          var aCell = tr.querySelector(".shop-a-cell");
+          var bCell = tr.querySelector(".shop-b-cell");
+          if (aCell) aCell.textContent = String(a);
+          if (bCell) bCell.textContent = String(v === "transfer" ? b : "-");
+        });
+      }
+
+      if (shopIdEl) shopIdEl.addEventListener("change", syncStockColumns);
+      if (fromShopEl) fromShopEl.addEventListener("change", syncStockColumns);
+      if (toShopEl) toShopEl.addEventListener("change", syncStockColumns);
+      syncActionUI();
+    })();
+  </script>
+{% endblock %}
+

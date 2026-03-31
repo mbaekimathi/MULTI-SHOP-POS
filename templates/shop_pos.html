@@ -847,6 +847,13 @@
             <button type="button" id="pos-sale-type-sale" class="pos-sale-type-btn is-active rounded-xl border border-[rgb(var(--rc-border))] px-3 py-2.5 text-xs font-bold uppercase tracking-wider">Sale</button>
             <button type="button" id="pos-sale-type-credit" class="pos-sale-type-btn rounded-xl border border-[rgb(var(--rc-border))] px-3 py-2.5 text-xs font-bold uppercase tracking-wider">Credit</button>
           </div>
+          <label class="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2.5 text-left">
+            <input type="checkbox" id="pos-quote-only" class="mt-0.5 h-4 w-4 shrink-0 rounded border-[rgb(var(--rc-border))] text-brand-600 focus:ring-brand-500" />
+            <span class="text-[11px] leading-snug text-[rgb(var(--rc-page-fg))]">
+              <span class="font-bold uppercase tracking-wide text-brand-600 dark:text-brand-400">Quotation</span>
+              — print a quote receipt and save to <strong>Leads</strong> only. No sale record and no stock change.
+            </span>
+          </label>
         </div>
 
         <div class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
@@ -1153,6 +1160,7 @@
       var CUSTOMER_LOOKUP_API = {{ url_for('shop_pos_customer_lookup', shop_id=shop.id)|tojson }};
       var CUSTOMER_UPSERT_API = {{ url_for('shop_pos_customer_upsert', shop_id=shop.id)|tojson }};
       var RECORD_SALE_API = {{ url_for('shop_pos_record_sale', shop_id=shop.id)|tojson }};
+      var RECORD_QUOTE_API = {{ url_for('shop_pos_record_quote', shop_id=shop.id)|tojson }};
       var CATALOG_STOCK_API = {{ url_for('shop_pos_catalog_json', shop_id=shop.id)|tojson }};
       var PRINTER_API = {{ url_for('shop_pos_printer', shop_id=shop.id)|tojson }};
       var QR_ESC_POS_API = {{ url_for('shop_pos_printer_qr_escpos', shop_id=shop.id)|tojson }};
@@ -1694,6 +1702,16 @@
         }
         function doCheckoutAfterSave() {
           var lines = load();
+          var quoteEl = document.getElementById("pos-quote-only");
+          var quoteOnly = quoteEl && quoteEl.checked;
+          if (quoteOnly) {
+            return recordQuoteForLeads(buildQuoteRequestBody(lines, mode)).then(function (res) {
+              var qid = res && res.quote_id;
+              return runConfiguredPrinterAction(
+                makeReceiptPayload(lines, mode, { isQuotation: true, quoteId: qid })
+              ).catch(function () {});
+            });
+          }
           return recordSaleForAnalytics(buildAnalyticsPayload(lines, mode)).then(function () {
             return runConfiguredPrinterAction(makeReceiptPayload(lines, mode)).catch(function () {});
           });
@@ -1713,8 +1731,11 @@
             var pEl = document.getElementById("pos-customer-phone");
             if (nEl) nEl.value = "";
             if (pEl) pEl.value = "";
-            showToast((mode === "credit" ? "Credit" : "Sale") + " completed");
-            if (typeof window.refreshPosCatalogStock === "function") {
+            var qEl = document.getElementById("pos-quote-only");
+            var wasQuote = qEl && qEl.checked;
+            showToast(wasQuote ? "Quotation saved and printed" : (mode === "credit" ? "Credit" : "Sale") + " completed");
+            if (qEl) qEl.checked = false;
+            if (!wasQuote && typeof window.refreshPosCatalogStock === "function") {
               setTimeout(function () {
                 window.refreshPosCatalogStock();
               }, 500);
@@ -1729,6 +1750,55 @@
             var msg = (e && e.message) ? e.message : "Could not save checkout to database. Try again.";
             setAuthStatus(msg, "error");
           });
+      }
+
+      function recordQuoteForLeads(body) {
+        return fetch(RECORD_QUOTE_API, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return r.json().catch(function () {
+              return {};
+            });
+          })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not save quotation.");
+            return j;
+          });
+      }
+
+      function buildQuoteRequestBody(lines, mode) {
+        var b = gatherReceiptBase(lines, mode);
+        var rawLines = lines || [];
+        return {
+          quote_basis: mode === "credit" ? "credit" : "sale",
+          quote_channel: "walkin",
+          total_amount: b.subtotal,
+          item_count: rawLines.reduce(function (sum, l) {
+            return sum + (parseInt((l && l.qty) || 0, 10) || 0);
+          }, 0),
+          customer_name: b.customerName === "Walk-in customer" ? "" : b.customerName,
+          customer_phone: b.customerPhone === "-" ? "" : b.customerPhone,
+          lines: rawLines.map(function (l) {
+            var qty = parseInt((l && l.qty) || 0, 10) || 0;
+            var unit = parseFloat((l && l.price) || 0) || 0;
+            return {
+              id: l && l.id,
+              name: (l && l.name) || "Item",
+              qty: qty,
+              price: unit,
+              total: unit * qty,
+            };
+          }),
+          employee: {
+            id: authorizedEmployee && authorizedEmployee.id,
+            employee_code: authorizedEmployee && authorizedEmployee.employee_code,
+            full_name: authorizedEmployee && authorizedEmployee.full_name,
+          },
+        };
       }
 
       function recordSaleForAnalytics(payload) {
@@ -1823,7 +1893,8 @@
         return prefix + "-" + String(next);
       }
 
-      function gatherReceiptBase(lines, mode) {
+      function gatherReceiptBase(lines, mode, opts) {
+        opts = opts || {};
         var now = new Date();
         var nameEl = document.getElementById("pos-customer-name");
         var phoneEl = document.getElementById("pos-customer-phone");
@@ -1865,6 +1936,8 @@
           };
         });
         discountTotal = Math.round(discountTotal * 100) / 100;
+        var baseModeLabel = mode === "credit" ? "Credit" : "Sale";
+        var modeLabel = opts.isQuote ? "Quotation · " + baseModeLabel : baseModeLabel;
         return {
           printedAt: now.toLocaleString(),
           customerName: customerName || "Walk-in customer",
@@ -1872,7 +1945,7 @@
           subtotal: sub,
           discountTotal: discountTotal,
           hasDiscount: discountTotal > 0.001,
-          modeLabel: mode === "credit" ? "Credit" : "Sale",
+          modeLabel: modeLabel,
           shopDisplayName: branchTitle,
           companyLine: companyLine,
           lines: mappedLines,
@@ -1882,7 +1955,7 @@
       function buildAnalyticsPayload(lines, mode) {
         var b = gatherReceiptBase(lines, mode);
         return {
-          mode: b.modeLabel,
+          mode: mode === "credit" ? "credit" : "sale",
           subtotal: b.subtotal,
           customerName: b.customerName,
           customerPhone: b.customerPhone,
@@ -1892,8 +1965,9 @@
         };
       }
 
-      function makeReceiptPayload(lines, mode) {
-        var b = gatherReceiptBase(lines, mode);
+      function makeReceiptPayload(lines, mode, opts) {
+        opts = opts || {};
+        var b = gatherReceiptBase(lines, mode, { isQuote: !!opts.isQuotation });
         var rs = receiptSettings();
         var taxPct = parseFloat(String(rs.tax_percent || "0").replace(",", ".")) || 0;
         var includeTax = !!rs.include_tax;
@@ -1903,7 +1977,10 @@
         var pt = rs.payment_detail_type || "buy_goods";
         var site = window.POS_SITE || {};
         return {
-          receiptNo: nextReceiptNumber(),
+          receiptNo:
+            opts.quoteId != null && opts.quoteId !== ""
+              ? "Q-" + String(opts.quoteId)
+              : nextReceiptNumber(),
           printedAt: b.printedAt,
           shopName: b.shopDisplayName,
           companyName: b.companyLine || "",
@@ -1911,6 +1988,7 @@
           shopLocation: (site.shop_location || "").trim(),
           receiptLogoUrl: (site.receipt_logo_url || site.app_icon_url || "").trim(),
           mode: b.modeLabel,
+          isQuotation: !!opts.isQuotation,
           customerName: b.customerName,
           customerPhone: b.customerPhone,
           employeeName: (authorizedEmployee && authorizedEmployee.full_name) || "Unknown",
@@ -2177,6 +2255,13 @@
             L(thermalPlainCenter(bits.length ? bits.join(" · ") : "[Phone / email]", W));
           }
           if (S.show_address || S.show_contact) L(sep);
+        }
+
+        if (!isCompany && payload.isQuotation) {
+          L(sep);
+          L(thermalPlainCenter("*** QUOTATION ***", W));
+          L(thermalPlainCenter("Not a finalized sale", W));
+          L(sep);
         }
 
         L("Receipt: " + String(payload.receiptNo || ""));
@@ -2452,6 +2537,17 @@
               sep();
             }
           }
+        }
+
+        if (!isCompany && payload.isQuotation) {
+          sep();
+          pushBytes([ESC, 0x61, 0x01]);
+          boldOn();
+          pushLn("*** QUOTATION ***");
+          boldOff();
+          pushLn("NOT A FINALIZED SALE");
+          pushBytes([ESC, 0x61, 0x00]);
+          sep();
         }
 
         pushLn("Receipt: " + String(payload.receiptNo || ""));
@@ -2945,7 +3041,15 @@
           }
         }
 
+        var quoteBanner = "";
+        if (!isCompany && payload.isQuotation) {
+          quoteBanner =
+            "<div class='c b' style='margin:6px 0'>*** QUOTATION ***</div>" +
+            "<div class='c mut' style='font-size:11px'>Not a finalized sale</div><div class='sep'></div>";
+        }
+
         var metaRows = "";
+        metaRows += quoteBanner;
         metaRows +=
           "<div class='row'><span>Receipt</span><span class='b'>" + receiptEsc(payload.receiptNo) + "</span></div>";
         if (S.show_datetime || isCompany) {
@@ -3300,6 +3404,8 @@
           clearAuthorization();
           clearKnownCustomer();
           setCustomerLookupStatus("Enter phone first to check registered customer.", "muted");
+          var qOnly = document.getElementById("pos-quote-only");
+          if (qOnly) qOnly.checked = false;
         });
       }
 
@@ -3313,6 +3419,12 @@
       if (creditBtn) {
         creditBtn.addEventListener("click", function () {
           setSaleType("credit");
+        });
+      }
+      var quoteOnlyToggle = document.getElementById("pos-quote-only");
+      if (quoteOnlyToggle) {
+        quoteOnlyToggle.addEventListener("change", function () {
+          updateCustomerSectionState();
         });
       }
 

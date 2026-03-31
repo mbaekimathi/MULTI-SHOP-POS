@@ -1,0 +1,115 @@
+{% extends "employee_layout.html" %}
+{% block title %}Stock movement analysis — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Stock movement analysis{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_company_stock_analytics') }}#stock-status" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stock status</a>
+  <a href="{{ url_for('it_support_company_stock_update') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop stock update</a>
+  <a href="{{ url_for('it_support_stock_movement_analysis') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock movement analysis</a>
+  <a href="{{ url_for('it_support_stock_profitability_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stock profitability analysis</a>
+  <a href="{{ url_for('it_support_stock_reports') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stock reports</a>
+  <a href="{{ url_for('it_support_stock_settings') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stock settings</a>
+{% endblock %}
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set d = movement_data or {} %}
+  {% set rows = movement_rows or [] %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">General stock movement (company + shops)</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Filter by date range and optionally scope to one shop.</p>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Transactions</div><div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.tx_count or 0 }}</div></div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Qty in</div><div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ d.qty_in or 0 }}</div></div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Qty out</div><div class="mt-2 text-2xl font-extrabold text-rose-400">{{ d.qty_out or 0 }}</div></div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Net</div><div class="mt-2 text-2xl font-extrabold {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{% if (d.net_qty or 0) > 0 %}+{% endif %}{{ d.net_qty or 0 }}</div></div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Distinct shops</div><div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.distinct_shops or 0 }}</div></div>
+      </div>
+    </div>
+
+    <form method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+      <div class="grid gap-3 md:grid-cols-5">
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop view</label>
+          <select name="shop_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="">All shops + company</option>
+            {% for s in shops %}
+              <option value="{{ s.id }}" {% if selected_shop_id and selected_shop_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Mode</label>
+          <select id="mode" name="mode" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div id="f-day"><label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Day</label><input type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" /></div>
+        <div id="f-start" class="hidden"><label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Start</label><input type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" /></div>
+        <div id="f-end" class="hidden"><label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">End</label><input type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" /></div>
+        <div id="f-month" class="hidden"><label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Month</label><input type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" /></div>
+        <div id="f-year" class="hidden"><label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Year</label><input type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" /></div>
+      </div>
+      <div class="mt-3"><button class="btn-rc btn-rc-primary px-4 py-2 text-sm">Apply filters</button></div>
+    </form>
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Movement log (today by default)</h3>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Shows item, from, to, quantity and who moved it.</p>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[860px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">From</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">To</th>
+              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Moved by</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in rows %}
+              <tr>
+                <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+                <td class="px-3 py-2 font-medium text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</td>
+                <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.from_where }}</td>
+                <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.to_where }}</td>
+                <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.qty }}</td>
+                <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.moved_by }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="6" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No movement rows for this filter.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var m = document.getElementById("mode");
+      var day = document.getElementById("f-day");
+      var start = document.getElementById("f-start");
+      var end = document.getElementById("f-end");
+      var month = document.getElementById("f-month");
+      var year = document.getElementById("f-year");
+      function sync() {
+        var v = (m && m.value) || "single_day";
+        if (day) day.classList.toggle("hidden", v !== "single_day");
+        if (start) start.classList.toggle("hidden", v !== "period");
+        if (end) end.classList.toggle("hidden", v !== "period");
+        if (month) month.classList.toggle("hidden", v !== "month");
+        if (year) year.classList.toggle("hidden", v !== "year");
+      }
+      if (m) m.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}
+

@@ -1,0 +1,17 @@
+{% if notifications_url %}
+  <a
+    href="{{ notifications_url }}"
+    class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
+    aria-label="Notifications"
+    title="Notifications"
+  >
+    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
+    </svg>
+    {% if notification_count and notification_count > 0 %}
+      <span class="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-4 text-white">
+        {{ notification_count if notification_count < 100 else '99+' }}
+      </span>
+    {% endif %}
+  </a>
+{% endif %}

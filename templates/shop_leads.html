@@ -1,0 +1,214 @@
+{% extends "shop_layout.html" %}
+{% block title %}Leads &amp; quotations — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Leads &amp; quotations{% endblock %}
+{% block shop_sidebar_links %}
+  <a href="{{ url_for('shop_item_management', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />
+    </svg>
+    Shop item management
+  </a>
+  <a href="{{ url_for('shop_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Shop analytics
+  </a>
+  <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
+    </svg>
+    Credit payments
+  </a>
+{% endblock %}
+{% block shop_content %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Quotations &amp; leads</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> quotes come from POS when <strong class="text-[rgb(var(--rc-page-fg))]">Quotation</strong> is checked.
+          <strong class="text-[rgb(var(--rc-page-fg))]">Online</strong> quotes are saved when customers submit the public <a href="{{ url_for('quote') }}" class="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400">quote page</a>.
+        </p>
+      </div>
+      <a href="{{ url_for('shop_pos', shop_id=shop.id) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500">Open POS</a>
+    </div>
+  </div>
+
+  <form method="get" action="{{ url_for('shop_leads', shop_id=shop.id) }}" id="leads-filter-form" class="mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+      <div class="min-w-[11rem]">
+        <label for="lead-range" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Date filter</label>
+        <select name="range" id="lead-range" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30">
+          <option value="all" {% if leads_filter.filter_range == 'all' %}selected{% endif %}>All time</option>
+          <option value="day" {% if leads_filter.filter_range == 'day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if leads_filter.filter_range == 'period' %}selected{% endif %}>Period</option>
+          <option value="month" {% if leads_filter.filter_range == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if leads_filter.filter_range == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div class="lead-filt lead-filt-day min-w-[11rem] {% if leads_filter.filter_range != 'day' %}hidden{% endif %}">
+        <label for="lead-date" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Day</label>
+        <input type="date" name="date" id="lead-date" value="{{ leads_filter.filter_date }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+      </div>
+      <div class="lead-filt lead-filt-period flex flex-wrap gap-3 {% if leads_filter.filter_range != 'period' %}hidden{% endif %}">
+        <div class="min-w-[11rem]">
+          <label for="lead-start" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">From</label>
+          <input type="date" name="start" id="lead-start" value="{{ leads_filter.filter_start }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+        </div>
+        <div class="min-w-[11rem]">
+          <label for="lead-end" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">To</label>
+          <input type="date" name="end" id="lead-end" value="{{ leads_filter.filter_end }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+        </div>
+      </div>
+      <div class="lead-filt lead-filt-month min-w-[12rem] {% if leads_filter.filter_range != 'month' %}hidden{% endif %}">
+        <label for="lead-month" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Month</label>
+        <input type="month" name="month" id="lead-month" value="{{ leads_filter.filter_month }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+      </div>
+      <div class="lead-filt lead-filt-year min-w-[9rem] {% if leads_filter.filter_range != 'year' %}hidden{% endif %}">
+        <label for="lead-year" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Year</label>
+        <input type="number" name="year" id="lead-year" min="2000" max="2100" step="1" value="{{ leads_filter.filter_year }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-500">Apply</button>
+        <a href="{{ url_for('shop_leads', shop_id=shop.id) }}" class="rounded-xl border border-[rgb(var(--rc-border))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+    {% if quotes and quotes|length > 0 %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Date</th>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Channel</th>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Pricing</th>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
+              <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Total</th>
+              <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Lines</th>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Staff</th>
+              <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"><span class="sr-only">View items</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for q in quotes %}
+              <tr class="align-middle">
+                <td class="whitespace-nowrap px-4 py-3 text-[rgb(var(--rc-muted))]">{{ q.created_at }}</td>
+                <td class="px-4 py-3 text-[rgb(var(--rc-page-fg))]">
+                  {% if (q.quote_channel or 'walkin') == 'online' %}
+                    <span class="rounded-lg bg-violet-500/15 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Online</span>
+                  {% else %}
+                    <span class="rounded-lg bg-slate-500/15 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-page-fg))]">Walk-in</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 uppercase text-[rgb(var(--rc-muted))]">{{ q.quote_basis or "sale" }}</td>
+                <td class="px-4 py-3 font-medium text-[rgb(var(--rc-page-fg))]">{{ q.customer_name or "—" }}</td>
+                <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ q.customer_phone or "—" }}</td>
+                <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(q.total_amount or 0) }}</td>
+                <td class="px-4 py-3 text-center tabular-nums text-[rgb(var(--rc-muted))]">{{ q.item_count or 0 }}</td>
+                <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ q.employee_name or "—" }}</td>
+                <td class="px-4 py-3 text-center">
+                  <button
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]"
+                    title="View quoted items"
+                    aria-label="View quoted items"
+                    data-quote-view="{{ q.id }}"
+                  >
+                    <svg class="h-5 w-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No quotations in this range. Try another filter or create one from POS / the website quote page.</p>
+    {% endif %}
+  </div>
+
+  <dialog id="quote-lines-dialog" class="w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0 text-[rgb(var(--rc-page-fg))] shadow-2xl backdrop:bg-slate-950/50">
+    <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4">
+      <h3 class="text-lg font-bold" id="quote-lines-dialog-title">Quoted items</h3>
+      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]" id="quote-lines-dialog-sub"></p>
+    </div>
+    <div class="max-h-[min(60vh,24rem)] overflow-y-auto px-5 py-4">
+      <ul id="quote-lines-dialog-list" class="space-y-2 text-sm"></ul>
+    </div>
+    <div class="border-t border-[rgb(var(--rc-border))] px-5 py-3 text-right">
+      <button type="button" id="quote-lines-dialog-close" class="rounded-xl bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:opacity-90">Close</button>
+    </div>
+  </dialog>
+
+  <script>
+  (function () {
+    var rangeEl = document.getElementById("lead-range");
+    function syncLeadFilterVisibility() {
+      var v = (rangeEl && rangeEl.value) || "all";
+      document.querySelectorAll(".lead-filt").forEach(function (el) { el.classList.add("hidden"); });
+      if (v === "day") document.querySelectorAll(".lead-filt-day").forEach(function (el) { el.classList.remove("hidden"); });
+      if (v === "period") document.querySelectorAll(".lead-filt-period").forEach(function (el) { el.classList.remove("hidden"); });
+      if (v === "month") document.querySelectorAll(".lead-filt-month").forEach(function (el) { el.classList.remove("hidden"); });
+      if (v === "year") document.querySelectorAll(".lead-filt-year").forEach(function (el) { el.classList.remove("hidden"); });
+    }
+    if (rangeEl) rangeEl.addEventListener("change", syncLeadFilterVisibility);
+    syncLeadFilterVisibility();
+
+    var QUOTE_LINES = {{ quote_lines_by_id|tojson }};
+    var dlg = document.getElementById("quote-lines-dialog");
+    var listEl = document.getElementById("quote-lines-dialog-list");
+    var subEl = document.getElementById("quote-lines-dialog-sub");
+    var closeBtn = document.getElementById("quote-lines-dialog-close");
+
+    function fmt(n) {
+      var x = parseFloat(n);
+      if (isNaN(x)) x = 0;
+      return x.toFixed(2);
+    }
+
+    function openQuoteLines(id) {
+      var lines = QUOTE_LINES[String(id)] || [];
+      if (listEl) {
+        if (!lines.length) {
+          listEl.innerHTML = '<li class="text-[rgb(var(--rc-muted))]">No line detail stored.</li>';
+        } else {
+          listEl.innerHTML = lines.map(function (ln) {
+            var nm = (ln && ln.name) ? String(ln.name) : "Item";
+            var qty = parseInt((ln && ln.qty) || 0, 10) || 0;
+            var pr = fmt((ln && ln.price) || 0);
+            var tot = fmt((ln && ln.total) != null ? ln.total : (parseFloat(ln && ln.price) || 0) * qty);
+            return (
+              '<li class="flex flex-wrap items-baseline justify-between gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">' +
+              '<span class="min-w-0 flex-1 font-medium">' + nm.replace(/</g, "&lt;") + "</span>" +
+              '<span class="shrink-0 tabular-nums text-[rgb(var(--rc-muted))]">×' + qty + "</span>" +
+              '<span class="shrink-0 tabular-nums font-semibold">' + tot + "</span>" +
+              '<span class="w-full text-xs text-[rgb(var(--rc-muted))]">@ ' + pr + " each</span>" +
+              "</li>"
+            );
+          }).join("");
+        }
+      }
+      if (subEl) subEl.textContent = lines.length ? lines.length + " line(s)" : "";
+      if (dlg && typeof dlg.showModal === "function") dlg.showModal();
+    }
+
+    document.querySelectorAll("[data-quote-view]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-quote-view");
+        if (id) openQuoteLines(id);
+      });
+    });
+    if (closeBtn && dlg) closeBtn.addEventListener("click", function () { dlg.close(); });
+    if (dlg) dlg.addEventListener("click", function (e) {
+      if (e.target === dlg) dlg.close();
+    });
+  })();
+  </script>
+{% endblock %}

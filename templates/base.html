@@ -42,10 +42,9 @@
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
       rel="stylesheet"
     />
-    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: "class",
+        darkMode: ["selector", '[data-theme="dark"]'],
         theme: {
           extend: {
             fontFamily: { sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"] },
@@ -102,10 +101,10 @@
         },
       };
     </script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /*
-       * Global theme: driven by html[data-theme="light"|"dark"] (and .dark for Tailwind).
-       * All pages inherit page background and text from these tokens.
+       * Global theme: html[data-theme="light"|"dark"] (+ Tailwind dark: via same attribute).
        */
       html {
         color-scheme: dark;
@@ -181,7 +180,7 @@
         background-size: cover;
         background-position: center;
       }
-      html:not(.dark) .section-img-dark {
+      html[data-theme="light"] .section-img-dark {
         background-image: linear-gradient(rgba(248, 250, 252, 0.94), rgba(241, 245, 249, 0.97)),
           url("https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=2400&q=80");
       }
@@ -191,34 +190,72 @@
         background-size: cover;
         background-position: center;
       }
-      html:not(.dark) .section-img-orange {
+      html[data-theme="light"] .section-img-orange {
         background-image: linear-gradient(120deg, rgba(251, 146, 60, 0.35), rgba(255, 247, 237, 0.95)),
           url("https://images.unsplash.com/photo-1633265486064-086b219458ec?auto=format&fit=crop&w=2400&q=80");
       }
-      html:not(.dark) .glass {
+      html[data-theme="light"] .glass {
         background: rgba(255, 255, 255, 0.82);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         border: 1px solid rgba(148, 163, 184, 0.35);
         box-shadow: 0 10px 40px -12px rgba(15, 23, 42, 0.12);
       }
-      html.dark .glass {
+      html[data-theme="dark"] .glass {
         background: rgba(15, 23, 42, 0.55);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         border: 1px solid rgba(251, 146, 60, 0.15);
       }
-      html:not(.dark) .glass-card {
+      html[data-theme="light"] .glass-card {
         background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.98));
         backdrop-filter: blur(12px);
         border: 1px solid rgba(148, 163, 184, 0.35);
         box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.12);
       }
-      html.dark .glass-card {
+      html[data-theme="dark"] .glass-card {
         background: linear-gradient(145deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.85));
         backdrop-filter: blur(12px);
         border: 1px solid rgba(251, 146, 60, 0.12);
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      }
+      /* Public nav: quote CTA must stay high-contrast in light + dark (gradient utilities alone can wash out). */
+      a.nav-quote-cta,
+      .nav-quote-cta {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff;
+        background-image: linear-gradient(135deg, #fb923c, #f97316 40%, #ea580c 100%);
+        border: 1px solid rgba(194, 65, 12, 0.55);
+        box-shadow: 0 8px 22px -6px rgba(234, 88, 12, 0.55);
+        text-decoration: none;
+      }
+      html[data-theme="dark"] a.nav-quote-cta,
+      html[data-theme="dark"] .nav-quote-cta {
+        border-color: rgba(251, 146, 60, 0.45);
+        box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.6);
+      }
+      a.nav-quote-cta:hover,
+      .nav-quote-cta:hover {
+        filter: brightness(1.07);
+      }
+      .nav-pill {
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: rgb(var(--rc-page-fg));
+        opacity: 0.92;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: opacity 0.15s ease, background-color 0.15s ease;
+      }
+      .nav-pill:hover {
+        opacity: 1;
+        background-color: rgba(15, 23, 42, 0.06);
+      }
+      html[data-theme="dark"] .nav-pill:hover {
+        background-color: rgba(255, 255, 255, 0.08);
       }
       .reveal {
         opacity: 0;
@@ -308,7 +345,7 @@
         border: 1px solid rgba(239, 68, 68, 0.35);
         color: rgb(220 38 38);
       }
-      html.dark .btn-rc-danger {
+      html[data-theme="dark"] .btn-rc-danger {
         color: rgb(252 165 165);
       }
       .btn-rc-danger:hover {
@@ -321,7 +358,7 @@
         border: 1px solid rgba(16, 185, 129, 0.35);
         color: rgb(5 150 105);
       }
-      html.dark .btn-rc-success {
+      html[data-theme="dark"] .btn-rc-success {
         color: rgb(110 231 183);
       }
       .btn-rc-success:hover {
@@ -334,7 +371,7 @@
         border: 1px solid rgba(245, 158, 11, 0.35);
         color: rgb(180 83 9);
       }
-      html.dark .btn-rc-warning {
+      html[data-theme="dark"] .btn-rc-warning {
         color: rgb(253 230 138);
       }
       .btn-rc-warning:hover {
@@ -347,7 +384,7 @@
         border: 1px solid rgba(59, 130, 246, 0.32);
         color: rgb(37 99 235);
       }
-      html.dark .btn-rc-info {
+      html[data-theme="dark"] .btn-rc-info {
         color: rgb(125 211 252);
       }
       .btn-rc-info:hover {
@@ -372,7 +409,7 @@
           radial-gradient(ellipse 55% 45% at 0% 100%, rgba(249, 115, 22, 0.12), transparent 48%),
           linear-gradient(180deg, #020617 0%, #0f172a 100%);
       }
-      html:not(.dark) .form-auth-bg {
+      html[data-theme="light"] .form-auth-bg {
         background-color: #f8fafc;
         background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(249, 115, 22, 0.12), transparent 55%),
           radial-gradient(ellipse 70% 50% at 100% 0%, rgba(99, 102, 241, 0.08), transparent 52%),
@@ -906,6 +943,55 @@
         position: relative;
         z-index: 1;
       }
+      html[data-theme="dark"] .form-contact-card {
+        border-color: rgba(51, 65, 85, 0.9);
+        background: linear-gradient(165deg, rgba(30, 41, 59, 0.96) 0%, rgba(15, 23, 42, 0.99) 100%);
+        box-shadow: 0 24px 48px -16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+      html[data-theme="dark"] .form-contact-card::before {
+        opacity: 0.18;
+        background-image: radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.22) 1px, transparent 0);
+      }
+      html[data-theme="dark"] .form-label {
+        color: rgb(148 163 184);
+      }
+      html[data-theme="dark"] .form-label-hint {
+        color: rgb(100 116 139);
+      }
+      html[data-theme="dark"] .form-input-wrap {
+        border-color: rgb(71 85 105);
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 14px rgba(0, 0, 0, 0.35);
+      }
+      html[data-theme="dark"] .form-input-wrap:hover {
+        border-color: rgb(100 116 139);
+      }
+      html[data-theme="dark"] .form-input-wrap:focus-within {
+        border-color: rgb(249 115 22);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(249, 115, 22, 0.22),
+          0 12px 28px rgba(0, 0, 0, 0.4);
+      }
+      html[data-theme="dark"] .form-input-icon {
+        color: rgb(148 163 184);
+      }
+      html[data-theme="dark"] .form-input-rich {
+        border-color: rgb(71 85 105);
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        color: rgb(241 245 249);
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+      }
+      html[data-theme="dark"] .form-input-rich:hover {
+        border-color: rgb(100 116 139);
+        background: #1e293b;
+      }
+      html[data-theme="dark"] .form-input-rich:focus {
+        background-color: #0f172a;
+        border-color: rgb(249 115 22);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(249, 115, 22, 0.22);
+      }
+      html[data-theme="dark"] .form-input-rich::placeholder {
+        color: rgb(100 116 139);
+      }
       .auth-switch-card {
         position: relative;
         margin-top: 1.5rem;
@@ -949,18 +1035,18 @@
       .auth-switch-card__link:hover {
         color: rgb(154 52 18);
       }
-      html.dark .auth-switch-card {
+      html[data-theme="dark"] .auth-switch-card {
         border-color: rgba(251, 146, 60, 0.28);
         background: linear-gradient(135deg, rgba(15, 23, 42, 0.58) 0%, rgba(30, 41, 59, 0.5) 45%, rgba(15, 23, 42, 0.58) 100%);
         box-shadow: 0 14px 32px -16px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       }
-      html.dark .auth-switch-card__label {
+      html[data-theme="dark"] .auth-switch-card__label {
         color: rgb(203 213 225);
       }
-      html.dark .auth-switch-card__link {
+      html[data-theme="dark"] .auth-switch-card__link {
         color: rgb(251 146 60);
       }
-      html.dark .auth-switch-card__link:hover {
+      html[data-theme="dark"] .auth-switch-card__link:hover {
         color: rgb(254 215 170);
       }
       @keyframes auth-switch-rotate {
