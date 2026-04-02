@@ -59,7 +59,7 @@
             </svg>
             Shop dashboard
           </a>
-          {% if request.endpoint != 'shop_stock_management' %}
+          {% if request.endpoint not in ('shop_stock_management', 'shop_stock_analytics', 'shop_stock_reports') %}
             <a
               href="{{ url_for('shop_leads', shop_id=shop.id) }}"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_leads' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"

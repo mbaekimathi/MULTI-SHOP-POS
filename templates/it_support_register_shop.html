@@ -46,23 +46,47 @@
               id="shop_code"
               name="shop_code"
               required
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
-              placeholder="E.G. SHOP-001"
+              inputmode="numeric"
+              maxlength="6"
+              pattern="\d{6}"
+              autocomplete="off"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="E.G. 123456"
             />
+            <p id="shop-code-help" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter a unique 6-digit code.</p>
           </div>
         </div>
 
         <div class="grid gap-5 md:grid-cols-2">
           <div>
             <label for="shop_password" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop password</label>
-            <input
-              id="shop_password"
-              name="shop_password"
-              type="password"
-              required
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
-              placeholder="Enter secure password"
-            />
+            <div class="relative">
+              <input
+                id="shop_password"
+                name="shop_password"
+                type="password"
+                required
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 pr-12 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                placeholder="Enter secure password"
+              />
+              <button
+                type="button"
+                id="toggle-shop-password"
+                class="absolute inset-y-0 right-2 my-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface))] hover:text-[rgb(var(--rc-page-fg))]"
+                aria-label="Show password"
+                title="Show password"
+              >
+                <svg id="eye-open" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.522 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7s-8.268-2.943-9.542-7Z" />
+                </svg>
+                <svg id="eye-closed" class="hidden h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m3 3 18 18" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.584 10.587a2 2 0 0 0 2.828 2.828" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.88 5.09A9.77 9.77 0 0 1 12 4.875c4.354 0 8.017 2.87 9.24 6.812a9.763 9.763 0 0 1-3.065 4.36M6.61 6.61A9.773 9.773 0 0 0 2.76 11.687 9.762 9.762 0 0 0 12 18.5a9.77 9.77 0 0 0 3.11-.51" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div>
             <label for="shop_location" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop location</label>
@@ -135,6 +159,13 @@
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        class="btn-rc btn-rc-info px-3 py-1.5 text-xs js-toggle-edit-shop"
+                        data-target="edit-shop-{{ s.id }}"
+                      >
+                        Edit
+                      </button>
                       <a href="{{ url_for('shop_portal', shop_id=s.id) }}" class="btn-rc btn-rc-info px-3 py-1.5 text-xs">
                         View shop
                       </a>
@@ -152,6 +183,52 @@
                         </button>
                       </form>
                     </div>
+                  </td>
+                </tr>
+                <tr id="edit-shop-{{ s.id }}" class="hidden">
+                  <td colspan="5" class="px-4 py-4 bg-[rgb(var(--rc-surface-2))]">
+                    <form method="post" action="{{ url_for('it_support_shop_edit', shop_id=s.id) }}" class="grid gap-3 md:grid-cols-5">
+                      <input
+                        name="shop_name"
+                        value="{{ s.shop_name }}"
+                        required
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] uppercase outline-none"
+                        placeholder="Shop name"
+                      />
+                      <input
+                        name="shop_code"
+                        value="{{ s.shop_code }}"
+                        required
+                        inputmode="numeric"
+                        maxlength="6"
+                        pattern="\d{6}"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none"
+                        placeholder="6-digit code"
+                      />
+                      <input
+                        name="shop_password"
+                        type="password"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none"
+                        placeholder="New password (optional)"
+                      />
+                      <input
+                        name="shop_location"
+                        value="{{ s.shop_location }}"
+                        required
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] uppercase outline-none"
+                        placeholder="Shop location"
+                      />
+                      <div class="flex gap-2">
+                        <select
+                          name="status"
+                          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none"
+                        >
+                          <option value="active" {% if s.status == 'active' %}selected{% endif %}>Displayed</option>
+                          <option value="suspended" {% if s.status != 'active' %}selected{% endif %}>Hidden</option>
+                        </select>
+                        <button type="submit" class="btn-rc btn-rc-success px-3 py-1.5 text-xs">Save</button>
+                      </div>
+                    </form>
                   </td>
                 </tr>
               {% endfor %}
@@ -182,6 +259,119 @@
       });
 
       sync();
+    })();
+
+    (function () {
+      var buttons = document.querySelectorAll(".js-toggle-edit-shop");
+      if (!buttons.length) return;
+      buttons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = btn.getAttribute("data-target");
+          if (!id) return;
+          var row = document.getElementById(id);
+          if (!row) return;
+          row.classList.toggle("hidden");
+        });
+      });
+    })();
+
+    (function () {
+      var form = document.querySelector('form[action="{{ url_for("it_support_register_shop") }}"]');
+      var codeInput = document.getElementById("shop_code");
+      var help = document.getElementById("shop-code-help");
+      var lastCheckedCode = "";
+      var codeAvailable = false;
+      var debounceTimer = null;
+
+      function setHelp(message, tone) {
+        if (!help) return;
+        help.textContent = message;
+        help.classList.remove("text-[rgb(var(--rc-muted))]", "text-emerald-400", "text-rose-400", "text-amber-400");
+        help.classList.add(tone || "text-[rgb(var(--rc-muted))]");
+      }
+
+      function normalizeCode() {
+        if (!codeInput) return "";
+        var digitsOnly = (codeInput.value || "").replace(/\D/g, "").slice(0, 6);
+        codeInput.value = digitsOnly;
+        return digitsOnly;
+      }
+
+      async function checkCodeAvailability(code) {
+        try {
+          var resp = await fetch("{{ url_for('it_support_check_shop_code') }}?code=" + encodeURIComponent(code), {
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+          });
+          var data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            codeAvailable = false;
+            setHelp(data.message || "Could not verify code availability.", "text-amber-400");
+            return;
+          }
+          codeAvailable = !!data.available;
+          if (codeAvailable) {
+            setHelp("Code is available.", "text-emerald-400");
+          } else {
+            setHelp("Code already exists. Use another 6-digit code.", "text-rose-400");
+          }
+        } catch (err) {
+          codeAvailable = false;
+          setHelp("Could not verify code availability.", "text-amber-400");
+        }
+      }
+
+      if (codeInput) {
+        codeInput.addEventListener("input", function () {
+          var code = normalizeCode();
+          codeAvailable = false;
+          if (debounceTimer) window.clearTimeout(debounceTimer);
+          if (code.length < 6) {
+            setHelp("Enter a unique 6-digit code.", "text-[rgb(var(--rc-muted))]");
+            return;
+          }
+          setHelp("Checking code availability...", "text-amber-400");
+          debounceTimer = window.setTimeout(function () {
+            lastCheckedCode = code;
+            checkCodeAvailability(code);
+          }, 300);
+        });
+      }
+
+      if (form) {
+        form.addEventListener("submit", function (e) {
+          var code = normalizeCode();
+          if (code.length !== 6) {
+            e.preventDefault();
+            setHelp("Shop code must be exactly 6 digits.", "text-rose-400");
+            codeInput && codeInput.focus();
+            return;
+          }
+          if (lastCheckedCode !== code || !codeAvailable) {
+            e.preventDefault();
+            setHelp("Please use an available 6-digit code before submitting.", "text-rose-400");
+            codeInput && codeInput.focus();
+          }
+        });
+      }
+    })();
+
+    (function () {
+      var toggleBtn = document.getElementById("toggle-shop-password");
+      var passwordInput = document.getElementById("shop_password");
+      var eyeOpen = document.getElementById("eye-open");
+      var eyeClosed = document.getElementById("eye-closed");
+      if (!toggleBtn || !passwordInput) return;
+
+      toggleBtn.addEventListener("click", function () {
+        var showing = passwordInput.type === "text";
+        passwordInput.type = showing ? "password" : "text";
+        if (eyeOpen && eyeClosed) {
+          eyeOpen.classList.toggle("hidden", !showing);
+          eyeClosed.classList.toggle("hidden", showing);
+        }
+        toggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+        toggleBtn.setAttribute("title", showing ? "Show password" : "Hide password");
+      });
     })();
   </script>
 {% endblock %}

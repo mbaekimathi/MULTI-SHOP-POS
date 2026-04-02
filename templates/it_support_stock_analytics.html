@@ -2,12 +2,6 @@
 {% block title %}Company stock analytics — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Company stock analytics{% endblock %}
 {% block sidebar_links %}
-  <a href="{{ url_for('it_support_company_stock_analytics') }}#stock-status" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
-    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-    </svg>
-    Stock status
-  </a>
   <a href="{{ url_for('it_support_company_stock_update') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
     <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
@@ -299,17 +293,10 @@
       </div>
     </div>
 
-    <div id="stock-profitability" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock profitability analysis</h3>
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">More stock pages</h3>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-        This section will calculate profitability using buying price (stock-in) vs selling price (sales). If you want it enabled, tell me which selling price field to use (items.selling_price vs items.price) and whether to include POS credit sales.
-      </p>
-    </div>
-
-    <div id="stock-reports" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock reports</h3>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-        Coming next: export CSV/PDF for movement and shop breakdown filtered by date.
+        Open dedicated pages from the sidebar for Stock profitability analysis and Stock reports.
       </p>
     </div>
   </div>

@@ -1,0 +1,141 @@
+{% extends "employee_layout.html" %}
+{% block title %}Stock reports — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Stock reports{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_stock_reports', view='low_stock') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'low_stock' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Low stock</a>
+  <a href="{{ url_for('it_support_stock_reports', view='fast_moving') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'fast_moving' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Fast moving</a>
+  <a href="{{ url_for('it_support_stock_reports', view='valuation') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'valuation' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Valuation</a>
+  <a href="{{ url_for('it_support_stock_reports', view='highest_value') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'highest_value' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Top value</a>
+  <a href="{{ url_for('it_support_stock_reports', view='stagnant') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'stagnant' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Stagnant</a>
+{% endblock %}
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set low_stock_rows = low_stock_rows or [] %}
+  {% set fast_moving_rows = fast_moving_rows or [] %}
+  {% set valuation_rows = valuation_rows or [] %}
+  {% set highest_value_rows = highest_value_rows or [] %}
+  {% set stagnant_rows = stagnant_rows or [] %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Live stock reports</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+        Current period: <span class="font-semibold">{{ f.range_label or "selected period" }}</span>.
+      </p>
+      <form method="get" class="mt-3 flex flex-wrap items-end gap-2">
+        <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
+        <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
+        <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
+        <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
+        <input type="hidden" name="month" value="{{ f.month or '' }}" />
+        <input type="hidden" name="year" value="{{ f.year or '' }}" />
+        <label class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Reorder level</label>
+        <input type="number" min="0" max="500" name="reorder_threshold" value="{{ reorder_threshold or 5 }}" class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))]" />
+        <button class="btn-rc btn-rc-primary px-3 py-1.5 text-xs">Apply</button>
+      </form>
+      <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total stock valuation</div>
+        <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_valuation or 0) }}</div>
+      </div>
+    </div>
+
+    {% if selected_view == "low_stock" %}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Low Stock / Reorder Alert Report</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[900px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock value</th></tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in low_stock_rows[:40] %}
+              <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right text-rose-400">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td></tr>
+            {% else %}
+              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No low stock items.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if selected_view == "fast_moving" %}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Fast-moving (frequent updates)</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[900px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Updated</th></tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in fast_moving_rows[:40] %}
+              <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.updated_at or "—" }}</td></tr>
+            {% else %}
+              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No fast-moving items.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if selected_view == "valuation" %}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock Valuation Report</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[980px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Avg buy</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Value</th></tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in valuation_rows[:60] %}
+              <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.avg_buying_price or 0) }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td></tr>
+            {% else %}
+              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No valuation rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if selected_view == "highest_value" %}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Highest Value Stock Report</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[980px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Value</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th></tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in highest_value_rows[:40] %}
+              <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td></tr>
+            {% else %}
+              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No high value rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if selected_view == "stagnant" %}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stagnant / Untouched Stock Report</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[980px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Value</th><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Updated</th></tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in stagnant_rows[:40] %}
+              <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td><td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.updated_at or "—" }}</td></tr>
+            {% else %}
+              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No stagnant rows.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}

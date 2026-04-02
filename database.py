@@ -942,6 +942,52 @@ def delete_shop(shop_id: int) -> bool:
         return cur.rowcount > 0
 
 
+def update_shop_details(
+    shop_id: int,
+    *,
+    shop_name: str,
+    shop_code: str,
+    shop_location: str,
+    status: str,
+    shop_password_hash: Optional[str] = None,
+) -> bool:
+    status = (status or "").strip().lower()
+    if status not in {"active", "suspended"}:
+        return False
+
+    shop_name_clean = (shop_name or "").strip().upper()
+    shop_code_clean = (shop_code or "").strip()
+    shop_location_clean = (shop_location or "").strip().upper()
+    if not shop_name_clean or not shop_code_clean or not shop_location_clean:
+        return False
+
+    with get_cursor(commit=True) as cur:
+        cur.execute("SELECT id FROM shops WHERE shop_code=%s AND id!=%s LIMIT 1", (shop_code_clean, int(shop_id)))
+        if cur.fetchone():
+            return False
+
+        if shop_password_hash:
+            sql = """
+            UPDATE shops
+            SET shop_name=%s, shop_code=%s, shop_password_hash=%s, shop_location=%s, status=%s
+            WHERE id=%s
+            """
+            params = (shop_name_clean, shop_code_clean, shop_password_hash, shop_location_clean, status, int(shop_id))
+        else:
+            sql = """
+            UPDATE shops
+            SET shop_name=%s, shop_code=%s, shop_location=%s, status=%s
+            WHERE id=%s
+            """
+            params = (shop_name_clean, shop_code_clean, shop_location_clean, status, int(shop_id))
+
+        cur.execute(sql, params)
+        if cur.rowcount > 0:
+            return True
+        cur.execute("SELECT 1 FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
+        return cur.fetchone() is not None
+
+
 def init_shop_items_table():
     sql = """
     CREATE TABLE IF NOT EXISTS shop_items (

@@ -1,0 +1,189 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop stock reports — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop stock reports{% endblock %}
+{% block shop_sidebar_links %}
+  {% include "partials/shop_stock_workspace_sidebar.html" %}
+{% endblock %}
+{% block shop_content %}
+  {% set f = analytics_filter or {} %}
+  {% set low_stock_rows = low_stock_rows or [] %}
+  {% set fast_moving_rows = fast_moving_rows or [] %}
+  {% set valuation_rows = valuation_rows or [] %}
+  {% set highest_value_rows = highest_value_rows or [] %}
+  {% set stagnant_rows = stagnant_rows or [] %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Live shop stock reports</h2>
+    <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+      Movement window: <span class="font-semibold">{{ f.range_label or 'selected period' }}</span>.
+    </p>
+    <form method="get" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3">
+      <input type="hidden" name="view" value="{{ selected_view or 'low_stock' }}" />
+      <div class="flex flex-wrap items-end gap-2.5">
+        <div class="min-w-[10rem] flex-1">
+          <label for="reports-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
+          <select id="reports-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+            <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+
+        <div id="reports-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+          <label for="reports-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+          <input id="reports-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+
+        <div id="reports-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="reports-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+            <input id="reports-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="reports-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+            <input id="reports-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+        </div>
+
+        <div id="reports-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+          <label for="reports-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+          <input id="reports-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+
+        <div id="reports-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+          <label for="reports-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+          <input id="reports-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+
+        <div class="min-w-[8rem]">
+          <label for="reports-reorder-threshold" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Reorder</label>
+          <input id="reports-reorder-threshold" type="number" min="0" max="500" name="reorder_threshold" value="{{ reorder_threshold or 5 }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]" />
+        </div>
+        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
+      </div>
+    </form>
+    <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total stock valuation (avg buy × on-hand)</div>
+      <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_valuation or 0) }}</div>
+    </div>
+  </div>
+
+  {% if selected_view == "low_stock" %}
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Low stock / reorder</h3>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-[900px] w-full text-sm">
+        <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+          <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock value</th></tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for r in low_stock_rows[:40] %}
+            <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right text-rose-400">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td></tr>
+          {% else %}
+            <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No low stock items.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if selected_view == "fast_moving" %}
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Fast moving</h3>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-[900px] w-full text-sm">
+        <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+          <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th></tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for r in fast_moving_rows[:40] %}
+            <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td></tr>
+          {% else %}
+            <tr><td colspan="3" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No fast-moving items.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if selected_view == "valuation" %}
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock valuation</h3>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-[980px] w-full text-sm">
+        <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+          <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Avg buy</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Value</th></tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for r in valuation_rows[:60] %}
+            <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.avg_buying_price or 0) }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td></tr>
+          {% else %}
+            <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No valuation rows.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if selected_view == "highest_value" %}
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Highest value stock</h3>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-[980px] w-full text-sm">
+        <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+          <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Value</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th></tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for r in highest_value_rows[:40] %}
+            <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td></tr>
+          {% else %}
+            <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No high value rows.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if selected_view == "stagnant" %}
+  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stagnant stock</h3>
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-[980px] w-full text-sm">
+        <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+          <tr><th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Value</th><th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Moves</th></tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for r in stagnant_rows[:40] %}
+            <tr><td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td><td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td><td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td><td class="px-3 py-2 text-right">{{ r.tx_count or 0 }}</td></tr>
+          {% else %}
+            <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No stagnant rows.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  <script>
+    (function () {
+      var mode = document.getElementById("reports-filter-mode");
+      var day = document.getElementById("reports-filter-single-day");
+      var period = document.getElementById("reports-filter-period");
+      var month = document.getElementById("reports-filter-month");
+      var year = document.getElementById("reports-filter-year");
+      if (!mode) return;
+      function sync() {
+        var m = mode.value || "single_day";
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (period) period.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

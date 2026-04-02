@@ -10,18 +10,6 @@
     </svg>
     Dashboard
   </a>
-  {% if portal_employee.role_key in ('it_support', 'super_admin') and request.endpoint not in ('it_support_stock_management', 'it_support_company_stock_analytics') %}
-    <a
-      href="{{ url_for('it_support_leads') }}"
-      class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_leads' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
-      {% if request.endpoint == 'it_support_leads' %}aria-current="page"{% endif %}
-    >
-      <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-      Leads &amp; quotations
-    </a>
-  {% endif %}
   {% if portal_employee.role_key in ('it_support', 'super_admin') and request.endpoint in ('it_support_stock_management', 'it_support_company_stock_analytics') %}
     <a
       href="{{ url_for('it_support_company_stock_analytics') }}"

@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -1454,7 +1454,10 @@ def it_support_stock_management():
 @login_required
 def it_support_stock_in():
     _it_support_only()
-    items, item_id, selected_item, txs = _it_support_stock_page("in")
+    page = _it_support_stock_page("in")
+    if isinstance(page, Response):
+        return page
+    items, item_id, selected_item, txs = page
     if not item_id:
         flash("Select an item from Stock management first.", "error")
         return redirect(url_for("it_support_stock_management"))
@@ -1470,7 +1473,10 @@ def it_support_stock_in():
 @login_required
 def it_support_stock_out():
     _it_support_only()
-    items, item_id, selected_item, txs = _it_support_stock_page("out")
+    page = _it_support_stock_page("out")
+    if isinstance(page, Response):
+        return page
+    items, item_id, selected_item, txs = page
     if not item_id:
         flash("Select an item from Stock management first.", "error")
         return redirect(url_for("it_support_stock_management"))
@@ -1563,14 +1569,334 @@ def it_support_stock_movement_analysis():
 @login_required
 def it_support_stock_profitability_analysis():
     _it_support_or_super_admin_only()
-    return redirect(url_for("it_support_company_stock_analytics") + "#stock-profitability")
+    analytics_filter = _build_analytics_filter()
+    selected_view = (request.args.get("view") or "margin").strip().lower()
+    allowed_views = {
+        "margin",
+        "stock_value",
+        "velocity",
+        "leakage",
+        "low_margin_high_volume",
+        "low_stock",
+    }
+    if selected_view not in allowed_views:
+        selected_view = "margin"
+    low_stock_threshold = request.args.get("low_stock_threshold", type=int)
+    if low_stock_threshold is None:
+        low_stock_threshold = 5
+    low_stock_threshold = max(0, min(500, int(low_stock_threshold)))
+
+    item_rows = []
+    avg_margin_pct = 0.0
+    total_stock_value = 0.0
+    dead_stock_value = 0.0
+    dead_stock_count = 0
+    high_value_zero_stock = []
+    low_margin_high_volume = []
+    low_stock_items = []
+    top_velocity_items = []
+    margin_rows = []
+    stock_value_rows = []
+
+    try:
+        from database import (
+            get_company_stock_status,
+            get_it_support_item_analytics,
+            get_cursor,
+            list_stock_manage_items,
+        )
+
+        items = list_stock_manage_items(limit=3000) or []
+        _, stock_rows = get_company_stock_status(limit_items=3000)
+        item_sales = get_it_support_item_analytics(analytics_filter=analytics_filter)
+
+        stock_map = {}
+        for r in stock_rows or []:
+            try:
+                iid = int(r.get("id") or 0)
+            except Exception:
+                continue
+            if iid > 0:
+                stock_map[iid] = int(r.get("total_stock_qty") or 0)
+
+        sales_map = {}
+        for r in (item_sales or {}).get("top_items") or []:
+            try:
+                iid = int(r.get("item_id") or 0)
+            except Exception:
+                continue
+            if iid <= 0:
+                continue
+            sales_map[iid] = {
+                "qty_sold": int(r.get("qty_sold") or 0),
+                "revenue": float(r.get("revenue") or 0),
+            }
+
+        avg_buy_map = {}
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    item_id,
+                    SUM(COALESCE(buying_price,0) * qty) AS buy_value,
+                    SUM(qty) AS buy_qty
+                FROM stock_transactions
+                WHERE direction='in' AND buying_price IS NOT NULL
+                GROUP BY item_id
+                """
+            )
+            for rr in (cur.fetchall() or []):
+                try:
+                    iid = int(rr.get("item_id") or 0)
+                    bq = int(rr.get("buy_qty") or 0)
+                    bv = float(rr.get("buy_value") or 0)
+                except Exception:
+                    continue
+                if iid > 0 and bq > 0:
+                    avg_buy_map[iid] = bv / bq
+
+        margin_sum = 0.0
+        margin_n = 0
+        for it in items:
+            try:
+                iid = int(it.get("id") or 0)
+            except Exception:
+                continue
+            if iid <= 0:
+                continue
+
+            try:
+                selling_price = float(
+                    it.get("selling_price")
+                    if it.get("selling_price") is not None
+                    else (it.get("price") or 0)
+                )
+            except Exception:
+                selling_price = 0.0
+            avg_buying_price = avg_buy_map.get(iid)
+            qty_sold = int((sales_map.get(iid) or {}).get("qty_sold") or 0)
+            revenue = float((sales_map.get(iid) or {}).get("revenue") or 0)
+            stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
+
+            margin_amount = None
+            margin_pct = None
+            if avg_buying_price is not None and selling_price > 0:
+                margin_amount = selling_price - avg_buying_price
+                margin_pct = (margin_amount / selling_price) * 100.0
+                margin_sum += margin_pct
+                margin_n += 1
+
+            stock_value = max(stock_qty, 0) * (avg_buying_price or 0.0)
+            velocity = qty_sold / max(stock_qty, 1) if qty_sold > 0 else 0.0
+
+            row = {
+                "item_id": iid,
+                "category": (it.get("category") or "").strip(),
+                "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                "selling_price": selling_price,
+                "avg_buying_price": avg_buying_price,
+                "margin_amount": margin_amount,
+                "margin_pct": margin_pct,
+                "stock_qty": stock_qty,
+                "stock_value": stock_value,
+                "qty_sold": qty_sold,
+                "revenue": revenue,
+                "velocity": velocity,
+            }
+            item_rows.append(row)
+            total_stock_value += stock_value
+
+            if stock_qty > 0 and qty_sold == 0:
+                dead_stock_count += 1
+                dead_stock_value += stock_value
+            if stock_qty <= 0 and revenue > 0:
+                high_value_zero_stock.append(row)
+            if stock_qty <= low_stock_threshold:
+                low_stock_items.append(row)
+            if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
+                low_margin_high_volume.append(row)
+            if margin_pct is not None:
+                margin_rows.append(row)
+
+        avg_margin_pct = (margin_sum / margin_n) if margin_n else 0.0
+        margin_rows.sort(key=lambda r: (r.get("margin_pct") if r.get("margin_pct") is not None else -9999))
+        stock_value_rows = sorted(item_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
+        high_value_zero_stock.sort(key=lambda r: r.get("revenue") or 0, reverse=True)
+        low_margin_high_volume.sort(key=lambda r: ((r.get("qty_sold") or 0), -(r.get("margin_pct") or 0)), reverse=True)
+        low_stock_items.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("qty_sold") or 0)))
+        top_velocity_items = sorted(item_rows, key=lambda r: r.get("velocity") or 0, reverse=True)
+    except Exception:
+        item_rows = []
+
+    return render_template(
+        "it_support_stock_profitability_analysis.html",
+        analytics_filter=analytics_filter,
+        selected_view=selected_view,
+        low_stock_threshold=low_stock_threshold,
+        item_rows=item_rows,
+        avg_margin_pct=avg_margin_pct,
+        total_stock_value=total_stock_value,
+        dead_stock_value=dead_stock_value,
+        dead_stock_count=dead_stock_count,
+        margin_rows=(margin_rows[:100]),
+        stock_value_rows=(stock_value_rows[:100]),
+        high_value_zero_stock=(high_value_zero_stock[:100]),
+        low_margin_high_volume=(low_margin_high_volume[:100]),
+        low_stock_items=(low_stock_items[:150]),
+        top_velocity_items=(top_velocity_items[:100]),
+    )
 
 
 @app.route("/it_support/stock-reports")
 @login_required
 def it_support_stock_reports():
     _it_support_or_super_admin_only()
-    return redirect(url_for("it_support_company_stock_analytics") + "#stock-reports")
+    analytics_filter = _build_analytics_filter()
+    selected_view = (request.args.get("view") or "low_stock").strip().lower()
+    allowed_views = {
+        "low_stock",
+        "fast_moving",
+        "valuation",
+        "highest_value",
+        "stagnant",
+    }
+    if selected_view not in allowed_views:
+        selected_view = "low_stock"
+    reorder_threshold = request.args.get("reorder_threshold", type=int)
+    if reorder_threshold is None:
+        reorder_threshold = 5
+    reorder_threshold = max(0, min(500, int(reorder_threshold)))
+
+    low_stock_rows = []
+    fast_moving_rows = []
+    valuation_rows = []
+    highest_value_rows = []
+    stagnant_rows = []
+    total_valuation = 0.0
+
+    try:
+        from database import (
+            _analytics_where_clause,
+            get_company_stock_status,
+            get_cursor,
+            list_stock_manage_items,
+        )
+
+        items = list_stock_manage_items(limit=3000) or []
+        _, stock_rows = get_company_stock_status(limit_items=3000)
+        stock_map = {}
+        for r in stock_rows or []:
+            try:
+                iid = int(r.get("id") or 0)
+            except Exception:
+                continue
+            if iid > 0:
+                stock_map[iid] = int(r.get("total_stock_qty") or 0)
+
+        mv_where_st, mv_params_st = _analytics_where_clause(analytics_filter, "st")
+        mv_where_sst, mv_params_sst = _analytics_where_clause(analytics_filter, "sst")
+        tx_count_map = {}
+        with get_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT item_id, SUM(tx_count) AS tx_count
+                FROM (
+                  SELECT st.item_id AS item_id, COUNT(*) AS tx_count
+                  FROM stock_transactions st
+                  WHERE {mv_where_st}
+                  GROUP BY st.item_id
+                  UNION ALL
+                  SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
+                  FROM shop_stock_transactions sst
+                  WHERE {mv_where_sst}
+                  GROUP BY sst.item_id
+                ) u
+                GROUP BY item_id
+                """,
+                tuple(list(mv_params_st) + list(mv_params_sst)),
+            )
+            for rr in (cur.fetchall() or []):
+                try:
+                    tx_count_map[int(rr.get("item_id") or 0)] = int(rr.get("tx_count") or 0)
+                except Exception:
+                    continue
+
+        avg_buy_map = {}
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    item_id,
+                    SUM(COALESCE(buying_price,0) * qty) AS buy_value,
+                    SUM(qty) AS buy_qty
+                FROM stock_transactions
+                WHERE direction='in' AND buying_price IS NOT NULL
+                GROUP BY item_id
+                """
+            )
+            for rr in (cur.fetchall() or []):
+                try:
+                    iid = int(rr.get("item_id") or 0)
+                    bq = int(rr.get("buy_qty") or 0)
+                    bv = float(rr.get("buy_value") or 0)
+                except Exception:
+                    continue
+                if iid > 0 and bq > 0:
+                    avg_buy_map[iid] = bv / bq
+
+        for it in items:
+            try:
+                iid = int(it.get("id") or 0)
+            except Exception:
+                continue
+            if iid <= 0:
+                continue
+            stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
+            tx_count = int(tx_count_map.get(iid, 0))
+            avg_buy = float(avg_buy_map.get(iid) or 0.0)
+            stock_value = max(stock_qty, 0) * avg_buy
+            total_valuation += stock_value
+
+            row = {
+                "item_id": iid,
+                "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                "category": (it.get("category") or "").strip(),
+                "stock_qty": stock_qty,
+                "tx_count": tx_count,
+                "updated_at": it.get("updated_at"),
+                "avg_buying_price": avg_buy,
+                "stock_value": stock_value,
+            }
+            valuation_rows.append(row)
+            if stock_qty <= reorder_threshold:
+                low_stock_rows.append(row)
+            if stock_qty > 0 and tx_count == 0:
+                stagnant_rows.append(row)
+
+        fast_moving_rows = sorted(
+            [r for r in valuation_rows if (r.get("tx_count") or 0) > 0],
+            key=lambda r: ((r.get("tx_count") or 0), str(r.get("updated_at") or "")),
+            reverse=True,
+        )
+        valuation_rows.sort(key=lambda r: (r.get("name") or "").lower())
+        highest_value_rows = sorted(valuation_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
+        low_stock_rows.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("tx_count") or 0)))
+        stagnant_rows.sort(key=lambda r: (r.get("stock_value") or 0), reverse=True)
+    except Exception:
+        pass
+
+    return render_template(
+        "it_support_stock_reports.html",
+        analytics_filter=analytics_filter,
+        selected_view=selected_view,
+        reorder_threshold=reorder_threshold,
+        total_valuation=total_valuation,
+        low_stock_rows=low_stock_rows[:120],
+        fast_moving_rows=fast_moving_rows[:120],
+        valuation_rows=valuation_rows[:300],
+        highest_value_rows=highest_value_rows[:120],
+        stagnant_rows=stagnant_rows[:120],
+    )
 
 
 @app.route("/it_support/stock-settings")
@@ -2327,12 +2653,15 @@ def it_support_register_shop():
 
     if request.method == "POST":
         shop_name = (request.form.get("shop_name") or "").strip().upper()
-        shop_code = (request.form.get("shop_code") or "").strip().upper()
+        shop_code = (request.form.get("shop_code") or "").strip()
         shop_password = (request.form.get("shop_password") or "").strip()
         shop_location = (request.form.get("shop_location") or "").strip().upper()
 
         if not shop_name or not shop_code or not shop_password or not shop_location:
             flash("Please fill shop name, shop code, shop password, and shop location.", "error")
+            return redirect(url_for("it_support_register_shop"))
+        if not CODE_RE.match(shop_code):
+            flash("Shop code must be exactly 6 digits.", "error")
             return redirect(url_for("it_support_register_shop"))
 
         try:
@@ -2365,6 +2694,22 @@ def it_support_register_shop():
     return render_template("it_support_register_shop.html", shops=shops)
 
 
+@app.route("/it_support/check-shop-code")
+@login_required
+def it_support_check_shop_code():
+    _it_support_only()
+    code = (request.args.get("code") or "").strip()
+    if not CODE_RE.match(code):
+        return jsonify({"ok": False, "available": False, "message": "Enter a valid 6-digit code."}), 400
+    try:
+        from database import shop_code_available
+
+        available = shop_code_available(code)
+        return jsonify({"ok": True, "available": available})
+    except Exception:
+        return jsonify({"ok": False, "message": "Could not verify code availability."}), 503
+
+
 @app.route("/it_support/shops/<int:shop_id>/toggle-status", methods=["POST"])
 @login_required
 def it_support_shop_toggle_status(shop_id: int):
@@ -2376,6 +2721,44 @@ def it_support_shop_toggle_status(shop_id: int):
     except Exception:
         ok = False
     flash("Shop status updated." if ok else "Could not update shop status.", "success" if ok else "error")
+    return redirect(url_for("it_support_register_shop"))
+
+
+@app.route("/it_support/shops/<int:shop_id>/edit", methods=["POST"])
+@login_required
+def it_support_shop_edit(shop_id: int):
+    _it_support_only()
+    shop_name = (request.form.get("shop_name") or "").strip().upper()
+    shop_code = (request.form.get("shop_code") or "").strip()
+    shop_password = (request.form.get("shop_password") or "").strip()
+    shop_location = (request.form.get("shop_location") or "").strip().upper()
+    status = (request.form.get("status") or "").strip().lower()
+
+    if not shop_name or not shop_code or not shop_location:
+        flash("Please fill shop name, shop code, and shop location.", "error")
+        return redirect(url_for("it_support_register_shop"))
+    if not CODE_RE.match(shop_code):
+        flash("Shop code must be exactly 6 digits.", "error")
+        return redirect(url_for("it_support_register_shop"))
+    if status not in {"active", "suspended"}:
+        flash("Invalid shop status.", "error")
+        return redirect(url_for("it_support_register_shop"))
+
+    try:
+        from database import update_shop_details
+
+        ok = update_shop_details(
+            shop_id=shop_id,
+            shop_name=shop_name,
+            shop_code=shop_code,
+            shop_location=shop_location,
+            status=status,
+            shop_password_hash=generate_password_hash(shop_password) if shop_password else None,
+        )
+    except Exception:
+        ok = False
+
+    flash("Shop details updated." if ok else "Could not update shop details.", "success" if ok else "error")
     return redirect(url_for("it_support_register_shop"))
 
 
@@ -3075,11 +3458,18 @@ def _scan_subnet_thermal_endpoints(
 
     found: list[dict] = []
     tasks = [(i, p) for i in range(1, 255) for p in ports]
-    max_workers = min(192, max(32, len(tasks)))
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futs = {ex.submit(probe_pair, i, p): (i, p) for i, p in tasks}
-        for fut in as_completed(futs):
-            row = fut.result()
+    max_workers = min(48, max(8, len(tasks)))
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = {ex.submit(probe_pair, i, p): (i, p) for i, p in tasks}
+            for fut in as_completed(futs):
+                row = fut.result()
+                if row:
+                    found.append(row)
+    except RuntimeError:
+        # Fallback when host process is out of thread resources.
+        for i, p in tasks:
+            row = probe_pair(i, p)
             if row:
                 found.append(row)
 
@@ -3122,11 +3512,18 @@ def _iter_subnet_scan_batches(
 
         pair_tasks = [(i, p) for i in range(lo, hi + 1) for p in ports]
         batch_eps: list[dict] = []
-        max_workers = min(192, max(32, len(pair_tasks)))
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            futs = {ex.submit(probe_pair, i, p): (i, p) for i, p in pair_tasks}
-            for fut in as_completed(futs):
-                row = fut.result()
+        max_workers = min(48, max(8, len(pair_tasks)))
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                futs = {ex.submit(probe_pair, i, p): (i, p) for i, p in pair_tasks}
+                for fut in as_completed(futs):
+                    row = fut.result()
+                    if row:
+                        batch_eps.append(row)
+        except RuntimeError:
+            # Fallback when host process is out of thread resources.
+            for i, p in pair_tasks:
+                row = probe_pair(i, p)
                 if row:
                     batch_eps.append(row)
 
@@ -4398,6 +4795,128 @@ def reject_stock_request(request_id: int):
     return redirect(url_for("notifications"))
 
 
+def _shop_active_sku_count(shop_id: int) -> int:
+    try:
+        from database import get_cursor
+
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM shop_items si
+                JOIN items i ON i.id = si.item_id
+                WHERE si.shop_id=%s AND i.status='active'
+                """,
+                (int(shop_id),),
+            )
+            return int((cur.fetchone() or {}).get("c") or 0)
+    except Exception:
+        return 0
+
+
+def _load_shop_stock_live_report_rows(
+    shop_id: int, analytics_filter: dict, reorder_threshold: int
+) -> Dict[str, Any]:
+    low_stock_rows: list = []
+    fast_moving_rows: list = []
+    valuation_rows: list = []
+    highest_value_rows: list = []
+    stagnant_rows: list = []
+    total_valuation = 0.0
+    try:
+        from database import _analytics_where_clause, get_cursor, list_shop_stock_manage_items
+
+        items = list_shop_stock_manage_items(shop_id=shop_id, limit=3000) or []
+        sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
+        tx_count_map: Dict[int, int] = {}
+        with get_cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT sst.item_id, COUNT(*) AS tx_count
+                FROM shop_stock_transactions sst
+                WHERE sst.shop_id=%s AND {sst_where}
+                GROUP BY sst.item_id
+                """,
+                tuple([int(shop_id)] + list(sst_params)),
+            )
+            for rr in (cur.fetchall() or []):
+                try:
+                    tx_count_map[int(rr.get("item_id") or 0)] = int(rr.get("tx_count") or 0)
+                except Exception:
+                    continue
+
+        avg_buy_map: Dict[int, float] = {}
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    sst.item_id,
+                    SUM(COALESCE(sst.buying_price,0) * sst.qty) AS buy_value,
+                    SUM(sst.qty) AS buy_qty
+                FROM shop_stock_transactions sst
+                WHERE sst.shop_id=%s AND sst.direction='in' AND sst.buying_price IS NOT NULL
+                GROUP BY sst.item_id
+                """,
+                (int(shop_id),),
+            )
+            for rr in (cur.fetchall() or []):
+                try:
+                    iid = int(rr.get("item_id") or 0)
+                    bq = int(rr.get("buy_qty") or 0)
+                    bv = float(rr.get("buy_value") or 0)
+                except Exception:
+                    continue
+                if iid > 0 and bq > 0:
+                    avg_buy_map[iid] = bv / bq
+
+        for it in items:
+            try:
+                iid = int(it.get("id") or 0)
+            except Exception:
+                continue
+            if iid <= 0:
+                continue
+            stock_qty = int(it.get("shop_stock_qty") or 0)
+            tx_count = int(tx_count_map.get(iid, 0))
+            avg_buy = float(avg_buy_map.get(iid) or 0.0)
+            stock_value = max(stock_qty, 0) * avg_buy
+            total_valuation += stock_value
+            row = {
+                "item_id": iid,
+                "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                "category": (it.get("category") or "").strip(),
+                "stock_qty": stock_qty,
+                "tx_count": tx_count,
+                "avg_buying_price": avg_buy,
+                "stock_value": stock_value,
+            }
+            valuation_rows.append(row)
+            if stock_qty <= reorder_threshold:
+                low_stock_rows.append(row)
+            if stock_qty > 0 and tx_count == 0:
+                stagnant_rows.append(row)
+
+        fast_moving_rows = sorted(
+            [r for r in valuation_rows if (r.get("tx_count") or 0) > 0],
+            key=lambda r: (r.get("tx_count") or 0),
+            reverse=True,
+        )
+        valuation_rows.sort(key=lambda r: (r.get("name") or "").lower())
+        highest_value_rows = sorted(valuation_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
+        low_stock_rows.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("tx_count") or 0)))
+        stagnant_rows.sort(key=lambda r: (r.get("stock_value") or 0), reverse=True)
+    except Exception:
+        pass
+    return {
+        "low_stock_rows": low_stock_rows[:120],
+        "fast_moving_rows": fast_moving_rows[:120],
+        "valuation_rows": valuation_rows[:300],
+        "highest_value_rows": highest_value_rows[:120],
+        "stagnant_rows": stagnant_rows[:120],
+        "total_valuation": total_valuation,
+    }
+
+
 @app.route("/shops/<int:shop_id>/shop-stock-analytics")
 def shop_stock_analytics(shop_id: int):
     shop = _get_shop_or_404(shop_id)
@@ -4405,27 +4924,93 @@ def shop_stock_analytics(shop_id: int):
     if gate is not None:
         return gate
     analytics_filter = _build_analytics_filter()
+    reorder_threshold = request.args.get("reorder_threshold", type=int)
+    if reorder_threshold is None:
+        reorder_threshold = 5
+    reorder_threshold = max(0, min(500, int(reorder_threshold)))
+    stock_data: Dict[str, Any] = {
+        "tx_count": 0,
+        "qty_in": 0,
+        "qty_out": 0,
+        "net_qty": 0,
+        "distinct_items": 0,
+        "top_in_items": [],
+        "top_out_items": [],
+        "daily": [],
+        "source_rows": [],
+    }
+    sku_count = 0
     try:
         from database import get_shop_stock_analytics
 
         stock_data = get_shop_stock_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+        sku_count = _shop_active_sku_count(shop_id)
     except Exception:
-        stock_data = {
-            "tx_count": 0,
-            "qty_in": 0,
-            "qty_out": 0,
-            "net_qty": 0,
-            "distinct_items": 0,
-            "top_in_items": [],
-            "top_out_items": [],
-            "daily": [],
-            "source_rows": [],
-        }
+        pass
     return render_template(
         "shop_stock_analytics.html",
         shop=shop,
         analytics_filter=analytics_filter,
         stock_data=stock_data,
+        shop_stock_sidebar_focus="analytics",
+        sku_count=sku_count,
+        reorder_threshold=reorder_threshold,
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-stock-reports")
+def shop_stock_reports(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    selected_view = (request.args.get("view") or "low_stock").strip().lower()
+    allowed_views = {"low_stock", "fast_moving", "valuation", "highest_value", "stagnant"}
+    if selected_view not in allowed_views:
+        selected_view = "low_stock"
+    reorder_threshold = request.args.get("reorder_threshold", type=int)
+    if reorder_threshold is None:
+        reorder_threshold = 5
+    reorder_threshold = max(0, min(500, int(reorder_threshold)))
+    # Canonicalize query params so the page URL does not keep empty fields.
+    clean_query: Dict[str, Any] = {
+        "view": selected_view,
+        "mode": analytics_filter.get("mode") or "single_day",
+        "reorder_threshold": reorder_threshold,
+    }
+    if clean_query["mode"] == "single_day" and analytics_filter.get("single_day"):
+        clean_query["single_day"] = analytics_filter.get("single_day")
+    elif clean_query["mode"] == "period":
+        if analytics_filter.get("start_date"):
+            clean_query["start_date"] = analytics_filter.get("start_date")
+        if analytics_filter.get("end_date"):
+            clean_query["end_date"] = analytics_filter.get("end_date")
+    elif clean_query["mode"] == "month" and analytics_filter.get("month"):
+        clean_query["month"] = analytics_filter.get("month")
+    elif clean_query["mode"] == "year" and analytics_filter.get("year"):
+        clean_query["year"] = analytics_filter.get("year")
+    if request.args.to_dict(flat=True) != {k: str(v) for k, v in clean_query.items()}:
+        return redirect(url_for("shop_stock_reports", shop_id=shop_id, **clean_query))
+    bundle = _load_shop_stock_live_report_rows(shop_id, analytics_filter, reorder_threshold)
+    return render_template(
+        "shop_stock_reports.html",
+        shop=shop,
+        analytics_filter=analytics_filter,
+        shop_stock_sidebar_focus="reports",
+        selected_view=selected_view,
+        reorder_threshold=reorder_threshold,
+        total_valuation=bundle["total_valuation"],
+        low_stock_rows=bundle["low_stock_rows"],
+        fast_moving_rows=bundle["fast_moving_rows"],
+        valuation_rows=bundle["valuation_rows"],
+        highest_value_rows=bundle["highest_value_rows"],
+        stagnant_rows=bundle["stagnant_rows"],
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
