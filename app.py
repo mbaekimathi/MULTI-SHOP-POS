@@ -3986,6 +3986,37 @@ def shop_pos_printer(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-pos/printer/tcp-reachable", methods=["GET"])
+def shop_pos_printer_tcp_reachable(shop_id: int):
+    """Return whether the saved network printer port accepts TCP (or print-agent mode is active)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    row, cfg = _printer_config_dict(shop_id)
+    if not row or (row.get("printer_type") or "").strip().lower() != "network":
+        return jsonify({"ok": True, "reachable": False, "reason": "no_network_printer_saved"})
+    if cfg.get("print_agent_enabled") and (cfg.get("print_agent_token") or "").strip():
+        return jsonify({"ok": True, "reachable": True, "mode": "print_agent"})
+    host = (cfg.get("host") or "").strip()
+    try:
+        port = int(cfg.get("port") or 9100)
+    except (TypeError, ValueError):
+        port = 9100
+    if not host or port < 1 or port > 65535:
+        return jsonify(
+            {
+                "ok": True,
+                "reachable": False,
+                "reason": "invalid_address",
+                "host": host,
+                "port": port,
+            }
+        )
+    ok = _tcp_probe_host_port(host, port, 3.0)
+    return jsonify({"ok": True, "reachable": ok, "mode": "direct_tcp", "host": host, "port": port})
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/printer/scan-network", methods=["POST"])
 def shop_pos_printer_scan_network(shop_id: int):
     """Scan LAN for thermal / raw TCP printers.
