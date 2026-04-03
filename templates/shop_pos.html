@@ -1494,7 +1494,6 @@
       var PRINTER_API = {{ url_for('shop_pos_printer', shop_id=shop.id)|tojson }};
       var QR_ESC_POS_API = {{ url_for('shop_pos_printer_qr_escpos', shop_id=shop.id)|tojson }};
       var NETWORK_ESC_POS_API = {{ url_for('shop_pos_printer_send_escpos', shop_id=shop.id)|tojson }};
-      var TCP_REACHABLE_API = {{ url_for('shop_pos_printer_tcp_reachable', shop_id=shop.id)|tojson }};
       var PRINTER_LS_KEY = "richcom-shop-pos-printer-local-" + SHOP_ID;
       window.POS_PRINTING = {{ pos_printing_settings|tojson }};
       window.POS_RECEIPT_SETTINGS = {{ pos_receipt_settings|tojson }};
@@ -3388,57 +3387,6 @@
         });
       }
 
-      /**
-       * True if the server can reach the saved network printer (TCP) or print-agent mode is on.
-       * On probe errors, returns true so we still attempt a full print (server is authoritative).
-       */
-      function ensureNetworkPrinterReachable(pp) {
-        if (pp.printer_allow_network === false) return Promise.resolve(false);
-        if (!TCP_REACHABLE_API) return Promise.resolve(true);
-        return fetch(TCP_REACHABLE_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
-          .then(function (r) {
-            return r.json().catch(function () {
-              return {};
-            });
-          })
-          .then(function (j) {
-            if (j && j.ok === true && j.reachable === true) return true;
-            if (j && j.ok === true && j.reachable === false) return false;
-            return true;
-          })
-          .catch(function () {
-            return true;
-          });
-      }
-
-      function usbSavedDevicePluggedIn(usbCfg) {
-        if (!navigator.usb || typeof navigator.usb.getDevices !== "function") return Promise.resolve(false);
-        var vid = parseInt(usbCfg && usbCfg.vendorId, 10);
-        var pid = parseInt(usbCfg && usbCfg.productId, 10);
-        if (isNaN(vid) || isNaN(pid)) return Promise.resolve(false);
-        return navigator.usb.getDevices().then(function (devices) {
-          return devices.some(function (x) {
-            return x && x.vendorId === vid && x.productId === pid;
-          });
-        });
-      }
-
-      function bluetoothSavedDevicePaired(btCfg) {
-        if (
-          !navigator.bluetooth ||
-          typeof navigator.bluetooth.getDevices !== "function" ||
-          !btCfg ||
-          !btCfg.bluetoothId
-        ) {
-          return Promise.resolve(false);
-        }
-        return navigator.bluetooth.getDevices().then(function (devices) {
-          return devices.some(function (x) {
-            return x && x.id === btCfg.bluetoothId;
-          });
-        });
-      }
-
       function printNetworkEscPosReceipt(payload) {
         var variants = receiptVariantsForCheckout();
         function sendVariant(i) {
@@ -4086,8 +4034,9 @@
       }
 
       /**
-       * After checkout: use silent ESC/POS (network / USB / Bluetooth) when the device is reachable.
-       * Opens the browser print dialog only when no direct path is available or every direct attempt failed.
+       * After checkout: try silent ESC/POS (network / USB / Bluetooth) using the saved profile first.
+       * Preflight TCP/USB/BT probes were removed — they often false-negative while the real print path works.
+       * Opens the browser print dialog only when every direct attempt fails.
        */
       function runConfiguredPrinterAction(payload) {
         var pp = window.POS_PRINTING || {};
@@ -4104,13 +4053,8 @@
           }
 
           if (saved && pt === "network" && host && pp.printer_allow_network !== false) {
-            return ensureNetworkPrinterReachable(pp).then(function (reachable) {
-              if (!reachable) {
-                return fallbackBrowserOrBluetooth();
-              }
-              return printNetworkEscPosReceipt(payload).catch(function () {
-                return fallbackBrowserOrBluetooth();
-              });
+            return printNetworkEscPosReceipt(payload).catch(function () {
+              return fallbackBrowserOrBluetooth();
             });
           }
 
@@ -4124,24 +4068,14 @@
             !isNaN(usbPid) &&
             pp.printer_allow_usb !== false;
           if (isUsb && navigator.usb) {
-            return usbSavedDevicePluggedIn(cfg).then(function (plugged) {
-              if (!plugged) {
-                return fallbackBrowserOrBluetooth();
-              }
-              return printUsbEscPosReceipt(cfg, payload).catch(function () {
-                return fallbackBrowserOrBluetooth();
-              });
+            return printUsbEscPosReceipt(cfg, payload).catch(function () {
+              return fallbackBrowserOrBluetooth();
             });
           }
 
           if (saved && pt === "bluetooth" && cfg && cfg.bluetoothId) {
-            return bluetoothSavedDevicePaired(cfg).then(function (paired) {
-              if (!paired) {
-                return fallbackBrowserOrBluetooth();
-              }
-              return tryBluetoothEscPosSilent(payload, pp, getBluetoothConfigCandidates(saved)).catch(function () {
-                return printBrowserThermalDialog(payload);
-              });
+            return tryBluetoothEscPosSilent(payload, pp, getBluetoothConfigCandidates(saved)).catch(function () {
+              return printBrowserThermalDialog(payload);
             });
           }
 
