@@ -1,0 +1,301 @@
+{% extends "employee_layout.html" %}
+{% block title %}Supplier buying — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Supplier buying{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_stock_reports', view='low_stock') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Low stock</a>
+  <a href="{{ url_for('it_support_stock_reports', view='fast_moving') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Fast moving</a>
+  <a href="{{ url_for('it_support_stock_reports', view='valuation') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Valuation</a>
+  <a href="{{ url_for('it_support_stock_reports', view='highest_value') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Top value</a>
+  <a href="{{ url_for('it_support_stock_reports', view='stagnant') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stagnant</a>
+  <a href="{{ url_for('it_support_stock_suppliers') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]" aria-current="page">Suppliers</a>
+{% endblock %}
+{% block employee_content %}
+  {% set rows = supplier_rows or [] %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Supplier buying analysis</h2>
+          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+            Weighted average purchase price comes from every company <strong class="text-[rgb(var(--rc-page-fg))]">stock in</strong> that recorded a unit price. <strong class="text-[rgb(var(--rc-page-fg))]">Best supplier</strong> is the source (place bought) with the lowest average unit cost for that item—where prices differ; ties favor higher received quantity.
+          </p>
+        </div>
+        <a href="{{ url_for('it_support_stock_reports', view='low_stock') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock reports</a>
+      </div>
+    </div>
+
+    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and suppliers</h3>
+        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Use the eye to open stock-in history and simple stats for one item.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-[860px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Category</th>
+              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Company stock</th>
+              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Total qty in</th>
+              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Avg buy price</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Best supplier</th>
+              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Best supplier avg</th>
+              <th class="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-16">View</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in rows %}
+              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/50">
+                <td class="px-3 py-2.5 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.category or "—" }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums">{{ r.company_stock_qty or 0 }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ r.total_in_qty or 0 }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums">
+                  {% if r.avg_buying_price is not none %}
+                    {{ "%.2f"|format(r.avg_buying_price) }}
+                  {% else %}
+                    <span class="text-[rgb(var(--rc-muted))]">—</span>
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-page-fg))]">{{ r.best_supplier or "—" }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums">
+                  {% if r.best_supplier_avg_price is not none %}
+                    {{ "%.2f"|format(r.best_supplier_avg_price) }}
+                  {% else %}
+                    <span class="text-[rgb(var(--rc-muted))]">—</span>
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2.5 text-center">
+                  <button
+                    type="button"
+                    class="js-stock-in-insight inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:border-[rgb(var(--rc-primary))]/50 hover:bg-[rgb(var(--rc-surface))]"
+                    data-item-id="{{ r.item_id }}"
+                    data-item-name="{{ r.name|e }}"
+                    aria-label="Stock in analysis for {{ r.name|e }}"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="8" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No managed items found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div
+      id="stock-in-insight-modal"
+      class="pointer-events-none fixed inset-0 z-[95] hidden opacity-0 transition"
+      aria-hidden="true"
+    >
+      <div class="absolute inset-0 bg-black/55"></div>
+      <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
+          <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
+            <div class="min-w-0">
+              <h4 id="stock-in-insight-title" class="truncate text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock in analysis</h4>
+              <p id="stock-in-insight-sub" class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]"></p>
+            </div>
+            <button
+              type="button"
+              id="stock-in-insight-close"
+              class="shrink-0 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold text-[rgb(var(--rc-page-fg))]"
+            >
+              Close
+            </button>
+          </div>
+          <div id="stock-in-insight-body" class="max-h-[calc(90vh-5.5rem)] overflow-y-auto p-4">
+            <p class="text-sm text-[rgb(var(--rc-muted))]">Loading…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var modal = document.getElementById("stock-in-insight-modal");
+      var body = document.getElementById("stock-in-insight-body");
+      var title = document.getElementById("stock-in-insight-title");
+      var sub = document.getElementById("stock-in-insight-sub");
+      var closeBtn = document.getElementById("stock-in-insight-close");
+      if (!modal || !body) return;
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+      }
+
+      function fmt(n) {
+        var x = parseFloat(n);
+        if (isNaN(x)) return "0.00";
+        return x.toFixed(2);
+      }
+
+      function openModal() {
+        modal.classList.remove("hidden");
+        requestAnimationFrame(function () {
+          modal.classList.remove("pointer-events-none", "opacity-0");
+        });
+        modal.setAttribute("aria-hidden", "false");
+      }
+
+      function closeModal() {
+        modal.classList.add("pointer-events-none", "opacity-0");
+        modal.setAttribute("aria-hidden", "true");
+        setTimeout(function () { modal.classList.add("hidden"); }, 180);
+      }
+
+      function renderAnalysis(itemName, txs) {
+        var n = txs.length;
+        var totalQty = 0;
+        var totalVal = 0;
+        var prices = [];
+        var supSet = {};
+        txs.forEach(function (t) {
+          totalQty += t.qty || 0;
+          totalVal += t.line_value || 0;
+          if (t.buying_price != null) prices.push(t.buying_price);
+          if (t.supplier && t.supplier !== "—") supSet[t.supplier] = true;
+        });
+        var avgUnit = totalQty > 0 ? totalVal / totalQty : 0;
+        var minP = prices.length ? Math.min.apply(null, prices) : null;
+        var maxP = prices.length ? Math.max.apply(null, prices) : null;
+        var supCount = Object.keys(supSet).length;
+
+        var stats =
+          '<div class="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">' +
+          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Transactions</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
+          n +
+          "</p></div>" +
+          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Qty received</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
+          totalQty +
+          "</p></div>" +
+          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Avg unit (this list)</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
+          fmt(avgUnit) +
+          "</p></div>" +
+          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Suppliers named</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
+          supCount +
+          "</p></div>" +
+          "</div>";
+
+        var range = "";
+        if (minP != null && maxP != null) {
+          range =
+            '<p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">Unit price range in history: <span class="font-semibold text-[rgb(var(--rc-page-fg))]">' +
+            fmt(minP) +
+            "</span> – <span class=\"font-semibold text-[rgb(var(--rc-page-fg))]\">" +
+            fmt(maxP) +
+            "</span>.</p>";
+        }
+
+        if (!n) {
+          body.innerHTML = stats + "<p class=\"text-sm text-[rgb(var(--rc-muted))]\">No stock in rows recorded yet for this item.</p>";
+          return;
+        }
+
+        var thead =
+          "<thead class=\"bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]\"><tr>" +
+          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">When</th>' +
+          '<th class="px-2 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty</th>' +
+          '<th class="px-2 py-2 text-right text-xs font-bold uppercase tracking-wider">Unit</th>' +
+          '<th class="px-2 py-2 text-right text-xs font-bold uppercase tracking-wider">Line</th>' +
+          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Supplier</th>' +
+          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Note</th>' +
+          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">By</th>' +
+          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Stock Δ</th>' +
+          "</tr></thead>";
+
+        var tbody = txs
+          .map(function (t) {
+            return (
+              "<tr class=\"border-t border-[rgb(var(--rc-border))]/80\">" +
+              '<td class="px-2 py-2 whitespace-nowrap text-xs text-[rgb(var(--rc-page-fg))]">' +
+              esc(t.created_at) +
+              "</td>" +
+              '<td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">' +
+              esc(String(t.qty)) +
+              "</td>" +
+              '<td class="px-2 py-2 text-right tabular-nums">' +
+              esc(fmt(t.buying_price)) +
+              "</td>" +
+              '<td class="px-2 py-2 text-right tabular-nums">' +
+              esc(fmt(t.line_value)) +
+              "</td>" +
+              '<td class="px-2 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
+              esc(t.supplier) +
+              "</td>" +
+              '<td class="px-2 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
+              esc(t.note) +
+              "</td>" +
+              '<td class="px-2 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
+              esc(t.stocked_by) +
+              "</td>" +
+              '<td class="px-2 py-2 whitespace-nowrap text-xs text-[rgb(var(--rc-muted))]">' +
+              esc(t.stock_before) +
+              " → " +
+              esc(t.stock_after) +
+              "</td>" +
+              "</tr>"
+            );
+          })
+          .join("");
+
+        body.innerHTML =
+          stats +
+          range +
+          '<div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">' +
+          '<table class="min-w-full text-sm">' +
+          thead +
+          '<tbody class="divide-y divide-[rgb(var(--rc-border))]/70">' +
+          tbody +
+          "</tbody></table></div>";
+      }
+
+      document.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest(".js-stock-in-insight") : null;
+        if (btn) {
+          var id = btn.getAttribute("data-item-id");
+          var name = btn.getAttribute("data-item-name") || "Item";
+          title.textContent = name;
+          sub.textContent = "Stock in transaction history (company)";
+          body.innerHTML = '<p class="text-sm text-[rgb(var(--rc-muted))]">Loading…</p>';
+          openModal();
+          var url = "/it_support/stock-reports/suppliers/" + encodeURIComponent(id) + "/stock-ins";
+          fetch(url, { headers: { Accept: "application/json" } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (!data || !data.ok) {
+                body.innerHTML = '<p class="text-sm text-rose-400">Could not load transactions.</p>';
+                return;
+              }
+              renderAnalysis(name, data.transactions || []);
+            })
+            .catch(function () {
+              body.innerHTML = '<p class="text-sm text-rose-400">Could not load transactions.</p>';
+            });
+          return;
+        }
+        if (!modal.classList.contains("hidden") && (e.target === modal || (e.target && e.target === modal.firstElementChild))) {
+          closeModal();
+        }
+      });
+
+      if (closeBtn) closeBtn.addEventListener("click", closeModal);
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+      });
+    })();
+  </script>
+{% endblock %}

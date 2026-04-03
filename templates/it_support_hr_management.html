@@ -1,6 +1,27 @@
 {% extends "employee_layout.html" %}
 {% block title %}HR management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}HR management{% endblock %}
+{% block sidebar_links %}
+  <a
+    href="{{ url_for('it_support_hr_management') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]"
+    aria-current="page"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+    HR management
+  </a>
+  <a
+    href="{{ url_for('it_support_company_salaries') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    Salaries
+  </a>
+{% endblock %}
 {% block head %}
   {{ super() }}
   <style>
@@ -56,7 +77,9 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Employees</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Manage employee approvals and allocations.</p>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          Approve new signups. For approved staff, you can edit details, suspend or reactivate accounts, and remove users from the system.
+        </p>
       </div>
       <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
         {{ (employees or [])|length }} employees
@@ -71,6 +94,8 @@
       {# Mobile: cards #}
       <div class="grid gap-3 md:hidden">
         {% for e in employees %}
+          {% set is_pending = (e.status or '') == 'pending_approval' %}
+          {% set is_self = e.id|int == (session.get('employee_id', 0)|int) %}
           <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
@@ -79,17 +104,54 @@
                 <p class="mt-1 truncate text-sm text-[rgb(var(--rc-muted))]">{{ e.email }}</p>
                 <p class="mt-1 truncate text-sm text-[rgb(var(--rc-muted))]">{{ e.phone }}</p>
               </div>
-              <button
-                type="button"
-                class="btn-rc btn-rc-success h-10 w-10 p-0 js-approve"
-                title="Approve employee"
-                data-emp-id="{{ e.id }}"
-                data-emp-name="{{ e.full_name }}"
-              >
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
+              {% if is_pending %}
+                <button
+                  type="button"
+                  class="btn-rc btn-rc-success h-10 w-10 shrink-0 p-0 js-approve"
+                  title="Approve employee"
+                  data-emp-id="{{ e.id }}"
+                  data-emp-name="{{ e.full_name }}"
+                >
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+              {% else %}
+                <div class="flex shrink-0 flex-wrap justify-end gap-1.5">
+                  <button
+                    type="button"
+                    class="btn-rc btn-rc-info px-2 py-1.5 text-[10px] font-bold uppercase js-edit"
+                    title="Edit employee"
+                    data-emp-id="{{ e.id }}"
+                    data-emp-code="{{ e.employee_code }}"
+                    data-full-name="{{ e.full_name }}"
+                    data-email="{{ e.email }}"
+                    data-phone="{{ e.phone or '' }}"
+                    data-role="{{ e.role or 'employee' }}"
+                    data-shop-id="{{ e.shop_id or '' }}"
+                    data-preferred-payment="{{ e.preferred_payment_method or '' }}"
+                    data-payment-holder="{{ e.payment_account_holder or '' }}"
+                    data-payment-bank="{{ e.payment_bank_or_provider or '' }}"
+                    data-payment-number="{{ e.payment_account_number or '' }}"
+                  >
+                    Edit
+                  </button>
+                  {% if not is_self %}
+                    {% if e.status == 'active' %}
+                      <form method="post" action="{{ url_for('it_support_employee_suspend', emp_id=e.id) }}" class="inline">
+                        <button type="submit" class="btn-rc btn-rc-warning px-2 py-1.5 text-[10px] font-bold uppercase" title="Suspend">Suspend</button>
+                      </form>
+                    {% elif e.status == 'suspended' %}
+                      <form method="post" action="{{ url_for('it_support_employee_unsuspend', emp_id=e.id) }}" class="inline">
+                        <button type="submit" class="btn-rc btn-rc-success px-2 py-1.5 text-[10px] font-bold uppercase" title="Reactivate">Unsuspend</button>
+                      </form>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('it_support_employee_delete', emp_id=e.id) }}" class="inline" onsubmit="return confirm('Delete this employee permanently? They will no longer be able to sign in.');">
+                      <button type="submit" class="btn-rc btn-rc-danger px-2 py-1.5 text-[10px] font-bold uppercase" title="Delete">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              {% endif %}
             </div>
 
             <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider">
@@ -110,7 +172,7 @@
       {# Tablet/PC: table #}
       <div class="hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] md:block">
         <div class="overflow-x-auto">
-          <table class="min-w-[980px] w-full text-sm">
+          <table class="min-w-[1080px] w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Employee</th>
@@ -119,11 +181,13 @@
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Role</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Approve</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for e in employees %}
+                {% set is_pending = (e.status or '') == 'pending_approval' %}
+                {% set is_self = e.id|int == (session.get('employee_id', 0)|int) %}
                 <tr>
                   <td class="px-4 py-3">
                     <div class="min-w-0">
@@ -141,17 +205,54 @@
                   <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ (e.role or '')|upper }}</td>
                   <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ e.shop_name or '-' }}</td>
                   <td class="px-4 py-3">
-                    <button
-                      type="button"
-                      class="btn-rc btn-rc-success h-9 w-9 p-0 js-approve"
-                      title="Approve employee"
-                      data-emp-id="{{ e.id }}"
-                      data-emp-name="{{ e.full_name }}"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </button>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      {% if is_pending %}
+                        <button
+                          type="button"
+                          class="btn-rc btn-rc-success h-9 w-9 shrink-0 p-0 js-approve"
+                          title="Approve employee"
+                          data-emp-id="{{ e.id }}"
+                          data-emp-name="{{ e.full_name }}"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      {% else %}
+                        <button
+                          type="button"
+                          class="btn-rc btn-rc-info px-2.5 py-1.5 text-xs font-bold uppercase js-edit"
+                          title="Edit details"
+                          data-emp-id="{{ e.id }}"
+                          data-emp-code="{{ e.employee_code }}"
+                          data-full-name="{{ e.full_name }}"
+                          data-email="{{ e.email }}"
+                          data-phone="{{ e.phone or '' }}"
+                          data-role="{{ e.role or 'employee' }}"
+                          data-shop-id="{{ e.shop_id or '' }}"
+                          data-preferred-payment="{{ e.preferred_payment_method or '' }}"
+                          data-payment-holder="{{ e.payment_account_holder or '' }}"
+                          data-payment-bank="{{ e.payment_bank_or_provider or '' }}"
+                          data-payment-number="{{ e.payment_account_number or '' }}"
+                        >
+                          Edit
+                        </button>
+                        {% if not is_self %}
+                          {% if e.status == 'active' %}
+                            <form method="post" action="{{ url_for('it_support_employee_suspend', emp_id=e.id) }}" class="inline">
+                              <button type="submit" class="btn-rc btn-rc-warning px-2.5 py-1.5 text-xs font-bold uppercase">Suspend</button>
+                            </form>
+                          {% elif e.status == 'suspended' %}
+                            <form method="post" action="{{ url_for('it_support_employee_unsuspend', emp_id=e.id) }}" class="inline">
+                              <button type="submit" class="btn-rc btn-rc-success px-2.5 py-1.5 text-xs font-bold uppercase">Unsuspend</button>
+                            </form>
+                          {% endif %}
+                          <form method="post" action="{{ url_for('it_support_employee_delete', emp_id=e.id) }}" class="inline" onsubmit="return confirm('Delete this employee permanently? They will no longer be able to sign in.');">
+                            <button type="submit" class="btn-rc btn-rc-danger px-2.5 py-1.5 text-xs font-bold uppercase">Delete</button>
+                          </form>
+                        {% endif %}
+                      {% endif %}
+                    </div>
                   </td>
                 </tr>
               {% endfor %}
@@ -288,6 +389,233 @@
       </div>
     </div>
   </div>
+
+  {# Edit approved employee #}
+  <div
+    id="edit-modal"
+    class="fixed inset-0 z-50 hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="edit-modal-title"
+  >
+    <div
+      class="approve-modal__backdrop absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-900/75 to-sky-950/45 backdrop-blur-md motion-reduce:backdrop-blur-none"
+      aria-hidden="true"
+    ></div>
+    <div class="pointer-events-none absolute inset-0 flex min-h-0 items-end justify-center p-0 sm:items-center sm:p-4 md:p-6">
+      <div
+        class="approve-modal__panel pointer-events-auto relative flex max-h-[min(92dvh,760px)] w-full max-w-xl flex-col overflow-hidden rounded-t-[1.75rem] border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-[0_-28px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/5 sm:rounded-2xl sm:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.55)]"
+      >
+        <div class="h-1 shrink-0 bg-gradient-to-r from-sky-400 via-cyan-400 to-emerald-400" aria-hidden="true"></div>
+        <div class="relative max-h-full overflow-y-auto overscroll-contain pb-[max(0px,env(safe-area-inset-bottom))]">
+          <div class="border-b border-[rgb(var(--rc-border))]/80 bg-gradient-to-b from-[rgb(var(--rc-surface-2))]/40 to-transparent px-5 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-5">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-sky-400/90">HR · Edit</p>
+                <h3 id="edit-modal-title" class="mt-1.5 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">
+                  Edit employee
+                </h3>
+                <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+                  Update profile, preferred payout method and account details, 6-digit login code, and optionally set a new password.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn-rc btn-rc-ghost h-10 w-10 shrink-0 rounded-xl p-0 ring-1 ring-[rgb(var(--rc-border))]/60"
+                id="edit-close"
+                aria-label="Close"
+              >
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <form
+            method="post"
+            id="edit-form"
+            data-action-template="{{ url_for('it_support_employee_edit', emp_id=0) }}"
+            class="grid gap-4 px-5 py-5 sm:gap-4 sm:px-6 sm:pb-6"
+          >
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Full name</label>
+              <input
+                type="text"
+                name="full_name"
+                id="edit-full-name"
+                required
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              />
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">6-digit login code</label>
+              <input
+                type="text"
+                name="employee_code"
+                id="edit-employee-code"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                required
+                autocomplete="off"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 font-mono text-sm tracking-widest text-[rgb(var(--rc-page-fg))] outline-none"
+              />
+              <p class="mt-1.5 text-xs text-[rgb(var(--rc-muted))]">Must be unique. Staff sign in with this code and their password.</p>
+            </div>
+            <div class="md:grid md:grid-cols-2 md:gap-4">
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">New password</label>
+                <input
+                  type="password"
+                  name="password"
+                  id="edit-password"
+                  minlength="6"
+                  autocomplete="new-password"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                  placeholder="Leave blank to keep current"
+                />
+              </div>
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Confirm new password</label>
+                <input
+                  type="password"
+                  name="password_confirm"
+                  id="edit-password-confirm"
+                  minlength="6"
+                  autocomplete="new-password"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                  placeholder="Repeat only if changing"
+                />
+              </div>
+            </div>
+            <p class="-mt-1 text-xs text-[rgb(var(--rc-muted))]">Leave both password fields empty to keep the existing password.</p>
+            <div class="md:grid md:grid-cols-2 md:gap-4">
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  id="edit-email"
+                  required
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                />
+              </div>
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Phone</label>
+                <input
+                  type="text"
+                  name="phone"
+                  id="edit-phone"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Role</label>
+              <select
+                name="role"
+                id="edit-role"
+                required
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] uppercase outline-none"
+              >
+                <option value="super_admin">SUPER ADMIN</option>
+                <option value="it_support">IT SUPPORT</option>
+                <option value="admin">ADMIN</option>
+                <option value="manager">MANAGER</option>
+                <option value="sales">SALES</option>
+                <option value="finance">FINANCE</option>
+                <option value="employee">EMPLOYEE</option>
+                <option value="rider">RIDER</option>
+              </select>
+            </div>
+            <div id="edit-shop-wrap" class="hidden">
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop</label>
+              <select
+                name="shop_id"
+                id="edit-shop"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] uppercase outline-none"
+              >
+                <option value="">SELECT SHOP</option>
+                {% for s in (shops or []) %}
+                  <option value="{{ s.id }}">{{ s.shop_name }}{% if s.shop_code %} ({{ s.shop_code }}){% endif %}</option>
+                {% endfor %}
+              </select>
+              <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Required for roles other than SUPER ADMIN / IT SUPPORT.</p>
+            </div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Preferred payroll payout</p>
+              <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">
+                M-Pesa (phone number), bank (name + account), or cash. Choose &ldquo;Not set&rdquo; to clear all payout details.
+              </p>
+              <div class="mt-4 grid gap-4">
+                <div>
+                  <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment method</label>
+                  <select
+                    name="preferred_payment_method"
+                    id="edit-preferred-payment"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                  >
+                    <option value="">Not set</option>
+                    <option value="mpesa">M-Pesa</option>
+                    <option value="bank">Bank</option>
+                    <option value="cash">Cash</option>
+                  </select>
+                </div>
+                <p id="edit-payment-cash-hint" class="hidden text-xs text-[rgb(var(--rc-muted))]">
+                  No phone or bank details are stored for cash.
+                </p>
+                <div id="edit-payment-bank-wrap" class="hidden">
+                  <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Bank name</label>
+                  <input
+                    type="text"
+                    name="payment_bank_or_provider"
+                    id="edit-payment-bank"
+                    maxlength="120"
+                    autocomplete="off"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                    placeholder="e.g. Equity Bank, KCB"
+                  />
+                </div>
+                <div id="edit-payment-number-wrap" class="hidden">
+                  <label
+                    class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]"
+                    id="edit-payment-number-label"
+                    for="edit-payment-number"
+                    >Phone / account number</label>
+                  <input
+                    type="text"
+                    name="payment_account_number"
+                    id="edit-payment-number"
+                    maxlength="128"
+                    autocomplete="off"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                    placeholder="M-Pesa phone or bank account number"
+                  />
+                </div>
+                <div id="edit-payment-holder-wrap" class="hidden">
+                  <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Account name (optional)</label>
+                  <input
+                    type="text"
+                    name="payment_account_holder"
+                    id="edit-payment-holder"
+                    maxlength="200"
+                    autocomplete="off"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                    placeholder="Name as it appears on the bank account"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+              <button type="button" class="btn-rc btn-rc-ghost w-full px-4 py-3 text-sm font-semibold sm:w-auto" id="edit-cancel">Cancel</button>
+              <button type="submit" class="btn-rc btn-rc-primary w-full px-4 py-3 text-sm font-semibold sm:w-auto">Save changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block scripts %}
@@ -350,6 +678,126 @@
         if (e.key === "Escape" && !modal.classList.contains("hidden")) {
           e.preventDefault();
           closeModal();
+        }
+      });
+    })();
+
+    (function () {
+      var editModal = document.getElementById("edit-modal");
+      var editForm = document.getElementById("edit-form");
+      var editClose = document.getElementById("edit-close");
+      var editCancel = document.getElementById("edit-cancel");
+      var editCodeInput = document.getElementById("edit-employee-code");
+      var editPwd = document.getElementById("edit-password");
+      var editPwdC = document.getElementById("edit-password-confirm");
+      var editRole = document.getElementById("edit-role");
+      var editShopWrap = document.getElementById("edit-shop-wrap");
+      var editShop = document.getElementById("edit-shop");
+      var paySel = document.getElementById("edit-preferred-payment");
+      if (!editModal || !editForm) return;
+
+      function syncEditPayment() {
+        var m = (paySel && paySel.value ? paySel.value : "").toLowerCase();
+        var bankW = document.getElementById("edit-payment-bank-wrap");
+        var numW = document.getElementById("edit-payment-number-wrap");
+        var numLbl = document.getElementById("edit-payment-number-label");
+        var holdW = document.getElementById("edit-payment-holder-wrap");
+        var cashH = document.getElementById("edit-payment-cash-hint");
+        if (!bankW || !numW || !numLbl || !holdW || !cashH) return;
+        bankW.classList.add("hidden");
+        numW.classList.add("hidden");
+        holdW.classList.add("hidden");
+        cashH.classList.add("hidden");
+        if (!m) return;
+        if (m === "cash") {
+          cashH.classList.remove("hidden");
+          return;
+        }
+        if (m === "mpesa") {
+          numW.classList.remove("hidden");
+          numLbl.textContent = "M-Pesa phone number";
+          return;
+        }
+        if (m === "bank") {
+          bankW.classList.remove("hidden");
+          numW.classList.remove("hidden");
+          holdW.classList.remove("hidden");
+          numLbl.textContent = "Bank account number";
+        }
+      }
+
+      function closeEdit() {
+        if (editModal.classList.contains("hidden")) return;
+        editModal.classList.add("hidden");
+        document.body.style.overflow = "";
+      }
+
+      function syncEditShop() {
+        var r = (editRole && editRole.value ? editRole.value : "").toLowerCase();
+        var needsShop = r && r !== "super_admin" && r !== "it_support";
+        if (editShopWrap) editShopWrap.classList.toggle("hidden", !needsShop);
+        if (editShop) editShop.required = !!needsShop;
+        if (!needsShop && editShop) editShop.value = "";
+      }
+
+      function openEdit(btn) {
+        var tpl = editForm.getAttribute("data-action-template") || "";
+        var id = btn.getAttribute("data-emp-id");
+        editForm.action = tpl.replace("/0/", "/" + String(id) + "/");
+        if (editCodeInput) editCodeInput.value = (btn.getAttribute("data-emp-code") || "").replace(/\D/g, "").slice(0, 6);
+        if (editPwd) editPwd.value = "";
+        if (editPwdC) editPwdC.value = "";
+        document.getElementById("edit-full-name").value = btn.getAttribute("data-full-name") || "";
+        document.getElementById("edit-email").value = btn.getAttribute("data-email") || "";
+        document.getElementById("edit-phone").value = btn.getAttribute("data-phone") || "";
+        var role = (btn.getAttribute("data-role") || "employee").toLowerCase();
+        if (editRole) editRole.value = role;
+        var sid = btn.getAttribute("data-shop-id") || "";
+        syncEditShop();
+        if (editShop && needsShop(editRole.value) && sid) {
+          editShop.value = sid;
+        }
+        var pmRaw = (btn.getAttribute("data-preferred-payment") || "").trim().toLowerCase();
+        if (pmRaw === "bank_transfer") pmRaw = "bank";
+        if (pmRaw === "mobile_money") pmRaw = "mpesa";
+        if (pmRaw === "other") pmRaw = "";
+        if (paySel) paySel.value = pmRaw;
+        var payH = document.getElementById("edit-payment-holder");
+        if (payH) payH.value = btn.getAttribute("data-payment-holder") || "";
+        var payB = document.getElementById("edit-payment-bank");
+        if (payB) payB.value = btn.getAttribute("data-payment-bank") || "";
+        var payN = document.getElementById("edit-payment-number");
+        if (payN) payN.value = btn.getAttribute("data-payment-number") || "";
+        syncEditPayment();
+        editModal.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        window.requestAnimationFrame(function () {
+          document.getElementById("edit-full-name").focus();
+        });
+      }
+
+      function needsShop(roleVal) {
+        var r = (roleVal || "").toLowerCase();
+        return r && r !== "super_admin" && r !== "it_support";
+      }
+
+      document.querySelectorAll(".js-edit").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          openEdit(btn);
+        });
+      });
+
+      if (editRole) editRole.addEventListener("change", syncEditShop);
+      if (paySel) paySel.addEventListener("change", syncEditPayment);
+      if (editClose) editClose.addEventListener("click", closeEdit);
+      if (editCancel) editCancel.addEventListener("click", closeEdit);
+      editModal.addEventListener("click", function (e) {
+        if (e.target === editModal.firstElementChild) closeEdit();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && editModal && !editModal.classList.contains("hidden")) {
+          e.preventDefault();
+          closeEdit();
         }
       });
     })();

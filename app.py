@@ -128,6 +128,28 @@ def inject_jos_version():
     return {"jos_version": JOS_VERSION}
 
 
+def _effective_pos_theme_colors(shop: dict) -> tuple[str, str]:
+    """Shop primary/accent when set; otherwise company (IT) defaults from site settings."""
+    company_pri = "#f97316"
+    company_acc = "#fb923c"
+    try:
+        from database import get_site_settings
+
+        ss = get_site_settings(["primary_color", "accent_color"]) or {}
+        if (ss.get("primary_color") or "").strip():
+            company_pri = str(ss["primary_color"]).strip()
+        if (ss.get("accent_color") or "").strip():
+            company_acc = str(ss["accent_color"]).strip()
+    except Exception:
+        pass
+    sp = (shop.get("primary_color") or "").strip()
+    sa = (shop.get("accent_color") or "").strip()
+    return (
+        _hex_to_rgb_triplet(sp if sp else company_pri),
+        _hex_to_rgb_triplet(sa if sa else company_acc),
+    )
+
+
 def _hex_to_rgb_triplet(hex_color: str) -> str:
     s = (hex_color or "").strip().lstrip("#")
     if len(s) == 3:
@@ -1436,11 +1458,142 @@ def _it_support_stock_page(direction: str):
     return items, item_id, selected_item, txs
 
 
-@app.route("/it_support/item-management/stock-management")
+def _it_support_stock_management_post():
+    """Bulk stock in/out from the company stock management grid."""
+    _it_support_only()
+    direction = (request.form.get("bulk_direction") or "").strip().lower()
+    if direction not in ("in", "out"):
+        flash("Invalid action.", "error")
+        return redirect(url_for("it_support_stock_management"))
+    try:
+        from database import create_stock_transactions_batch, list_stock_manage_items
+
+        items = list_stock_manage_items(limit=500)
+    except Exception:
+        items = []
+    if not items:
+        flash("No eligible items found.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    allowed_reasons = {"return", "waste", "display"}
+    errors: list[str] = []
+    operations: list[dict] = []
+
+    for it in items:
+        try:
+            iid = int(it.get("id"))
+        except Exception:
+            continue
+        if direction == "in":
+            qty_raw = (request.form.get(f"in_qty_{iid}") or "").strip()
+            if not qty_raw:
+                continue
+            try:
+                qty = int(float(qty_raw))
+            except Exception:
+                errors.append(f"{it.get('name') or ('Item #' + str(iid))}: invalid quantity.")
+                continue
+            if qty <= 0:
+                continue
+            bp_raw = (request.form.get(f"in_buying_price_{iid}") or "").strip()
+            place = (request.form.get(f"in_place_{iid}") or "").strip()
+            label = it.get("name") or f"Item #{iid}"
+            if not bp_raw:
+                errors.append(f"{label}: buying price is required when quantity is set.")
+                continue
+            if not place:
+                errors.append(f"{label}: place bought is required when quantity is set.")
+                continue
+            try:
+                buying_price = float(bp_raw)
+                if buying_price < 0:
+                    raise ValueError()
+            except Exception:
+                errors.append(f"{label}: buying price must be a valid number.")
+                continue
+            operations.append(
+                {
+                    "item_id": iid,
+                    "direction": "in",
+                    "qty": qty,
+                    "buying_price": buying_price,
+                    "place_brought_from": place.upper(),
+                    "stock_out_reason": None,
+                    "refunded": False,
+                    "refund_amount": None,
+                    "note": None,
+                }
+            )
+        else:
+            qty_raw = (request.form.get(f"out_qty_{iid}") or "").strip()
+            if not qty_raw:
+                continue
+            try:
+                qty = int(float(qty_raw))
+            except Exception:
+                errors.append(f"{it.get('name') or ('Item #' + str(iid))}: invalid quantity.")
+                continue
+            if qty <= 0:
+                continue
+            label = it.get("name") or f"Item #{iid}"
+            reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
+            if reason not in allowed_reasons:
+                errors.append(f"{label}: choose a stock out reason.")
+                continue
+            refunded_raw = (request.form.get(f"out_refunded_{iid}") or "").strip().lower()
+            if refunded_raw not in ("yes", "no"):
+                errors.append(f"{label}: choose whether this line is refunded.")
+                continue
+            refunded = refunded_raw == "yes"
+            refund_amount = None
+            if refunded:
+                ram = (request.form.get(f"out_refund_amount_{iid}") or "").strip()
+                if not ram:
+                    errors.append(f"{label}: refund amount is required when refunded is yes.")
+                    continue
+                try:
+                    refund_amount = float(ram)
+                    if refund_amount < 0:
+                        raise ValueError()
+                except Exception:
+                    errors.append(f"{label}: refund amount must be a valid number.")
+                    continue
+            operations.append(
+                {
+                    "item_id": iid,
+                    "direction": "out",
+                    "qty": qty,
+                    "buying_price": None,
+                    "place_brought_from": None,
+                    "stock_out_reason": reason.upper(),
+                    "refunded": refunded,
+                    "refund_amount": refund_amount,
+                    "note": None,
+                }
+            )
+
+    if errors:
+        flash(" ".join(errors[:6]) + (" …" if len(errors) > 6 else ""), "error")
+        return redirect(url_for("it_support_stock_management"))
+    if not operations:
+        flash("Enter a quantity on at least one row to apply.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    ok, msg = create_stock_transactions_batch(
+        operations=operations,
+        created_by_employee_id=session.get("employee_id"),
+    )
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("it_support_stock_management"))
+
+
+@app.route("/it_support/item-management/stock-management", methods=["GET", "POST"])
 @login_required
 def it_support_stock_management():
-    """Stock item list page. Choose item + action to continue."""
+    """Company stock grid: choose stock in or out, fill rows, submit once."""
     _it_support_only()
+    if request.method == "POST":
+        return _it_support_stock_management_post()
     try:
         from database import list_stock_manage_items
 
@@ -1459,7 +1612,7 @@ def it_support_stock_in():
         return page
     items, item_id, selected_item, txs = page
     if not item_id:
-        flash("Select an item from Stock management first.", "error")
+        flash("Select an item from Company stock management first.", "error")
         return redirect(url_for("it_support_stock_management"))
     return render_template(
         "it_support_stock_in.html",
@@ -1478,7 +1631,7 @@ def it_support_stock_out():
         return page
     items, item_id, selected_item, txs = page
     if not item_id:
-        flash("Select an item from Stock management first.", "error")
+        flash("Select an item from Company stock management first.", "error")
         return redirect(url_for("it_support_stock_management"))
     return render_template(
         "it_support_stock_out.html",
@@ -1899,11 +2052,105 @@ def it_support_stock_reports():
     )
 
 
+def _serialize_stock_in_row(tx: dict) -> dict:
+    from decimal import Decimal
+
+    def _f(x) -> float:
+        if x is None:
+            return 0.0
+        if isinstance(x, Decimal):
+            return float(x)
+        try:
+            return float(x)
+        except Exception:
+            return 0.0
+
+    q = int(tx.get("qty") or 0)
+    bp = _f(tx.get("buying_price"))
+    created = tx.get("created_at")
+    if hasattr(created, "isoformat"):
+        created = created.isoformat(sep=" ", timespec="seconds")
+    return {
+        "id": tx.get("id"),
+        "created_at": str(created or ""),
+        "qty": q,
+        "buying_price": round(bp, 4),
+        "line_value": round(bp * q, 2),
+        "supplier": (tx.get("place_brought_from") or "").strip() or "—",
+        "note": (tx.get("note") or "").strip() or "—",
+        "stock_before": int(tx.get("stock_before") or 0),
+        "stock_after": int(tx.get("stock_after") or 0),
+        "stocked_by": (tx.get("stocked_by") or "").strip() or "—",
+    }
+
+
+@app.route("/it_support/stock-reports/suppliers")
+@login_required
+def it_support_stock_suppliers():
+    _it_support_or_super_admin_only()
+    try:
+        from database import get_company_item_supplier_summary
+
+        rows = get_company_item_supplier_summary(limit_items=2500) or []
+    except Exception:
+        rows = []
+    return render_template("it_support_stock_suppliers.html", supplier_rows=rows)
+
+
+@app.route("/it_support/stock-reports/suppliers/<int:item_id>/stock-ins")
+@login_required
+def it_support_stock_supplier_stock_ins(item_id: int):
+    _it_support_or_super_admin_only()
+    try:
+        from database import list_stock_transactions
+
+        txs = list_stock_transactions(int(item_id), direction="in", limit=500)
+    except Exception:
+        txs = []
+    payload = [_serialize_stock_in_row(dict(t)) for t in (txs or [])]
+    return jsonify({"ok": True, "item_id": int(item_id), "transactions": payload})
+
+
+@app.route("/it_support/company-stock-settings", methods=["GET", "POST"])
+@login_required
+def it_support_company_stock_settings():
+    _it_support_or_super_admin_only()
+    try:
+        from database import init_items_table, list_items_for_company_stock_settings, set_item_stock_alert_levels
+
+        init_items_table()
+        items = list_items_for_company_stock_settings(limit=8000) or []
+    except Exception:
+        items = []
+
+    if request.method == "POST":
+        allowed_ids = sorted({int(i.get("id") or 0) for i in items if i.get("id")} - {0})
+        ok = True
+        for iid in allowed_ids:
+            try:
+                low_v = int(float((request.form.get(f"low_stock_{iid}") or "0").strip() or 0))
+                rl_v = int(float((request.form.get(f"reorder_level_{iid}") or "0").strip() or 0))
+            except Exception:
+                low_v, rl_v = 0, 0
+            if not set_item_stock_alert_levels(iid, low_v, rl_v):
+                ok = False
+                break
+        if not allowed_ids:
+            flash("No items were loaded to update.", "error")
+        elif ok:
+            flash(f"Saved low stock and reorder levels for {len(allowed_ids)} item(s).", "success")
+        else:
+            flash("Could not save. Ensure the database schema is current (restart app to run migrations).", "error")
+        return redirect(url_for("it_support_company_stock_settings"))
+
+    return render_template("it_support_company_stock_settings.html", items=items)
+
+
 @app.route("/it_support/stock-settings")
 @login_required
 def it_support_stock_settings():
     _it_support_or_super_admin_only()
-    return redirect(url_for("it_support_system_settings") + "#pos")
+    return redirect(url_for("it_support_company_stock_settings"))
 
 
 @app.route("/it_support/company-stock-update", methods=["GET", "POST"])
@@ -2804,7 +3051,10 @@ def shop_login(shop_id: int):
 
 @app.route("/shops/<int:shop_id>/logout", methods=["GET", "POST"])
 def shop_logout(shop_id: int):
-    """End shop password session for this branch (does not clear employee portal session)."""
+    """End shop password session for this branch (does not clear employee portal session).
+
+    After sign-out, users are redirected to the site home page (``/``, ``index``).
+    """
     shop = _get_shop_or_404(shop_id)
     try:
         sid = int(session.get("shop_id") or 0)
@@ -2814,7 +3064,7 @@ def shop_logout(shop_id: int):
         session.pop("shop_id", None)
         session.pop("shop_name", None)
         flash("You have been signed out from this shop.", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("index"), code=303)
 
 
 @app.route("/shops/<int:shop_id>/profile")
@@ -2845,6 +3095,7 @@ def shop_pos(shop_id: int):
         items = list_shop_pos_items(shop_id=shop_id, limit=2000)
     except Exception:
         items = []
+    pri_rgb, acc_rgb = _effective_pos_theme_colors(shop)
     return render_template(
         "shop_pos.html",
         shop=shop,
@@ -2854,8 +3105,8 @@ def shop_pos(shop_id: int):
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
-        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
-        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+        primary_color_rgb=pri_rgb,
+        accent_color_rgb=acc_rgb,
     )
 
 
@@ -3029,6 +3280,9 @@ def shop_pos_record_sale(shop_id: int):
         item_count = 0
 
     emp = data.get("employee") or {}
+    credit_due_raw = (data.get("credit_due_date") or "").strip() or None
+    if sale_type != "credit":
+        credit_due_raw = None
     try:
         from database import create_shop_pos_sale
 
@@ -3042,6 +3296,7 @@ def shop_pos_record_sale(shop_id: int):
             employee_id=emp.get("id"),
             employee_code=(emp.get("employee_code") or "").strip() or None,
             employee_name=(emp.get("full_name") or "").strip() or None,
+            credit_due_date=credit_due_raw,
             lines=data.get("lines") if isinstance(data.get("lines"), list) else [],
         )
     except Exception:
@@ -4205,7 +4460,7 @@ def shop_pos_printer_qr_escpos(shop_id: int):
         return jsonify({"ok": False, "error": "QR rendering unavailable (install python-escpos, qrcode, pillow)"}), 503
     try:
         d = Dummy()
-        d.qr(text, ec=QR_ECLEVEL_M, size=6, native=False, center=True)
+        d.qr(text, ec=QR_ECLEVEL_M, size=3, native=False, center=True)
         raw: bytes = d.output
     except Exception:
         logger.exception("shop_pos_printer_qr_escpos failed")
@@ -5511,6 +5766,276 @@ def it_support_hr_management():
     return render_template("it_support_hr_management.html", employees=employees, shops=shops)
 
 
+@app.route("/it_support/salaries")
+@login_required
+def it_support_company_salaries():
+    _it_support_only()
+    from database import (
+        compute_payroll_period_balance,
+        list_company_payroll_overview,
+        list_employee_payroll_all_history,
+    )
+
+    _pay_freq_allowed = frozenset({"monthly", "weekly", "biweekly", "daily"})
+
+    def _norm_freq_arg(raw: str):
+        v = (raw or "").strip().lower()
+        if v in ("", "all"):
+            return None
+        return v if v in _pay_freq_allowed else None
+
+    roster_freq = _norm_freq_arg(request.args.get("pay_frequency") or "")
+    history_freq = _norm_freq_arg(request.args.get("history_frequency") or "")
+
+    overview_rows = []
+    history_rows = []
+    try:
+        raw_overview = list_company_payroll_overview(
+            pay_frequency_filter=roster_freq, limit=2000
+        )
+        for r in raw_overview:
+            row = dict(r)
+            pf = row.get("pay_frequency")
+            if pf:
+                row["period_balance"] = compute_payroll_period_balance(
+                    row["employee_id"], pf
+                )
+            else:
+                row["period_balance"] = None
+            overview_rows.append(row)
+        history_rows = list_employee_payroll_all_history(
+            pay_frequency_filter=history_freq, limit=400
+        )
+    except Exception:
+        overview_rows, history_rows = [], []
+
+    return render_template(
+        "it_support_company_salaries.html",
+        overview_rows=overview_rows,
+        history_rows=history_rows,
+        roster_pay_frequency=roster_freq or "all",
+        history_pay_frequency=history_freq or "all",
+    )
+
+
+@app.route("/it_support/salaries/register", methods=["GET", "POST"])
+@login_required
+def it_support_register_salary():
+    _it_support_only()
+    from database import (
+        list_employee_payroll_recent,
+        list_employees_payroll_eligible,
+        register_employee_payroll,
+        update_employee_payout_details,
+    )
+
+    try:
+        employees = list_employees_payroll_eligible(limit=2000)
+        recent_payroll = list_employee_payroll_recent(limit=50)
+    except Exception:
+        employees, recent_payroll = [], []
+
+    if request.method == "POST":
+        emp_raw = (request.form.get("employee_id") or "").strip()
+        gross_raw = (request.form.get("gross_amount") or "").strip()
+        freq = (request.form.get("pay_frequency") or "").strip()
+        eff = (request.form.get("effective_from") or "").strip()
+        notes = (request.form.get("notes") or "").strip()
+        payout_method = (request.form.get("preferred_payment_method") or "").strip().lower()
+        pay_holder = (request.form.get("payment_account_holder") or "").strip()
+        pay_bank = (request.form.get("payment_bank_or_provider") or "").strip()
+        pay_num = (request.form.get("payment_account_number") or "").strip()
+        try:
+            employee_id = int(emp_raw)
+        except Exception:
+            employee_id = 0
+
+        payout_ok = True
+        if payout_method not in ("mpesa", "bank", "cash"):
+            flash("Select a payment method: M-Pesa, bank, or cash.", "error")
+            payout_ok = False
+        elif payout_method == "mpesa" and not pay_num:
+            flash("Enter the M-Pesa phone number.", "error")
+            payout_ok = False
+        elif payout_method == "bank" and (not pay_bank or not pay_num):
+            flash("Enter bank name and account number.", "error")
+            payout_ok = False
+
+        new_id = None
+        if payout_ok:
+            new_id = register_employee_payroll(employee_id, gross_raw, freq, eff, notes)
+        if new_id:
+            if not update_employee_payout_details(
+                employee_id,
+                preferred_payment_method=payout_method,
+                payment_account_holder=pay_holder or None,
+                payment_bank_or_provider=pay_bank or None,
+                payment_account_number=pay_num or None,
+            ):
+                flash(
+                    "Payroll was saved, but payout details could not be updated. You can edit the employee in HR management.",
+                    "warning",
+                )
+            else:
+                flash("Payroll registered and payout details saved.", "success")
+            return redirect(url_for("it_support_register_salary"))
+        if payout_ok:
+            flash(
+                "Could not register payroll. Choose an active employee, enter a positive gross amount, and a valid effective date.",
+                "error",
+            )
+        try:
+            recent_payroll = list_employee_payroll_recent(limit=50)
+        except Exception:
+            pass
+
+    return render_template(
+        "it_support_register_salary.html",
+        employees=employees,
+        recent_payroll=recent_payroll or [],
+    )
+
+
+@app.route("/it_support/salaries/advance", methods=["GET", "POST"])
+@login_required
+def it_support_register_advance():
+    _it_support_only()
+    from database import (
+        get_payroll_advance_period_summary,
+        list_employees_payroll_eligible,
+        list_payroll_advances_recent,
+        register_payroll_advance,
+    )
+
+    try:
+        employees = list_employees_payroll_eligible(limit=2000)
+        recent_advances = list_payroll_advances_recent(limit=50)
+    except Exception:
+        employees, recent_advances = [], []
+
+    if request.method == "POST":
+        emp_raw = (request.form.get("employee_id") or "").strip()
+        amount_raw = (request.form.get("amount") or "").strip()
+        freq = (request.form.get("pay_frequency") or "").strip().lower()
+        notes = (request.form.get("notes") or "").strip()
+        period_month = (request.form.get("period_month") or "").strip()
+        period_date = (request.form.get("period_date") or "").strip()
+        try:
+            employee_id = int(emp_raw)
+        except Exception:
+            employee_id = 0
+
+        ref = None
+        if freq == "monthly":
+            if len(period_month) == 7:
+                try:
+                    ref = datetime.strptime(period_month + "-01", "%Y-%m-%d").date()
+                except ValueError:
+                    ref = None
+        else:
+            if len(period_date) >= 10:
+                try:
+                    ref = datetime.strptime(period_date[:10], "%Y-%m-%d").date()
+                except ValueError:
+                    ref = None
+
+        if employee_id <= 0:
+            flash("Select an employee.", "error")
+        elif freq not in ("monthly", "weekly", "biweekly", "daily"):
+            flash("Select pay frequency.", "error")
+        elif ref is None:
+            flash("Choose the payroll month (monthly) or period date (other frequencies).", "error")
+        else:
+            summary = None
+            try:
+                summary = get_payroll_advance_period_summary(employee_id, freq, ref)
+            except Exception:
+                summary = None
+            new_id = register_payroll_advance(
+                employee_id, amount_raw, freq, ref, notes or None
+            )
+            if new_id:
+                if summary and summary.get("has_payroll_rate"):
+                    try:
+                        from decimal import Decimal
+
+                        rem = Decimal(str(summary.get("remaining_before_new") or "0"))
+                        amt = Decimal(str(amount_raw).replace(",", "").strip() or "0")
+                        if amt > rem:
+                            flash(
+                                "Advance saved. It is larger than the remaining gross for this period "
+                                "after earlier advances—review totals.",
+                                "warning",
+                            )
+                        else:
+                            flash("Advance registered against this pay period.", "success")
+                    except Exception:
+                        flash("Advance registered against this pay period.", "success")
+                else:
+                    flash(
+                        "Advance saved. No payroll gross is on file for that period yet—register salary first to track deductions.",
+                        "warning",
+                    )
+                return redirect(url_for("it_support_register_advance"))
+            flash("Could not save advance. Check amount and employee.", "error")
+        try:
+            recent_advances = list_payroll_advances_recent(limit=50)
+        except Exception:
+            pass
+
+    return render_template(
+        "it_support_register_advance.html",
+        employees=employees,
+        recent_advances=recent_advances or [],
+    )
+
+
+@app.route("/it_support/salaries/advance/period-summary")
+@login_required
+def it_support_advance_period_summary():
+    _it_support_only()
+    emp_raw = (request.args.get("employee_id") or "").strip()
+    freq = (request.args.get("pay_frequency") or "").strip().lower()
+    period_raw = (request.args.get("period") or "").strip()
+    try:
+        employee_id = int(emp_raw)
+    except Exception:
+        return jsonify({"error": "invalid_employee"}), 400
+    if freq not in ("monthly", "weekly", "biweekly", "daily"):
+        return jsonify({"error": "invalid_frequency"}), 400
+
+    ref = None
+    if freq == "monthly" and len(period_raw) == 7:
+        try:
+            ref = datetime.strptime(period_raw + "-01", "%Y-%m-%d").date()
+        except ValueError:
+            ref = None
+    elif len(period_raw) >= 10:
+        try:
+            ref = datetime.strptime(period_raw[:10], "%Y-%m-%d").date()
+        except ValueError:
+            ref = None
+    if ref is None:
+        return jsonify({"error": "invalid_period"}), 400
+
+    try:
+        from database import get_payroll_advance_period_summary
+
+        summary = get_payroll_advance_period_summary(employee_id, freq, ref)
+    except Exception:
+        summary = None
+    if not summary:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify(summary)
+
+
+@app.route("/it_support/salaries/loan")
+@login_required
+def it_support_register_loan():
+    _it_support_only()
+    return render_template("it_support_register_loan.html")
+
+
 @app.route("/it_support/employees/<int:emp_id>/approve", methods=["POST"])
 @login_required
 def it_support_employee_approve(emp_id: int):
@@ -5530,6 +6055,134 @@ def it_support_employee_approve(emp_id: int):
     except Exception:
         ok = False
     flash("Employee approved." if ok else "Could not approve employee. Check role/shop selection.", "success" if ok else "error")
+    return redirect(url_for("it_support_hr_management"))
+
+
+@app.route("/it_support/employees/<int:emp_id>/edit", methods=["POST"])
+@login_required
+def it_support_employee_edit(emp_id: int):
+    _it_support_only()
+    full_name = (request.form.get("full_name") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    phone = (request.form.get("phone") or "").strip()
+    role = (request.form.get("role") or "").strip().lower()
+    employee_code = (request.form.get("employee_code") or "").strip()
+    pwd = (request.form.get("password") or "").strip()
+    pwd_confirm = (request.form.get("password_confirm") or "").strip()
+    shop_id_raw = (request.form.get("shop_id") or "").strip()
+    shop_id = None
+    if shop_id_raw:
+        try:
+            shop_id = int(shop_id_raw)
+        except (TypeError, ValueError):
+            shop_id = None
+
+    preferred_payment_method = (request.form.get("preferred_payment_method") or "").strip()
+    payment_account_holder = (request.form.get("payment_account_holder") or "").strip()
+    payment_bank_or_provider = (request.form.get("payment_bank_or_provider") or "").strip()
+    payment_account_number = (request.form.get("payment_account_number") or "").strip()
+
+    if not full_name or not email or "@" not in email:
+        flash("Enter full name and a valid email.", "error")
+        return redirect(url_for("it_support_hr_management"))
+
+    if not re.fullmatch(r"\d{6}", employee_code):
+        flash("Employee login code must be exactly 6 digits.", "error")
+        return redirect(url_for("it_support_hr_management"))
+
+    password_hash = None
+    if pwd or pwd_confirm:
+        if pwd != pwd_confirm:
+            flash("Password and confirmation do not match.", "error")
+            return redirect(url_for("it_support_hr_management"))
+        if len(pwd) < 6:
+            flash("New password must be at least 6 characters.", "error")
+            return redirect(url_for("it_support_hr_management"))
+        password_hash = generate_password_hash(pwd)
+
+    try:
+        from database import update_employee_by_it_hr
+
+        ok = update_employee_by_it_hr(
+            emp_id,
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            role=role,
+            shop_id=shop_id,
+            employee_code=employee_code,
+            password_hash=password_hash,
+            preferred_payment_method=preferred_payment_method or None,
+            payment_account_holder=payment_account_holder or None,
+            payment_bank_or_provider=payment_bank_or_provider or None,
+            payment_account_number=payment_account_number or None,
+        )
+    except Exception:
+        ok = False
+    if ok:
+        flash("Employee updated." + (" Password changed." if password_hash else ""), "success")
+    else:
+        flash(
+            "Could not update employee. They may still be pending approval, the email or login code may be "
+            "in use by someone else, or the role/shop combination is invalid.",
+            "error",
+        )
+    return redirect(url_for("it_support_hr_management"))
+
+
+@app.route("/it_support/employees/<int:emp_id>/suspend", methods=["POST"])
+@login_required
+def it_support_employee_suspend(emp_id: int):
+    _it_support_only()
+    try:
+        sid = int(session.get("employee_id") or 0)
+    except (TypeError, ValueError):
+        sid = 0
+    if sid and int(emp_id) == sid:
+        flash("You cannot suspend your own account.", "error")
+        return redirect(url_for("it_support_hr_management"))
+    try:
+        from database import set_employee_suspended
+
+        ok = set_employee_suspended(emp_id, suspended=True)
+    except Exception:
+        ok = False
+    flash("Employee suspended." if ok else "Could not suspend employee.", "success" if ok else "error")
+    return redirect(url_for("it_support_hr_management"))
+
+
+@app.route("/it_support/employees/<int:emp_id>/unsuspend", methods=["POST"])
+@login_required
+def it_support_employee_unsuspend(emp_id: int):
+    _it_support_only()
+    try:
+        from database import set_employee_suspended
+
+        ok = set_employee_suspended(emp_id, suspended=False)
+    except Exception:
+        ok = False
+    flash("Employee reactivated." if ok else "Could not reactivate employee.", "success" if ok else "error")
+    return redirect(url_for("it_support_hr_management"))
+
+
+@app.route("/it_support/employees/<int:emp_id>/delete", methods=["POST"])
+@login_required
+def it_support_employee_delete(emp_id: int):
+    _it_support_only()
+    try:
+        sid = int(session.get("employee_id") or 0)
+    except (TypeError, ValueError):
+        sid = 0
+    if sid and int(emp_id) == sid:
+        flash("You cannot delete your own account.", "error")
+        return redirect(url_for("it_support_hr_management"))
+    try:
+        from database import delete_employee_if_approved
+
+        ok = delete_employee_if_approved(emp_id)
+    except Exception:
+        ok = False
+    flash("Employee deleted." if ok else "Could not delete employee (may still be pending approval).", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
 

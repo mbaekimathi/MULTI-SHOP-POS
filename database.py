@@ -10,6 +10,9 @@ import logging
 import os
 import re
 from contextlib import contextmanager
+import calendar
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -249,6 +252,10 @@ def init_employees_table():
         ) NOT NULL DEFAULT 'employee',
         shop_id INT NULL,
         profile_image VARCHAR(500) DEFAULT NULL,
+        preferred_payment_method VARCHAR(32) NULL DEFAULT NULL,
+        payment_account_holder VARCHAR(200) NULL DEFAULT NULL,
+        payment_bank_or_provider VARCHAR(120) NULL DEFAULT NULL,
+        payment_account_number VARCHAR(128) NULL DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         UNIQUE KEY uq_employee_code (employee_code),
@@ -262,10 +269,91 @@ def init_employees_table():
             cur.execute("SHOW COLUMNS FROM employees LIKE 'shop_id'")
             if not cur.fetchone():
                 cur.execute("ALTER TABLE employees ADD COLUMN shop_id INT NULL AFTER role")
+            for col, col_sql in (
+                ("preferred_payment_method", "VARCHAR(32) NULL DEFAULT NULL"),
+                ("payment_account_holder", "VARCHAR(200) NULL DEFAULT NULL"),
+                ("payment_bank_or_provider", "VARCHAR(120) NULL DEFAULT NULL"),
+                ("payment_account_number", "VARCHAR(128) NULL DEFAULT NULL"),
+            ):
+                cur.execute("SHOW COLUMNS FROM employees LIKE %s", (col,))
+                if not cur.fetchone():
+                    cur.execute(
+                        f"ALTER TABLE employees ADD COLUMN {col} {col_sql} AFTER profile_image"
+                    )
+            try:
+                cur.execute(
+                    "UPDATE employees SET preferred_payment_method = %s "
+                    "WHERE preferred_payment_method = %s",
+                    ("mpesa", "mobile_money"),
+                )
+                cur.execute(
+                    "UPDATE employees SET preferred_payment_method = %s "
+                    "WHERE preferred_payment_method = %s",
+                    ("bank", "bank_transfer"),
+                )
+                cur.execute(
+                    "UPDATE employees SET preferred_payment_method = NULL "
+                    "WHERE preferred_payment_method = %s",
+                    ("other",),
+                )
+            except pymysql.Error:
+                pass
         logger.info("Table employees is ready.")
         return True
     except pymysql.Error as e:
         logger.warning("Could not init employees: %s", e)
+        return False
+
+
+def init_employee_payroll_table():
+    """Payroll registrations (gross pay and frequency) per employee. Safe to call at startup."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS employee_payroll (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id INT NOT NULL,
+        gross_amount DECIMAL(14, 2) NOT NULL,
+        pay_frequency ENUM('monthly', 'weekly', 'biweekly', 'daily') NOT NULL DEFAULT 'monthly',
+        effective_from DATE NOT NULL,
+        notes VARCHAR(500) DEFAULT NULL,
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_employee_payroll_employee (employee_id),
+        KEY idx_employee_payroll_effective (effective_from),
+        CONSTRAINT fk_employee_payroll_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table employee_payroll is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init employee_payroll: %s", e)
+        return False
+
+
+def init_employee_payroll_advances_table():
+    """Salary advances tied to a pay period; deducted from payroll gross for that period."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS employee_payroll_advances (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id INT NOT NULL,
+        amount DECIMAL(14, 2) NOT NULL,
+        pay_frequency ENUM('monthly', 'weekly', 'biweekly', 'daily') NOT NULL,
+        period_start DATE NOT NULL,
+        notes VARCHAR(500) DEFAULT NULL,
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_epa_employee (employee_id),
+        KEY idx_epa_period (employee_id, pay_frequency, period_start),
+        CONSTRAINT fk_epa_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table employee_payroll_advances is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init employee_payroll_advances: %s", e)
         return False
 
 
@@ -321,6 +409,14 @@ def init_items_table():
                     "ALTER TABLE items ADD COLUMN selling_price DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER price"
                 )
                 cur.execute("UPDATE items SET selling_price = price")
+            if not column_exists("items", "low_stock_threshold"):
+                cur.execute(
+                    "ALTER TABLE items ADD COLUMN low_stock_threshold INT NOT NULL DEFAULT 0 AFTER stock_update_enabled"
+                )
+            if not column_exists("items", "reorder_level"):
+                cur.execute(
+                    "ALTER TABLE items ADD COLUMN reorder_level INT NOT NULL DEFAULT 0 AFTER low_stock_threshold"
+                )
         logger.info("Table items is ready.")
         return True
     except pymysql.Error as e:
@@ -387,6 +483,60 @@ def list_items(limit: int = 200):
     with get_cursor() as cur:
         cur.execute(sql, (int(limit),))
         return cur.fetchall() or []
+
+
+def list_items_for_company_stock_settings(limit: int = 5000):
+    """All catalog items with alert fields for the company stock settings page."""
+    has_levels = column_exists("items", "low_stock_threshold") and column_exists("items", "reorder_level")
+    if has_levels:
+        sql = """
+        SELECT id, category, name, image_path, stock_qty, stock_update_enabled, status,
+               low_stock_threshold, reorder_level
+        FROM items
+        ORDER BY name ASC, id ASC
+        LIMIT %s
+        """
+    else:
+        sql = """
+        SELECT id, category, name, image_path, stock_qty, stock_update_enabled, status
+        FROM items
+        ORDER BY name ASC, id ASC
+        LIMIT %s
+        """
+    with get_cursor() as cur:
+        cur.execute(sql, (int(limit),))
+        rows = cur.fetchall() or []
+    for r in rows:
+        if has_levels:
+            r["low_stock_threshold"] = int(r.get("low_stock_threshold") or 0)
+            r["reorder_level"] = int(r.get("reorder_level") or 0)
+        else:
+            r["low_stock_threshold"] = 0
+            r["reorder_level"] = 0
+    return rows
+
+
+def set_item_stock_alert_levels(item_id: int, low_stock_threshold: int, reorder_level: int) -> bool:
+    """Persist per-item low stock and reorder level (company stock settings)."""
+    if not column_exists("items", "low_stock_threshold") or not column_exists("items", "reorder_level"):
+        return False
+    try:
+        lo = max(0, min(999999, int(low_stock_threshold)))
+        rl = max(0, min(999999, int(reorder_level)))
+        iid = int(item_id)
+    except Exception:
+        return False
+    sql = """
+    UPDATE items
+    SET low_stock_threshold=%s, reorder_level=%s
+    WHERE id=%s
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (lo, rl, iid))
+        return True
+    except Exception:
+        return False
 
 
 def list_active_items(limit: int = 200):
@@ -605,7 +755,7 @@ def init_stock_transactions_table():
 def list_stock_manage_items(limit: int = 500):
     """Items eligible for stock management: active + stock updates enabled."""
     sql = """
-    SELECT id, category, name, stock_qty, stock_update_enabled, status
+    SELECT id, category, name, image_path, stock_qty, stock_update_enabled, status
     FROM items
     WHERE status='active' AND stock_update_enabled=1
     ORDER BY name ASC
@@ -668,6 +818,191 @@ def list_stock_transactions(item_id: int, direction: Optional[str] = None, limit
         return cur.fetchall() or []
 
 
+def get_company_item_supplier_summary(*, limit_items: int = 2000) -> list:
+    """
+    Per company-managed item: weighted average buying price (all stock-ins with price),
+    optional best supplier (lowest weighted-average unit cost among named suppliers).
+    """
+    items = list_stock_manage_items(limit=int(limit_items)) or []
+    item_by_id = {}
+    for it in items:
+        try:
+            iid = int(it.get("id") or 0)
+        except Exception:
+            continue
+        if iid > 0:
+            item_by_id[iid] = it
+
+    overall: dict = {}
+    sup_rows: list = []
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    item_id,
+                    SUM(qty * buying_price) / NULLIF(SUM(qty), 0) AS avg_buy,
+                    SUM(qty) AS total_in_qty,
+                    COUNT(*) AS in_tx_count
+                FROM stock_transactions
+                WHERE direction = 'in' AND buying_price IS NOT NULL
+                GROUP BY item_id
+                """
+            )
+            for r in cur.fetchall() or []:
+                try:
+                    overall[int(r.get("item_id") or 0)] = r
+                except Exception:
+                    continue
+
+            cur.execute(
+                """
+                SELECT
+                    item_id,
+                    TRIM(place_brought_from) AS supplier,
+                    SUM(qty) AS s_qty,
+                    SUM(qty * buying_price) / NULLIF(SUM(qty), 0) AS w_avg
+                FROM stock_transactions
+                WHERE direction = 'in'
+                  AND buying_price IS NOT NULL
+                  AND TRIM(COALESCE(place_brought_from, '')) != ''
+                GROUP BY item_id, TRIM(place_brought_from)
+                """
+            )
+            sup_rows = cur.fetchall() or []
+    except Exception:
+        return []
+
+    by_item_suppliers: dict = {}
+    for r in sup_rows:
+        try:
+            iid = int(r.get("item_id") or 0)
+        except Exception:
+            continue
+        if iid <= 0:
+            continue
+        by_item_suppliers.setdefault(iid, []).append(r)
+
+    out: list = []
+    for iid, it in sorted(item_by_id.items(), key=lambda x: ((x[1].get("name") or "").lower(), x[0])):
+        o = overall.get(iid)
+        avg_buy = None
+        total_in_qty = 0
+        in_tx_count = 0
+        if o:
+            total_in_qty = int(o.get("total_in_qty") or 0)
+            in_tx_count = int(o.get("in_tx_count") or 0)
+            if total_in_qty > 0 and o.get("avg_buy") is not None:
+                avg_buy = float(o.get("avg_buy") or 0)
+
+        best_sup = None
+        best_avg = None
+        best_qty = -1
+        for sr in by_item_suppliers.get(iid, []):
+            try:
+                wa = float(sr.get("w_avg") or 0)
+                sq = int(sr.get("s_qty") or 0)
+            except Exception:
+                continue
+            name = (sr.get("supplier") or "").strip() or "—"
+            if (
+                best_sup is None
+                or wa < (best_avg or 0) - 1e-9
+                or (abs(wa - (best_avg or 0)) < 1e-9 and sq > best_qty)
+            ):
+                best_sup = name
+                best_avg = wa
+                best_qty = sq
+
+        out.append(
+            {
+                "item_id": iid,
+                "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                "category": (it.get("category") or "").strip(),
+                "avg_buying_price": avg_buy,
+                "total_in_qty": total_in_qty,
+                "in_transaction_count": in_tx_count,
+                "best_supplier": best_sup,
+                "best_supplier_avg_price": best_avg,
+                "company_stock_qty": int(it.get("stock_qty") or 0),
+            }
+        )
+    return out
+
+
+def _apply_stock_transaction_on_cursor(
+    cur,
+    *,
+    item_id: int,
+    direction: str,
+    qty: int,
+    buying_price: Optional[float] = None,
+    place_brought_from: Optional[str] = None,
+    stock_out_reason: Optional[str] = None,
+    refunded: bool = False,
+    refund_amount: Optional[float] = None,
+    note: Optional[str] = None,
+    created_by_employee_id: Optional[int] = None,
+) -> bool:
+    """Apply one stock movement using an existing cursor (caller manages transaction)."""
+    if direction not in ("in", "out"):
+        return False
+    qty = int(qty)
+    if qty <= 0:
+        return False
+
+    cur.execute(
+        """
+        SELECT stock_qty, status, stock_update_enabled
+        FROM items
+        WHERE id=%s
+        FOR UPDATE
+        """,
+        (int(item_id),),
+    )
+    row = cur.fetchone()
+    if not row:
+        return False
+    if row.get("status") != "active" or int(row.get("stock_update_enabled") or 0) != 1:
+        return False
+
+    before = int(row.get("stock_qty") or 0)
+    if direction == "in":
+        after = before + qty
+    else:
+        after = before - qty
+        if after < 0:
+            return False
+
+    cur.execute("UPDATE items SET stock_qty=%s WHERE id=%s", (after, int(item_id)))
+    cur.execute(
+        """
+        INSERT INTO stock_transactions
+            (
+                item_id, direction, qty, stock_before, stock_after,
+                buying_price, place_brought_from, stock_out_reason, refunded, refund_amount,
+                note, created_by_employee_id
+            )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            int(item_id),
+            direction,
+            qty,
+            before,
+            after,
+            buying_price if buying_price is not None else None,
+            place_brought_from or None,
+            stock_out_reason or None,
+            1 if refunded else 0,
+            refund_amount if refund_amount is not None else None,
+            note or None,
+            created_by_employee_id,
+        ),
+    )
+    return True
+
+
 def create_stock_transaction(
     *,
     item_id: int,
@@ -685,63 +1020,61 @@ def create_stock_transaction(
     Create a stock in/out transaction and update item stock atomically.
     Only works if item is active and stock_update_enabled=1.
     """
-    if direction not in ("in", "out"):
-        return False
-    qty = int(qty)
-    if qty <= 0:
-        return False
-
     with get_cursor(commit=True) as cur:
-        cur.execute(
-            """
-            SELECT stock_qty, status, stock_update_enabled
-            FROM items
-            WHERE id=%s
-            FOR UPDATE
-            """,
-            (int(item_id),),
+        return _apply_stock_transaction_on_cursor(
+            cur,
+            item_id=item_id,
+            direction=direction,
+            qty=qty,
+            buying_price=buying_price,
+            place_brought_from=place_brought_from,
+            stock_out_reason=stock_out_reason,
+            refunded=refunded,
+            refund_amount=refund_amount,
+            note=note,
+            created_by_employee_id=created_by_employee_id,
         )
-        row = cur.fetchone()
-        if not row:
-            return False
-        if row.get("status") != "active" or int(row.get("stock_update_enabled") or 0) != 1:
-            return False
 
-        before = int(row.get("stock_qty") or 0)
-        if direction == "in":
-            after = before + qty
-        else:
-            after = before - qty
-            if after < 0:
-                return False
 
-        cur.execute("UPDATE items SET stock_qty=%s WHERE id=%s", (after, int(item_id)))
-        cur.execute(
-            """
-            INSERT INTO stock_transactions
-                (
-                    item_id, direction, qty, stock_before, stock_after,
-                    buying_price, place_brought_from, stock_out_reason, refunded, refund_amount,
-                    note, created_by_employee_id
+def create_stock_transactions_batch(
+    *,
+    operations: list,
+    created_by_employee_id: Optional[int] = None,
+) -> tuple[bool, str]:
+    """
+    Apply multiple stock movements in a single DB transaction (all succeed or none).
+    Each operation dict supports the same kwargs as create_stock_transaction (item_id, direction, qty, ...).
+    """
+    if not operations:
+        return False, "No line items to apply."
+    try:
+        with get_cursor(commit=True) as cur:
+            for op in operations:
+                ok = _apply_stock_transaction_on_cursor(
+                    cur,
+                    item_id=int(op["item_id"]),
+                    direction=str(op["direction"]),
+                    qty=int(op["qty"]),
+                    buying_price=op.get("buying_price"),
+                    place_brought_from=op.get("place_brought_from"),
+                    stock_out_reason=op.get("stock_out_reason"),
+                    refunded=bool(op.get("refunded")),
+                    refund_amount=op.get("refund_amount"),
+                    note=op.get("note"),
+                    created_by_employee_id=created_by_employee_id,
                 )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                int(item_id),
-                direction,
-                qty,
-                before,
-                after,
-                buying_price if buying_price is not None else None,
-                place_brought_from or None,
-                stock_out_reason or None,
-                1 if refunded else 0,
-                refund_amount if refund_amount is not None else None,
-                note or None,
-                created_by_employee_id,
-            ),
-        )
-        return True
+                if not ok:
+                    return False, (
+                        f"Could not apply line for item #{op.get('item_id')} "
+                        "(check quantity vs company stock and that the item is active)."
+                    )
+    except Exception:
+        return False, "Could not update stock. Check database connection and item eligibility."
+
+    n = len(operations)
+    d0 = str(operations[0].get("direction") or "")
+    dir_label = "stock in" if d0 == "in" else "stock out"
+    return True, f"Applied {dir_label} for {n} item(s)."
 
 
 def init_shops_table():
@@ -1188,6 +1521,10 @@ def ensure_shop_credit_payments_schema() -> bool:
             if not column_exists("shop_pos_sales", "credit_status"):
                 cur.execute(
                     "ALTER TABLE shop_pos_sales ADD COLUMN credit_status ENUM('not_paid','partially_paid','paid') NULL"
+                )
+            if not column_exists("shop_pos_sales", "credit_due_date"):
+                cur.execute(
+                    "ALTER TABLE shop_pos_sales ADD COLUMN credit_due_date DATE NULL"
                 )
     except pymysql.Error:
         ok = False
@@ -1781,8 +2118,10 @@ def create_shop_pos_sale(
     employee_id: Optional[int] = None,
     employee_code: Optional[str] = None,
     employee_name: Optional[str] = None,
+    credit_due_date: Optional[str] = None,
     lines: Optional[list] = None,
 ) -> Tuple[bool, Optional[str]]:
+    ensure_shop_credit_payments_schema()
     s_type = (sale_type or "").strip().lower()
     if s_type not in ("sale", "credit"):
         return False, None
@@ -1799,10 +2138,21 @@ def create_shop_pos_sale(
     if count < 0:
         count = 0
 
+    due_sql_val = None
+    if s_type == "credit" and credit_due_date:
+        raw_due = str(credit_due_date).strip()[:32]
+        if raw_due:
+            try:
+                parts = raw_due.split("T", 1)[0].strip()
+                y, m, d = (int(x) for x in parts.split("-", 2))
+                due_sql_val = date(y, m, d)
+            except Exception:
+                return False, "Invalid credit payment date."
+
     sale_sql = """
     INSERT INTO shop_pos_sales
-        (shop_id, sale_type, total_amount, item_count, customer_name, customer_phone, employee_id, employee_code, employee_name)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (shop_id, sale_type, total_amount, item_count, customer_name, customer_phone, employee_id, employee_code, employee_name, credit_due_date)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     line_sql = """
     INSERT INTO shop_pos_sale_items
@@ -1895,6 +2245,7 @@ def create_shop_pos_sale(
                     int(employee_id) if employee_id is not None else None,
                     (employee_code or "").strip()[:6] or None,
                     (employee_name or "").strip()[:190] or None,
+                    due_sql_val,
                 ),
             )
             sale_id = int(cur.lastrowid or 0)
@@ -5768,6 +6119,8 @@ def can_fulfill_stock_request(request_id: int) -> bool:
 _EXPECTED_SCHEMA_TABLES = (
     "contact_messages",
     "employees",
+    "employee_payroll",
+    "employee_payroll_advances",
     "site_settings",
     "items",
     "stock_transactions",
@@ -5806,6 +6159,8 @@ def init_schema() -> bool:
         return False
     ok_contact = init_contact_table()
     ok_employees = init_employees_table()
+    ok_employee_payroll = init_employee_payroll_table()
+    ok_employee_payroll_advances = init_employee_payroll_advances_table()
     ok_settings = init_site_settings_table()
     ok_items = init_items_table()
     ok_stock = init_stock_transactions_table()
@@ -5825,6 +6180,8 @@ def init_schema() -> bool:
     steps_ok = (
         ok_contact
         and ok_employees
+        and ok_employee_payroll
+        and ok_employee_payroll_advances
         and ok_settings
         and ok_items
         and ok_stock
@@ -5891,7 +6248,10 @@ def get_employee_by_code(code: str):
 
 def get_employee_by_id(emp_id: int):
     sql = """
-    SELECT id, full_name, email, phone, employee_code, status, role, shop_id, profile_image, created_at
+    SELECT
+        id, full_name, email, phone, employee_code, status, role, shop_id, profile_image,
+        preferred_payment_method, payment_account_holder, payment_bank_or_provider,
+        payment_account_number, created_at
     FROM employees WHERE id = %s LIMIT 1
     """
     try:
@@ -5908,6 +6268,89 @@ def email_taken_by_other(email: str, exclude_id: int) -> bool:
     try:
         with get_cursor() as cur:
             cur.execute(sql, (email.strip(), exclude_id))
+            return cur.fetchone() is not None
+    except pymysql.Error:
+        return True
+
+
+def normalize_employee_payment_fields(
+    preferred_payment_method: Optional[str],
+    payment_account_holder: Optional[str],
+    payment_bank_or_provider: Optional[str],
+    payment_account_number: Optional[str],
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Return cleaned payment fields for storage (None = unset/cleared).
+
+    Methods: ``mpesa``, ``bank``, ``cash``. Legacy values ``mobile_money`` /
+    ``bank_transfer`` are mapped. For M-Pesa only the phone column is kept;
+    for bank, name + bank + account; for cash, all account fields cleared.
+    """
+
+    def clip(val: Optional[str], n: int) -> Optional[str]:
+        s = (val or "").strip()
+        return s[:n] if s else None
+
+    raw = (preferred_payment_method or "").strip().lower()
+    legacy = {"mobile_money": "mpesa", "bank_transfer": "bank", "other": ""}
+    raw = legacy.get(raw, raw)
+    allowed = {"mpesa", "bank", "cash"}
+    method = raw if raw in allowed else None
+
+    if not method:
+        return None, None, None, None
+
+    ph = clip(payment_account_holder, 200)
+    pb = clip(payment_bank_or_provider, 120)
+    pn = clip(payment_account_number, 128)
+
+    if method == "cash":
+        return method, None, None, None
+    if method == "mpesa":
+        return method, None, None, pn
+    # bank
+    return method, ph, pb, pn
+
+
+def update_employee_payout_details(
+    emp_id: int,
+    *,
+    preferred_payment_method: str,
+    payment_account_holder: Optional[str] = None,
+    payment_bank_or_provider: Optional[str] = None,
+    payment_account_number: Optional[str] = None,
+) -> bool:
+    """Update payout columns for an active employee. Uses ``normalize_employee_payment_fields``."""
+    row = get_employee_by_id(emp_id)
+    if not row or (row.get("status") or "") != "active":
+        return False
+    pm, ph, pb, pn = normalize_employee_payment_fields(
+        preferred_payment_method,
+        payment_account_holder,
+        payment_bank_or_provider,
+        payment_account_number,
+    )
+    if pm is None:
+        return False
+    sql = """
+    UPDATE employees
+    SET preferred_payment_method=%s, payment_account_holder=%s,
+        payment_bank_or_provider=%s, payment_account_number=%s
+    WHERE id=%s AND status='active'
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (pm, ph, pb, pn, int(emp_id)))
+            return cur.rowcount > 0
+    except pymysql.Error:
+        return False
+
+
+def employee_code_taken_by_other(code: str, exclude_id: int) -> bool:
+    """True if another employee already uses this login code."""
+    sql = "SELECT 1 FROM employees WHERE employee_code = %s AND id != %s LIMIT 1"
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, ((code or "").strip(), int(exclude_id)))
             return cur.fetchone() is not None
     except pymysql.Error:
         return True
@@ -5977,6 +6420,10 @@ def list_employees(limit: int = 1000):
         e.role,
         e.shop_id,
         s.shop_name,
+        e.preferred_payment_method,
+        e.payment_account_holder,
+        e.payment_bank_or_provider,
+        e.payment_account_number,
         e.created_at
     FROM employees e
     LEFT JOIN shops s ON s.id = e.shop_id
@@ -5986,6 +6433,448 @@ def list_employees(limit: int = 1000):
     with get_cursor() as cur:
         cur.execute(sql, (int(limit),))
         return cur.fetchall() or []
+
+
+def list_employees_payroll_eligible(limit: int = 2000):
+    """Active employees only, for payroll registration dropdowns."""
+    sql = """
+    SELECT
+        e.id,
+        e.full_name,
+        e.email,
+        e.phone,
+        e.employee_code,
+        e.status,
+        e.role,
+        e.shop_id,
+        s.shop_name,
+        e.preferred_payment_method,
+        e.payment_account_holder,
+        e.payment_bank_or_provider,
+        e.payment_account_number,
+        e.created_at
+    FROM employees e
+    LEFT JOIN shops s ON s.id = e.shop_id
+    WHERE e.status = 'active'
+    ORDER BY e.full_name ASC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (int(limit),))
+        return cur.fetchall() or []
+
+
+def register_employee_payroll(
+    employee_id: int,
+    gross_amount,
+    pay_frequency: str,
+    effective_from,
+    notes: Optional[str] = None,
+) -> Optional[int]:
+    """
+    Record a payroll line for an active employee. ``gross_amount`` may be str/Decimal/float.
+    ``effective_from`` is a date or 'YYYY-MM-DD' string.
+    Returns new row id or None if validation fails.
+    """
+    allowed_freq = {"monthly", "weekly", "biweekly", "daily"}
+    freq = (pay_frequency or "monthly").strip().lower()
+    if freq not in allowed_freq:
+        return None
+    try:
+        eid = int(employee_id)
+    except (TypeError, ValueError):
+        return None
+    if eid <= 0:
+        return None
+    row = get_employee_by_id(eid)
+    if not row or (row.get("status") or "") != "active":
+        return None
+    try:
+        amt = Decimal(str(gross_amount).strip().replace(",", ""))
+    except (InvalidOperation, AttributeError, TypeError):
+        return None
+    if amt <= 0:
+        return None
+    if isinstance(effective_from, datetime):
+        ef = effective_from.date()
+    elif isinstance(effective_from, date):
+        ef = effective_from
+    else:
+        raw = (str(effective_from) if effective_from is not None else "").strip()[:10]
+        if len(raw) < 10:
+            return None
+        try:
+            ef = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    note_clean = (notes or "").strip()
+    if len(note_clean) > 500:
+        note_clean = note_clean[:500]
+    note_clean = note_clean or None
+    sql = """
+    INSERT INTO employee_payroll (employee_id, gross_amount, pay_frequency, effective_from, notes)
+    VALUES (%s, %s, %s, %s, %s)
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (eid, amt, freq, ef, note_clean))
+            return int(cur.lastrowid)
+    except pymysql.Error:
+        return None
+
+
+def list_employee_payroll_recent(limit: int = 50):
+    sql = """
+    SELECT
+        p.id,
+        p.employee_id,
+        p.gross_amount,
+        p.pay_frequency,
+        p.effective_from,
+        p.notes,
+        p.registered_at,
+        e.full_name,
+        e.employee_code,
+        e.role
+    FROM employee_payroll p
+    INNER JOIN employees e ON e.id = p.employee_id
+    ORDER BY p.registered_at DESC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(limit),))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def _payroll_period_totals_for_normalized_start(
+    employee_id: int, pay_frequency: str, period_start_norm: date
+) -> dict:
+    """Gross, advances, and remaining for a pay period (``period_start`` already normalized)."""
+    freq = (pay_frequency or "").strip().lower()
+    pe = payroll_period_end(freq, period_start_norm)
+    gross = get_employee_payroll_gross_for_period_end(employee_id, pe)
+    prior = sum_payroll_advances_for_period(employee_id, freq, period_start_norm)
+    gross_d = gross if gross is not None else Decimal("0")
+    remaining = gross_d - prior
+    return {
+        "period_start": period_start_norm.isoformat(),
+        "period_end": pe.isoformat(),
+        "gross": str(gross_d) if gross is not None else None,
+        "advances_recorded": str(prior),
+        "remaining_before_new": str(remaining),
+        "has_payroll_rate": gross is not None,
+    }
+
+
+def compute_payroll_period_balance(
+    employee_id: int, pay_frequency: str, ref: Optional[date] = None
+) -> Optional[dict]:
+    """
+    Current-period net room (gross minus advances booked for this period). Uses ``ref`` (default today)
+    to determine which calendar pay window applies. No employee row check—caller supplies a valid id.
+    """
+    try:
+        eid = int(employee_id)
+    except (TypeError, ValueError):
+        return None
+    if eid <= 0:
+        return None
+    freq = (pay_frequency or "").strip().lower()
+    allowed = {"monthly", "weekly", "biweekly", "daily"}
+    if freq not in allowed:
+        return None
+    r = ref or date.today()
+    ps = normalize_advance_period_start(freq, r)
+    return _payroll_period_totals_for_normalized_start(eid, freq, ps)
+
+
+def list_company_payroll_overview(
+    pay_frequency_filter: Optional[str] = None, limit: int = 2000
+):
+    """
+    Active employees with their latest payroll row and payout columns. Optionally restrict to employees
+    whose current (latest) registration matches ``pay_frequency_filter``.
+    """
+    allowed = {"monthly", "weekly", "biweekly", "daily"}
+    freq = (pay_frequency_filter or "").strip().lower()
+    freq_clause = ""
+    params: list = []
+    if freq in allowed:
+        freq_clause = " AND p.pay_frequency = %s "
+        params.append(freq)
+    sql = f"""
+    SELECT
+        e.id AS employee_id,
+        e.full_name,
+        e.email,
+        e.phone,
+        e.employee_code,
+        e.role,
+        e.shop_id,
+        s.shop_name,
+        e.preferred_payment_method,
+        e.payment_account_holder,
+        e.payment_bank_or_provider,
+        e.payment_account_number,
+        p.id AS payroll_row_id,
+        p.gross_amount,
+        p.pay_frequency,
+        p.effective_from AS payroll_effective_from,
+        p.notes AS payroll_notes,
+        p.registered_at AS payroll_registered_at
+    FROM employees e
+    LEFT JOIN shops s ON s.id = e.shop_id
+    LEFT JOIN employee_payroll p ON p.id = (
+        SELECT p2.id FROM employee_payroll p2
+        WHERE p2.employee_id = e.id
+        ORDER BY p2.effective_from DESC, p2.id DESC
+        LIMIT 1
+    )
+    WHERE e.status = 'active'
+    {freq_clause}
+    ORDER BY e.full_name ASC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def list_employee_payroll_all_history(
+    pay_frequency_filter: Optional[str] = None, limit: int = 400
+):
+    """All payroll registration rows (including superseded), newest first."""
+    allowed = {"monthly", "weekly", "biweekly", "daily"}
+    freq = (pay_frequency_filter or "").strip().lower()
+    freq_clause = ""
+    params: list = []
+    if freq in allowed:
+        freq_clause = " AND p.pay_frequency = %s "
+        params.append(freq)
+    sql = f"""
+    SELECT
+        p.id,
+        p.employee_id,
+        p.gross_amount,
+        p.pay_frequency,
+        p.effective_from,
+        p.notes,
+        p.registered_at,
+        e.full_name,
+        e.employee_code,
+        e.role,
+        e.status AS employee_status
+    FROM employee_payroll p
+    INNER JOIN employees e ON e.id = p.employee_id
+    WHERE 1=1
+    {freq_clause}
+    ORDER BY p.effective_from DESC, p.id DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def payroll_period_end(pay_frequency: str, period_start: date) -> date:
+    """Last calendar day included in the pay period starting ``period_start``."""
+    freq = (pay_frequency or "").strip().lower()
+    if freq == "monthly":
+        _, last_day = calendar.monthrange(period_start.year, period_start.month)
+        return date(period_start.year, period_start.month, last_day)
+    if freq == "weekly":
+        return period_start + timedelta(days=6)
+    if freq == "biweekly":
+        return period_start + timedelta(days=13)
+    return period_start
+
+
+def normalize_advance_period_start(pay_frequency: str, ref: date) -> date:
+    """Canonical start date for grouping advances (month start, week Monday, biweek Monday, or same day)."""
+    freq = (pay_frequency or "").strip().lower()
+    if freq == "monthly":
+        return date(ref.year, ref.month, 1)
+    if freq == "weekly":
+        return ref - timedelta(days=ref.weekday())
+    if freq == "biweekly":
+        monday = ref - timedelta(days=ref.weekday())
+        iy, iw, _ = monday.isocalendar()
+        pair_start_week = iw - 1 - ((iw - 1) % 2)
+        return date.fromisocalendar(iy, pair_start_week + 1, 1)
+    return ref
+
+
+def get_employee_payroll_gross_for_period_end(employee_id: int, period_end: date) -> Optional[Decimal]:
+    """
+    Gross from the latest ``employee_payroll`` row for this employee with
+    ``effective_from`` on or before ``period_end`` (pay rate in force for that period).
+    """
+    try:
+        eid = int(employee_id)
+    except (TypeError, ValueError):
+        return None
+    if eid <= 0:
+        return None
+    sql = """
+    SELECT gross_amount FROM employee_payroll
+    WHERE employee_id = %s AND effective_from <= %s
+    ORDER BY effective_from DESC
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (eid, period_end))
+            row = cur.fetchone()
+            if not row:
+                return None
+            return Decimal(str(row.get("gross_amount")))
+    except pymysql.Error:
+        return None
+
+
+def sum_payroll_advances_for_period(
+    employee_id: int, pay_frequency: str, period_start: date
+) -> Decimal:
+    """Total advances already recorded for this employee, frequency, and period."""
+    try:
+        eid = int(employee_id)
+    except (TypeError, ValueError):
+        return Decimal("0")
+    if eid <= 0:
+        return Decimal("0")
+    freq = (pay_frequency or "").strip().lower()
+    allowed = {"monthly", "weekly", "biweekly", "daily"}
+    if freq not in allowed:
+        return Decimal("0")
+    sql = """
+    SELECT COALESCE(SUM(amount), 0) AS s FROM employee_payroll_advances
+    WHERE employee_id = %s AND pay_frequency = %s AND period_start = %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (eid, freq, period_start))
+            row = cur.fetchone()
+            if not row:
+                return Decimal("0")
+            return Decimal(str(row.get("s") or 0))
+    except pymysql.Error:
+        return Decimal("0")
+
+
+def get_payroll_advance_period_summary(
+    employee_id: int, pay_frequency: str, period_start: date
+) -> Optional[dict]:
+    """
+    Dict with period_start, period_end, gross (payroll), advances_prior, new_balance room,
+    or None if employee invalid.
+    """
+    row = get_employee_by_id(int(employee_id))
+    if not row or (row.get("status") or "") != "active":
+        return None
+    freq = (pay_frequency or "").strip().lower()
+    allowed = {"monthly", "weekly", "biweekly", "daily"}
+    if freq not in allowed:
+        return None
+    if isinstance(period_start, datetime):
+        ref = period_start.date()
+    elif isinstance(period_start, date):
+        ref = period_start
+    else:
+        return None
+    ps = normalize_advance_period_start(freq, ref)
+    return _payroll_period_totals_for_normalized_start(int(employee_id), freq, ps)
+
+
+def register_payroll_advance(
+    employee_id: int,
+    amount,
+    pay_frequency: str,
+    period_start,
+    notes: Optional[str] = None,
+) -> Optional[int]:
+    """Record an advance against a pay period. ``period_start`` is a date or YYYY-MM-DD string."""
+    allowed_freq = {"monthly", "weekly", "biweekly", "daily"}
+    freq = (pay_frequency or "").strip().lower()
+    if freq not in allowed_freq:
+        return None
+    try:
+        eid = int(employee_id)
+    except (TypeError, ValueError):
+        return None
+    if eid <= 0:
+        return None
+    emp = get_employee_by_id(eid)
+    if not emp or (emp.get("status") or "") != "active":
+        return None
+    try:
+        amt = Decimal(str(amount).strip().replace(",", ""))
+    except (InvalidOperation, AttributeError, TypeError):
+        return None
+    if amt <= 0:
+        return None
+    if isinstance(period_start, datetime):
+        ref = period_start.date()
+    elif isinstance(period_start, date):
+        ref = period_start
+    else:
+        raw = (str(period_start) if period_start is not None else "").strip()[:10]
+        if len(raw) < 10:
+            return None
+        try:
+            ref = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    ps = normalize_advance_period_start(freq, ref)
+    note_clean = (notes or "").strip()
+    if len(note_clean) > 500:
+        note_clean = note_clean[:500]
+    note_clean = note_clean or None
+    sql = """
+    INSERT INTO employee_payroll_advances (employee_id, amount, pay_frequency, period_start, notes)
+    VALUES (%s, %s, %s, %s, %s)
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (eid, amt, freq, ps, note_clean))
+            return int(cur.lastrowid)
+    except pymysql.Error:
+        return None
+
+
+def list_payroll_advances_recent(limit: int = 50):
+    sql = """
+    SELECT
+        a.id,
+        a.employee_id,
+        a.amount,
+        a.pay_frequency,
+        a.period_start,
+        a.notes,
+        a.registered_at,
+        e.full_name,
+        e.employee_code
+    FROM employee_payroll_advances a
+    INNER JOIN employees e ON e.id = a.employee_id
+    ORDER BY a.registered_at DESC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(limit),))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
 
 
 def approve_employee(emp_id: int, *, role: str, shop_id: Optional[int]) -> bool:
@@ -6006,6 +6895,140 @@ def approve_employee(emp_id: int, *, role: str, shop_id: Optional[int]) -> bool:
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql, (role, shop_id, int(emp_id)))
+            return cur.rowcount > 0
+    except pymysql.Error:
+        return False
+
+
+def update_employee_by_it_hr(
+    emp_id: int,
+    *,
+    full_name: str,
+    email: str,
+    phone: str,
+    role: str,
+    shop_id: Optional[int],
+    employee_code: str,
+    password_hash: Optional[str] = None,
+    preferred_payment_method: Optional[str] = None,
+    payment_account_holder: Optional[str] = None,
+    payment_bank_or_provider: Optional[str] = None,
+    payment_account_number: Optional[str] = None,
+) -> bool:
+    """
+    Update name, email, phone, role, shop, employee login code, optional password,
+    and preferred payroll payment details for employees already approved (active or suspended).
+    ``employee_code`` must be exactly 6 digits. ``password_hash`` = None keeps the current password.
+    """
+    row = get_employee_by_id(emp_id)
+    if not row or (row.get("status") or "") not in ("active", "suspended"):
+        return False
+
+    role = (role or "").strip().lower()
+    allowed = {"super_admin", "it_support", "admin", "manager", "sales", "finance", "employee", "rider"}
+    if role not in allowed:
+        return False
+    if role in {"super_admin", "it_support"}:
+        shop_id = None
+    else:
+        if shop_id is None:
+            return False
+        shop_id = int(shop_id)
+        if shop_id <= 0:
+            return False
+
+    if email_taken_by_other(email.strip(), int(emp_id)):
+        return False
+
+    fn = (full_name or "").strip()
+    if not fn:
+        return False
+
+    code = (employee_code or "").strip()
+    if not re.fullmatch(r"\d{6}", code):
+        return False
+    prev_code = (row.get("employee_code") or "").strip()
+    if code != prev_code and employee_code_taken_by_other(code, int(emp_id)):
+        return False
+
+    pm, ph, pb, pn = normalize_employee_payment_fields(
+        preferred_payment_method,
+        payment_account_holder,
+        payment_bank_or_provider,
+        payment_account_number,
+    )
+    sets = [
+        "full_name=%s",
+        "email=%s",
+        "phone=%s",
+        "role=%s",
+        "shop_id=%s",
+        "employee_code=%s",
+        "preferred_payment_method=%s",
+        "payment_account_holder=%s",
+        "payment_bank_or_provider=%s",
+        "payment_account_number=%s",
+    ]
+    params: list = [fn, email.strip(), (phone or "").strip(), role, shop_id, code, pm, ph, pb, pn]
+    if password_hash is not None:
+        sets.append("password_hash=%s")
+        params.append(password_hash)
+    params.append(int(emp_id))
+    sql = f"""
+    UPDATE employees
+    SET {", ".join(sets)}
+    WHERE id=%s AND status IN ('active','suspended')
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, tuple(params))
+            if cur.rowcount > 0:
+                return True
+        row_after = get_employee_by_id(int(emp_id))
+        if not row_after or (row_after.get("status") or "") not in ("active", "suspended"):
+            return False
+        if (row_after.get("full_name") or "").strip() != fn:
+            return False
+        if (row_after.get("email") or "").strip().lower() != email.strip().lower():
+            return False
+        if (row_after.get("phone") or "").strip() != (phone or "").strip():
+            return False
+        if (row_after.get("role") or "").strip().lower() != role:
+            return False
+        if (row_after.get("employee_code") or "").strip() != code:
+            return False
+        sid_db = row_after.get("shop_id")
+        if shop_id is None:
+            return sid_db is None
+        try:
+            return int(sid_db or 0) == int(shop_id)
+        except (TypeError, ValueError):
+            return False
+    except pymysql.Error:
+        return False
+
+
+def set_employee_suspended(emp_id: int, *, suspended: bool) -> bool:
+    """Set status to suspended or active. Only for already-approved rows (active/suspended)."""
+    row = get_employee_by_id(emp_id)
+    if not row or (row.get("status") or "") not in ("active", "suspended"):
+        return False
+    new_status = "suspended" if suspended else "active"
+    sql = "UPDATE employees SET status=%s WHERE id=%s AND status IN ('active','suspended')"
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (new_status, int(emp_id)))
+            return cur.rowcount > 0
+    except pymysql.Error:
+        return False
+
+
+def delete_employee_if_approved(emp_id: int) -> bool:
+    """Hard-delete an employee who is active or suspended (not pending approval)."""
+    sql = "DELETE FROM employees WHERE id=%s AND status IN ('active','suspended')"
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, (int(emp_id),))
             return cur.rowcount > 0
     except pymysql.Error:
         return False

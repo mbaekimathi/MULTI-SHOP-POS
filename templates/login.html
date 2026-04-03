@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Employee login — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block body %}
-  <div class="form-auth-bg">
+  <div class="form-auth-bg form-auth-bg--employee">
     <div class="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-end p-3 sm:p-4">
       <div class="pointer-events-auto">{% include "partials/theme_toggle.html" %}</div>
     </div>
@@ -14,9 +14,9 @@
         <div class="auth-hero__orb auth-hero__orb--b" aria-hidden="true"></div>
         <div class="auth-hero__content">
           <p
-            class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand-200 backdrop-blur-sm"
+            class="inline-flex items-center gap-2 rounded-full border border-indigo-400/25 bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-indigo-200 backdrop-blur-sm"
           >
-            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"></span>
+            <span class="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.9)]"></span>
             Internal portal
           </p>
           <h2 class="mt-8 max-w-md text-3xl font-extrabold leading-tight tracking-tight text-white lg:text-4xl">
@@ -27,20 +27,20 @@
           </p>
           <ul class="mt-10 space-y-4 text-sm text-slate-300">
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/30">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-200 ring-1 ring-indigo-400/35">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <span>Encrypted session and role-based access</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/30">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-200 ring-1 ring-indigo-400/35">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <span>Same branding and standards as our public site</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300 ring-1 ring-brand-400/30">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-200 ring-1 ring-indigo-400/35">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <span>New hires register first — admins activate accounts</span>
             </li>
@@ -53,13 +53,13 @@
 
       <div class="auth-main w-full lg:w-auto">
         <div class="mb-6 w-full max-w-md lg:hidden">
-          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-brand-400">
+          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-indigo-400">
             <span aria-hidden="true">←</span> Back to website
           </a>
           <div
             class="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/90 to-slate-800/80 p-4 backdrop-blur-md ring-1 ring-white/5"
           >
-            <p class="text-xs font-bold uppercase tracking-widest text-brand-300">Company portal</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">Company portal</p>
             <p class="mt-1 text-lg font-bold text-white">Employee sign-in</p>
           </div>
         </div>
@@ -67,18 +67,17 @@
         <div class="form-card-modern w-full">
           <div class="form-card-inner">
             <div class="mb-2 hidden text-center lg:block">
-              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-brand-600">← Back to website</a>
+              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-indigo-600 dark:hover:text-indigo-400">← Back to website</a>
             </div>
             <div class="text-center">
               <a href="{{ url_for('employee_login') }}" class="inline-flex items-center justify-center gap-3">
                 <span
-                  class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-500/40 ring-2 ring-orange-200/40"
+                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/40 ring-2 ring-indigo-300/40"
+                  aria-hidden="true"
                 >
-                  {% if site_settings and site_settings.app_icon %}
-                    <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="App icon" class="h-full w-full object-cover" />
-                  {% else %}
-                    <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="App icon" class="h-full w-full object-cover" />
-                  {% endif %}
+                  <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                  </svg>
                 </span
                 >
                 <span class="text-left">
@@ -168,7 +167,7 @@
                 Forgot password?
                 <a
                   href="{{ url_for('contact') }}"
-                  class="font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-2 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200"
+                  class="font-bold text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-2 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200"
                   >Contact IT support</a
                 >
               </p>
@@ -178,7 +177,7 @@
               No account yet?
               <a
                 href="{{ url_for('employee_signup') }}"
-                class="font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-2 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200"
+                class="font-bold text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-2 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200"
                 >Create an employee account</a
               >
             </p>

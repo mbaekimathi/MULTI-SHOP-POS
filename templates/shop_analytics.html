@@ -48,22 +48,91 @@
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
-  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">View performance metrics for this shop.</p>
-        <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
-          Active range: {{ (analytics_filter or {}).range_label or 'Current selection' }}
-        </p>
+  {% set av = analytics_view or 'revenue' %}
+  {% set analytics_qs = ('?' ~ request.query_string.decode()) if request.query_string else '' %}
+  {% if av == 'revenue' %}
+    {% set view_title = 'Revenue overview' %}
+    {% set view_blurb = 'Sale and credit income for the range below.' %}
+  {% elif av == 'item' %}
+    {% set view_title = 'Item performance' %}
+    {% set view_blurb = 'What sells, when it peaks, and top SKUs.' %}
+  {% elif av == 'period' %}
+    {% set view_title = 'Period insights' %}
+    {% set view_blurb = 'Rhythm by day and hour, plus staff ranking.' %}
+  {% elif av == 'sales' %}
+    {% set view_title = 'Sales-only' %}
+    {% set view_blurb = 'Checkout revenue excluding credit.' %}
+  {% elif av == 'credit' %}
+    {% set view_title = 'Credit-only' %}
+    {% set view_blurb = 'On-account activity and customers.' %}
+  {% elif av == 'customer' %}
+    {% set view_title = 'Customers' %}
+    {% set view_blurb = 'Who buys and how they split sale vs credit.' %}
+  {% elif av == 'stock' %}
+    {% set view_title = 'Stock' %}
+    {% set view_blurb = 'Inventory-related analytics.' %}
+  {% else %}
+    {% set view_title = (av ~ '')|replace('_', ' ')|title %}
+    {% set view_blurb = 'Performance metrics for this shop.' %}
+  {% endif %}
+
+  <div class="relative overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+    <div class="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-[rgb(var(--rc-primary))] to-[rgb(var(--rc-accent))] opacity-90" aria-hidden="true"></div>
+    <div class="p-6 pl-7">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0">
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop analytics</p>
+          <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] md:text-2xl">{{ view_title }}</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ view_blurb }}</p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-2.5 py-1 text-xs font-medium text-[rgb(var(--rc-page-fg))]">
+              <svg class="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              {{ shop.shop_name }}
+            </span>
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-[rgb(var(--rc-primary))]/25 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-page-fg))]">
+              <svg class="h-3.5 w-3.5 shrink-0 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {{ (analytics_filter or {}).range_label or 'Current selection' }}
+            </span>
+          </div>
+        </div>
+        <a
+          href="{{ url_for('shop_dashboard', shop_id=shop.id) }}"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))] transition hover:border-[rgb(var(--rc-primary))]/40 hover:bg-[rgb(var(--rc-surface))]"
+        >
+          <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          Shop dashboard
+        </a>
       </div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-        {{ (analytics_view or 'revenue')|replace('_',' ') }} analytics
+
+      <div class="mt-5 -mx-1 border-t border-[rgb(var(--rc-border))]/70 pt-4">
+        <p class="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))] md:hidden">Switch report</p>
+        <div class="flex gap-1.5 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible">
+          <a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'revenue' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Revenue</a>
+          <a href="{{ url_for('shop_item_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'item' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Items</a>
+          <a href="{{ url_for('shop_period_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'period' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Period</a>
+          <a href="{{ url_for('shop_sales_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'sales' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Sales</a>
+          <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'credit' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Credit</a>
+          <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'customer' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Customers</a>
+          <a href="{{ url_for('shop_stock_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'stock' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Stock</a>
+        </div>
       </div>
     </div>
   </div>
 
-  <form method="get" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
+  <form method="get" action="{{ request.path }}" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/60 pb-3">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Scope</p>
+        <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Date range for all charts and tables</p>
+      </div>
+      <p class="max-w-xs text-right text-[11px] text-[rgb(var(--rc-muted))]">Changing filters reloads this page and keeps the same report.</p>
+    </div>
     <div class="flex flex-wrap items-end gap-2.5">
       <div class="min-w-[10rem] flex-1">
         <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
@@ -109,21 +178,29 @@
     {% set rd = revenue_data or {} %}
     {% set sale = rd.sale or {} %}
     {% set credit = rd.credit or {} %}
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4">
+    {% set _tc = (rd.total_count or 0)|int %}
+    {% set _ta = (rd.total_amount or 0)|float %}
+    {% set _avg = (_ta / _tc) if _tc > 0 else 0 %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/90">Sale revenue</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((sale.amount or 0)|float) }}</p>
         <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ sale.count or 0 }} sale transactions</p>
       </div>
-      <div class="rounded-2xl border border-orange-400/30 bg-orange-500/[0.08] p-4">
+      <div class="rounded-2xl border border-orange-400/30 bg-orange-500/[0.08] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-300/90">Credit revenue</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((credit.amount or 0)|float) }}</p>
         <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ credit.count or 0 }} credit transactions</p>
       </div>
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 sm:col-span-2 lg:col-span-1">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm ring-1 ring-[rgb(var(--rc-border))]/50">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Total revenue</p>
-        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((rd.total_amount or 0)|float) }}</p>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ rd.total_count or 0 }} total transactions</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(_ta) }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ _tc }} total transactions</p>
+      </div>
+      <div class="rounded-2xl border border-sky-400/25 bg-sky-500/[0.07] p-4 shadow-sm sm:col-span-2 xl:col-span-1">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-sky-300/90">Avg. per transaction</p>
+        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(_avg) }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Mean ticket over the selected range</p>
       </div>
     </div>
 

@@ -1,0 +1,104 @@
+{% extends "employee_layout.html" %}
+{% block title %}Company stock settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Company stock settings{% endblock %}
+{% block sidebar_links %}{% endblock %}
+{% block employee_content %}
+  {% set items = items or [] %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock settings</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+        Set per-item <strong class="text-[rgb(var(--rc-page-fg))]">low stock</strong> (alert when company stock is at or below this level) and
+        <strong class="text-[rgb(var(--rc-page-fg))]">reorder level</strong> (suggested quantity to bring stock back up to when reordering).
+        Use <span class="font-mono text-xs">0</span> to disable a threshold. Rows highlighted when current stock is at or below low stock (and low stock &gt; 0).
+      </p>
+    </div>
+
+    {% if not items %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-5 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">
+        No items found. Register items under item management, then restart the app if columns were just added.
+      </div>
+    {% else %}
+      <form method="post" action="{{ url_for('it_support_company_stock_settings') }}" class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3">
+          <p class="text-xs text-[rgb(var(--rc-muted))]">{{ items|length }} item(s). Changes apply on save.</p>
+          <button type="submit" class="btn-rc btn-rc-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wider">Save all levels</button>
+        </div>
+
+        <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="min-w-[900px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider">Image</th>
+                  <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                  <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider">Category</th>
+                  <th class="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider">Company stock</th>
+                  <th class="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                  <th class="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">Low stock</th>
+                  <th class="px-3 py-3 text-right text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">Reorder level</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for it in items %}
+                  {% set iid = it.id %}
+                  {% set sq = (it.stock_qty or 0)|int %}
+                  {% set low = (it.low_stock_threshold or 0)|int %}
+                  {% set rl = (it.reorder_level or 0)|int %}
+                  {% set warn = low > 0 and sq <= low %}
+                  <tr class="{% if warn %}bg-amber-500/10{% else %}hover:bg-[rgb(var(--rc-surface-2))]/35{% endif %}">
+                    <td class="px-3 py-2 align-middle">
+                      {% set _img = static_upload_url(it.image_path) %}
+                      {% if _img %}
+                        <img src="{{ _img }}" alt="" class="h-10 w-10 rounded-lg border border-[rgb(var(--rc-border))] object-cover" loading="lazy" decoding="async" />
+                      {% else %}
+                        <div class="h-10 w-10 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>
+                      {% endif %}
+                    </td>
+                    <td class="px-3 py-2 align-middle">
+                      <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
+                      <div class="text-[11px] text-[rgb(var(--rc-muted))]">#{{ iid }}</div>
+                    </td>
+                    <td class="px-3 py-2 align-middle text-[rgb(var(--rc-muted))]">{{ it.category or "—" }}</td>
+                    <td class="px-3 py-2 align-middle text-right font-semibold tabular-nums {% if warn %}text-amber-700 dark:text-amber-300{% else %}text-[rgb(var(--rc-page-fg))]{% endif %}">{{ sq }}</td>
+                    <td class="px-3 py-2 align-middle">
+                      <span class="rounded-md px-2 py-0.5 text-[11px] font-bold uppercase {% if (it.status or '') == 'active' %}bg-emerald-500/15 text-emerald-700 dark:text-emerald-300{% else %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]{% endif %}">{{ it.status or "—" }}</span>
+                    </td>
+                    <td class="px-3 py-2 align-middle text-right">
+                      <input
+                        type="number"
+                        name="low_stock_{{ iid }}"
+                        min="0"
+                        max="999999"
+                        step="1"
+                        value="{{ low }}"
+                        class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-right text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-amber-500/25"
+                        aria-label="Low stock for {{ it.name|e }}"
+                      />
+                    </td>
+                    <td class="px-3 py-2 align-middle text-right">
+                      <input
+                        type="number"
+                        name="reorder_level_{{ iid }}"
+                        min="0"
+                        max="999999"
+                        step="1"
+                        value="{{ rl }}"
+                        class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-right text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-sky-500/25"
+                        aria-label="Reorder level for {{ it.name|e }}"
+                      />
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm font-bold uppercase tracking-wider">Save all levels</button>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+{% endblock %}

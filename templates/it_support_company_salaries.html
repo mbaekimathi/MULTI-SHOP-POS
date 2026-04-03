@@ -1,0 +1,228 @@
+{% extends "employee_layout.html" %}
+{% block title %}Payroll overview — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Payroll overview{% endblock %}
+{% block sidebar_links %}
+  {% set salaries_nav = 'overview' %}
+  {% include "partials/it_support_salaries_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    .payroll-page {
+      --payroll-accent: 16 185 129;
+      --payroll-accent2: 14 165 233;
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.08), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.06), transparent 45%);
+    }
+    .dark .payroll-page {
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.12), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.1), transparent 45%);
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  <div class="payroll-page -mx-4 rounded-2xl px-4 py-6 sm:-mx-6 sm:px-6 md:py-8">
+    <div class="mx-auto max-w-7xl space-y-10">
+      <header class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+        <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Payroll · Roster</p>
+        <h1 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-3xl">Company salaries</h1>
+        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))] ml-0">
+          Each row shows the employee&rsquo;s latest registered payroll, payout details on file, and net balance for the
+          <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">current pay period</strong> (gross for that window minus advances already booked).
+          Filter the roster by pay frequency, or browse historical payroll lines (including superseded rates) below.
+        </p>
+      </header>
+
+      <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+        <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h2>
+        <form method="get" action="{{ url_for('it_support_company_salaries') }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+          <div class="min-w-[12rem] flex-1">
+            <label for="pay_frequency" class="block text-xs font-medium text-[rgb(var(--rc-muted))]">Roster — pay frequency</label>
+            <select
+              id="pay_frequency"
+              name="pay_frequency"
+              class="mt-1 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            >
+              <option value="all" {% if roster_pay_frequency == 'all' %}selected{% endif %}>All frequencies</option>
+              <option value="monthly" {% if roster_pay_frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+              <option value="weekly" {% if roster_pay_frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+              <option value="biweekly" {% if roster_pay_frequency == 'biweekly' %}selected{% endif %}>Biweekly</option>
+              <option value="daily" {% if roster_pay_frequency == 'daily' %}selected{% endif %}>Daily</option>
+            </select>
+          </div>
+          <div class="min-w-[12rem] flex-1">
+            <label for="history_frequency" class="block text-xs font-medium text-[rgb(var(--rc-muted))]">Payroll history — pay frequency</label>
+            <select
+              id="history_frequency"
+              name="history_frequency"
+              class="mt-1 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            >
+              <option value="all" {% if history_pay_frequency == 'all' %}selected{% endif %}>All (past registrations)</option>
+              <option value="monthly" {% if history_pay_frequency == 'monthly' %}selected{% endif %}>Monthly only</option>
+              <option value="weekly" {% if history_pay_frequency == 'weekly' %}selected{% endif %}>Weekly only</option>
+              <option value="biweekly" {% if history_pay_frequency == 'biweekly' %}selected{% endif %}>Biweekly only</option>
+              <option value="daily" {% if history_pay_frequency == 'daily' %}selected{% endif %}>Daily only</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[rgb(var(--rc-surface))]"
+          >
+            Apply filters
+          </button>
+        </form>
+      </section>
+
+      <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm overflow-hidden">
+        <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
+          <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Employees &amp; current payroll</h2>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ (overview_rows or [])|length }} active employee(s)</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="whitespace-nowrap px-4 py-3 sm:px-6">Employee</th>
+                <th class="whitespace-nowrap px-4 py-3">Gross</th>
+                <th class="whitespace-nowrap px-4 py-3">Frequency</th>
+                <th class="whitespace-nowrap px-4 py-3">Effective</th>
+                <th class="min-w-[14rem] px-4 py-3">Payout details</th>
+                <th class="whitespace-nowrap px-4 py-3">Period (current)</th>
+                <th class="whitespace-nowrap px-4 py-3">Advances</th>
+                <th class="whitespace-nowrap px-4 py-3 sm:pr-6">Balance</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] text-[rgb(var(--rc-page-fg))]">
+              {% for row in (overview_rows or []) %}
+                {% set pb = row.period_balance %}
+                {% set pm = (row.preferred_payment_method or '')|lower %}
+                <tr class="hover:bg-[rgb(var(--rc-surface-2))]/50">
+                  <td class="px-4 py-3 sm:px-6">
+                    <div class="font-medium">{{ row.full_name or '—' }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">
+                      {% if row.employee_code %}{{ row.employee_code }}{% endif %}
+                      {% if row.role %} · {{ row.role }}{% endif %}
+                      {% if row.shop_name %} · {{ row.shop_name }}{% endif %}
+                    </div>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 font-mono text-sm">
+                    {% if row.gross_amount is not none %}
+                      {{ row.gross_amount }}
+                    {% else %}
+                      <span class="text-[rgb(var(--rc-muted))]">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 capitalize text-[rgb(var(--rc-muted))]">
+                    {{ row.pay_frequency or '—' }}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 text-[rgb(var(--rc-muted))]">
+                    {% if row.payroll_effective_from %}{{ row.payroll_effective_from }}{% else %}—{% endif %}
+                  </td>
+                  <td class="px-4 py-3 text-xs text-[rgb(var(--rc-muted))] leading-relaxed">
+                    {% if pm == 'mpesa' %}
+                      <span class="font-medium text-[rgb(var(--rc-page-fg))]">M-Pesa</span>
+                      {% if row.payment_account_number %} · {{ row.payment_account_number }}{% endif %}
+                    {% elif pm == 'bank' %}
+                      <span class="font-medium text-[rgb(var(--rc-page-fg))]">Bank</span>
+                      {% if row.payment_bank_or_provider %}: {{ row.payment_bank_or_provider }}{% endif %}
+                      {% if row.payment_account_number %} · Acct {{ row.payment_account_number }}{% endif %}
+                    {% elif pm == 'cash' %}
+                      <span class="font-medium text-[rgb(var(--rc-page-fg))]">Cash</span>
+                    {% elif row.payment_account_holder or row.payment_account_number %}
+                      {{ row.payment_account_holder or '' }}
+                      {% if row.payment_account_number %} · {{ row.payment_account_number }}{% endif %}
+                    {% else %}
+                      <span class="italic">Not set</span>
+                    {% endif %}
+                    {% if row.payroll_notes %}
+                      <div class="mt-1 text-[10px] opacity-90">Payroll note: {{ row.payroll_notes }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 text-xs text-[rgb(var(--rc-muted))]">
+                    {% if pb %}
+                      {{ pb.period_start }} → {{ pb.period_end }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 font-mono text-sm">
+                    {% if pb %}
+                      {{ pb.advances_recorded }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 sm:pr-6">
+                    {% if pb and pb.has_payroll_rate %}
+                      <span class="font-mono text-sm font-semibold tabular-nums">{{ pb.remaining_before_new }}</span>
+                    {% elif row.pay_frequency %}
+                      <span class="text-amber-600 dark:text-amber-400 text-xs">No rate for period</span>
+                    {% else %}
+                      <span class="text-[rgb(var(--rc-muted))] text-xs">No payroll</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="8" class="px-6 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">
+                    No active employees match this filter.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm overflow-hidden">
+        <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
+          <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Payroll history</h2>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+            All registered lines (including older frequencies and superseded amounts), filtered by the history control above.
+            Showing up to 400 rows.
+          </p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="whitespace-nowrap px-4 py-3 sm:px-6">Effective</th>
+                <th class="whitespace-nowrap px-4 py-3">Employee</th>
+                <th class="whitespace-nowrap px-4 py-3">Gross</th>
+                <th class="whitespace-nowrap px-4 py-3">Frequency</th>
+                <th class="min-w-[12rem] px-4 py-3 sm:pr-6">Notes</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] text-[rgb(var(--rc-page-fg))]">
+              {% for h in (history_rows or []) %}
+                <tr class="hover:bg-[rgb(var(--rc-surface-2))]/50">
+                  <td class="whitespace-nowrap px-4 py-3 sm:px-6 text-[rgb(var(--rc-muted))]">{{ h.effective_from }}</td>
+                  <td class="px-4 py-3">
+                    <div class="font-medium">{{ h.full_name }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">
+                      {{ h.employee_code or '' }}
+                      {% if h.employee_status and h.employee_status != 'active' %}
+                        <span class="text-amber-600 dark:text-amber-400"> · {{ h.employee_status }}</span>
+                      {% endif %}
+                    </div>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3 font-mono">{{ h.gross_amount }}</td>
+                  <td class="whitespace-nowrap px-4 py-3 capitalize text-[rgb(var(--rc-muted))]">{{ h.pay_frequency }}</td>
+                  <td class="px-4 py-3 text-xs text-[rgb(var(--rc-muted))] sm:pr-6">{{ h.notes or '—' }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="5" class="px-6 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">
+                    No payroll registrations found for this filter.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+{% endblock %}

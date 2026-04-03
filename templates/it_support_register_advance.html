@@ -1,0 +1,284 @@
+{% extends "employee_layout.html" %}
+{% block title %}Salary advance — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Salary advance{% endblock %}
+{% block sidebar_links %}
+  {% set salaries_nav = 'advance' %}
+  {% include "partials/it_support_salaries_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-4xl space-y-8">
+    <header class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-md sm:p-8">
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-violet-500 dark:text-violet-400">Payroll · Advances</p>
+      <h1 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Register a salary advance</h1>
+      <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Tie each advance to an employee, pay frequency, and the specific period (for <span class="font-semibold">monthly</span>, pick the calendar month).
+        Amounts are tracked against the <span class="font-semibold">registered payroll gross</span> for that period so you can see what remains after earlier advances.
+      </p>
+    </header>
+
+    {% include "partials/flashes.html" %}
+
+    {% if not employees %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-6 text-sm text-[rgb(var(--rc-muted))]">
+        No active employees. Approve staff in HR first.
+      </div>
+    {% else %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">New advance</h2>
+        <form method="post" action="{{ url_for('it_support_register_advance') }}" class="mt-6 space-y-6" id="advance-form">
+          <div class="grid gap-6 md:grid-cols-2">
+            <div class="space-y-2 md:col-span-2">
+              <label for="advance_employee_id" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Employee</label>
+              <select
+                id="advance_employee_id"
+                name="employee_id"
+                required
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-violet-500/30"
+              >
+                <option value="" disabled {% if not request.form.get('employee_id') %}selected{% endif %}>Select employee</option>
+                {% for e in employees %}
+                  <option value="{{ e.id }}" {% if request.form.get('employee_id')|string == e.id|string %}selected{% endif %}>
+                    {{ e.full_name }} — {{ e.employee_code }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label for="advance_pay_frequency" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Pay frequency</label>
+              <select
+                id="advance_pay_frequency"
+                name="pay_frequency"
+                required
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-violet-500/30"
+              >
+                {% set af = request.form.get('pay_frequency') or 'monthly' %}
+                <option value="monthly" {% if af == 'monthly' %}selected{% endif %}>Monthly</option>
+                <option value="weekly" {% if af == 'weekly' %}selected{% endif %}>Weekly</option>
+                <option value="biweekly" {% if af == 'biweekly' %}selected{% endif %}>Biweekly</option>
+                <option value="daily" {% if af == 'daily' %}selected{% endif %}>Daily</option>
+              </select>
+            </div>
+            <div id="advance-period-month-wrap" class="space-y-2">
+              <label for="advance_period_month" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payroll month</label>
+              <input
+                type="month"
+                id="advance_period_month"
+                name="period_month"
+                value="{{ request.form.get('period_month', '') }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-violet-500/30 md:max-w-xs"
+              />
+              <p class="text-[11px] text-[rgb(var(--rc-muted))]">Advance is booked against this calendar month&rsquo;s pay period.</p>
+            </div>
+            <div id="advance-period-date-wrap" class="hidden space-y-2">
+              <label for="advance_period_date" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period date</label>
+              <input
+                type="date"
+                id="advance_period_date"
+                name="period_date"
+                value="{{ request.form.get('period_date', '') }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-violet-500/30 md:max-w-xs"
+              />
+              <p class="text-[11px] text-[rgb(var(--rc-muted))]">Pick any day in the pay period; we align to the correct week/biweek/day.</p>
+            </div>
+            <div class="space-y-2 md:col-span-2">
+              <label for="advance_amount" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Advance amount</label>
+              <input
+                type="number"
+                id="advance_amount"
+                name="amount"
+                min="0.01"
+                step="0.01"
+                required
+                value="{{ request.form.get('amount', '') }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm tabular-nums text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-violet-500/30 md:max-w-xs"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div
+            id="advance-period-summary"
+            class="hidden rounded-xl border border-violet-500/25 bg-violet-500/5 px-4 py-4 text-sm"
+          >
+            <p class="text-[11px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">Period snapshot</p>
+            <dl class="mt-3 grid gap-2 text-[rgb(var(--rc-page-fg))] sm:grid-cols-2">
+              <div>
+                <dt class="text-xs text-[rgb(var(--rc-muted))]">Period</dt>
+                <dd id="adv-sum-range" class="font-medium">—</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-[rgb(var(--rc-muted))]">Payroll gross (on file)</dt>
+                <dd id="adv-sum-gross" class="font-mono font-semibold">—</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-[rgb(var(--rc-muted))]">Advances already booked</dt>
+                <dd id="adv-sum-prior" class="font-mono">—</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-[rgb(var(--rc-muted))]">Remaining before this line</dt>
+                <dd id="adv-sum-remain" class="font-mono font-bold text-emerald-600 dark:text-emerald-400">—</dd>
+              </div>
+            </dl>
+            <p id="adv-sum-no-payroll" class="mt-3 hidden text-xs text-amber-700 dark:text-amber-300">
+              No payroll gross found for this period yet. Register salary with an effective date on or before period end.
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <label for="advance_notes" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Notes <span class="font-normal normal-case">(optional)</span></label>
+            <textarea
+              id="advance_notes"
+              name="notes"
+              rows="2"
+              maxlength="500"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-violet-500/30"
+              placeholder="Reason, approver…"
+            >{{ request.form.get('notes', '') }}</textarea>
+          </div>
+
+          <button type="submit" class="btn-rc btn-rc-primary rounded-xl px-8 py-3 text-sm font-bold">Save advance</button>
+        </form>
+      </div>
+    {% endif %}
+
+    <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-6 py-4">
+        <h2 class="text-sm font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Recent advances</h2>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Newest first.</p>
+      </div>
+      {% if recent_advances %}
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[680px] text-left text-sm">
+            <thead class="border-b border-[rgb(var(--rc-border))] text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-6 py-3">Employee</th>
+                <th class="px-3 py-3">Code</th>
+                <th class="px-3 py-3 text-right">Amount</th>
+                <th class="px-3 py-3">Frequency</th>
+                <th class="px-3 py-3">Period start</th>
+                <th class="px-6 py-3">Posted</th>
+              </tr>
+            </thead>
+            <tbody class="text-[rgb(var(--rc-page-fg))]">
+              {% for a in recent_advances %}
+                <tr class="border-b border-[rgb(var(--rc-border))]/60 hover:bg-[rgb(var(--rc-surface-2))]/30">
+                  <td class="px-6 py-3 font-medium">{{ a.full_name }}</td>
+                  <td class="px-3 py-3 font-mono text-xs text-[rgb(var(--rc-muted))]">{{ a.employee_code }}</td>
+                  <td class="px-3 py-3 text-right font-mono font-semibold tabular-nums">{{ '%.2f'|format(a.amount|float) }}</td>
+                  <td class="px-3 py-3">{{ (a.pay_frequency or '')|title }}</td>
+                  <td class="px-3 py-3 text-[rgb(var(--rc-muted))]">{{ a.period_start }}</td>
+                  <td class="px-6 py-3 text-xs text-[rgb(var(--rc-muted))]">{{ a.registered_at }}</td>
+                </tr>
+                {% if a.notes %}
+                  <tr class="border-b border-[rgb(var(--rc-border))]/60 bg-[rgb(var(--rc-surface-2))]/20">
+                    <td colspan="6" class="px-6 pb-3 pt-0 text-xs text-[rgb(var(--rc-muted))]">{{ a.notes }}</td>
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="px-6 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No advances recorded yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if employees %}
+    <script>
+      window.__advancePeriodSummaryUrl = "{{ url_for('it_support_advance_period_summary')|safe }}";
+    </script>
+    <script>
+      (function () {
+        var freqEl = document.getElementById("advance_pay_frequency");
+        var monthWrap = document.getElementById("advance-period-month-wrap");
+        var dateWrap = document.getElementById("advance-period-date-wrap");
+        var monthIn = document.getElementById("advance_period_month");
+        var dateIn = document.getElementById("advance_period_date");
+        var empEl = document.getElementById("advance_employee_id");
+        var box = document.getElementById("advance-period-summary");
+        var url = window.__advancePeriodSummaryUrl;
+        if (!freqEl || !monthWrap || !dateWrap) return;
+
+        function syncPeriodInputs() {
+          var f = (freqEl.value || "").toLowerCase();
+          if (f === "monthly") {
+            monthWrap.classList.remove("hidden");
+            dateWrap.classList.add("hidden");
+            if (dateIn) dateIn.removeAttribute("required");
+            if (monthIn) monthIn.setAttribute("required", "required");
+          } else {
+            monthWrap.classList.add("hidden");
+            dateWrap.classList.remove("hidden");
+            if (monthIn) monthIn.removeAttribute("required");
+            if (dateIn) dateIn.setAttribute("required", "required");
+          }
+          fetchSummary();
+        }
+
+        var t = null;
+        function fetchSummary() {
+          if (!url || !box || !empEl) return;
+          var eid = empEl.value;
+          var f = (freqEl.value || "").toLowerCase();
+          var period = "";
+          if (f === "monthly") {
+            period = (monthIn && monthIn.value) || "";
+            if (period.length !== 7) {
+              box.classList.add("hidden");
+              return;
+            }
+          } else {
+            period = (dateIn && dateIn.value) || "";
+            if (period.length < 10) {
+              box.classList.add("hidden");
+              return;
+            }
+          }
+          if (!eid) {
+            box.classList.add("hidden");
+            return;
+          }
+          clearTimeout(t);
+          t = setTimeout(function () {
+            var q = new URLSearchParams({ employee_id: eid, pay_frequency: f, period: period });
+            fetch(url + "?" + q.toString(), { headers: { Accept: "application/json" } })
+              .then(function (r) {
+                return r.json().then(function (j) {
+                  return { ok: r.ok, j: j };
+                });
+              })
+              .then(function (_ref) {
+                var ok = _ref.ok;
+                var data = _ref.j;
+                if (!ok || data.error) {
+                  box.classList.add("hidden");
+                  return;
+                }
+                box.classList.remove("hidden");
+                var rEl = document.getElementById("adv-sum-range");
+                var gEl = document.getElementById("adv-sum-gross");
+                var pEl = document.getElementById("adv-sum-prior");
+                var mEl = document.getElementById("adv-sum-remain");
+                var nEl = document.getElementById("adv-sum-no-payroll");
+                if (rEl) rEl.textContent = data.period_start + " → " + data.period_end;
+                if (gEl) gEl.textContent = data.gross != null ? data.gross : "—";
+                if (pEl) pEl.textContent = data.advances_recorded != null ? data.advances_recorded : "0";
+                if (mEl) mEl.textContent = data.remaining_before_new != null ? data.remaining_before_new : "—";
+                if (nEl) nEl.classList.toggle("hidden", data.has_payroll_rate);
+              })
+              .catch(function () {
+                box.classList.add("hidden");
+              });
+          }, 200);
+        }
+
+        freqEl.addEventListener("change", syncPeriodInputs);
+        if (empEl) empEl.addEventListener("change", fetchSummary);
+        if (monthIn) monthIn.addEventListener("change", fetchSummary);
+        if (dateIn) dateIn.addEventListener("change", fetchSummary);
+        syncPeriodInputs();
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

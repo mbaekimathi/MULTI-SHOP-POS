@@ -234,18 +234,176 @@
       opacity: 1;
       pointer-events: auto;
     }
-    .pos-cart-btn--live {
-      box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.35);
+    /* Bottom-right FAB: single cart control on all viewports */
+    .pos-cart-open-trigger {
+      position: relative;
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
     }
-    #pos-cart-toggle {
-      box-shadow:
-        0 10px 28px rgba(0, 0, 0, 0.18),
-        0 2px 8px rgba(0, 0, 0, 0.08);
+    .pos-cart-open-trigger:hover {
+      transform: translateY(-3px) scale(1.04);
     }
-    .dark #pos-cart-toggle {
+    .pos-cart-open-trigger:active {
+      transform: translateY(0) scale(0.96);
+    }
+    @keyframes pos-cart-fab-float {
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-5px);
+      }
+    }
+    @keyframes pos-cart-fab-ring {
+      0% {
+        transform: scale(1);
+        opacity: 0.55;
+      }
+      100% {
+        transform: scale(1.35);
+        opacity: 0;
+      }
+    }
+    @keyframes pos-cart-icon-nudge {
+      0%,
+      100% {
+        transform: rotate(0deg);
+      }
+      25% {
+        transform: rotate(-4deg);
+      }
+      75% {
+        transform: rotate(4deg);
+      }
+    }
+    @keyframes pos-cart-shimmer {
+      0% {
+        background-position: 0% 50%;
+      }
+      100% {
+        background-position: 200% 50%;
+      }
+    }
+    #pos-cart-toggle-fab {
+      z-index: 65;
       box-shadow:
-        0 10px 28px rgba(0, 0, 0, 0.45),
-        0 2px 8px rgba(0, 0, 0, 0.25);
+        0 12px 40px rgba(0, 0, 0, 0.2),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(var(--rc-primary), 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      background: linear-gradient(145deg, rgba(var(--rc-surface)) 0%, rgba(var(--rc-surface-2)) 100%);
+      animation: pos-cart-fab-float 4.5s ease-in-out infinite;
+    }
+    .dark #pos-cart-toggle-fab {
+      box-shadow:
+        0 14px 44px rgba(0, 0, 0, 0.55),
+        0 4px 14px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(var(--rc-primary), 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .pos-cart-fab-ripple {
+      position: absolute;
+      inset: -6px;
+      border-radius: 9999px;
+      border: 2px solid rgba(var(--rc-primary), 0.45);
+      opacity: 0;
+      pointer-events: none;
+    }
+    #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-fab-ripple {
+      animation: pos-cart-fab-ring 2.2s ease-out infinite;
+    }
+    #pos-cart-toggle-fab.pos-cart-btn--live {
+      box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.2),
+        0 0 0 2px rgba(var(--rc-primary), 0.55),
+        0 0 28px rgba(var(--rc-primary), 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      animation: pos-cart-fab-float 3s ease-in-out infinite;
+    }
+    #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-fab-icon {
+      animation: pos-cart-icon-nudge 2.8s ease-in-out infinite;
+    }
+    #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-icon-wrap {
+      background: linear-gradient(
+        135deg,
+        rgba(var(--rc-primary), 0.35) 0%,
+        rgba(var(--rc-accent), 0.22) 50%,
+        rgba(var(--rc-primary), 0.28) 100%
+      );
+      background-size: 200% 200%;
+      animation: pos-cart-shimmer 4s linear infinite;
+    }
+    #pos-cart-toggle-fab .pos-cart-icon-wrap {
+      border-radius: 9999px;
+      background: linear-gradient(135deg, rgba(var(--rc-primary), 0.22) 0%, rgba(var(--rc-accent), 0.12) 100%);
+      transition: background 0.3s ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-toggle-fab,
+      #pos-cart-toggle-fab.pos-cart-btn--live,
+      #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-fab-ripple,
+      #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-icon-wrap,
+      #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-fab-icon {
+        animation: none !important;
+      }
+      #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-fab-ripple {
+        opacity: 0.4;
+        transform: scale(1.06);
+      }
+    }
+    @keyframes pos-footer-icon-pulse {
+      0%,
+      100% {
+        filter: drop-shadow(0 0 0 transparent);
+      }
+      50% {
+        filter: drop-shadow(0 0 6px rgba(var(--rc-primary), 0.45));
+      }
+    }
+    .pos-footer-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 0.85rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      background: linear-gradient(135deg, rgba(var(--rc-primary), 0.18) 0%, rgba(var(--rc-accent), 0.1) 100%);
+      box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.2);
+      color: rgb(var(--rc-primary));
+    }
+    .pos-footer-link:hover {
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 6px 16px rgba(var(--rc-primary), 0.22);
+    }
+    .pos-footer-link svg {
+      animation: pos-footer-icon-pulse 4s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pos-footer-link svg {
+        animation: none;
+      }
+    }
+    #pos-cart-drawer .pos-cart-drawer-top-accent {
+      height: 3px;
+      background: linear-gradient(90deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 55%, rgb(var(--rc-primary)) 100%);
+      background-size: 200% 100%;
+      animation: pos-cart-accent-shift 8s ease-in-out infinite;
+    }
+    @keyframes pos-cart-accent-shift {
+      0%,
+      100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-drawer .pos-cart-drawer-top-accent {
+        animation: none;
+        background: linear-gradient(90deg, rgb(var(--rc-primary)), rgb(var(--rc-accent)));
+      }
     }
     /* Horizontal product strip: small cards, swipe / scroll */
     .pos-item-scroll {
@@ -266,6 +424,78 @@
     .pos-item-scroll::-webkit-scrollbar-thumb {
       background: rgb(var(--rc-muted) / 0.45);
       border-radius: 9999px;
+    }
+    /* Desktop: prev/next icons for horizontal category strips (buttons after strip in DOM so they paint on top) */
+    .pos-cat-strip-outer {
+      position: relative;
+    }
+    .pos-cat-strip-outer .pos-item-scroll {
+      position: relative;
+      z-index: 0;
+    }
+    /* Light theme: dark pill so chevrons read on pale strips */
+    .pos-cat-scroll-btn {
+      display: none;
+      position: absolute;
+      top: 50%;
+      z-index: 25;
+      width: 2.5rem;
+      height: 2.5rem;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: linear-gradient(155deg, rgb(32 36 44) 0%, rgb(22 25 32) 100%);
+      color: rgb(248 250 252);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.18);
+      transform: translateY(-50%);
+      transition: opacity 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .pos-cat-scroll-btn:hover:not(:disabled) {
+      background: linear-gradient(155deg, rgb(44 50 62) 0%, rgb(30 34 42) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: rgb(255 255 255);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    }
+    .pos-cat-scroll-btn:active:not(:disabled) {
+      transform: translateY(-50%) scale(0.94);
+    }
+    .pos-cat-scroll-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .pos-cat-scroll-btn:focus-visible {
+      outline: 2px solid rgb(var(--rc-primary));
+      outline-offset: 2px;
+    }
+    /* Dark theme: slightly lifted dark pill + light icon (reads on dark strips) */
+    .dark .pos-cat-scroll-btn {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: linear-gradient(155deg, rgb(55 65 81) 0%, rgb(38 44 56) 100%);
+      color: rgb(248 250 252);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    .dark .pos-cat-scroll-btn:hover:not(:disabled) {
+      background: linear-gradient(155deg, rgb(71 85 105) 0%, rgb(51 65 85) 100%);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: rgb(255 255 255);
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+    }
+    .pos-cat-scroll-prev {
+      left: 0.25rem;
+    }
+    .pos-cat-scroll-next {
+      right: 0.25rem;
+    }
+    /* sm+ — show scroll arrows (wider than phones in portrait) */
+    @media (min-width: 640px) {
+      .pos-cat-scroll-btn {
+        display: inline-flex;
+      }
+      .pos-cat-strip--no-horizontal-scroll .pos-cat-scroll-btn {
+        display: none;
+      }
     }
     .pos-item-card .pos-item-name {
       text-shadow: none;
@@ -577,23 +807,31 @@
 
     <button
       type="button"
-      id="pos-cart-toggle"
-      class="pos-cart-btn fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex h-14 w-14 items-center justify-center rounded-full border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] ring-1 ring-black/5 transition hover:scale-[1.03] hover:bg-[rgb(var(--rc-surface-2))] active:scale-[0.97] dark:bg-[rgb(var(--rc-surface-2))] dark:ring-white/10"
+      id="pos-cart-toggle-fab"
+      class="pos-cart-open-trigger pos-cart-btn fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] flex h-[3.75rem] w-[3.75rem] items-center justify-center overflow-visible rounded-full text-[rgb(var(--rc-page-fg))] sm:h-16 sm:w-16"
       aria-expanded="false"
       aria-controls="pos-cart-drawer"
-      aria-label="Cart"
+      aria-label="Open cart"
     >
-      <svg class="h-7 w-7 opacity-95" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
+      <span class="pos-cart-fab-ripple" aria-hidden="true"></span>
+      <span class="pos-cart-icon-wrap relative z-[1] flex h-[3.15rem] w-[3.15rem] items-center justify-center sm:h-[3.5rem] sm:w-[3.5rem]">
+        <svg
+          class="pos-cart-fab-icon h-[1.65rem] w-[1.65rem] text-[rgb(var(--rc-primary))] drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] sm:h-7 sm:w-7"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      </span>
       <span
-        id="pos-cart-badge"
-        class="absolute right-0 top-0 flex h-5 min-w-[1.25rem] translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-[rgb(var(--rc-primary))] px-1 text-[10px] font-black text-white shadow-md ring-2 ring-[rgb(var(--rc-surface))] transition-opacity"
+        class="pos-cart-badge absolute right-0.5 top-0.5 z-[2] flex h-5 min-w-[1.25rem] translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-gradient-to-br from-[rgb(var(--rc-primary))] to-[rgb(var(--rc-accent))] px-1 text-[10px] font-black text-white shadow-lg ring-2 ring-[rgb(var(--rc-surface))] transition-opacity"
         >0</span
       >
     </button>
 
-    <header class="sticky top-0 z-40 border-b border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/85 pt-[env(safe-area-inset-top)] backdrop-blur-2xl">
+    <header class="sticky top-0 z-40 border-b border-[rgb(var(--rc-primary))]/15 bg-[rgb(var(--rc-surface))]/92 pt-[env(safe-area-inset-top)] shadow-[0_4px_24px_rgba(0,0,0,0.05)] backdrop-blur-2xl dark:border-[rgb(var(--rc-primary))]/25 dark:shadow-[0_8px_32px_rgba(0,0,0,0.25)]">
       <div class="mx-auto flex w-full min-w-0 max-w-[1920px] flex-wrap items-center justify-between gap-3 px-[max(0.65rem,env(safe-area-inset-left))] py-3 pr-[max(0.65rem,env(safe-area-inset-right))] sm:px-5 md:px-6 lg:px-8">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <div
@@ -705,14 +943,18 @@
                 <div class="mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-4">
                   <div class="min-w-0 border-l-[3px] border-[rgb(var(--rc-primary))] pl-3">
                     <h2 class="text-sm font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-page-fg))] sm:text-base">{{ cat }}</h2>
-                    <p class="mt-0.5 text-[10px] font-medium text-[rgb(var(--rc-muted))] sm:text-xs">Scroll sideways for more · tap to add · live stock</p>
+                    <p class="mt-0.5 text-[10px] font-medium text-[rgb(var(--rc-muted))] sm:text-xs">
+                      <span class="sm:hidden">Swipe to browse · tap to add</span>
+                      <span class="hidden sm:inline">Arrow buttons or trackpad · click to add · live stock</span>
+                    </p>
                   </div>
                   <span class="shrink-0 rounded-full bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-[10px] font-bold tabular-nums uppercase tracking-[0.1em] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]/80">{{ rows|length }} items</span>
                 </div>
 
-                <div
-                  class="pos-item-scroll touch-pan-x overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 lg:-mx-8 lg:px-8"
-                >
+                <div class="pos-cat-strip-outer">
+                  <div
+                    class="pos-item-scroll touch-pan-x overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 md:pl-12 md:pr-12 lg:-mx-8 lg:px-8 lg:pl-14 lg:pr-14"
+                  >
                   {% for it in rows %}
                     <button
                       type="button"
@@ -775,6 +1017,27 @@
                       </div>
                     </button>
                   {% endfor %}
+                  </div>
+                  <button
+                    type="button"
+                    class="pos-cat-scroll-btn pos-cat-scroll-prev"
+                    data-pos-scroll-dir="-1"
+                    aria-label="Scroll {{ cat|e }} items left"
+                  >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="pos-cat-scroll-btn pos-cat-scroll-next"
+                    data-pos-scroll-dir="1"
+                    aria-label="Scroll {{ cat|e }} items right"
+                  >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </div>
               </section>
             {% endfor %}
@@ -785,16 +1048,49 @@
       </main>
     </div>
 
-    <footer class="mt-auto border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/90 backdrop-blur-md">
-      <div class="mx-auto flex max-w-[1920px] flex-col gap-3 px-[max(0.65rem,env(safe-area-inset-left))] py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pr-[max(0.65rem,env(safe-area-inset-right))] sm:flex-row sm:items-center sm:justify-between sm:px-5 md:px-6 lg:px-8">
-        <div class="min-w-0">
-          <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</p>
-          <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Shop point of sale session</p>
+    <footer class="mt-auto border-t border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-[1920px] flex-col gap-4 px-[max(0.65rem,env(safe-area-inset-left))] py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pr-[max(0.65rem,env(safe-area-inset-right))] sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-5 md:px-6 lg:px-8">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</p>
+          <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Point of sale · live session</p>
         </div>
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[rgb(var(--rc-muted))]">
-          <span>&copy; <span id="pos-footer-year"></span> {{ site_settings.company_name if site_settings else "Point of Sale" }}</span>
-          <span class="hidden h-3 w-px bg-[rgb(var(--rc-border))] sm:inline" aria-hidden="true"></span>
-          <span class="text-[rgb(var(--rc-muted))]/90">{{ site_settings.company_name if site_settings else "Point of Sale" }} · POS</span>
+        {% set _ph = (site_settings.company_phone if site_settings else '') or '' %}
+        {% set _em = (site_settings.company_email if site_settings else '') or '' %}
+        {% set _fb = (site_settings.company_facebook if site_settings else '') or '' %}
+        {% set _ig = (site_settings.company_instagram if site_settings else '') or '' %}
+        <div class="flex flex-wrap items-center gap-2 sm:justify-center">
+          {% if _ph %}
+            <a href="tel:{{ _ph|replace(' ', '')|e }}" class="pos-footer-link" title="Call" aria-label="Call {{ _ph|e }}">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+            </a>
+          {% endif %}
+          {% if _em %}
+            <a href="mailto:{{ _em|e }}" class="pos-footer-link" title="Email" aria-label="Email {{ _em|e }}">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </a>
+          {% endif %}
+          {% if _fb %}
+            <a href="{{ _fb if _fb.startswith('http') else ('https://' ~ _fb) }}" class="pos-footer-link" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook">
+              <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+              </svg>
+            </a>
+          {% endif %}
+          {% if _ig %}
+            <a href="{{ _ig if _ig.startswith('http') else ('https://' ~ _ig) }}" class="pos-footer-link" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">
+              <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+              </svg>
+            </a>
+          {% endif %}
+        </div>
+        <div class="flex min-w-0 flex-col items-start gap-0.5 text-[11px] text-[rgb(var(--rc-muted))] sm:items-end sm:text-right">
+          <span class="font-medium text-[rgb(var(--rc-page-fg))]/90">&copy; <span id="pos-footer-year"></span> {{ site_settings.company_name if site_settings else "Point of Sale" }}</span>
+          <span class="hidden sm:inline">{{ site_settings.company_name if site_settings else "Point of Sale" }} · POS</span>
         </div>
       </div>
     </footer>
@@ -807,19 +1103,27 @@
     ></div>
     <div
       id="pos-cart-drawer"
-      class="fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden border border-[rgb(var(--rc-border))] border-b-0 bg-[rgb(var(--rc-surface))] shadow-[0_-24px_60px_rgba(0,0,0,0.22)] max-sm:h-[100svh] max-sm:max-h-[100svh] lg:inset-y-0 lg:left-auto lg:right-0 lg:top-0 lg:h-full lg:max-h-none lg:w-[min(24rem,100vw)] lg:max-w-[94vw] lg:rounded-none lg:rounded-l-[1.75rem] lg:border lg:border-y lg:border-l lg:border-r-0 lg:shadow-2xl lg:shadow-black/20"
+      class="fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden border border-[rgb(var(--rc-border))] border-b-0 bg-[rgb(var(--rc-surface))] shadow-[0_-24px_60px_rgba(0,0,0,0.22)] ring-1 ring-[rgb(var(--rc-primary))]/10 max-sm:h-[100svh] max-sm:max-h-[100svh] lg:inset-y-0 lg:left-auto lg:right-0 lg:top-0 lg:h-full lg:max-h-none lg:w-[min(26rem,100vw)] lg:max-w-[94vw] lg:rounded-none lg:rounded-l-[1.75rem] lg:border lg:border-y lg:border-l lg:border-r-0 lg:shadow-2xl lg:shadow-black/20"
       role="dialog"
       aria-modal="true"
       aria-labelledby="pos-cart-drawer-title"
       hidden
     >
+      <div class="pos-cart-drawer-top-accent shrink-0" aria-hidden="true"></div>
       <div class="flex shrink-0 justify-center pt-3 pb-1 lg:hidden">
         <span class="h-1.5 w-12 rounded-full bg-[rgb(var(--rc-border))]" aria-hidden="true"></span>
       </div>
-      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-surface-2))]/70 to-transparent px-4 py-3.5 sm:px-5 lg:rounded-tl-[1.75rem] lg:pt-5">
-        <div class="min-w-0">
-          <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Current sale</p>
-          <h2 id="pos-cart-drawer-title" class="truncate text-base font-bold text-[rgb(var(--rc-page-fg))]">Cart · checkout</h2>
+      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-surface-2))]/80 via-[rgb(var(--rc-surface))]/90 to-transparent px-4 py-3.5 sm:px-5 lg:rounded-tl-[1.75rem] lg:pt-5">
+        <div class="flex min-w-0 items-center gap-3">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[rgb(var(--rc-primary))]/20 to-[rgb(var(--rc-accent))]/10 text-[rgb(var(--rc-primary))] ring-1 ring-[rgb(var(--rc-primary))]/20">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Current sale</p>
+            <h2 id="pos-cart-drawer-title" class="truncate text-base font-bold text-[rgb(var(--rc-page-fg))]">Cart · checkout</h2>
+          </div>
         </div>
         <button type="button" id="pos-cart-close" class="btn-rc btn-rc-ghost h-10 w-10 shrink-0 rounded-xl p-0" aria-label="Close cart">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -854,6 +1158,19 @@
               — print a quote receipt and save to <strong>Leads</strong> only. No sale record and no stock change.
             </span>
           </label>
+          <div id="pos-credit-due-section" class="hidden space-y-2 border-t border-[rgb(var(--rc-border))]/70 pt-3 mt-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Credit payment</p>
+            <div>
+              <label for="pos-credit-due-date" class="mb-1 block text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Expected payment date</label>
+              <input
+                id="pos-credit-due-date"
+                type="date"
+                autocomplete="off"
+                class="pos-auth-input w-full rounded-xl border px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+              />
+              <p class="mt-1 text-[10px] leading-snug text-[rgb(var(--rc-muted))]">Optional. Shown on the receipt when set.</p>
+            </div>
+          </div>
         </div>
 
         <div class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
@@ -1134,6 +1451,18 @@
         >
           <button
             type="button"
+            id="pos-printer-test-print"
+            disabled
+            class="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-sky-400/50 bg-sky-500/10 py-3 text-xs font-bold uppercase tracking-wider text-sky-900 shadow-sm transition hover:border-sky-500 hover:bg-sky-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] disabled:cursor-not-allowed disabled:opacity-45 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-100 dark:hover:bg-sky-500/25 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]"
+            title="Save a printer first"
+          >
+            <svg class="h-4 w-4 shrink-0 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print test receipt
+          </button>
+          <button
+            type="button"
             id="pos-printer-clear-saved"
             class="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-rose-300/70 bg-[rgb(var(--rc-surface))] py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-sm transition hover:border-rose-400 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-rose-500/40 dark:bg-[rgb(var(--rc-surface))]/80 dark:text-rose-200 dark:hover:bg-rose-950/40 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]"
           >
@@ -1324,16 +1653,16 @@
           }
         }
 
-        var badge = document.getElementById("pos-cart-badge");
         var count = lines.reduce(function (a, l) {
           return a + l.qty;
         }, 0);
-        if (badge) {
+        document.querySelectorAll(".pos-cart-badge").forEach(function (badge) {
           badge.textContent = String(count);
           badge.classList.toggle("opacity-50", count === 0);
-        }
-        var cartBtn = document.getElementById("pos-cart-toggle");
-        if (cartBtn) cartBtn.classList.toggle("pos-cart-btn--live", count > 0);
+        });
+        document.querySelectorAll(".pos-cart-open-trigger").forEach(function (cartBtn) {
+          cartBtn.classList.toggle("pos-cart-btn--live", count > 0);
+        });
         updateProceedState();
       }
 
@@ -1546,6 +1875,10 @@
         if (nl) nl.textContent = "Customer name (" + (must ? "required" : "optional") + ")";
         if (pl) pl.textContent = "Customer phone (" + (must ? "required" : "optional") + ")";
         if (rule) rule.textContent = must ? "For credit, customer name and phone are compulsory." : "For sale, customer details are optional.";
+        var dueSec = document.getElementById("pos-credit-due-section");
+        var dueIn = document.getElementById("pos-credit-due-date");
+        if (dueSec) dueSec.classList.toggle("hidden", !must);
+        if (!must && dueIn) dueIn.value = "";
         updateCustomerSectionState();
       }
 
@@ -1731,6 +2064,8 @@
             var pEl = document.getElementById("pos-customer-phone");
             if (nEl) nEl.value = "";
             if (pEl) pEl.value = "";
+            var dueEl = document.getElementById("pos-credit-due-date");
+            if (dueEl) dueEl.value = "";
             var qEl = document.getElementById("pos-quote-only");
             var wasQuote = qEl && qEl.checked;
             showToast(wasQuote ? "Quotation saved and printed" : (mode === "credit" ? "Credit" : "Sale") + " completed");
@@ -1829,6 +2164,13 @@
               employee_code: authorizedEmployee && authorizedEmployee.employee_code,
               full_name: authorizedEmployee && authorizedEmployee.full_name,
             },
+            credit_due_date:
+              payload &&
+              payload.mode === "credit" &&
+              payload.creditDueIso &&
+              /^\d{4}-\d{2}-\d{2}$/.test(payload.creditDueIso)
+                ? payload.creditDueIso
+                : "",
           }),
         })
           .then(function (r) { return r.json().catch(function () { return {}; }); })
@@ -1938,6 +2280,20 @@
         discountTotal = Math.round(discountTotal * 100) / 100;
         var baseModeLabel = mode === "credit" ? "Credit" : "Sale";
         var modeLabel = opts.isQuote ? "Quotation · " + baseModeLabel : baseModeLabel;
+        var creditDueIso = "";
+        var creditDueDisplay = "";
+        if (mode === "credit") {
+          var ddEl = document.getElementById("pos-credit-due-date");
+          var dv = ddEl && (ddEl.value || "").trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dv)) {
+            creditDueIso = dv;
+            try {
+              creditDueDisplay = new Date(dv + "T12:00:00").toLocaleDateString();
+            } catch (e2) {
+              creditDueDisplay = dv;
+            }
+          }
+        }
         return {
           printedAt: now.toLocaleString(),
           customerName: customerName || "Walk-in customer",
@@ -1949,6 +2305,8 @@
           shopDisplayName: branchTitle,
           companyLine: companyLine,
           lines: mappedLines,
+          creditDueIso: creditDueIso,
+          creditDueDisplay: creditDueDisplay,
         };
       }
 
@@ -1960,6 +2318,7 @@
           customerName: b.customerName,
           customerPhone: b.customerPhone,
           lines: b.lines,
+          creditDueIso: b.creditDueIso || "",
           employeeName: (authorizedEmployee && authorizedEmployee.full_name) || "Unknown",
           employeeCode: (authorizedEmployee && authorizedEmployee.employee_code) || "",
         };
@@ -2005,6 +2364,7 @@
           paymentDetailText: (rs.payment_detail_text || "").trim(),
           receiptHeader: (rs.receipt_header || "").trim(),
           receiptFooter: (rs.receipt_footer || "").trim(),
+          creditDueDate: (b.creditDueDisplay || "").trim(),
         };
       }
 
@@ -2034,6 +2394,10 @@
         };
         if (payload.hasDiscount && (payload.discountTotal || 0) > 0.001) {
           obj.dc = fmt(payload.discountTotal);
+        }
+        var dueQr = (payload.creditDueDate || "").trim();
+        if (dueQr && String(payload.mode || "").toLowerCase().indexOf("credit") !== -1) {
+          obj.due = dueQr;
         }
         try {
           return JSON.stringify(obj);
@@ -2083,7 +2447,8 @@
         }
         var parts = [];
         parts.push(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
-        parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x08);
+        /* GS ( k fn 167: module size 1–16; smaller = denser/smaller symbol on slip (was 8). */
+        parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x04);
         parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x30);
         var n = data.length + 3;
         parts.push(0x1d, 0x28, 0x6b, n & 0xff, (n >> 8) & 0xff, 0x31, 0x50, 0x30);
@@ -2268,6 +2633,10 @@
         if (S.show_datetime || isCompany) L("Date: " + String(payload.printedAt || ""));
         if (showCustomerBlock) {
           L("Type: " + String(payload.mode || ""));
+          var dueT = (payload.creditDueDate || "").trim();
+          if (dueT && String(payload.mode || "").toLowerCase().indexOf("credit") !== -1) {
+            L("Pay by: " + dueT);
+          }
           L("Customer: " + String(payload.customerName || ""));
           L("Phone: " + String(payload.customerPhone || ""));
         }
@@ -2330,9 +2699,9 @@
           if (qrData) {
             var enc = encodeURIComponent(qrData);
             qrHtml =
-              '<div class="receipt-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=' +
+              '<div class="receipt-qr" style="display:flex;flex-direction:column;align-items:center;width:100%"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=' +
               enc +
-              '" alt="" width="180" height="180" /></div>' +
+              '" alt="" width="96" height="96" style="display:block;margin:0 auto" /></div>' +
               '<p class="receipt-qr-caption">Scan for receipt details</p>';
           }
         }
@@ -2373,9 +2742,9 @@
           "}" +
           ".receipt-logo-row{text-align:center;margin:0 auto 2mm;padding:0 1mm}" +
           ".receipt-logo-row img{display:block;margin:0 auto;max-height:14mm;max-width:72mm;height:auto;width:auto;object-fit:contain}" +
-          ".receipt-qr{text-align:center;margin:2mm 0;padding:0 1mm;min-height:48mm}" +
-          ".receipt-qr img{display:block;margin:0 auto;width:45mm;height:45mm;max-width:90%;object-fit:contain}" +
-          ".receipt-qr-caption{margin:1mm 0 0;padding:0;text-align:center;font-size:9px;line-height:1.3;color:#333}" +
+          ".receipt-qr{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;box-sizing:border-box;text-align:center;margin:1mm 0;padding:0 1mm;min-height:26mm}" +
+          ".receipt-qr img{display:block;margin:0 auto;width:26mm;height:26mm;max-width:75%;object-fit:contain;flex-shrink:0}" +
+          ".receipt-qr-caption{margin:1mm 0 0;padding:0;width:100%;text-align:center;font-size:9px;line-height:1.3;color:#333}" +
           "pre.receipt{margin:0;padding:2.5mm 2mm;width:100%;max-width:100%;" +
           "font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:11px;line-height:1.35;" +
           "white-space:pre-wrap;word-wrap:break-word;overflow:visible}" +
@@ -2394,7 +2763,7 @@
           "!important}" +
           "pre.receipt{font-size:10.5pt!important;line-height:1.35!important;padding:2mm!important}" +
           ".receipt-logo-row img{max-height:12mm}" +
-          ".receipt-qr img{width:42mm!important;height:42mm!important}" +
+          ".receipt-qr img{width:24mm!important;height:24mm!important}" +
           "}";
 
         return (
@@ -2554,6 +2923,10 @@
         if (S.show_datetime || isCompany) pushLn("Date: " + String(payload.printedAt || ""));
         if (!isCompany) {
           pushLn("Type: " + String(payload.mode || ""));
+          var dueE = (payload.creditDueDate || "").trim();
+          if (dueE && String(payload.mode || "").toLowerCase().indexOf("credit") !== -1) {
+            pushLn("Pay by: " + dueE);
+          }
           pushLn("Customer: " + String(payload.customerName || ""));
           pushLn("Phone: " + String(payload.customerPhone || ""));
         }
@@ -2633,7 +3006,6 @@
             charSizeSubtitle();
             pushLn("Scan QR for details");
             charSizeNormal();
-            pushBytes([ESC, 0x61, 0x00]);
             pushBytes([0x0a]);
             if (qrRasterEscPos && qrRasterEscPos.length) {
               chunks.push(qrRasterEscPos);
@@ -2641,6 +3013,7 @@
               chunks.push(buildEscPosQrCodeBytes(qrStr));
             }
             pushBytes([0x0a, 0x0a]);
+            pushBytes([ESC, 0x61, 0x00]);
           }
         }
 
@@ -2679,34 +3052,89 @@
         });
       }
 
-      /** Cached printer row (same shape as GET /printer) for instant checkout print without an extra round-trip. */
-      function loadSavedPrinterProfile() {
+      /**
+       * Stable id for the saved printer row so local cache cannot bleed across shops/devices.
+       * bluetoothId / host:port / usb vid:pid[:serial] must match server for this shop.
+       */
+      function printerProfileFingerprint(p) {
+        if (!p || !p.printer_type) return "";
+        var t = (p.printer_type || "").toLowerCase();
+        var c = p.config;
+        if (typeof c === "string") {
+          try {
+            c = JSON.parse(c) || {};
+          } catch (e) {
+            c = {};
+          }
+        }
+        if (!c || typeof c !== "object") c = {};
+        if (t === "bluetooth") return "bt:" + String(c.bluetoothId || "");
+        if (t === "network") {
+          var h = String(c.host || "").trim().toLowerCase();
+          var po = c.port != null && c.port !== "" ? String(c.port) : "9100";
+          return "net:" + h + ":" + po;
+        }
+        if (t === "usb") {
+          var vid = parseInt(c.vendorId, 10);
+          var pid = parseInt(c.productId, 10);
+          if (isNaN(vid) || isNaN(pid)) return "usb:invalid";
+          var ser = String(c.serialNumber || "").trim();
+          return "usb:" + vid + ":" + pid + ":" + ser;
+        }
+        return t;
+      }
+
+      function offlinePrinterProfileFromCache() {
         try {
           var raw = localStorage.getItem(PRINTER_LS_KEY);
-          if (raw) {
-            var p = JSON.parse(raw);
-            if (p && p.printer_type) {
-              if (p.shop_id != null && Number(p.shop_id) !== Number(SHOP_ID)) {
-                try {
-                  localStorage.removeItem(PRINTER_LS_KEY);
-                } catch (e2) {}
-              } else {
-                return Promise.resolve(p.shop_id != null ? p : Object.assign({}, p, { shop_id: SHOP_ID }));
-              }
-            }
+          if (!raw) return null;
+          var localP = JSON.parse(raw);
+          if (!localP || !localP.printer_type) return null;
+          if (localP.shop_id != null && Number(localP.shop_id) !== Number(SHOP_ID)) {
+            localStorage.removeItem(PRINTER_LS_KEY);
+            return null;
           }
-        } catch (e) {}
+          return Object.assign({}, localP, { shop_id: SHOP_ID });
+        } catch (e) {
+          return null;
+        }
+      }
+
+      /** Server is source of truth; cache in localStorage only mirrors GET /printer for this shop. */
+      function loadSavedPrinterProfile() {
         return fetch(PRINTER_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
           .then(function (r) {
             return r.json();
           })
           .then(function (j) {
-            if (!j || !j.ok || !j.printer) return null;
-            if (j.shop_id != null && Number(j.shop_id) !== Number(SHOP_ID)) return null;
-            return j.printer;
+            var sid = j && j.shop_id != null ? Number(j.shop_id) : Number(SHOP_ID);
+            if (!j || Number(sid) !== Number(SHOP_ID)) {
+              try {
+                localStorage.removeItem(PRINTER_LS_KEY);
+              } catch (e0) {}
+              return null;
+            }
+            if (!j.ok) {
+              return offlinePrinterProfileFromCache();
+            }
+            var serverP = j.printer || null;
+            if (serverP) {
+              var fp = printerProfileFingerprint(serverP);
+              try {
+                localStorage.setItem(
+                  PRINTER_LS_KEY,
+                  JSON.stringify(Object.assign({}, serverP, { shop_id: SHOP_ID, printer_fingerprint: fp }))
+                );
+              } catch (e1) {}
+              return serverP;
+            }
+            try {
+              localStorage.removeItem(PRINTER_LS_KEY);
+            } catch (e2) {}
+            return null;
           })
           .catch(function () {
-            return null;
+            return offlinePrinterProfileFromCache();
           });
       }
 
@@ -2810,16 +3238,17 @@
         return step();
       }
 
-      function printBluetoothEscPosReceipt(device, payload) {
+      function printBluetoothEscPosReceipt(device, payload, printOpts) {
+        printOpts = printOpts || {};
         if (!window.isSecureContext) {
           setAuthStatus("Bluetooth printing needs HTTPS (or localhost). Open the shop POS over a secure URL.", "error");
-          return Promise.resolve();
+          return Promise.reject(new Error("Bluetooth needs HTTPS"));
         }
         if (!device.gatt) {
           setAuthStatus("This Bluetooth device does not expose GATT (needed for thermal print).", "error");
-          return Promise.resolve();
+          return Promise.reject(new Error("No GATT"));
         }
-        var variants = receiptVariantsForCheckout();
+        var variants = printOpts.singleReceiptCopy ? ["customer"] : receiptVariantsForCheckout();
         var connectP = device.gatt.connected ? Promise.resolve() : device.gatt.connect();
         return connectP
           .then(function () {
@@ -2834,7 +3263,7 @@
                 "No writable print channel on this printer. Open printer setup, forget, and pair again (BLE services must be allowed).",
                 "error"
               );
-              return Promise.resolve();
+              return Promise.reject(new Error("No BLE print channel"));
             }
             function sendVariant(i) {
               if (i >= variants.length) return Promise.resolve();
@@ -2876,7 +3305,54 @@
           })
           .catch(function (e) {
             setAuthStatus((e && e.message) ? e.message : "Bluetooth thermal print failed.", "error");
+            return Promise.reject(e);
           });
+      }
+
+      /** Minimal receipt payload for manual “Test print” from printer setup (one slip). */
+      function makePrinterTestReceiptPayload() {
+        var site = window.POS_SITE || {};
+        var now = new Date().toLocaleString();
+        return {
+          receiptNo: "TEST",
+          printedAt: now,
+          shopName: site.shop_name || "Shop",
+          companyName: site.company_name || "",
+          shopCode: (site.shop_code || "").trim(),
+          shopLocation: (site.shop_location || "").trim(),
+          receiptLogoUrl: (site.receipt_logo_url || site.app_icon_url || "").trim(),
+          mode: "Printer test",
+          isQuotation: false,
+          customerName: "Test print",
+          customerPhone: "-",
+          employeeName: "—",
+          employeeCode: "",
+          lines: [
+            {
+              id: 0,
+              name: "Test slip — OK",
+              qty: 1,
+              price: 0,
+              total: 0,
+              listPrice: 0,
+              listTotal: 0,
+              lineDiscount: 0,
+              discounted: false,
+            },
+          ],
+          subtotal: 0,
+          discountTotal: 0,
+          hasDiscount: false,
+          taxAmount: 0,
+          taxPercent: 0,
+          grandTotal: 0,
+          includeTax: false,
+          paymentTypeLabel: "",
+          paymentDetailText: "",
+          receiptHeader: "",
+          receiptFooter: "",
+          creditDueDate: "",
+        };
       }
 
       function uint8ToBase64(u8) {
@@ -2943,7 +3419,172 @@
         }
         return sendVariant(0).catch(function (e) {
           setAuthStatus((e && e.message) ? e.message : "Network thermal print failed.", "error");
+          return Promise.reject(e);
         });
+      }
+
+      /** WebUSB: select configuration and claim first bulk OUT endpoint (thermal ESC/POS). */
+      function ensureUsbConfiguration(device) {
+        if (device.configuration) return Promise.resolve();
+        var confs = device.configurations;
+        if (!confs || !confs.length) {
+          return Promise.reject(new Error("USB printer has no configuration."));
+        }
+        var i = 0;
+        function tryNext() {
+          if (i >= confs.length) {
+            return Promise.reject(new Error("Could not activate USB printer (try reconnecting the cable)."));
+          }
+          var cv = confs[i].configurationValue;
+          i++;
+          return device.selectConfiguration(cv).catch(tryNext);
+        }
+        return tryNext();
+      }
+
+      function claimUsbBulkOut(device) {
+        var cfg = device.configuration;
+        if (!cfg) return Promise.reject(new Error("USB configuration not selected."));
+        var ifaceList = cfg.interfaces || [];
+        function tryIface(ii) {
+          if (ii >= ifaceList.length) {
+            return Promise.reject(
+              new Error("No USB bulk OUT endpoint. Use a direct USB thermal driver or set up network printing.")
+            );
+          }
+          var iface = ifaceList[ii];
+          var alts = iface.alternates || [];
+          function tryAlt(ai) {
+            if (ai >= alts.length) return tryIface(ii + 1);
+            var a = alts[ai];
+            var eps = (a && a.endpoints) || [];
+            var ep = null;
+            for (var k = 0; k < eps.length; k++) {
+              if (eps[k].type === "bulk" && eps[k].direction === "out") {
+                ep = eps[k];
+                break;
+              }
+            }
+            if (!ep) return tryAlt(ai + 1);
+            return device.claimInterface(iface.interfaceNumber).then(function () {
+              return { interfaceNumber: iface.interfaceNumber, endpointNumber: ep.endpointNumber };
+            });
+          }
+          return tryAlt(0);
+        }
+        return tryIface(0);
+      }
+
+      function releaseUsbPrinterInterface(device, interfaceNumber) {
+        if (!device || typeof interfaceNumber !== "number") return Promise.resolve();
+        return device
+          .releaseInterface(interfaceNumber)
+          .catch(function () {})
+          .then(function () {
+            if (device.opened) return device.close().catch(function () {});
+          });
+      }
+
+      function writeUsbBulkOut(device, endpointNumber, bytes) {
+        var chunk = 4096;
+        var offset = 0;
+        function step() {
+          if (offset >= bytes.length) return Promise.resolve();
+          var end = Math.min(offset + chunk, bytes.length);
+          var slice = bytes.subarray(offset, end);
+          return device.transferOut(endpointNumber, slice).then(function () {
+            offset = end;
+            return step();
+          });
+        }
+        return step();
+      }
+
+      /** Raw ESC/POS over WebUSB (saved bridge/type USB printers). */
+      function printUsbEscPosReceipt(usbCfg, payload) {
+        if (!window.isSecureContext) {
+          setAuthStatus("USB printing needs HTTPS (or localhost).", "error");
+          return Promise.resolve();
+        }
+        if (!navigator.usb) {
+          setAuthStatus("WebUSB is not available in this browser.", "error");
+          return Promise.resolve();
+        }
+        var vid = parseInt(usbCfg && usbCfg.vendorId, 10);
+        var pid = parseInt(usbCfg && usbCfg.productId, 10);
+        if (isNaN(vid) || isNaN(pid)) {
+          setAuthStatus("Invalid saved USB printer. Open printer setup and select the device again.", "error");
+          return Promise.resolve();
+        }
+        var variants = receiptVariantsForCheckout();
+        return navigator.usb
+          .getDevices()
+          .then(function (devices) {
+            var device = devices.filter(function (x) {
+              return x && x.vendorId === vid && x.productId === pid;
+            })[0];
+            if (!device) {
+              throw new Error(
+                "USB printer not found. Plug it in and open printer setup so the browser can access it again."
+              );
+            }
+            var openP = device.opened ? Promise.resolve() : device.open();
+            return openP
+              .then(function () {
+                return ensureUsbConfiguration(device);
+              })
+              .then(function () {
+                return claimUsbBulkOut(device);
+              })
+              .then(function (picked) {
+                function cleanup() {
+                  return releaseUsbPrinterInterface(device, picked.interfaceNumber);
+                }
+                function drainVariant(i) {
+                  if (i >= variants.length) return cleanup();
+                  var variant = variants[i];
+                  var S = receiptSettings();
+                  var qrTxt =
+                    variant !== "company" && receiptQrEnabled(S)
+                      ? buildReceiptQrPayloadStringEscPos(payload, S)
+                      : "";
+                  function writeBytes(qrRaster) {
+                    var bytes = buildEscPosReceiptBytes(payload, variant, qrRaster);
+                    return writeUsbBulkOut(device, picked.endpointNumber, bytes).then(function () {
+                      return delayPrintMs(i + 1 < variants.length ? 140 : 0).then(function () {
+                        return drainVariant(i + 1);
+                      });
+                    });
+                  }
+                  if (!qrTxt) return writeBytes();
+                  return fetch(QR_ESC_POS_API, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json", Accept: "application/octet-stream" },
+                    body: JSON.stringify({ text: qrTxt }),
+                  })
+                    .then(function (r) {
+                      if (!r.ok) throw new Error("qr");
+                      return r.arrayBuffer();
+                    })
+                    .then(function (ab) {
+                      return writeBytes(new Uint8Array(ab));
+                    })
+                    .catch(function () {
+                      return writeBytes();
+                    });
+                }
+                return drainVariant(0).catch(function (e) {
+                  return cleanup().then(function () {
+                    throw e;
+                  });
+                });
+              });
+          })
+          .catch(function (e) {
+            setAuthStatus((e && e.message) ? e.message : "USB thermal print failed.", "error");
+            return Promise.reject(e);
+          });
       }
 
       /** @param {"thermal"|"normal"} printMode — thermal: narrow roll preview; normal: A4/system print dialog */
@@ -3058,7 +3699,13 @@
         }
         if (!isCompany) {
           metaRows +=
-            "<div class='row'><span>Type</span><span class='b'>" + receiptEsc(payload.mode) + "</span></div>" +
+            "<div class='row'><span>Type</span><span class='b'>" + receiptEsc(payload.mode) + "</span></div>";
+          var dueHtml = (payload.creditDueDate || "").trim();
+          if (dueHtml && String(payload.mode || "").toLowerCase().indexOf("credit") !== -1) {
+            metaRows +=
+              "<div class='row'><span>Pay by</span><span class='b'>" + receiptEsc(dueHtml) + "</span></div>";
+          }
+          metaRows +=
             "<div class='row'><span>Customer</span><span>" +
             receiptEsc(payload.customerName) +
             "</span></div>" +
@@ -3139,10 +3786,10 @@
           if (qrDataN) {
             var encN = encodeURIComponent(qrDataN);
             qrBlock =
-              "<div class='sep'></div><div class='c' style='margin:8px 0'><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=" +
+              "<div class='sep'></div><div class='c' style='margin:6px 0;display:flex;flex-direction:column;align-items:center;width:100%'><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=" +
               encN +
-              "\" alt=\"\" width=\"160\" height=\"160\" style=\"width:160px;height:160px;object-fit:contain\" /></div>" +
-              "<div class='c mut' style='font-size:10px'>Scan for receipt details</div>";
+              "\" alt=\"\" width=\"96\" height=\"96\" style=\"display:block;width:96px;height:96px;object-fit:contain;margin:0 auto\" /></div>" +
+              "<div class='c mut' style='font-size:10px;text-align:center;width:100%'>Scan for receipt details</div>";
           }
         }
 
@@ -3310,37 +3957,139 @@
         return step(0);
       }
 
-      function runConfiguredPrinterAction(payload) {
-        var pp = window.POS_PRINTING || {};
-        return loadSavedPrinterProfile().then(function (saved) {
-          var pt = saved ? (saved.printer_type || "").toLowerCase() : "";
-          var cfg = saved && saved.config ? saved.config : null;
-          var host = cfg && (cfg.host || "").trim();
+      function normalizePrinterConfig(raw) {
+        if (raw == null) return null;
+        if (typeof raw === "string") {
+          try {
+            return JSON.parse(raw) || null;
+          } catch (e) {
+            return null;
+          }
+        }
+        return typeof raw === "object" ? raw : null;
+      }
 
-          if (saved && pt === "network" && host && pp.printer_allow_network !== false) {
-            return printNetworkEscPosReceipt(payload);
-          }
+      /**
+       * Bluetooth ids from server profile and/or offline cache (e.g. network primary on server but BT still in cache).
+       */
+      function getBluetoothConfigCandidates(saved) {
+        var seen = {};
+        var out = [];
+        function add(cfg) {
+          cfg = normalizePrinterConfig(cfg);
+          if (!cfg || !cfg.bluetoothId) return;
+          var id = String(cfg.bluetoothId);
+          if (seen[id]) return;
+          seen[id] = 1;
+          out.push(cfg);
+        }
+        if (saved && String(saved.printer_type || "").toLowerCase() === "bluetooth") {
+          add(saved.config);
+        }
+        var loc = offlinePrinterProfileFromCache();
+        if (loc && String(loc.printer_type || "").toLowerCase() === "bluetooth") {
+          add(loc.config);
+        }
+        return out;
+      }
 
-          var isBt =
-            saved &&
-            pt === "bluetooth" &&
-            cfg &&
-            cfg.bluetoothId;
-          if (!isBt || pp.printer_allow_bluetooth === false) {
-            return printReceiptCopies(payload, printThermalReceipt);
+      /** Silent ESC/POS over Web Bluetooth — no browser print dialog. Tries each saved device id until one works. */
+      function tryBluetoothEscPosSilent(payload, pp, candidates) {
+        if (pp.printer_allow_bluetooth === false) {
+          return Promise.reject(new Error("Bluetooth printing disabled"));
+        }
+        if (!window.isSecureContext || !navigator.bluetooth) {
+          return Promise.reject(new Error("Web Bluetooth unavailable"));
+        }
+        if (!candidates || !candidates.length) {
+          return Promise.reject(new Error("No saved Bluetooth printer"));
+        }
+        var idx = 0;
+        function attempt() {
+          if (idx >= candidates.length) {
+            return Promise.reject(new Error("Bluetooth printers unavailable"));
           }
-          if (!window.isSecureContext || !navigator.bluetooth) {
-            return printReceiptCopies(payload, printThermalReceipt);
-          }
+          var cfg = candidates[idx++];
           return getBluetoothDeviceForEscPos(cfg)
             .then(function (device) {
               return printBluetoothEscPosReceipt(device, payload);
             })
             .catch(function () {
-              return printReceiptCopies(payload, printThermalReceipt);
+              return attempt();
             });
+        }
+        return attempt();
+      }
+
+      function printBrowserThermalDialog(payload) {
+        return printReceiptCopies(payload, printThermalReceipt);
+      }
+
+      /** After checkout: try silent direct print; only open the system print dialog if nothing else worked. */
+      function runConfiguredPrinterAction(payload) {
+        var pp = window.POS_PRINTING || {};
+        return loadSavedPrinterProfile().then(function (saved) {
+          var pt = saved ? String(saved.printer_type || "").toLowerCase() : "";
+          var cfg = saved ? normalizePrinterConfig(saved.config) : null;
+          var host = cfg && String(cfg.host || "").trim();
+
+          function fallbackBrowserOrBluetooth() {
+            var cands = getBluetoothConfigCandidates(saved);
+            return tryBluetoothEscPosSilent(payload, pp, cands).catch(function () {
+              return printBrowserThermalDialog(payload);
+            });
+          }
+
+          if (saved && pt === "network" && host && pp.printer_allow_network !== false) {
+            return printNetworkEscPosReceipt(payload).catch(function () {
+              return fallbackBrowserOrBluetooth();
+            });
+          }
+
+          var usbVid = cfg != null ? parseInt(cfg.vendorId, 10) : NaN;
+          var usbPid = cfg != null ? parseInt(cfg.productId, 10) : NaN;
+          var isUsb =
+            saved &&
+            pt === "usb" &&
+            cfg != null &&
+            !isNaN(usbVid) &&
+            !isNaN(usbPid) &&
+            pp.printer_allow_usb !== false;
+          if (isUsb && navigator.usb) {
+            return printUsbEscPosReceipt(cfg, payload).catch(function () {
+              return fallbackBrowserOrBluetooth();
+            });
+          }
+
+          if (saved && pt === "bluetooth" && cfg && cfg.bluetoothId) {
+            return tryBluetoothEscPosSilent(payload, pp, getBluetoothConfigCandidates(saved)).catch(function () {
+              return printBrowserThermalDialog(payload);
+            });
+          }
+
+          return fallbackBrowserOrBluetooth();
         });
       }
+
+      function prewarmSavedBluetoothPrinter() {
+        var pp = window.POS_PRINTING || {};
+        if (pp.printer_allow_bluetooth === false) return;
+        if (!window.isSecureContext || !navigator.bluetooth || typeof navigator.bluetooth.getDevices !== "function") {
+          return;
+        }
+        loadSavedPrinterProfile()
+          .then(function (saved) {
+            var cands = getBluetoothConfigCandidates(saved);
+            if (!cands.length) return null;
+            return getBluetoothDeviceForEscPos(cands[0]);
+          })
+          .then(function (dev) {
+            if (dev && dev.gatt && !dev.gatt.connected) return dev.gatt.connect();
+          })
+          .catch(function () {});
+      }
+
+      setTimeout(prewarmSavedBluetoothPrinter, 700);
 
       document.addEventListener("click", function (e) {
         var btn = e.target.closest(".pos-qty-btn");
@@ -3382,6 +4131,9 @@
         if (noRes) {
           noRes.classList.toggle("hidden", any || !q);
         }
+        document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
+          updatePosCatStripScrollUi(strip);
+        });
       }
       if (searchEl) {
         searchEl.addEventListener("input", runSearch);
@@ -3395,6 +4147,61 @@
           if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       });
+
+      function updatePosCatStripScrollUi(strip) {
+        var wrap = strip.closest(".pos-cat-strip-outer");
+        if (!wrap) return;
+        var maxScroll = strip.scrollWidth - strip.clientWidth;
+        var noHop = maxScroll <= 4;
+        wrap.classList.toggle("pos-cat-strip--no-horizontal-scroll", noHop);
+        var prev = wrap.querySelector(".pos-cat-scroll-prev");
+        var next = wrap.querySelector(".pos-cat-scroll-next");
+        var left = strip.scrollLeft;
+        if (prev) prev.disabled = noHop || left <= 2;
+        if (next) next.disabled = noHop || left >= maxScroll - 2;
+      }
+
+      function initPosCategoryScrollStrips() {
+        document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
+          strip.addEventListener("scroll", function () {
+            updatePosCatStripScrollUi(strip);
+          });
+        });
+        document.querySelectorAll(".pos-cat-scroll-btn").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var wrap = btn.closest(".pos-cat-strip-outer");
+            var strip = wrap && wrap.querySelector(".pos-item-scroll");
+            if (!strip) return;
+            var dir = parseInt(btn.getAttribute("data-pos-scroll-dir") || "0", 10) || 0;
+            var step = Math.max(220, Math.floor(strip.clientWidth * 0.72));
+            strip.scrollBy({ left: step * dir, behavior: "smooth" });
+            window.setTimeout(function () {
+              updatePosCatStripScrollUi(strip);
+            }, 380);
+          });
+        });
+        function refreshAllStrips() {
+          document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(updatePosCatStripScrollUi);
+        }
+        window.addEventListener("resize", refreshAllStrips);
+        window.addEventListener("orientationchange", refreshAllStrips);
+        window.addEventListener("load", refreshAllStrips);
+        if (typeof ResizeObserver !== "undefined") {
+          document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
+            var ro = new ResizeObserver(function () {
+              updatePosCatStripScrollUi(strip);
+            });
+            ro.observe(strip);
+          });
+        }
+        requestAnimationFrame(function () {
+          requestAnimationFrame(refreshAllStrips);
+        });
+      }
+
+      initPosCategoryScrollStrips();
 
       var clearBtn = document.getElementById("pos-cart-clear");
       if (clearBtn) {
@@ -3488,7 +4295,7 @@
 
       var drawer = document.getElementById("pos-cart-drawer");
       var backdrop = document.getElementById("pos-cart-backdrop");
-      var toggle = document.getElementById("pos-cart-toggle");
+      var cartTriggers = document.querySelectorAll(".pos-cart-open-trigger");
       var closeBtn = document.getElementById("pos-cart-close");
       var CART_MS = 360;
       var cartUiOpen = false;
@@ -3508,15 +4315,17 @@
             backdrop.classList.add("is-visible");
             setBodyScrollLock(true);
           });
-          if (toggle) {
-            toggle.setAttribute("aria-expanded", "true");
-          }
+          cartTriggers.forEach(function (t) {
+            t.setAttribute("aria-expanded", "true");
+          });
         } else {
           drawer.classList.remove("is-open");
           backdrop.classList.remove("is-visible");
           backdrop.setAttribute("aria-hidden", "true");
           setBodyScrollLock(false);
-          if (toggle) toggle.setAttribute("aria-expanded", "false");
+          cartTriggers.forEach(function (t) {
+            t.setAttribute("aria-expanded", "false");
+          });
           setTimeout(function () {
             drawer.hidden = true;
           }, CART_MS);
@@ -3527,7 +4336,9 @@
         setCartOpen(!cartUiOpen);
       }
 
-      if (toggle) toggle.addEventListener("click", toggleCart);
+      cartTriggers.forEach(function (btn) {
+        btn.addEventListener("click", toggleCart);
+      });
       if (closeBtn) closeBtn.addEventListener("click", function () {
         setCartOpen(false);
       });
@@ -3734,6 +4545,10 @@
       clearAuthorization();
       setCustomerLookupStatus("Enter phone first to check registered customer.", "muted");
       render();
+
+      window.richcomPosPrinterRunTestPrint = function () {
+        return runConfiguredPrinterAction(makePrinterTestReceiptPayload());
+      };
     })();
   </script>
   <script>
@@ -4511,7 +5326,34 @@
           .catch(function () {});
       }
 
+      function printerCacheFingerprintRow(p) {
+        if (!p || !p.printer_type) return "";
+        var t = (p.printer_type || "").toLowerCase();
+        var c = p.config || {};
+        if (typeof c === "string") {
+          try {
+            c = JSON.parse(c) || {};
+          } catch (e) {
+            c = {};
+          }
+        }
+        if (t === "bluetooth") return "bt:" + String(c.bluetoothId || "");
+        if (t === "network") {
+          var h = String(c.host || "").trim().toLowerCase();
+          var po = c.port != null && c.port !== "" ? String(c.port) : "9100";
+          return "net:" + h + ":" + po;
+        }
+        if (t === "usb") {
+          var vid = parseInt(c.vendorId, 10);
+          var pid = parseInt(c.productId, 10);
+          if (isNaN(vid) || isNaN(pid)) return "usb:invalid";
+          return "usb:" + vid + ":" + pid + ":" + String(c.serialNumber || "").trim();
+        }
+        return t;
+      }
+
       function refreshSaved() {
+        var testBtn = document.getElementById("pos-printer-test-print");
         fetch(PRINTER_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
           .then(function (r) {
             return r.json();
@@ -4524,6 +5366,10 @@
             if (!p) {
               savedBox.classList.add("hidden");
               savedBox.textContent = "";
+              if (testBtn) {
+                testBtn.disabled = true;
+                testBtn.title = "Save a printer first";
+              }
               refreshPrintAgentStatus();
               return;
             }
@@ -4535,8 +5381,16 @@
               ")";
             savedBox.innerHTML = line;
             savedBox.classList.remove("hidden");
+            if (testBtn) {
+              testBtn.disabled = false;
+              testBtn.title = "Send a one-line test receipt to your saved printer";
+            }
             try {
-              localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, p, { shop_id: SHOP_ID })));
+              var fp = printerCacheFingerprintRow(p);
+              localStorage.setItem(
+                LS_KEY,
+                JSON.stringify(Object.assign({}, p, { shop_id: SHOP_ID, printer_fingerprint: fp }))
+              );
             } catch (e) {}
             if ((p.printer_type || "").toLowerCase() === "network") {
               refreshPrintAgentStatus();
@@ -4546,6 +5400,11 @@
             syncPrinterHeaderButton(false, null);
             if (savedBox) {
               savedBox.classList.add("hidden");
+            }
+            var tb = document.getElementById("pos-printer-test-print");
+            if (tb) {
+              tb.disabled = true;
+              tb.title = "Save a printer first";
             }
           });
       }
@@ -4576,7 +5435,7 @@
               }
               if (d.gatt) {
                 return d.gatt.connect().then(function () {
-                  msg("Connected to " + (d.name || d.id) + ".");
+                  msg("Connected to " + (d.name || d.id) + ". Use Print test receipt when ready.");
                 });
               }
               msg("Device found: " + (d.name || d.id));
@@ -4722,6 +5581,28 @@
       document.getElementById("pos-printer-usb-retry") &&
         document.getElementById("pos-printer-usb-retry").addEventListener("click", function () {
           pickUsbAndSave();
+        });
+
+      document.getElementById("pos-printer-test-print") &&
+        document.getElementById("pos-printer-test-print").addEventListener("click", function () {
+          if (typeof window.richcomPosPrinterRunTestPrint !== "function") {
+            msg("Could not start test print. Refresh the page and try again.");
+            return;
+          }
+          var btn = document.getElementById("pos-printer-test-print");
+          if (btn) btn.disabled = true;
+          msg("Sending test receipt…");
+          window
+            .richcomPosPrinterRunTestPrint()
+            .then(function () {
+              msg("Test print sent. Check the printer or the browser print dialog.");
+            })
+            .catch(function (e) {
+              msg((e && e.message) || String(e));
+            })
+            .finally(function () {
+              refreshSaved();
+            });
         });
 
       document.getElementById("pos-printer-clear-saved") &&

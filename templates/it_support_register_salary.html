@@ -1,0 +1,573 @@
+{% extends "employee_layout.html" %}
+{% block title %}Payroll — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Payroll register{% endblock %}
+{% block sidebar_links %}
+  {% set salaries_nav = 'register' %}
+  {% include "partials/it_support_salaries_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    .payroll-page {
+      --payroll-accent: 16 185 129;
+      --payroll-accent2: 14 165 233;
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.08), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.06), transparent 45%);
+    }
+    .dark .payroll-page {
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.12), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.1), transparent 45%);
+    }
+    @keyframes payroll-shimmer {
+      0% {
+        background-position: 0% 50%;
+      }
+      100% {
+        background-position: 200% 50%;
+      }
+    }
+    .payroll-hero-bar {
+      background: linear-gradient(
+        90deg,
+        rgb(var(--payroll-accent) / 0.85),
+        rgb(var(--payroll-accent2) / 0.75),
+        rgb(var(--payroll-accent) / 0.65)
+      );
+      background-size: 200% auto;
+      animation: payroll-shimmer 8s ease infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .payroll-hero-bar {
+        animation: none;
+      }
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  {% set pm = request.form.get('preferred_payment_method', '') %}
+  {% set payroll_form_open = request.method == 'POST' %}
+  {% set ns_sum = namespace(gross=0.0) %}
+  {% for p in (recent_payroll or []) %}
+    {% set ns_sum.gross = ns_sum.gross + (p.gross_amount | float) %}
+  {% endfor %}
+  <div class="payroll-page -mx-4 rounded-2xl px-4 py-6 sm:-mx-6 sm:px-6 md:py-8">
+    <div class="mx-auto max-w-5xl space-y-8">
+      {# Hero #}
+      <header class="relative overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg shadow-black/5 ring-1 ring-white/5 dark:shadow-black/30">
+        <div class="payroll-hero-bar h-1.5 w-full" aria-hidden="true"></div>
+        <div class="flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-8">
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Payroll · Compensation</p>
+            <h1 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-3xl">Run payroll</h1>
+            <p class="mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Capture gross pay, cadence, and effective dates. Payout routes (M-Pesa, bank, or cash) stay in sync with each save. Open
+              <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Register</span> when you&rsquo;re ready to add a line.
+            </p>
+          </div>
+          {% if employees %}
+            <button
+              type="button"
+              id="register-payroll-toggle"
+              class="group inline-flex shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition hover:from-emerald-400 hover:to-teal-500 hover:shadow-emerald-400/30 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[rgb(var(--rc-surface))]"
+              aria-expanded="{{ 'true' if payroll_form_open else 'false' }}"
+              aria-controls="register-payroll-panel"
+            >
+              <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm transition group-hover:bg-white/25" aria-hidden="true">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </span>
+              New payroll entry
+            </button>
+          {% endif %}
+        </div>
+
+        {# Metric strip #}
+        <div class="grid grid-cols-1 divide-y divide-[rgb(var(--rc-border))] border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div class="flex items-center gap-4 px-6 py-4 sm:py-5">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-300" aria-hidden="true">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </span>
+            <div>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Active roster</p>
+              <p class="text-xl font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ (employees or [])|length }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 px-6 py-4 sm:py-5">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/20 dark:text-sky-300" aria-hidden="true">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </span>
+            <div>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Ledger lines</p>
+              <p class="text-xl font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ (recent_payroll or [])|length }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 px-6 py-4 sm:py-5">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 ring-1 ring-amber-500/20 dark:text-amber-300" aria-hidden="true">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            <div>
+              <p class="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Volume (shown)</p>
+              <p class="text-xl font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">
+                {% if recent_payroll %}{{ '%.2f'|format(ns_sum.gross) }}{% else %}—{% endif %}
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {% include "partials/flashes.html" %}
+
+      {# Form shell #}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-md shadow-black/5 ring-1 ring-white/5 dark:shadow-black/25 sm:p-8">
+        {% if not employees %}
+          <div class="flex gap-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-5 dark:bg-amber-500/10">
+            <span class="text-amber-600 dark:text-amber-400" aria-hidden="true">
+              <svg class="h-8 w-8 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </span>
+            <div>
+              <p class="font-semibold text-[rgb(var(--rc-page-fg))]">No active employees</p>
+              <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Approve staff in HR management before you can register payroll.</p>
+            </div>
+          </div>
+        {% else %}
+          <div
+            id="register-payroll-hint"
+            class="flex items-start gap-4 rounded-2xl border border-dashed border-emerald-500/35 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 p-5 {% if payroll_form_open %}hidden{% endif %}"
+          >
+            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-400/25 dark:text-emerald-300" aria-hidden="true">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-[rgb(var(--rc-page-fg))]">Ready when you are</p>
+              <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+                Tap <span class="font-semibold text-emerald-600 dark:text-emerald-400">New payroll entry</span> above to open the form. HR payout profiles pre-fill when you pick an employee.
+              </p>
+            </div>
+          </div>
+
+          <div
+            id="register-payroll-panel"
+            class="{% if not payroll_form_open %}hidden{% endif %} mt-8 border-t border-[rgb(var(--rc-border))] pt-8"
+          >
+            <div class="mb-6 flex items-center gap-3">
+              <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgb(var(--rc-surface-2))] text-emerald-600 ring-1 ring-[rgb(var(--rc-border))] dark:text-emerald-400" aria-hidden="true">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </span>
+              <div>
+                <h2 class="text-lg font-bold text-[rgb(var(--rc-page-fg))]">Payroll entry form</h2>
+                <p class="text-xs text-[rgb(var(--rc-muted))]">All fields required except notes.</p>
+              </div>
+            </div>
+
+            <form method="post" action="{{ url_for('it_support_register_salary') }}" class="space-y-6" id="register-payroll-form">
+              <div class="grid gap-6 lg:grid-cols-2">
+                <div class="space-y-2">
+                  <label for="employee_id" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Employee</label>
+                  <select
+                    id="employee_id"
+                    name="employee_id"
+                    required
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] shadow-inner shadow-black/5 outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                  >
+                    <option value="" disabled {% if not request.form.get('employee_id') %}selected{% endif %}>Select employee</option>
+                    {% for e in employees %}
+                      <option
+                        value="{{ e.id }}"
+                        {% if request.form.get('employee_id')|string == e.id|string %}selected{% endif %}
+                      >
+                        {{ e.full_name }} — {{ e.employee_code }} ({{ (e.role or '')|replace('_', ' ') }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="relative overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface-2))]/80 to-[rgb(var(--rc-surface))] p-5 shadow-inner shadow-black/[0.03] ring-1 ring-emerald-500/10 dark:from-[rgb(var(--rc-surface-2))]/50 dark:ring-emerald-400/10">
+                <div class="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-emerald-500 to-teal-500" aria-hidden="true"></div>
+                <div class="pl-3">
+                  <div class="flex items-center gap-2">
+                    <span class="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Payout</span>
+                    <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Method &amp; routing</p>
+                  </div>
+                  <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+                    M-Pesa prefills from the employee mobile on file when needed. Bank requires institution + account.
+                  </p>
+                  <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div class="sm:col-span-2 space-y-2">
+                      <label for="reg-preferred-payment" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment method</label>
+                      <select
+                        id="reg-preferred-payment"
+                        name="preferred_payment_method"
+                        required
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                      >
+                        <option value="" disabled {% if not pm %}selected{% endif %}>Select method</option>
+                        <option value="mpesa" {% if pm == 'mpesa' %}selected{% endif %}>M-Pesa</option>
+                        <option value="bank" {% if pm == 'bank' %}selected{% endif %}>Bank</option>
+                        <option value="cash" {% if pm == 'cash' %}selected{% endif %}>Cash</option>
+                      </select>
+                    </div>
+                    <p id="reg-payment-cash-hint" class="hidden sm:col-span-2 text-xs italic text-[rgb(var(--rc-muted))]">
+                      Cash — no routing details stored.
+                    </p>
+                    <div id="reg-payment-bank-wrap" class="hidden sm:col-span-2 space-y-2">
+                      <label for="reg-payment-bank" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Bank name</label>
+                      <input
+                        type="text"
+                        id="reg-payment-bank"
+                        name="payment_bank_or_provider"
+                        value="{{ request.form.get('payment_bank_or_provider', '') }}"
+                        maxlength="120"
+                        autocomplete="off"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                        placeholder="e.g. Equity Bank, KCB"
+                      />
+                    </div>
+                    <div id="reg-payment-number-wrap" class="hidden space-y-2 sm:col-span-2">
+                      <label for="reg-payment-number" id="reg-payment-number-label" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">M-Pesa phone / bank account</label>
+                      <input
+                        type="text"
+                        id="reg-payment-number"
+                        name="payment_account_number"
+                        value="{{ request.form.get('payment_account_number', '') }}"
+                        maxlength="128"
+                        autocomplete="off"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                        placeholder="Phone number or account number"
+                      />
+                    </div>
+                    <div id="reg-payment-holder-wrap" class="hidden space-y-2 sm:col-span-2">
+                      <label for="reg-payment-holder" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Account name (optional)</label>
+                      <input
+                        type="text"
+                        id="reg-payment-holder"
+                        name="payment_account_holder"
+                        value="{{ request.form.get('payment_account_holder', '') }}"
+                        maxlength="200"
+                        autocomplete="off"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                        placeholder="Name on the bank account"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid gap-6 md:grid-cols-2">
+                <div class="space-y-2">
+                  <label for="gross_amount" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Gross amount</label>
+                  <input
+                    id="gross_amount"
+                    name="gross_amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    value="{{ request.form.get('gross_amount', '') }}"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm tabular-nums text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                    placeholder="0.00"
+                  />
+                  <p class="text-[11px] text-[rgb(var(--rc-muted))]">Per period — before statutory deductions.</p>
+                </div>
+                <div class="space-y-2">
+                  <label for="pay_frequency" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Pay frequency</label>
+                  <select
+                    id="pay_frequency"
+                    name="pay_frequency"
+                    required
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                  >
+                    {% set f = request.form.get('pay_frequency') or 'monthly' %}
+                    <option value="monthly" {% if f == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="biweekly" {% if f == 'biweekly' %}selected{% endif %}>Biweekly</option>
+                    <option value="weekly" {% if f == 'weekly' %}selected{% endif %}>Weekly</option>
+                    <option value="daily" {% if f == 'daily' %}selected{% endif %}>Daily</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid gap-6 md:grid-cols-2">
+                <div class="space-y-2">
+                  <label for="effective_from" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Effective from</label>
+                  <input
+                    id="effective_from"
+                    name="effective_from"
+                    type="date"
+                    required
+                    value="{{ request.form.get('effective_from', '') }}"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25"
+                  />
+                </div>
+                <div class="space-y-2 md:col-span-1">
+                  <label for="notes" class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Notes <span class="font-normal normal-case">(optional)</span></label>
+                  <textarea
+                    id="notes"
+                    name="notes"
+                    rows="3"
+                    maxlength="500"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/25 md:min-h-[5.5rem]"
+                    placeholder="Approval ref., contract version…"
+                  >{{ request.form.get('notes', '') }}</textarea>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+                <button type="submit" class="btn-rc btn-rc-primary inline-flex items-center gap-2 rounded-xl px-8 py-3 text-sm font-bold shadow-lg shadow-brand-500/20">
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Post payroll
+                </button>
+                <button type="button" id="register-payroll-close" class="btn-rc btn-rc-ghost rounded-xl px-6 py-3 text-sm font-semibold">
+                  Close form
+                </button>
+              </div>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+
+      {# Ledger #}
+      <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg shadow-black/5 ring-1 ring-white/5 dark:shadow-black/25">
+        <div class="flex flex-col gap-1 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-6 py-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Ledger</p>
+            <h2 class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">Registered payrolls</h2>
+            <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Latest compensation lines you&rsquo;ve posted (newest first).</p>
+          </div>
+          {% if recent_payroll %}
+            <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-300">
+              {{ (recent_payroll or [])|length }} record{% if (recent_payroll or [])|length != 1 %}s{% endif %} shown
+            </span>
+          {% endif %}
+        </div>
+
+        {% if recent_payroll %}
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/30 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                  <th class="px-6 py-4">Employee</th>
+                  <th class="px-3 py-4">Code</th>
+                  <th class="px-3 py-4 text-right">Gross</th>
+                  <th class="px-3 py-4">Cadence</th>
+                  <th class="px-3 py-4">Effective</th>
+                  <th class="px-6 py-4">Posted</th>
+                </tr>
+              </thead>
+              <tbody class="text-[rgb(var(--rc-page-fg))]">
+                {% for p in recent_payroll %}
+                  <tr class="border-b border-[rgb(var(--rc-border))]/50 transition hover:bg-[rgb(var(--rc-surface-2))]/40">
+                    <td class="px-6 py-4 font-semibold">{{ p.full_name }}</td>
+                    <td class="px-3 py-4">
+                      <span class="rounded-md bg-[rgb(var(--rc-surface-2))] px-2 py-1 font-mono text-xs text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">{{ p.employee_code }}</span>
+                    </td>
+                    <td class="px-3 py-4 text-right font-mono text-base font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ '%.2f'|format(p.gross_amount|float) }}</td>
+                    <td class="px-3 py-4">
+                      {% set cad = (p.pay_frequency or '')|lower %}
+                      <span
+                        class="inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ring-1
+                        {% if cad == 'monthly' %}bg-sky-500/10 text-sky-700 ring-sky-500/20 dark:text-sky-300
+                        {% elif cad == 'weekly' %}bg-violet-500/10 text-violet-700 ring-violet-500/20 dark:text-violet-300
+                        {% elif cad == 'biweekly' %}bg-indigo-500/10 text-indigo-700 ring-indigo-500/20 dark:text-indigo-300
+                        {% elif cad == 'daily' %}bg-rose-500/10 text-rose-700 ring-rose-500/20 dark:text-rose-300
+                        {% else %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] ring-[rgb(var(--rc-border))]{% endif %}"
+                      >
+                        {{ (p.pay_frequency or '')|title }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-4 text-[rgb(var(--rc-muted))]">{{ p.effective_from }}</td>
+                    <td class="px-6 py-4 text-xs text-[rgb(var(--rc-muted))]">{{ p.registered_at }}</td>
+                  </tr>
+                  {% if p.notes %}
+                    <tr class="border-b border-[rgb(var(--rc-border))]/50 bg-[rgb(var(--rc-surface-2))]/20">
+                      <td colspan="6" class="px-6 pb-4 pt-0 text-xs italic text-[rgb(var(--rc-muted))]">
+                        <span class="font-semibold not-italic text-[rgb(var(--rc-page-fg))]">Note:</span> {{ p.notes }}
+                      </td>
+                    </tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="px-6 py-14 text-center">
+            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]" aria-hidden="true">
+              <svg class="h-8 w-8 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </span>
+            <p class="mt-5 font-semibold text-[rgb(var(--rc-page-fg))]">No payroll lines yet</p>
+            <p class="mx-auto mt-2 max-w-sm text-sm text-[rgb(var(--rc-muted))]">
+              Your ledger will fill in as you post entries. Use <span class="font-semibold text-emerald-600 dark:text-emerald-400">New payroll entry</span> to begin.
+            </p>
+          </div>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+  {% if employees %}
+    <script type="application/json" id="rc-emp-pay-json">{{ employees | tojson | safe }}</script>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  {% if employees %}
+    <script>
+      (function () {
+        var el = document.getElementById("rc-emp-pay-json");
+        var empSel = document.getElementById("employee_id");
+        var payM = document.getElementById("reg-preferred-payment");
+        if (!el || !empSel || !payM) return;
+        var list = [];
+        try {
+          list = JSON.parse(el.textContent || "[]");
+        } catch (e) {
+          return;
+        }
+        var bankW = document.getElementById("reg-payment-bank-wrap");
+        var numW = document.getElementById("reg-payment-number-wrap");
+        var numLbl = document.getElementById("reg-payment-number-label");
+        var holdW = document.getElementById("reg-payment-holder-wrap");
+        var cashH = document.getElementById("reg-payment-cash-hint");
+        var bankIn = document.getElementById("reg-payment-bank");
+        var numIn = document.getElementById("reg-payment-number");
+        var holdIn = document.getElementById("reg-payment-holder");
+
+        function syncRegPayout() {
+          if (!bankW || !numW || !numLbl || !holdW || !cashH || !bankIn || !numIn || !holdIn) return;
+          var m = (payM.value || "").toLowerCase();
+          bankW.classList.add("hidden");
+          numW.classList.add("hidden");
+          holdW.classList.add("hidden");
+          cashH.classList.add("hidden");
+          bankIn.removeAttribute("required");
+          numIn.removeAttribute("required");
+          if (!m) return;
+          if (m === "cash") {
+            cashH.classList.remove("hidden");
+            return;
+          }
+          if (m === "mpesa") {
+            numW.classList.remove("hidden");
+            numLbl.textContent = "M-Pesa phone number";
+            numIn.setAttribute("required", "required");
+            fillMpesaPhoneFromProfileIfEmpty();
+            return;
+          }
+          if (m === "bank") {
+            bankW.classList.remove("hidden");
+            numW.classList.remove("hidden");
+            holdW.classList.remove("hidden");
+            numLbl.textContent = "Bank account number";
+            bankIn.setAttribute("required", "required");
+            numIn.setAttribute("required", "required");
+          }
+        }
+
+        function prefillFromEmployee() {
+          var id = empSel.value;
+          var emp = list.find(function (x) {
+            return String(x.id) === String(id);
+          });
+          if (!emp) {
+            payM.value = "";
+            bankIn.value = "";
+            numIn.value = "";
+            holdIn.value = "";
+            syncRegPayout();
+            return;
+          }
+          var method = (emp.preferred_payment_method || "").trim().toLowerCase();
+          if (method === "bank_transfer") method = "bank";
+          if (method === "mobile_money") method = "mpesa";
+          if (method === "other") method = "";
+          payM.value = method === "mpesa" || method === "bank" || method === "cash" ? method : "";
+          bankIn.value = emp.payment_bank_or_provider || "";
+          numIn.value = (emp.payment_account_number || "").trim();
+          if (payM.value === "mpesa" && !numIn.value) {
+            numIn.value = (emp.phone || "").trim();
+          }
+          holdIn.value = emp.payment_account_holder || "";
+          syncRegPayout();
+        }
+
+        function fillMpesaPhoneFromProfileIfEmpty() {
+          if (!empSel.value || (payM.value || "").toLowerCase() !== "mpesa") return;
+          if ((numIn.value || "").trim()) return;
+          var emp = list.find(function (x) {
+            return String(x.id) === String(empSel.value);
+          });
+          if (emp) numIn.value = (emp.phone || "").trim();
+        }
+
+        var panel = document.getElementById("register-payroll-panel");
+        var toggleBtn = document.getElementById("register-payroll-toggle");
+        var closeBtn = document.getElementById("register-payroll-close");
+        var hint = document.getElementById("register-payroll-hint");
+
+        function setRegisterPanelOpen(open) {
+          if (!panel || !toggleBtn) return;
+          if (open) {
+            panel.classList.remove("hidden");
+            toggleBtn.setAttribute("aria-expanded", "true");
+            if (hint) hint.classList.add("hidden");
+          } else {
+            panel.classList.add("hidden");
+            toggleBtn.setAttribute("aria-expanded", "false");
+            if (hint) hint.classList.remove("hidden");
+          }
+        }
+
+        if (toggleBtn && panel) {
+          toggleBtn.addEventListener("click", function () {
+            var opening = panel.classList.contains("hidden");
+            if (opening) {
+              setRegisterPanelOpen(true);
+              if (empSel.value) {
+                if (!payM.value) prefillFromEmployee();
+                else syncRegPayout();
+              } else {
+                syncRegPayout();
+              }
+              window.requestAnimationFrame(function () {
+                var first = document.getElementById("employee_id");
+                if (first) first.focus();
+              });
+            } else {
+              setRegisterPanelOpen(false);
+            }
+          });
+        }
+        if (closeBtn) {
+          closeBtn.addEventListener("click", function () {
+            setRegisterPanelOpen(false);
+          });
+        }
+
+        payM.addEventListener("change", syncRegPayout);
+        empSel.addEventListener("change", prefillFromEmployee);
+        syncRegPayout();
+        if (empSel.value) {
+          if (!payM.value) prefillFromEmployee();
+          else syncRegPayout();
+        }
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

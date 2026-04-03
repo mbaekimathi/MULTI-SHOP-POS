@@ -1,0 +1,14 @@
+{% extends "employee_layout.html" %}
+{% block title %}Register loan — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Register loan{% endblock %}
+{% block sidebar_links %}
+  {% set salaries_nav = 'loan' %}
+  {% include "partials/it_support_salaries_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-3xl">
+    <div class="rounded-2xl border border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-6 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">
+      Register loan — forms and workflows can be connected here.
+    </div>
+  </div>
+{% endblock %}

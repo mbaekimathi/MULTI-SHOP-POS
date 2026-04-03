@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Shop login — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block body %}
-  <div class="form-auth-bg">
+  <div class="form-auth-bg form-auth-bg--shop">
     <div class="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-end p-3 sm:p-4">
       <div class="pointer-events-auto">{% include "partials/theme_toggle.html" %}</div>
     </div>
@@ -14,8 +14,8 @@
         <div class="auth-hero__orb auth-hero__orb--a" aria-hidden="true"></div>
         <div class="auth-hero__orb auth-hero__orb--b" aria-hidden="true"></div>
         <div class="auth-hero__content">
-          <p class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand-200 backdrop-blur-sm">
-            <span class="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.8)]"></span>
+          <p class="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-amber-100 backdrop-blur-sm">
+            <span class="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.85)]"></span>
             Shop access
           </p>
           <h2 class="mt-8 max-w-md text-3xl font-extrabold leading-tight tracking-tight text-white lg:text-4xl">
@@ -26,20 +26,20 @@
           </p>
           <ul class="mt-10 space-y-4 text-sm text-slate-300">
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/5 text-brand-200 ring-1 ring-white/10">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-100 ring-1 ring-amber-400/35">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <span>6-digit shop code selects the correct shop session</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/5 text-brand-200 ring-1 ring-white/10">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-500/20 text-teal-100 ring-1 ring-teal-400/35">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <span>Redirects directly to the shop POS page after login</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/5 text-brand-200 ring-1 ring-white/10">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-100 ring-1 ring-amber-400/30">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
               <span>Theme-aware UI (dark/light)</span>
             </li>
@@ -52,11 +52,11 @@
 
       <div class="auth-main w-full lg:w-auto">
         <div class="mb-6 w-full max-w-md lg:hidden">
-          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-brand-400">
+          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-amber-500">
             <span aria-hidden="true">←</span> Back to website
           </a>
           <div class="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/90 to-slate-800/80 p-4 backdrop-blur-md ring-1 ring-white/5">
-            <p class="text-xs font-bold uppercase tracking-widest text-brand-300">Shop portal</p>
+            <p class="text-xs font-bold uppercase tracking-widest text-amber-300">Shop portal</p>
             <p class="mt-1 text-lg font-bold text-white">Shop sign-in</p>
           </div>
         </div>
@@ -64,16 +64,17 @@
         <div class="form-card-modern w-full">
           <div class="form-card-inner">
             <div class="mb-2 hidden text-center lg:block">
-              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-brand-600">← Back to website</a>
+              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-amber-700 dark:hover:text-amber-400">← Back to website</a>
             </div>
             <div class="text-center">
               <a href="{{ url_for('public_shop_login') }}" class="inline-flex items-center justify-center gap-3">
-                <span class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-lg font-bold text-white shadow-lg shadow-brand-500/40 ring-2 ring-orange-200/40">
-                  {% if site_settings and site_settings.app_icon %}
-                    <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="App icon" class="h-full w-full object-cover" />
-                  {% else %}
-                    <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="App icon" class="h-full w-full object-cover" />
-                  {% endif %}
+                <span
+                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-teal-600 text-white shadow-lg shadow-amber-500/35 ring-2 ring-amber-300/45"
+                  aria-hidden="true"
+                >
+                  <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2M4.5 3h15a1.5 1.5 0 011.5 1.5v13.5a1.5 1.5 0 01-1.5 1.5h-6a1.5 1.5 0 01-1.5-1.5V19.5A1.5 1.5 0 009 18H4.5a1.5 1.5 0 01-1.5-1.5V4.5A1.5 1.5 0 014.5 3z" />
+                  </svg>
                 </span>
                 <span class="text-left">
                   <span class="block text-lg font-extrabold tracking-tight text-slate-900">
@@ -164,7 +165,7 @@
                 Forgot password?
                 <a
                   href="{{ url_for('contact') }}"
-                  class="font-bold text-brand-700 underline decoration-brand-300 decoration-2 underline-offset-2 hover:text-brand-900 dark:text-brand-300 dark:hover:text-brand-200"
+                  class="font-bold text-amber-800 underline decoration-amber-300 decoration-2 underline-offset-2 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-200"
                   >Contact IT support</a
                 >
               </p>
