@@ -850,6 +850,22 @@
           <p id="pos-clock" class="mr-1 hidden tabular-nums text-xs font-semibold text-[rgb(var(--rc-muted))] sm:block" aria-hidden="true"></p>
           <button
             type="button"
+            id="pos-buy-open"
+            class="group inline-flex items-center gap-2 rounded-xl border border-[rgb(var(--rc-primary))]/35 bg-gradient-to-br from-[rgb(var(--rc-primary))]/20 to-[rgb(var(--rc-accent))]/10 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[rgb(var(--rc-page-fg))] shadow-[0_6px_20px_rgba(0,0,0,0.12)] transition hover:-translate-y-[1px] hover:from-[rgb(var(--rc-primary))]/28 hover:to-[rgb(var(--rc-accent))]/18 sm:px-3.5 sm:py-2 sm:text-[11px]"
+            aria-haspopup="dialog"
+            aria-controls="pos-stockin-modal"
+            aria-label="Buy and stock in items"
+          >
+            <span class="relative inline-flex h-6 w-6 items-center justify-center rounded-lg bg-[rgb(var(--rc-surface))]/85 ring-1 ring-[rgb(var(--rc-primary))]/35">
+              <svg class="h-3.5 w-3.5 text-[rgb(var(--rc-primary))] transition group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" />
+              </svg>
+              <span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[rgb(var(--rc-accent))] ring-2 ring-[rgb(var(--rc-surface))]" aria-hidden="true"></span>
+            </span>
+            Buy items
+          </button>
+          <button
+            type="button"
             id="pos-printer-open"
             class="pos-printer-header-btn pos-printer-header-btn--disconnected inline-flex items-center gap-2 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em] sm:gap-2.5 sm:px-3.5 sm:py-2 sm:text-[11px]"
             aria-haspopup="dialog"
@@ -1481,6 +1497,92 @@
     </div>
   </div>
 
+  <div id="pos-stockin-modal" class="fixed inset-0 z-[90] hidden" aria-hidden="true">
+    <div id="pos-stockin-backdrop" class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+      <div class="w-full max-w-2xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
+        <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Buy and stock in item</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Search an item live or pick from list, then fill stock-in details.</p>
+          </div>
+          <button type="button" id="pos-stockin-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold">Close</button>
+        </div>
+        <form id="pos-stockin-form" method="post" action="{{ url_for('shop_pos_stock_in', shop_id=shop.id) }}" class="grid gap-3 p-4 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search item</label>
+            <input id="pos-stockin-search" type="search" placeholder="Search by name or category..." class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Item</label>
+            <select id="pos-stockin-item-id" name="item_id" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="">Select item</option>
+              {% for it in items %}
+                <option value="{{ it.id }}" data-search="{{ ((it.name or '') ~ ' ' ~ (it.category or ''))|lower|e }}">
+                  {{ it.name }}{% if it.category %} — {{ it.category }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
+            <input name="qty" type="number" min="1" step="1" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="1" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Buying price</label>
+            <input name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller phone</label>
+            <input id="pos-stockin-seller-phone" name="seller_phone" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="E.G. +254712345678" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller name</label>
+            <input id="pos-stockin-seller-name" name="seller_name" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. COLLINS MWANGI" />
+            <p id="pos-stockin-seller-hint" class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]"></p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Payment status</label>
+            <input type="hidden" name="payment_status" value="pending_payment" />
+            <div class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">PENDING PAYMENT</div>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Notes (optional)</label>
+            <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="OPTIONAL NOTES" />
+          </div>
+          <div class="sm:col-span-2">
+            <div id="pos-stockin-feedback" class="hidden rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-200"></div>
+          </div>
+          <div class="sm:col-span-2 border-t border-[rgb(var(--rc-border))] pt-3">
+            <p class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee who recorded this</p>
+            <p class="mt-0.5 text-[11px] leading-snug text-[rgb(var(--rc-muted))]">
+              Enter the 6-digit employee code last — when the code is valid, stock-in saves automatically.
+            </p>
+            <div class="mt-2">
+              <input
+                id="pos-stockin-auth-code"
+                name="employee_code"
+                type="password"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                placeholder="6-digit code"
+                class="pos-auth-input w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm tracking-[0.14em] text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+              />
+            </div>
+            <p id="pos-stockin-auth-status" class="pos-auth-status--muted mt-1.5 text-[11px] leading-relaxed">Fill the form above, then enter the employee code to save.</p>
+          </div>
+          <div class="sm:col-span-2 flex flex-wrap justify-end gap-2">
+            <button type="button" id="pos-stockin-print" class="btn-rc btn-rc-success hidden px-3 py-2 text-xs font-bold uppercase tracking-wider">Print receipt</button>
+            <button type="button" id="pos-stockin-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs font-bold uppercase tracking-wider">Cancel</button>
+            <button type="submit" id="pos-stockin-submit" class="hidden" tabindex="-1" aria-hidden="true">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var SHOP_ID = {{ shop.id|int }};
@@ -1490,6 +1592,7 @@
       var CUSTOMER_UPSERT_API = {{ url_for('shop_pos_customer_upsert', shop_id=shop.id)|tojson }};
       var RECORD_SALE_API = {{ url_for('shop_pos_record_sale', shop_id=shop.id)|tojson }};
       var RECORD_QUOTE_API = {{ url_for('shop_pos_record_quote', shop_id=shop.id)|tojson }};
+      var SELLER_LOOKUP_API = {{ url_for('seller_lookup')|tojson }};
       var CATALOG_STOCK_API = {{ url_for('shop_pos_catalog_json', shop_id=shop.id)|tojson }};
       var PRINTER_API = {{ url_for('shop_pos_printer', shop_id=shop.id)|tojson }};
       var QR_ESC_POS_API = {{ url_for('shop_pos_printer_qr_escpos', shop_id=shop.id)|tojson }};
@@ -1522,6 +1625,310 @@
       var customerLookupTimer = null;
       var customerLookupInFlight = false;
       var customerRegisterInFlight = false;
+
+      var stockInModal = document.getElementById("pos-stockin-modal");
+      var stockInOpenBtn = document.getElementById("pos-buy-open");
+      var stockInCloseBtn = document.getElementById("pos-stockin-close");
+      var stockInCancelBtn = document.getElementById("pos-stockin-cancel");
+      var stockInBackdrop = document.getElementById("pos-stockin-backdrop");
+      var stockInSearch = document.getElementById("pos-stockin-search");
+      var stockInSelect = document.getElementById("pos-stockin-item-id");
+      var stockInForm = document.getElementById("pos-stockin-form");
+      var stockInSellerPhone = document.getElementById("pos-stockin-seller-phone");
+      var stockInSellerName = document.getElementById("pos-stockin-seller-name");
+      var stockInSellerHint = document.getElementById("pos-stockin-seller-hint");
+      var stockInFeedback = document.getElementById("pos-stockin-feedback");
+      var stockInPrintBtn = document.getElementById("pos-stockin-print");
+      var stockInAuthCode = document.getElementById("pos-stockin-auth-code");
+      var stockInAuthStatus = document.getElementById("pos-stockin-auth-status");
+      var stockInAuthorizedEmployee = null;
+      var stockInAuthVerifyInFlight = false;
+      var stockInAuthSixTimer = null;
+      var stockInLastSixCode = "";
+      var sellerLookupTimer = null;
+      var stockInReceiptUrl = "";
+
+      function setStockInAuthStatus(msg, tone) {
+        if (!stockInAuthStatus) return;
+        stockInAuthStatus.textContent = msg || "";
+        stockInAuthStatus.classList.remove("pos-auth-status--ok", "pos-auth-status--error", "pos-auth-status--muted");
+        stockInAuthStatus.classList.add(
+          tone === "ok" ? "pos-auth-status--ok" : tone === "error" ? "pos-auth-status--error" : "pos-auth-status--muted"
+        );
+      }
+
+      function resetStockInEmployeeAuth() {
+        stockInAuthorizedEmployee = null;
+        stockInLastSixCode = "";
+        clearTimeout(stockInAuthSixTimer);
+        if (stockInAuthCode) {
+          stockInAuthCode.value = "";
+          stockInAuthCode.disabled = false;
+        }
+        setStockInAuthStatus("Fill the form above, then enter the employee code to save.", "muted");
+      }
+
+      function attemptStockInVerifyAndSubmit(six) {
+        if (!six || !/^\d{6}$/.test(six)) return;
+        if (stockInAuthVerifyInFlight) return;
+        if (!stockInForm) return;
+        if (!stockInForm.checkValidity()) {
+          setStockInAuthStatus("Fill all required fields above, then enter the 6-digit code again.", "error");
+          if (stockInAuthCode) {
+            stockInAuthCode.value = "";
+            stockInLastSixCode = "";
+            stockInAuthCode.focus();
+          }
+          return;
+        }
+        stockInAuthVerifyInFlight = true;
+        if (stockInAuthCode) stockInAuthCode.disabled = true;
+        setStockInAuthStatus("Verifying…", "muted");
+        fetch(AUTH_API, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ employee_code: six }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, j: j };
+            });
+          })
+          .then(function (x) {
+            if (!x.ok || !x.j || !x.j.ok) {
+              stockInAuthorizedEmployee = null;
+              setStockInAuthStatus((x.j && x.j.error) || "Invalid employee code.", "error");
+              if (stockInAuthCode) {
+                stockInAuthCode.value = "";
+                stockInLastSixCode = "";
+                stockInAuthCode.disabled = false;
+                stockInAuthCode.focus();
+              }
+              stockInAuthVerifyInFlight = false;
+              return;
+            }
+            stockInAuthorizedEmployee = x.j.employee || null;
+            var nm =
+              stockInAuthorizedEmployee && stockInAuthorizedEmployee.full_name
+                ? stockInAuthorizedEmployee.full_name
+                : "Employee";
+            setStockInAuthStatus("Authorized: " + nm + ". Saving…", "ok");
+            /* Disabled inputs are not submitted — must include employee_code in POST. */
+            if (stockInAuthCode) stockInAuthCode.disabled = false;
+            stockInForm.requestSubmit();
+          })
+          .catch(function () {
+            stockInAuthorizedEmployee = null;
+            setStockInAuthStatus("Could not verify code. Try again.", "error");
+            if (stockInAuthCode) {
+              stockInAuthCode.value = "";
+              stockInLastSixCode = "";
+              stockInAuthCode.disabled = false;
+              stockInAuthCode.focus();
+            }
+            stockInAuthVerifyInFlight = false;
+          });
+      }
+
+      function onStockInAuthCodeInput() {
+        if (!stockInAuthCode) return;
+        var v = String(stockInAuthCode.value || "").replace(/\D/g, "").slice(0, 6);
+        if (stockInAuthCode.value !== v) stockInAuthCode.value = v;
+        stockInAuthorizedEmployee = null;
+        if (v.length < 6) {
+          stockInLastSixCode = "";
+          if (!v.length) {
+            setStockInAuthStatus("Fill the form above, then enter the employee code to save.", "muted");
+          } else {
+            setStockInAuthStatus("Entering code… " + v.length + "/6", "muted");
+          }
+          return;
+        }
+        if (v === stockInLastSixCode) return;
+        stockInLastSixCode = v;
+        clearTimeout(stockInAuthSixTimer);
+        stockInAuthSixTimer = setTimeout(function () {
+          attemptStockInVerifyAndSubmit(v);
+        }, 50);
+      }
+
+      function setStockInModalOpen(open) {
+        if (!stockInModal) return;
+        stockInModal.classList.toggle("hidden", !open);
+        stockInModal.setAttribute("aria-hidden", open ? "false" : "true");
+        if (open) {
+          resetStockInEmployeeAuth();
+          if (stockInSearch) {
+            setTimeout(function () {
+              stockInSearch.focus();
+            }, 30);
+          }
+        }
+      }
+
+      function filterStockInOptions() {
+        if (!stockInSelect) return;
+        var q = ((stockInSearch && stockInSearch.value) || "").trim().toLowerCase();
+        var firstVisible = "";
+        Array.prototype.forEach.call(stockInSelect.options, function (opt, idx) {
+          if (idx === 0) {
+            opt.hidden = false;
+            return;
+          }
+          var hay = (opt.getAttribute("data-search") || "").toLowerCase();
+          var show = !q || hay.indexOf(q) !== -1;
+          opt.hidden = !show;
+          if (show && !firstVisible) firstVisible = opt.value;
+        });
+        if (firstVisible) stockInSelect.value = firstVisible;
+      }
+
+      function lookupSellerByPhone() {
+        if (!stockInSellerPhone || !stockInSellerName) return;
+        var phone = (stockInSellerPhone.value || "").trim();
+        if (phone.indexOf("+254") === 0) {
+          phone = "254" + phone.slice(4);
+        }
+        phone = phone.replace(/\s+/g, "");
+        if (stockInSellerPhone.value !== phone) stockInSellerPhone.value = phone;
+        var digits = phone.replace(/\D/g, "");
+        if (!phone) {
+          if (stockInSellerHint) stockInSellerHint.textContent = "";
+          return;
+        }
+        if (digits.length < 10) {
+          if (stockInSellerHint) stockInSellerHint.textContent = "Continue typing seller phone (10 digits)...";
+          return;
+        }
+        var valid10 = /^((07|01)\d{8})$/.test(digits);
+        var valid12 = /^((2547|2541)\d{8})$/.test(digits);
+        if (!valid10 && !valid12) {
+          if (stockInSellerHint) stockInSellerHint.textContent = "Use 07/01 (10 digits) or 2547/2541 (12 digits).";
+          return;
+        }
+        var fd = new FormData();
+        fd.append("seller_phone", phone);
+        fetch(SELLER_LOOKUP_API, { method: "POST", body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data || !data.ok || !data.registered || !data.seller) {
+              if (stockInSellerHint) stockInSellerHint.textContent = "New seller phone. Enter seller name to register.";
+              return;
+            }
+            stockInSellerName.value = (data.seller.seller_name || "").toUpperCase();
+            if (stockInSellerHint) stockInSellerHint.textContent = "Registered seller found. Name auto-filled.";
+          })
+          .catch(function () {
+            if (stockInSellerHint) stockInSellerHint.textContent = "";
+          });
+      }
+
+      if (stockInOpenBtn) {
+        stockInOpenBtn.addEventListener("click", function () {
+          setStockInModalOpen(true);
+          filterStockInOptions();
+        });
+      }
+      if (stockInCloseBtn) stockInCloseBtn.addEventListener("click", function () { setStockInModalOpen(false); });
+      if (stockInCancelBtn) stockInCancelBtn.addEventListener("click", function () { setStockInModalOpen(false); });
+      if (stockInBackdrop) stockInBackdrop.addEventListener("click", function () { setStockInModalOpen(false); });
+      if (stockInAuthCode) {
+        stockInAuthCode.addEventListener("input", onStockInAuthCodeInput);
+      }
+      if (stockInSearch) stockInSearch.addEventListener("input", filterStockInOptions);
+      if (stockInSellerPhone) {
+        stockInSellerPhone.addEventListener("input", function () {
+          if (sellerLookupTimer) clearTimeout(sellerLookupTimer);
+          sellerLookupTimer = setTimeout(lookupSellerByPhone, 220);
+        });
+      }
+      if (stockInPrintBtn) {
+        stockInPrintBtn.addEventListener("click", function () {
+          if (!stockInReceiptUrl) return;
+          triggerStockInReceiptPrint();
+        });
+      }
+      function triggerStockInReceiptPrint() {
+        if (!stockInReceiptUrl) return;
+        var frame = document.createElement("iframe");
+        frame.style.position = "fixed";
+        frame.style.right = "0";
+        frame.style.bottom = "0";
+        frame.style.width = "0";
+        frame.style.height = "0";
+        frame.style.border = "0";
+        frame.setAttribute("aria-hidden", "true");
+        frame.src = stockInReceiptUrl;
+        frame.onload = function () {
+          try {
+            var w = frame.contentWindow;
+            if (w) {
+              w.focus();
+              w.print();
+            }
+          } catch (e) {}
+          setTimeout(function () {
+            try { frame.remove(); } catch (e) {}
+          }, 1500);
+        };
+        document.body.appendChild(frame);
+      }
+      if (stockInForm) {
+        stockInForm.addEventListener("submit", function (ev) {
+          ev.preventDefault();
+          var submitBtn = stockInForm.querySelector('button[type="submit"]');
+          var oldText = submitBtn ? submitBtn.textContent : "";
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Saving...";
+          }
+          if (stockInFeedback) {
+            stockInFeedback.classList.add("hidden");
+            stockInFeedback.textContent = "";
+          }
+          if (stockInPrintBtn) stockInPrintBtn.classList.add("hidden");
+          var fd = new FormData(stockInForm);
+          fetch(stockInForm.action, {
+            method: "POST",
+            body: fd,
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+          })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+              if (!j || !j.ok) throw new Error((j && j.error) || "Could not stock in item.");
+              if (stockInFeedback) {
+                stockInFeedback.textContent = j.message || "Item stocked in successfully.";
+                stockInFeedback.classList.remove("hidden");
+              }
+              stockInReceiptUrl = (j.receipt_url || "").trim();
+              if (stockInReceiptUrl && stockInPrintBtn) stockInPrintBtn.classList.remove("hidden");
+              stockInForm.reset();
+              resetStockInEmployeeAuth();
+              if (stockInReceiptUrl) {
+                setTimeout(function () { triggerStockInReceiptPrint(); }, 120);
+              }
+              if (typeof window.refreshPosCatalogStock === "function") {
+                setTimeout(function () { window.refreshPosCatalogStock(); }, 350);
+              }
+            })
+            .catch(function (e) {
+              if (stockInFeedback) {
+                stockInFeedback.textContent = (e && e.message) ? e.message : "Could not stock in item.";
+                stockInFeedback.classList.remove("hidden");
+              }
+            })
+            .finally(function () {
+              stockInAuthVerifyInFlight = false;
+              if (stockInAuthCode) stockInAuthCode.disabled = false;
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = oldText || "Save";
+              }
+            });
+        });
+      }
 
       function normalizeCartLine(l) {
         if (!l || typeof l !== "object") return l;
@@ -2563,6 +2970,13 @@
         return new Array(n + 1).join("-");
       }
 
+      /** Stronger rule line for section breaks (thermal / monospace). */
+      function thermalPlainSepHeavy(w) {
+        w = w || 32;
+        var n = Math.min(Math.max(8, w), 48);
+        return new Array(n + 1).join("=");
+      }
+
       function thermalPlainCenter(s, w) {
         s = String(s || "");
         if (s.length >= w) return s.slice(0, w);
@@ -2570,7 +2984,19 @@
         return new Array(pad + 1).join(" ") + s;
       }
 
-      /** Thermal browser print: single pre block — avoids flex/table collapsing to a narrow strip in Chrome. */
+      function receiptThermalFontCss() {
+        var raw = receiptSettings().font_size || receiptSettings().receipt_font_size || "11pt";
+        var s = String(raw == null ? "" : raw).trim();
+        if (!s) s = "11pt";
+        if (!/pt|px|mm|em|rem$/i.test(s)) s = s + "pt";
+        if (normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm") {
+          var n = parseFloat(s, 10);
+          if (!isNaN(n) && s.indexOf("pt") !== -1 && n > 9) return "9pt";
+        }
+        return s;
+      }
+
+      /** Thermal browser print: structured layout (brand + meta + monospace items + HTML totals). */
       function buildThermalReceiptPlainHtml(payload, variant) {
         variant = variant || "customer";
         var isCompany = variant === "company";
@@ -2582,138 +3008,246 @@
         var rollWmm = receiptRollWidthMm();
         var W = receiptLineWidthChars();
         var sep = thermalPlainSep(W);
+        var heavy = thermalPlainSepHeavy(W);
+        var baseFont = receiptThermalFontCss();
         var lines = [];
         function L(t) {
           lines.push(String(t == null ? "" : t));
         }
 
-        L(thermalPlainCenter(String(payload.shopName || "Point of Sale"), W));
-        if ((payload.companyName || "").trim()) {
-          L(thermalPlainCenter(String(payload.companyName).slice(0, W + 8), W));
-        }
-        L(sep);
-        if (isCompany || isCashier) {
-          L(thermalPlainCenter(isCompany ? "COMPANY COPY (ITEMS ONLY)" : "CASHIER COPY", W));
-          L(sep);
+        function buildThermalReceiptStyles(rollCss, rwmm, fontCss) {
+          return (
+            "@page{margin:0;size:" +
+            rollCss +
+            " auto}" +
+            "*{box-sizing:border-box}" +
+            "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+            "html,body{margin:0!important;padding:0!important;background:#fff;color:#111;" +
+            "width:" +
+            rollCss +
+            ";min-width:" +
+            rollCss +
+            ";max-width:" +
+            rollCss +
+            "}" +
+            ".receipt-thermal{padding:0 1.5mm 2mm;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
+            fontCss +
+            ";line-height:1.22}" +
+            ".receipt-thermal-accent{height:1.5mm;margin:0 0 1.5mm;background:#0a0a0a}" +
+            ".receipt-logo-row{text-align:center;margin:0 auto 1mm;padding:0 1mm}" +
+            ".receipt-logo-row img{display:block;margin:0 auto;max-height:10mm;max-width:68mm;height:auto;width:auto;object-fit:contain}" +
+            ".receipt-thermal-brand{text-align:center;padding:0 0 0.5mm}" +
+            ".receipt-thermal-badge{margin:0 0 1mm;padding:1px 6px;display:inline-block;border-radius:999px;font-size:7.5px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}" +
+            ".receipt-thermal-badge--company{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}" +
+            ".receipt-thermal-badge--cashier{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}" +
+            ".receipt-thermal-shopname{margin:0;font-size:clamp(11px,3.2mm,15px);font-weight:800;letter-spacing:-0.02em;line-height:1.12;color:#0a0a0a}" +
+            ".receipt-thermal-company{margin:1px 0 0;font-size:9px;font-weight:600;color:#4b5563}" +
+            ".receipt-thermal-rule{height:0;border:none;border-top:1px solid #d1d5db;margin:0 0 1.5mm}" +
+            ".receipt-thermal-contact{margin:0 0 1mm;text-align:center}" +
+            ".receipt-thermal-customhdr{margin:0 0 1mm;font-size:8.5px;line-height:1.25;color:#374151;white-space:pre-wrap}" +
+            ".receipt-thermal-mut{margin:0;font-size:8px;line-height:1.2;color:#6b7280}" +
+            ".receipt-thermal-placeholder{font-style:italic}" +
+            ".receipt-thermal-quote{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #94a3b8;background:#f8fafc;text-align:center}" +
+            ".receipt-thermal-quote__title{display:block;font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#0f172a}" +
+            ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:9.5px;color:#64748b}" +
+            ".receipt-thermal-meta{margin:0 0 1.5mm;padding:1mm 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb}" +
+            ".receipt-thermal-meta div{display:flex;justify-content:space-between;align-items:baseline;gap:1.5mm;margin:0.8mm 0}" +
+            ".receipt-thermal-meta dt{margin:0;font-size:7.5px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em}" +
+            ".receipt-thermal-meta dd{margin:0;max-width:72%;text-align:right;font-weight:700;font-size:9px;color:#111}" +
+            "pre.receipt{margin:0;width:100%;max-width:100%;font-family:'Cascadia Mono','Courier New',Consolas,'Liberation Mono',monospace;font-size:9px;line-height:1.28;white-space:pre-wrap;word-wrap:break-word;overflow:visible;color:#111}" +
+            "pre.receipt--items{margin:0;padding:0.8mm 0 0;border-top:1px dashed #d1d5db}" +
+            "pre.receipt--block{margin:1mm 0 0;padding:1mm 0 0;border-top:1px dashed #d1d5db}" +
+            "pre.receipt--tail{margin:1mm 0 0;padding:1mm 0 0;border-top:1px solid #e5e7eb}" +
+            ".receipt-thermal-totals{margin:0 0 1mm;padding:1mm 0 0;border-top:2px solid #111}" +
+            ".receipt-thermal-sumline{display:flex;justify-content:space-between;gap:2mm;margin:1mm 0;font-size:9px;color:#374151}" +
+            ".receipt-thermal-sumline span:last-child{font-weight:700;color:#111}" +
+            ".receipt-thermal-grand{display:flex;justify-content:space-between;align-items:baseline;gap:2mm;margin-top:1mm;padding-top:1mm;border-top:1px solid #e5e7eb;font-size:11px;font-weight:900;letter-spacing:-0.02em;color:#0a0a0a}" +
+            ".receipt-thermal-grand span:last-child{font-variant-numeric:tabular-nums}" +
+            ".receipt-thermal-payment{margin:0 0 1mm;padding:1mm 0 0;border-top:1px dashed #d1d5db;font-size:8.5px}" +
+            ".receipt-thermal-paytype{margin:0 0 0.5mm;font-weight:800;color:#111}" +
+            ".receipt-thermal-paydetail{margin:0;line-height:1.25;color:#4b5563}" +
+            ".receipt-thermal-footer{margin:0 0 1mm;padding:1mm 0 0;text-align:center;font-size:8px;line-height:1.25;color:#4b5563;border-top:1px dashed #d1d5db}" +
+            ".receipt-qr{display:flex;flex-direction:column;align-items:center;width:100%;margin:0.5mm 0 0;padding:1mm 1mm 0;min-height:22mm}" +
+            ".receipt-qr img{display:block;width:22mm;height:22mm;max-width:72%;object-fit:contain}" +
+            ".receipt-qr-caption{margin:0.5mm 0 0;padding:0;width:100%;text-align:center;font-size:7.5px;line-height:1.25;color:#6b7280}" +
+            ".receipt-browser-print-tip{margin:0 0 1.5mm;padding:1.5mm 2mm;border:1px solid #fcd34d;background:linear-gradient(180deg,#fffbeb,#fff7ed);color:#92400e;font-size:8px;line-height:1.3;border-radius:4px}" +
+            "@media print{" +
+            "@page{margin:0;size:" +
+            rollCss +
+            " auto}" +
+            ".receipt-browser-print-tip{display:none!important}" +
+            "html,body{width:" +
+            rollCss +
+            "!important;min-width:" +
+            rollCss +
+            "!important;max-width:" +
+            rollCss +
+            "!important}" +
+            "pre.receipt{font-size:" +
+            (rwmm === 58 ? "8.5" : "9") +
+            "pt!important}" +
+            ".receipt-logo-row img{max-height:9mm}" +
+            ".receipt-qr img{width:20mm!important;height:20mm!important}" +
+            ".receipt-thermal-grand{font-size:10.5pt!important}" +
+            "}"
+          );
         }
 
-        if (!isCompany) {
-          var hdr = (payload.receiptHeader || "").trim();
-          if (hdr) {
-            hdr.split(/\r?\n/).forEach(function (ln) {
-              L(thermalPlainCenter(ln.slice(0, W + 8), W));
-            });
-            L(sep);
+        function brandBlockHtml() {
+          var badge = "";
+          if (isCompany) {
+            badge =
+              '<p class="receipt-thermal-badge receipt-thermal-badge--company">Company copy · items only</p>';
+          } else if (isCashier) {
+            badge = '<p class="receipt-thermal-badge receipt-thermal-badge--cashier">Cashier copy</p>';
           }
+          var shop = receiptEsc(String(payload.shopName || "Point of Sale"));
+          var co = (payload.companyName || "").trim();
+          var coHtml = co ? '<p class="receipt-thermal-company">' + receiptEsc(co) + "</p>" : "";
+          return (
+            '<header class="receipt-thermal-brand">' +
+            badge +
+            '<h1 class="receipt-thermal-shopname">' +
+            shop +
+            "</h1>" +
+            coHtml +
+            "</header>" +
+            '<div class="receipt-thermal-rule" role="presentation"></div>'
+          );
+        }
 
-          if (S.show_address) {
-            if ((payload.shopLocation || "").trim()) {
-              L(thermalPlainCenter(payload.shopLocation.slice(0, W + 12), W));
-            } else {
-              L(thermalPlainCenter("[Business address]", W));
+        function metaDlHtml() {
+          var rows = [];
+          var rec = receiptEsc(String(payload.receiptNo || ""));
+          var dtLine = "";
+          if (S.show_datetime || isCompany) {
+            var p = String(payload.printedAt || "");
+            dtLine = p.length > 22 ? p.slice(0, 20) + "…" : p;
+          }
+          var recDd = dtLine ? rec + " · " + receiptEsc(dtLine) : rec;
+          rows.push("<div><dt>Rcpt</dt><dd>" + recDd + "</dd></div>");
+          if (showCustomerBlock) {
+            var modeStr = String(payload.mode || "");
+            var isCredit = modeStr.toLowerCase().indexOf("credit") !== -1;
+            if (modeStr && (isCredit || payload.isQuotation)) {
+              rows.push("<div><dt>Mode</dt><dd>" + receiptEsc(modeStr) + "</dd></div>");
+            }
+            var dueT = (payload.creditDueDate || "").trim();
+            if (dueT && isCredit) {
+              rows.push("<div><dt>Due</dt><dd>" + receiptEsc(dueT) + "</dd></div>");
+            }
+            var cn = receiptEsc(String(payload.customerName || ""));
+            var cp = receiptEsc(String(payload.customerPhone || ""));
+            rows.push("<div><dt>Buyer</dt><dd>" + cn + " · " + cp + "</dd></div>");
+          }
+          if (isCompany) {
+            rows.push(
+              "<div><dt>Staff</dt><dd>" +
+                receiptEsc(String(payload.employeeName || "").trim() || "—") +
+                "</dd></div>"
+            );
+          } else if (S.show_server) {
+            rows.push("<div><dt>Staff</dt><dd>" + receiptEsc(String(payload.employeeName || "")) + "</dd></div>");
+          }
+          return '<dl class="receipt-thermal-meta">' + rows.join("") + "</dl>";
+        }
+
+        function headerAndContactHtml() {
+          var parts = [];
+          var hdr = (payload.receiptHeader || "").trim();
+          if (hdr && !isCompany) {
+            var hx = hdr.length > 120 ? hdr.slice(0, 118) + "…" : hdr;
+            parts.push(
+              '<div class="receipt-thermal-customhdr">' + receiptEsc(hx).replace(/\n/g, " ") + "</div>"
+            );
+          }
+          if (!isCompany && (S.show_address || S.show_contact)) {
+            var bits = [];
+            if (S.show_address && (payload.shopLocation || "").trim()) {
+              bits.push(payload.shopLocation.trim().slice(0, W + 8));
+            }
+            if (S.show_contact) {
+              if ((site.company_phone || "").trim()) bits.push(site.company_phone.trim());
+              if ((site.company_email || "").trim()) bits.push(site.company_email.trim());
+            }
+            if (bits.length) {
+              parts.push(
+                '<p class="receipt-thermal-mut">' + receiptEsc(bits.join(" · ")) + "</p>"
+              );
             }
           }
-          if (S.show_contact) {
-            var bits = [];
-            if ((site.company_phone || "").trim()) bits.push(site.company_phone.trim());
-            if ((site.company_email || "").trim()) bits.push(site.company_email.trim());
-            L(thermalPlainCenter(bits.length ? bits.join(" · ") : "[Phone / email]", W));
-          }
-          if (S.show_address || S.show_contact) L(sep);
+          return parts.length ? '<div class="receipt-thermal-contact">' + parts.join("") + "</div>" : "";
         }
 
-        if (!isCompany && payload.isQuotation) {
-          L(sep);
-          L(thermalPlainCenter("*** QUOTATION ***", W));
-          L(thermalPlainCenter("Not a finalized sale", W));
-          L(sep);
+        function quoteBannerHtml() {
+          if (isCompany || !payload.isQuotation) return "";
+          return (
+            '<div class="receipt-thermal-quote" role="status">' +
+            '<span class="receipt-thermal-quote__title">Quotation</span>' +
+            '<span class="receipt-thermal-quote__sub">Not a finalized sale</span>' +
+            "</div>"
+          );
         }
 
-        L("Receipt: " + String(payload.receiptNo || ""));
-        if (S.show_datetime || isCompany) L("Date: " + String(payload.printedAt || ""));
-        if (showCustomerBlock) {
-          L("Type: " + String(payload.mode || ""));
-          var dueT = (payload.creditDueDate || "").trim();
-          if (dueT && String(payload.mode || "").toLowerCase().indexOf("credit") !== -1) {
-            L("Pay by: " + dueT);
-          }
-          L("Customer: " + String(payload.customerName || ""));
-          L("Phone: " + String(payload.customerPhone || ""));
-        }
-        if (isCompany) {
-          L("Served by: " + (String(payload.employeeName || "").trim() || "—"));
-        } else if (S.show_server) {
-          L("Served by: " + String(payload.employeeName || ""));
-        }
-        L(sep);
-
-        if (isCompany) {
-          L(thermalPlainCenter("Items sold", W));
-          L(sep);
-          (payload.lines || []).forEach(function (l) {
-            var name = String((l && l.name) || "Item");
-            if (l && l.discounted) name = name + " (DISCOUNTED)";
-            L(name.slice(0, W - 4) + "  x" + String((l && l.qty) || 0));
-          });
-        } else if (showPrices) {
-          L(thermalItemHeaderLine(W));
-          L(sep);
-          (payload.lines || []).forEach(function (l) {
-            thermalItemLines(l, W).forEach(function (row) {
-              L(row);
-            });
-          });
-          L(sep);
+        function totalsHtmlBlock() {
+          if (!showPrices || isCompany) return "";
+          var rows = [];
           if (payload.hasDiscount && (payload.discountTotal || 0) > 0.001) {
-            L("Discounts: -" + fmt(payload.discountTotal));
+            rows.push(
+              '<div class="receipt-thermal-sumline"><span>Discounts</span><span>−' +
+                receiptEsc(fmt(payload.discountTotal)) +
+                "</span></div>"
+            );
           }
           if (payload.includeTax) {
-            L("Subtotal: " + fmt(payload.subtotal || 0));
-            L("Tax (" + String(payload.taxPercent || 0) + "%): " + fmt(payload.taxAmount || 0));
-            L("Total: " + fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0));
+            rows.push(
+              '<div class="receipt-thermal-sumline"><span>Subtotal</span><span>' +
+                receiptEsc(fmt(payload.subtotal || 0)) +
+                "</span></div>"
+            );
+            rows.push(
+              '<div class="receipt-thermal-sumline"><span>Tax (' +
+                receiptEsc(String(payload.taxPercent || 0)) +
+                '%)</span><span>' +
+                receiptEsc(fmt(payload.taxAmount || 0)) +
+                "</span></div>"
+            );
+            rows.push(
+              '<div class="receipt-thermal-grand"><span>Total</span><span>' +
+                receiptEsc(fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0)) +
+                "</span></div>"
+            );
           } else {
-            L("Total: " + fmt(payload.subtotal || 0));
+            rows.push(
+              '<div class="receipt-thermal-grand"><span>Total</span><span>' +
+                receiptEsc(fmt(payload.subtotal || 0)) +
+                "</span></div>"
+            );
           }
+          return '<section class="receipt-thermal-totals" aria-label="Totals">' + rows.join("") + "</section>";
         }
 
-        if (showPrices && S.show_payment_details) {
-          L(sep);
-          L(String(payload.paymentTypeLabel || ""));
+        function paymentHtmlBlock() {
+          if (!showPrices || !S.show_payment_details) return "";
           var pd = (payload.paymentDetailText || "").trim();
-          if (pd) pd.split(/\r?\n/).forEach(function (ln) { L(ln.slice(0, W + 8)); });
-        }
-
-        var foot = (payload.receiptFooter || "").trim();
-        if (foot && !isCompany) {
-          L(sep);
-          foot.split(/\r?\n/).forEach(function (ln) {
-            L(thermalPlainCenter(ln.slice(0, W + 8), W));
-          });
-        }
-
-        var plainMain = lines.join("\n");
-
-        var qrHtml = "";
-        if (!isCompany && receiptQrEnabled(S)) {
-          var qrData = buildReceiptQrPayloadString(payload, S);
-          if (qrData) {
-            var enc = encodeURIComponent(qrData);
-            qrHtml =
-              '<div class="receipt-qr" style="display:flex;flex-direction:column;align-items:center;width:100%"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=' +
-              enc +
-              '" alt="" width="96" height="96" style="display:block;margin:0 auto" /></div>' +
-              '<p class="receipt-qr-caption">Scan for receipt details</p>';
+          var inner =
+            '<p class="receipt-thermal-paytype">' + receiptEsc(String(payload.paymentTypeLabel || "")) + "</p>";
+          if (pd) {
+            inner +=
+              '<div class="receipt-thermal-paydetail">' + receiptEsc(pd).replace(/\n/g, "<br/>") + "</div>";
           }
+          return '<section class="receipt-thermal-payment" aria-label="Payment">' + inner + "</section>";
         }
 
-        var tailPlain =
-          sep +
-          "\n" +
-          thermalPlainCenter(isCompany ? "Company records" : "Thank you", W) +
-          "\n" +
-          thermalPlainCenter(isCompany ? "Richcom POS" : "Powered by Richcom POS", W);
-        var escapedMain = receiptEsc(plainMain);
-        var escapedTail = receiptEsc(tailPlain);
+        function footerHtmlBlock() {
+          var foot = (payload.receiptFooter || "").trim();
+          if (!foot || isCompany) return "";
+          return (
+            '<footer class="receipt-thermal-footer">' +
+            receiptEsc(foot).replace(/\n/g, "<br/>") +
+            "</footer>"
+          );
+        }
 
         var logoUrl = ((payload.receiptLogoUrl || site.receipt_logo_url || site.app_icon_url) || "").trim();
         var logoHtml = "";
@@ -2724,62 +3258,99 @@
             '" alt="" /></div>';
         }
 
-        /* mm-based layout: Chrome + POS-80-USB often shrink px-only pages to a thin strip; mm matches roll paper. */
+        var qrHtml = "";
+        if (!isCompany && receiptQrEnabled(S)) {
+          var qrData = buildReceiptQrPayloadString(payload, S);
+          if (qrData) {
+            var enc = encodeURIComponent(qrData);
+            qrHtml =
+              '<div class="receipt-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=' +
+              enc +
+              '" alt="" width="96" height="96" /></div>' +
+              '<p class="receipt-qr-caption">Scan for receipt details</p>';
+          }
+        }
+
+        var tailPlain =
+          heavy +
+          "\n" +
+          thermalPlainCenter(isCompany ? "Company records" : "Thank you", W) +
+          "\n" +
+          thermalPlainCenter(isCompany ? "Richcom POS" : "Powered by Richcom POS", W);
+        var escapedTail = receiptEsc(tailPlain);
+
+        /* ── Company copy: monospace body (no prices), after brand. ── */
+        if (isCompany) {
+          L(thermalPlainCenter("Items sold", W));
+          L(sep);
+          (payload.lines || []).forEach(function (l) {
+            var name = String((l && l.name) || "Item");
+            if (l && l.discounted) name = name + " (DISCOUNTED)";
+            L(name.slice(0, W - 4) + "  x" + String((l && l.qty) || 0));
+          });
+          var plainCompany = lines.join("\n");
+          var rollCssC = rollWmm === 58 ? "58mm" : "80mm";
+          var thermalStylesC = buildThermalReceiptStyles(rollCssC, rollWmm, baseFont);
+          return (
+            "<!doctype html><html><head><meta charset='utf-8'><title>Receipt</title>" +
+            "<style>" +
+            thermalStylesC +
+            "</style></head><body>" +
+            '<div class="receipt-thermal">' +
+            '<div class="receipt-thermal-accent" aria-hidden="true"></div>' +
+            "<div class=\"receipt-browser-print-tip\" role=\"status\"><strong>Print:</strong> Choose your physical printer under <strong>Destination</strong>, not Save as PDF.</div>" +
+            logoHtml +
+            brandBlockHtml() +
+            metaDlHtml() +
+            "<pre class=\"receipt receipt--block\">" +
+            receiptEsc(plainCompany) +
+            "</pre>" +
+            qrHtml +
+            "<pre class=\"receipt receipt--tail\">" +
+            escapedTail +
+            "</pre>" +
+            "</div></body></html>"
+          );
+        }
+
+        /* ── Customer / cashier: hybrid layout. ── */
+        lines.length = 0;
+        L(thermalItemHeaderLine(W));
+        L(sep);
+        (payload.lines || []).forEach(function (l) {
+          thermalItemLines(l, W).forEach(function (row) {
+            L(row);
+          });
+        });
+
+        var itemsPlain = lines.join("\n");
         var rollCss = rollWmm === 58 ? "58mm" : "80mm";
-        var thermalStyles =
-          "@page{margin:0;size:" +
-          rollCss +
-          " auto}" +
-          "*{box-sizing:border-box}" +
-          "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
-          "html,body{margin:0!important;padding:0!important;background:#fff;color:#000;" +
-          "width:" +
-          rollCss +
-          ";min-width:" +
-          rollCss +
-          ";max-width:" +
-          rollCss +
-          "}" +
-          ".receipt-logo-row{text-align:center;margin:0 auto 2mm;padding:0 1mm}" +
-          ".receipt-logo-row img{display:block;margin:0 auto;max-height:14mm;max-width:72mm;height:auto;width:auto;object-fit:contain}" +
-          ".receipt-qr{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;box-sizing:border-box;text-align:center;margin:1mm 0;padding:0 1mm;min-height:26mm}" +
-          ".receipt-qr img{display:block;margin:0 auto;width:26mm;height:26mm;max-width:75%;object-fit:contain;flex-shrink:0}" +
-          ".receipt-qr-caption{margin:1mm 0 0;padding:0;width:100%;text-align:center;font-size:9px;line-height:1.3;color:#333}" +
-          "pre.receipt{margin:0;padding:2.5mm 2mm;width:100%;max-width:100%;" +
-          "font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:11px;line-height:1.35;" +
-          "white-space:pre-wrap;word-wrap:break-word;overflow:visible}" +
-          ".receipt-browser-print-tip{margin:0 0 2mm;padding:2mm;border:1px dashed #d97706;background:#fffbeb;color:#78350f;font-size:10px;line-height:1.35;border-radius:4px}" +
-          "@media print{" +
-          "@page{margin:0;size:" +
-          rollCss +
-          " auto}" +
-          ".receipt-browser-print-tip{display:none!important}" +
-          "html,body{width:" +
-          rollCss +
-          "!important;min-width:" +
-          rollCss +
-          "!important;max-width:" +
-          rollCss +
-          "!important}" +
-          "pre.receipt{font-size:10.5pt!important;line-height:1.35!important;padding:2mm!important}" +
-          ".receipt-logo-row img{max-height:12mm}" +
-          ".receipt-qr img{width:24mm!important;height:24mm!important}" +
-          "}";
+        var thermalStyles = buildThermalReceiptStyles(rollCss, rollWmm, baseFont);
 
         return (
           "<!doctype html><html><head><meta charset='utf-8'><title>Receipt</title>" +
           "<style>" +
           thermalStyles +
           "</style></head><body>" +
-          "<div class=\"receipt-browser-print-tip\" role=\"status\"><strong>Print:</strong> Under Destination choose your printer, not Save as PDF — then use Print.</div>" +
+          '<div class="receipt-thermal">' +
+          '<div class="receipt-thermal-accent" aria-hidden="true"></div>' +
+          "<div class=\"receipt-browser-print-tip\" role=\"status\"><strong>Print:</strong> Choose your physical printer under <strong>Destination</strong>, not Save as PDF.</div>" +
           logoHtml +
-          "<pre class=\"receipt\">" +
-          escapedMain +
+          brandBlockHtml() +
+          headerAndContactHtml() +
+          quoteBannerHtml() +
+          metaDlHtml() +
+          '<pre class="receipt receipt--items">' +
+          receiptEsc(itemsPlain) +
           "</pre>" +
+          totalsHtmlBlock() +
+          paymentHtmlBlock() +
+          footerHtmlBlock() +
           qrHtml +
-          "<pre class=\"receipt\">" +
+          "<pre class=\"receipt receipt--tail\">" +
           escapedTail +
-          "</pre></body></html>"
+          "</pre>" +
+          "</div></body></html>"
         );
       }
 
@@ -5651,7 +6222,12 @@
       });
 
       document.addEventListener("keydown", function (e) {
-        if (e.key !== "Escape" || !printerUiOpen) return;
+        if (e.key !== "Escape") return;
+        if (stockInModal && !stockInModal.classList.contains("hidden")) {
+          setStockInModalOpen(false);
+          return;
+        }
+        if (!printerUiOpen) return;
         setPrinterOpen(false);
       });
 

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-  <div class="flex min-h-screen flex-col md:flex-row">
+  <div class="flex min-h-screen flex-col md:h-screen md:max-h-screen md:flex-row md:overflow-hidden">
     <div
       id="employee-sidebar-backdrop"
       class="fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
@@ -9,7 +9,7 @@
 
     <aside
       id="employee-sidebar"
-      class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] backdrop-blur-md transition-transform duration-200 ease-out md:sticky md:top-0 md:z-0 md:h-screen md:translate-x-0"
+      class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] backdrop-blur-md transition-transform duration-200 ease-out md:sticky md:top-0 md:z-0 md:h-screen md:max-h-screen md:shrink-0 md:self-start md:overflow-hidden md:translate-x-0"
       aria-label="Portal navigation"
     >
       <div class="flex h-14 shrink-0 items-center gap-2 border-b border-[rgb(var(--rc-border))] px-4 md:h-16">
@@ -46,7 +46,7 @@
         </div>
         {% if portal_employee %}
           <div class="mt-2 flex shrink-0 flex-col gap-1 border-t border-[rgb(var(--rc-border))] pt-2">
-            {% if portal_employee.role_key == 'it_support' %}
+            {% if portal_employee.role_key in ('it_support', 'super_admin') %}
               <a
                 href="{{ url_for('it_support_system_settings') }}"
                 class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -64,6 +64,7 @@
                 System settings
               </a>
             {% endif %}
+            {% if portal_employee.role_key not in ('it_support', 'super_admin') %}
             <a
               href="{{ notifications_url if notifications_url else url_for('notifications') }}"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint in ('notifications', 'shop_notifications') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -74,6 +75,7 @@
               </svg>
               Notifications
             </a>
+            {% endif %}
             <a
               href="{{ portal_employee.profile_settings_url }}"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'employee_profile_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -101,7 +103,7 @@
       </nav>
     </aside>
 
-    <div class="flex min-h-screen min-w-0 flex-1 flex-col">
+    <div class="flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0 md:overflow-hidden">
       <header
         class="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 backdrop-blur-md md:h-16 md:px-6"
       >
@@ -128,7 +130,7 @@
           {% include "partials/employee_portal_header_user.html" %}
         </div>
       </header>
-      <main class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <main class="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {% include "partials/flashes.html" %}
         {% block employee_content %}{% endblock %}
       </main>

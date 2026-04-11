@@ -593,7 +593,7 @@
         Save settings
       </button>
       <a
-        href="{{ url_for('employee_dashboard', role='it_support') }}"
+        href="{{ url_for('employee_dashboard', role=(portal_employee.role_key if portal_employee else 'it_support')) }}"
         class="btn-rc btn-rc-ghost px-6 py-2.5 text-sm font-medium"
       >
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

@@ -1,120 +1,198 @@
 {% extends "employee_layout.html" %}
-{% block title %}Supplier buying — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
-{% block portal_page_title %}Supplier buying{% endblock %}
+{% block title %}Suppliers transactions — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Suppliers transactions{% endblock %}
 {% block sidebar_links %}
-  <a href="{{ url_for('it_support_stock_reports', view='low_stock') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Low stock</a>
-  <a href="{{ url_for('it_support_stock_reports', view='fast_moving') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Fast moving</a>
-  <a href="{{ url_for('it_support_stock_reports', view='valuation') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Valuation</a>
-  <a href="{{ url_for('it_support_stock_reports', view='highest_value') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Top value</a>
-  <a href="{{ url_for('it_support_stock_reports', view='stagnant') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stagnant</a>
-  <a href="{{ url_for('it_support_stock_suppliers') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]" aria-current="page">Suppliers</a>
+  <a href="{{ url_for('it_support_company_stock_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Back to stock status</a>
 {% endblock %}
 {% block employee_content %}
-  {% set rows = supplier_rows or [] %}
+  {% set rows = transaction_rows or [] %}
+  {% set ns = namespace(pending=0, partial=0, paid=0, payable=0) %}
+  {% for r in rows %}
+    {% if r.payment_status == 'paid' %}
+      {% set ns.paid = ns.paid + 1 %}
+    {% elif r.payment_status == 'partially_paid' %}
+      {% set ns.partial = ns.partial + 1 %}
+    {% elif r.payment_status == 'pending_payment' %}
+      {% set ns.pending = ns.pending + 1 %}
+    {% endif %}
+    {% if r.movement_scope == 'shop' and r.source == 'manual' and (r.direction or '') == 'in' and r.tx_id %}
+      {% set ns.payable = ns.payable + 1 %}
+    {% endif %}
+  {% endfor %}
   <div class="mx-auto max-w-6xl space-y-4">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Supplier buying analysis</h2>
+          <h2 class="flex items-center gap-2 text-lg font-semibold text-[rgb(var(--rc-page-fg))]">
+            <svg class="h-5 w-5 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" /></svg>
+            Suppliers transactions
+          </h2>
           <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-            Weighted average purchase price comes from every company <strong class="text-[rgb(var(--rc-page-fg))]">stock in</strong> that recorded a unit price. <strong class="text-[rgb(var(--rc-page-fg))]">Best supplier</strong> is the source (place bought) with the lowest average unit cost for that item—where prices differ; ties favor higher received quantity.
+            Transactions-only list with place bought from and payment status.
           </p>
         </div>
-        <a href="{{ url_for('it_support_stock_reports', view='low_stock') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock reports</a>
+        <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock status</a>
+      </div>
+      <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Rows</div><div class="text-xl font-extrabold">{{ rows|length }}</div></div>
+        <div class="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Pending</div><div class="text-xl font-extrabold text-rose-300">{{ ns.pending }}</div></div>
+        <div class="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Partially paid</div><div class="text-xl font-extrabold text-amber-300">{{ ns.partial }}</div></div>
+        <div class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Paid</div><div class="text-xl font-extrabold text-emerald-300">{{ ns.paid }}</div></div>
       </div>
     </div>
 
     <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
       <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
-        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and suppliers</h3>
-        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Use the eye to open stock-in history and simple stats for one item.</p>
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Transactions</h3>
+        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Showing all stock transactions ordered by latest first. On small screens, swipe horizontally or use cards below.</p>
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-[860px] w-full text-sm">
+      <div class="hidden overflow-x-auto md:block">
+        <table class="min-w-[980px] w-full text-sm">
           <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
             <tr>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Time</th>
               <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Category</th>
-              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Company stock</th>
-              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Total qty in</th>
-              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Avg buy price</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Best supplier</th>
-              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Best supplier avg</th>
-              <th class="px-3 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-16">View</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">From</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">To</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Seller name</th>
+              <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Moved by</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[rgb(var(--rc-border))]">
             {% for r in rows %}
               <tr class="hover:bg-[rgb(var(--rc-surface-2))]/50">
-                <td class="px-3 py-2.5 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.category or "—" }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">{{ r.company_stock_qty or 0 }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ r.total_in_qty or 0 }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">
-                  {% if r.avg_buying_price is not none %}
-                    {{ "%.2f"|format(r.avg_buying_price) }}
+                <td class="px-3 py-2.5 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+                <td class="px-3 py-2.5 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</td>
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.from_where }}</td>
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.to_where }}</td>
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.place_brought_from or "-" }}</td>
+                <td class="px-3 py-2.5 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.qty or 0 }}</td>
+                <td class="px-3 py-2.5">
+                  {% if r.payment_status == 'partially_paid' %}
+                    <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/25">Partially paid</span>
+                  {% elif r.payment_status == 'paid' %}
+                    <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/25">Paid</span>
+                  {% elif r.payment_status == 'pending_payment' %}
+                    <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-rose-300 ring-1 ring-rose-400/25">Pending payment</span>
                   {% else %}
-                    <span class="text-[rgb(var(--rc-muted))]">—</span>
+                    <span class="text-[rgb(var(--rc-muted))]">-</span>
                   {% endif %}
                 </td>
-                <td class="px-3 py-2.5 text-[rgb(var(--rc-page-fg))]">{{ r.best_supplier or "—" }}</td>
-                <td class="px-3 py-2.5 text-right tabular-nums">
-                  {% if r.best_supplier_avg_price is not none %}
-                    {{ "%.2f"|format(r.best_supplier_avg_price) }}
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.moved_by }}</td>
+                <td class="px-3 py-2.5">
+                  {% set can_pay = (r.movement_scope == 'shop' and r.source == 'manual' and (r.direction or '') == 'in' and r.tx_id) %}
+                  {% if can_pay %}
+                    <button
+                      type="button"
+                      class="js-payment-open inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
+                      data-tx-id="{{ r.tx_id }}"
+                      data-item-name="{{ r.item_name }}"
+                      data-qty="{{ r.qty }}"
+                      data-buying-price="{{ r.buying_price }}"
+                      data-total-cost="{{ r.total_cost }}"
+                      data-amount-paid="{{ r.amount_paid }}"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Payment
+                    </button>
                   {% else %}
-                    <span class="text-[rgb(var(--rc-muted))]">—</span>
+                    <span class="text-[rgb(var(--rc-muted))]">-</span>
                   {% endif %}
-                </td>
-                <td class="px-3 py-2.5 text-center">
-                  <button
-                    type="button"
-                    class="js-stock-in-insight inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:border-[rgb(var(--rc-primary))]/50 hover:bg-[rgb(var(--rc-surface))]"
-                    data-item-id="{{ r.item_id }}"
-                    data-item-name="{{ r.name|e }}"
-                    aria-label="Stock in analysis for {{ r.name|e }}"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  </button>
                 </td>
               </tr>
             {% else %}
               <tr>
-                <td colspan="8" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No managed items found.</td>
+                <td colspan="9" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No transactions found.</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      <div class="space-y-3 p-3 md:hidden">
+        {% for r in rows %}
+          {% set can_pay = (r.movement_scope == 'shop' and r.source == 'manual' and (r.direction or '') == 'in' and r.tx_id) %}
+          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 p-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</div>
+                <div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.created_at }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-[rgb(var(--rc-muted))]">Qty</div>
+                <div class="font-bold tabular-nums">{{ r.qty or 0 }}</div>
+              </div>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-[rgb(var(--rc-muted))]">
+              <div><span class="font-semibold">From:</span> {{ r.from_where }}</div>
+              <div><span class="font-semibold">To:</span> {{ r.to_where }}</div>
+              <div class="col-span-2"><span class="font-semibold">Place:</span> {{ r.place_brought_from or "-" }}</div>
+              <div class="col-span-2"><span class="font-semibold">Moved by:</span> {{ r.moved_by }}</div>
+            </div>
+            <div class="mt-2 flex items-center justify-between gap-2">
+              <div>
+                {% if r.payment_status == 'partially_paid' %}
+                  <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/25">Partially paid</span>
+                {% elif r.payment_status == 'paid' %}
+                  <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/25">Paid</span>
+                {% elif r.payment_status == 'pending_payment' %}
+                  <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-rose-300 ring-1 ring-rose-400/25">Pending payment</span>
+                {% else %}
+                  <span class="text-[rgb(var(--rc-muted))]">-</span>
+                {% endif %}
+              </div>
+              {% if can_pay %}
+                <button
+                  type="button"
+                  class="js-payment-open inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]"
+                  data-tx-id="{{ r.tx_id }}"
+                  data-item-name="{{ r.item_name }}"
+                  data-qty="{{ r.qty }}"
+                  data-buying-price="{{ r.buying_price }}"
+                  data-total-cost="{{ r.total_cost }}"
+                  data-amount-paid="{{ r.amount_paid }}"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  Pay
+                </button>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
     </div>
 
-    <div
-      id="stock-in-insight-modal"
-      class="pointer-events-none fixed inset-0 z-[95] hidden opacity-0 transition"
-      aria-hidden="true"
-    >
-      <div class="absolute inset-0 bg-black/55"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <div class="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
-          <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
-            <div class="min-w-0">
-              <h4 id="stock-in-insight-title" class="truncate text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock in analysis</h4>
-              <p id="stock-in-insight-sub" class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]"></p>
-            </div>
-            <button
-              type="button"
-              id="stock-in-insight-close"
-              class="shrink-0 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold text-[rgb(var(--rc-page-fg))]"
-            >
-              Close
-            </button>
+    <div id="payment-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
+      <div class="relative mx-auto mt-8 w-[95%] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl sm:mt-16">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Update stock payment</h4>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Total is buying price x quantity.</p>
           </div>
-          <div id="stock-in-insight-body" class="max-h-[calc(90vh-5.5rem)] overflow-y-auto p-4">
-            <p class="text-sm text-[rgb(var(--rc-muted))]">Loading…</p>
+          <button type="button" id="payment-modal-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
+        </div>
+        <div class="mt-4 grid gap-2 text-sm">
+          <div><span class="text-[rgb(var(--rc-muted))]">Item:</span> <span id="pay-item" class="font-semibold text-[rgb(var(--rc-page-fg))]"></span></div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Buying price</div><div id="pay-buying-price" class="font-semibold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Qty</div><div id="pay-qty" class="font-semibold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Total</div><div id="pay-total" class="font-bold"></div></div>
           </div>
         </div>
+        <form id="payment-form" class="mt-4">
+          <input type="hidden" id="pay-tx-id" />
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Amount paid</label>
+          <input id="pay-amount-paid" name="amount_paid" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" id="payment-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
+            <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save payment</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -124,177 +202,60 @@
   {{ super() }}
   <script>
     (function () {
-      var modal = document.getElementById("stock-in-insight-modal");
-      var body = document.getElementById("stock-in-insight-body");
-      var title = document.getElementById("stock-in-insight-title");
-      var sub = document.getElementById("stock-in-insight-sub");
-      var closeBtn = document.getElementById("stock-in-insight-close");
-      if (!modal || !body) return;
+      var modal = document.getElementById("payment-modal");
+      var openBtns = document.querySelectorAll(".js-payment-open");
+      var closeBtn = document.getElementById("payment-modal-close");
+      var cancelBtn = document.getElementById("payment-cancel");
+      var form = document.getElementById("payment-form");
+      if (!modal || !openBtns.length || !form) return;
 
-      function esc(s) {
-        var d = document.createElement("div");
-        d.textContent = s == null ? "" : String(s);
-        return d.innerHTML;
-      }
+      var txIdEl = document.getElementById("pay-tx-id");
+      var amountPaidEl = document.getElementById("pay-amount-paid");
+      var itemEl = document.getElementById("pay-item");
+      var buyingEl = document.getElementById("pay-buying-price");
+      var qtyEl = document.getElementById("pay-qty");
+      var totalEl = document.getElementById("pay-total");
 
-      function fmt(n) {
-        var x = parseFloat(n);
-        if (isNaN(x)) return "0.00";
-        return x.toFixed(2);
-      }
+      function fmt(v) { return Number(v || 0).toFixed(2); }
+      function openModal() { modal.classList.remove("hidden"); }
+      function closeModal() { modal.classList.add("hidden"); }
 
-      function openModal() {
-        modal.classList.remove("hidden");
-        requestAnimationFrame(function () {
-          modal.classList.remove("pointer-events-none", "opacity-0");
-        });
-        modal.setAttribute("aria-hidden", "false");
-      }
-
-      function closeModal() {
-        modal.classList.add("pointer-events-none", "opacity-0");
-        modal.setAttribute("aria-hidden", "true");
-        setTimeout(function () { modal.classList.add("hidden"); }, 180);
-      }
-
-      function renderAnalysis(itemName, txs) {
-        var n = txs.length;
-        var totalQty = 0;
-        var totalVal = 0;
-        var prices = [];
-        var supSet = {};
-        txs.forEach(function (t) {
-          totalQty += t.qty || 0;
-          totalVal += t.line_value || 0;
-          if (t.buying_price != null) prices.push(t.buying_price);
-          if (t.supplier && t.supplier !== "—") supSet[t.supplier] = true;
-        });
-        var avgUnit = totalQty > 0 ? totalVal / totalQty : 0;
-        var minP = prices.length ? Math.min.apply(null, prices) : null;
-        var maxP = prices.length ? Math.max.apply(null, prices) : null;
-        var supCount = Object.keys(supSet).length;
-
-        var stats =
-          '<div class="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">' +
-          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Transactions</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
-          n +
-          "</p></div>" +
-          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Qty received</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
-          totalQty +
-          "</p></div>" +
-          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Avg unit (this list)</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
-          fmt(avgUnit) +
-          "</p></div>" +
-          '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-3"><p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Suppliers named</p><p class="mt-1 text-lg font-black tabular-nums text-[rgb(var(--rc-page-fg))]">' +
-          supCount +
-          "</p></div>" +
-          "</div>";
-
-        var range = "";
-        if (minP != null && maxP != null) {
-          range =
-            '<p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">Unit price range in history: <span class="font-semibold text-[rgb(var(--rc-page-fg))]">' +
-            fmt(minP) +
-            "</span> – <span class=\"font-semibold text-[rgb(var(--rc-page-fg))]\">" +
-            fmt(maxP) +
-            "</span>.</p>";
-        }
-
-        if (!n) {
-          body.innerHTML = stats + "<p class=\"text-sm text-[rgb(var(--rc-muted))]\">No stock in rows recorded yet for this item.</p>";
-          return;
-        }
-
-        var thead =
-          "<thead class=\"bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]\"><tr>" +
-          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">When</th>' +
-          '<th class="px-2 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty</th>' +
-          '<th class="px-2 py-2 text-right text-xs font-bold uppercase tracking-wider">Unit</th>' +
-          '<th class="px-2 py-2 text-right text-xs font-bold uppercase tracking-wider">Line</th>' +
-          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Supplier</th>' +
-          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Note</th>' +
-          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">By</th>' +
-          '<th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Stock Δ</th>' +
-          "</tr></thead>";
-
-        var tbody = txs
-          .map(function (t) {
-            return (
-              "<tr class=\"border-t border-[rgb(var(--rc-border))]/80\">" +
-              '<td class="px-2 py-2 whitespace-nowrap text-xs text-[rgb(var(--rc-page-fg))]">' +
-              esc(t.created_at) +
-              "</td>" +
-              '<td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">' +
-              esc(String(t.qty)) +
-              "</td>" +
-              '<td class="px-2 py-2 text-right tabular-nums">' +
-              esc(fmt(t.buying_price)) +
-              "</td>" +
-              '<td class="px-2 py-2 text-right tabular-nums">' +
-              esc(fmt(t.line_value)) +
-              "</td>" +
-              '<td class="px-2 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
-              esc(t.supplier) +
-              "</td>" +
-              '<td class="px-2 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
-              esc(t.note) +
-              "</td>" +
-              '<td class="px-2 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
-              esc(t.stocked_by) +
-              "</td>" +
-              '<td class="px-2 py-2 whitespace-nowrap text-xs text-[rgb(var(--rc-muted))]">' +
-              esc(t.stock_before) +
-              " → " +
-              esc(t.stock_after) +
-              "</td>" +
-              "</tr>"
-            );
-          })
-          .join("");
-
-        body.innerHTML =
-          stats +
-          range +
-          '<div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">' +
-          '<table class="min-w-full text-sm">' +
-          thead +
-          '<tbody class="divide-y divide-[rgb(var(--rc-border))]/70">' +
-          tbody +
-          "</tbody></table></div>";
-      }
-
-      document.addEventListener("click", function (e) {
-        var btn = e.target && e.target.closest ? e.target.closest(".js-stock-in-insight") : null;
-        if (btn) {
-          var id = btn.getAttribute("data-item-id");
-          var name = btn.getAttribute("data-item-name") || "Item";
-          title.textContent = name;
-          sub.textContent = "Stock in transaction history (company)";
-          body.innerHTML = '<p class="text-sm text-[rgb(var(--rc-muted))]">Loading…</p>';
+      openBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          txIdEl.value = btn.getAttribute("data-tx-id") || "";
+          amountPaidEl.value = btn.getAttribute("data-amount-paid") || "0";
+          itemEl.textContent = btn.getAttribute("data-item-name") || "-";
+          buyingEl.textContent = fmt(btn.getAttribute("data-buying-price"));
+          qtyEl.textContent = btn.getAttribute("data-qty") || "0";
+          totalEl.textContent = fmt(btn.getAttribute("data-total-cost"));
           openModal();
-          var url = "/it_support/stock-reports/suppliers/" + encodeURIComponent(id) + "/stock-ins";
-          fetch(url, { headers: { Accept: "application/json" } })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-              if (!data || !data.ok) {
-                body.innerHTML = '<p class="text-sm text-rose-400">Could not load transactions.</p>';
-                return;
-              }
-              renderAnalysis(name, data.transactions || []);
-            })
-            .catch(function () {
-              body.innerHTML = '<p class="text-sm text-rose-400">Could not load transactions.</p>';
-            });
-          return;
-        }
-        if (!modal.classList.contains("hidden") && (e.target === modal || (e.target && e.target === modal.firstElementChild))) {
-          closeModal();
-        }
+        });
       });
 
       if (closeBtn) closeBtn.addEventListener("click", closeModal);
-      document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+      if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var txId = txIdEl.value;
+        if (!txId) return;
+        var fd = new FormData();
+        fd.append("amount_paid", amountPaidEl.value || "0");
+        fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/payment", {
+          method: "POST",
+          body: fd
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            alert((data && data.error) || "Failed to update payment.");
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          alert("Failed to update payment.");
+        });
       });
     })();
   </script>

@@ -60,12 +60,22 @@
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider">Company stock</th>
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Qty in</th>
                 <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Buying price</th>
-                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Place bought</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Seller name</th>
                 <th class="px-3 py-3 text-right text-xs font-black uppercase tracking-wider">Log</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% set ns_in = namespace(prev='') %}
               {% for it in items %}
+                {% set cat = (it.category or 'Uncategorized') %}
+                {% if ns_in.prev != cat %}
+                  <tr class="bg-emerald-500/10">
+                    <td colspan="7" class="px-3 py-2 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                      {{ cat }}
+                    </td>
+                  </tr>
+                  {% set ns_in.prev = cat %}
+                {% endif %}
                 <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
                   <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-3 py-2.5 shadow-[1px_0_0_rgb(var(--rc-border))]">
                     <div class="flex items-center gap-2">
@@ -102,7 +112,9 @@
                       step="0.01"
                       autocomplete="off"
                       class="w-28 max-w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-emerald-500/25"
-                      placeholder="0.00"
+                      value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}"
+                      placeholder="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% else %}0.00{% endif %}"
+                      title="Previous buying price is prefilled; edit if changed."
                     />
                   </td>
                   <td class="px-3 py-2.5">
@@ -110,8 +122,10 @@
                       name="in_place_{{ it.id }}"
                       type="text"
                       autocomplete="off"
+                      list="seller-name-suggestions"
+                      data-seller-input="1"
                       class="min-w-[10rem] w-44 max-w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-emerald-500/25"
-                      placeholder="Supplier / market"
+                      placeholder="Seller name"
                     />
                   </td>
                   <td class="px-3 py-2.5 text-right">
@@ -152,7 +166,17 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% set ns_out = namespace(prev='') %}
               {% for it in items %}
+                {% set cat = (it.category or 'Uncategorized') %}
+                {% if ns_out.prev != cat %}
+                  <tr class="bg-rose-500/10">
+                    <td colspan="8" class="px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                      {{ cat }}
+                    </td>
+                  </tr>
+                  {% set ns_out.prev = cat %}
+                {% endif %}
                 <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
                   <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-3 py-2.5 shadow-[1px_0_0_rgb(var(--rc-border))]">
                     <div class="flex items-center gap-2">
@@ -277,6 +301,57 @@
         });
         var id0 = sel.getAttribute("data-item-id");
         if (id0) syncRefundRow(id0);
+      });
+
+      var sellerList = document.createElement("datalist");
+      sellerList.id = "seller-name-suggestions";
+      document.body.appendChild(sellerList);
+
+      var sellerInputs = Array.prototype.slice.call(document.querySelectorAll('input[data-seller-input="1"]'));
+      var sellerCache = {};
+      var inflight = null;
+      var timer = null;
+
+      function renderSellerSuggestions(items) {
+        sellerList.innerHTML = "";
+        (items || []).forEach(function (name) {
+          var opt = document.createElement("option");
+          opt.value = name;
+          sellerList.appendChild(opt);
+        });
+      }
+
+      function fetchSellerSuggestions(q) {
+        var key = (q || "").trim().toLowerCase();
+        if (key.length < 1) {
+          renderSellerSuggestions([]);
+          return;
+        }
+        if (sellerCache[key]) {
+          renderSellerSuggestions(sellerCache[key]);
+          return;
+        }
+        if (inflight && typeof inflight.abort === "function") inflight.abort();
+        inflight = new AbortController();
+        fetch("/sellers/suggest?q=" + encodeURIComponent(key), { signal: inflight.signal, headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var list = (data && data.ok && Array.isArray(data.suggestions)) ? data.suggestions : [];
+            sellerCache[key] = list;
+            renderSellerSuggestions(list);
+          })
+          .catch(function () {});
+      }
+
+      sellerInputs.forEach(function (inp) {
+        inp.addEventListener("input", function () {
+          clearTimeout(timer);
+          var v = inp.value || "";
+          timer = setTimeout(function () { fetchSellerSuggestions(v); }, 220);
+        });
+        inp.addEventListener("focus", function () {
+          if ((inp.value || "").trim().length > 0) fetchSellerSuggestions(inp.value);
+        });
       });
     })();
   </script>

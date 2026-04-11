@@ -79,4 +79,11 @@
       {% endif %}
     </section>
   </div>
+  {% if notification_scope is defined %}
+  <script>
+    try {
+      localStorage.setItem("rc_notif_seen_{{ notification_scope }}", "{{ notification_count | default(0) }}");
+    } catch (e) {}
+  </script>
+  {% endif %}
 {% endblock %}

@@ -1,0 +1,279 @@
+{% extends "shop_layout.html" %}
+{% block title %}Stock-in receipt — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Stock-in receipt{% endblock %}
+
+{% block shop_sidebar_links %}
+  <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]">Back to stock in</a>
+{% endblock %}
+
+{% block shop_content %}
+  {# Same settings + CSS tokens as POS sale receipt (shop_pos buildThermalReceiptPlainHtml) #}
+  {% set S = pos_receipt_settings or {} %}
+  {% set r = receipt or {} %}
+  {% set roll_mm = 58 if (S.receipt_width or '80mm')|string|trim == '58mm' else 80 %}
+  {% set roll_css = '58mm' if roll_mm == 58 else '80mm' %}
+  {% set fsize_raw = (S.font_size or S.receipt_font_size or '11pt') | string | trim %}
+  {% if not (fsize_raw.endswith('pt') or fsize_raw.endswith('px') or fsize_raw.endswith('mm')) %}
+    {% set fsize_raw = fsize_raw ~ 'pt' %}
+  {% endif %}
+  {% set n = (fsize_raw[:-2] | float) if roll_mm == 58 and fsize_raw.endswith('pt') else 0 %}
+  {% set fsize = '9pt' if roll_mm == 58 and fsize_raw.endswith('pt') and n > 9 else fsize_raw %}
+  {% set receipt_logo = '' %}
+  {% if S.show_logo %}
+    {% if shop.shop_logo %}
+      {% set receipt_logo = url_for('static', filename=shop.shop_logo) %}
+    {% elif site_settings and site_settings.app_icon %}
+      {% set receipt_logo = url_for('static', filename=site_settings.app_icon) %}
+    {% else %}
+      {% set receipt_logo = url_for('static', filename='app-icon.svg') %}
+    {% endif %}
+  {% endif %}
+  {% set qr_on = S.receipt_qr_enabled | default(false) %}
+  {% set qm = (S.receipt_qr_mode or 'receipt_details') | string | trim %}
+  {% set qr_site = (S.receipt_qr_website_url or '') | trim %}
+  {% set dt_short = (r.created_at|string)[:22] if r.created_at else '—' %}
+  <style>
+    /* Mirrors templates/shop_pos.html buildThermalReceiptStyles (sale receipt) */
+    .receipt-page-wrap { max-width: 100%; overflow-x: auto; }
+    .receipt-thermal {
+      box-sizing: border-box;
+      width: min(100%, {{ roll_mm }}mm);
+      max-width: {{ roll_mm }}mm;
+      margin: 0 auto;
+      padding: 0 1.5mm 2mm;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: {{ fsize }};
+      line-height: 1.22;
+      background: #fff;
+      color: #111;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .receipt-thermal-accent { height: 1.5mm; margin: 0 0 1.5mm; background: #0a0a0a; }
+    .receipt-logo-row { text-align: center; margin: 0 auto 1mm; padding: 0 1mm; }
+    .receipt-logo-row img {
+      display: block; margin: 0 auto; max-height: 10mm; max-width: 68mm; height: auto; width: auto; object-fit: contain;
+    }
+    .receipt-thermal-brand { text-align: center; padding: 0 0 0.5mm; }
+    .receipt-thermal-kind {
+      margin: 0 0 2px;
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #374151;
+    }
+    .receipt-thermal-shopname {
+      margin: 0;
+      font-size: clamp(11px, 3.2mm, 15px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.12;
+      color: #0a0a0a;
+    }
+    .receipt-thermal-company { margin: 1px 0 0; font-size: 9px; font-weight: 600; color: #4b5563; }
+    .receipt-thermal-rule { height: 0; border: none; border-top: 1px solid #d1d5db; margin: 0 0 1.5mm; }
+    .receipt-thermal-contact { margin: 0 0 1mm; text-align: center; }
+    .receipt-thermal-customhdr {
+      margin: 0 0 1mm;
+      font-size: 8.5px;
+      line-height: 1.25;
+      color: #374151;
+      white-space: pre-wrap;
+      text-align: center;
+    }
+    .receipt-thermal-mut { margin: 0; font-size: 8px; line-height: 1.2; color: #6b7280; }
+    .receipt-thermal-meta {
+      margin: 0 0 1.5mm;
+      padding: 1mm 0;
+      border-top: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .receipt-thermal-meta div {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1.5mm;
+      margin: 0.8mm 0;
+    }
+    .receipt-thermal-meta dt {
+      margin: 0;
+      font-size: 7.5px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .receipt-thermal-meta dd {
+      margin: 0;
+      max-width: 72%;
+      text-align: right;
+      font-weight: 700;
+      font-size: 9px;
+      color: #111;
+    }
+    pre.receipt {
+      margin: 0;
+      width: 100%;
+      max-width: 100%;
+      font-family: "Cascadia Mono", "Courier New", Consolas, "Liberation Mono", monospace;
+      font-size: 9px;
+      line-height: 1.28;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow: visible;
+      color: #111;
+    }
+    pre.receipt--items { margin: 0; padding: 0.8mm 0 0; border-top: 1px dashed #d1d5db; }
+    pre.receipt--tail { margin: 1mm 0 0; padding: 1mm 0 0; border-top: 1px solid #e5e7eb; }
+    .receipt-thermal-totals { margin: 0 0 1mm; padding: 1mm 0 0; border-top: 2px solid #111; }
+    .receipt-thermal-grand {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 2mm;
+      margin-top: 1mm;
+      padding-top: 1mm;
+      border-top: 1px solid #e5e7eb;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: #0a0a0a;
+    }
+    .receipt-thermal-grand span:last-child { font-variant-numeric: tabular-nums; }
+    .receipt-qr {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      margin: 0.5mm 0 0;
+      padding: 1mm 1mm 0;
+      min-height: 22mm;
+    }
+    .receipt-qr img { display: block; width: 22mm; height: 22mm; max-width: 72%; object-fit: contain; }
+    .receipt-qr-caption { margin: 0.5mm 0 0; padding: 0; width: 100%; text-align: center; font-size: 7.5px; line-height: 1.25; color: #6b7280; }
+    .receipt-thermal-footer {
+      margin: 0 0 1mm;
+      padding: 1mm 0 0;
+      text-align: center;
+      font-size: 8px;
+      line-height: 1.25;
+      color: #4b5563;
+      border-top: 1px dashed #d1d5db;
+      white-space: pre-wrap;
+    }
+    .receipt-browser-print-tip {
+      margin: 0 0 1.5mm;
+      padding: 1.5mm 2mm;
+      border: 1px solid #fcd34d;
+      background: linear-gradient(180deg, #fffbeb, #fff7ed);
+      color: #92400e;
+      font-size: 8px;
+      line-height: 1.3;
+      border-radius: 4px;
+    }
+    @media print {
+      .receipt-no-print { display: none !important; }
+      .receipt-page-wrap { overflow: visible !important; }
+      .receipt-browser-print-tip { display: none !important; }
+      .receipt-thermal {
+        width: {{ roll_mm }}mm !important;
+        min-width: {{ roll_mm }}mm !important;
+        max-width: {{ roll_mm }}mm !important;
+        padding: 0 1.5mm 2mm !important;
+        font-size: {{ fsize }} !important;
+      }
+      pre.receipt { font-size: {% if roll_mm == 58 %}8.5{% else %}9{% endif %}pt !important; }
+      .receipt-logo-row img { max-height: 9mm; }
+      .receipt-qr img { width: 20mm !important; height: 20mm !important; }
+      .receipt-thermal-grand { font-size: 10.5pt !important; }
+      @page { size: {{ roll_css }} auto; margin: 0; }
+      html, body {
+        width: {{ roll_css }} !important;
+        min-width: {{ roll_css }} !important;
+        max-width: {{ roll_css }} !important;
+        margin: 0 !important;
+        background: #fff !important;
+      }
+    }
+  </style>
+
+  <div class="mx-auto max-w-4xl pb-2">
+    <div class="receipt-no-print mb-2 flex justify-end">
+      <button type="button" onclick="window.print()" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider">Print receipt</button>
+    </div>
+
+    <div class="receipt-page-wrap">
+      <div class="receipt-thermal">
+        <div class="receipt-thermal-accent" aria-hidden="true"></div>
+        <div class="receipt-browser-print-tip" role="status">
+          <strong>Print:</strong> Choose your physical printer under <strong>Destination</strong>, not Save as PDF.
+        </div>
+
+        {% if receipt_logo %}
+          <div class="receipt-logo-row">
+            <img src="{{ receipt_logo }}" alt="" />
+          </div>
+        {% endif %}
+
+        <header class="receipt-thermal-brand">
+          <p class="receipt-thermal-kind">Stock-in</p>
+          <h1 class="receipt-thermal-shopname">{{ shop.shop_name }}</h1>
+          {% if site_settings and site_settings.company_name %}
+            <p class="receipt-thermal-company">{{ site_settings.company_name }}</p>
+          {% endif %}
+        </header>
+        <div class="receipt-thermal-rule" role="presentation"></div>
+
+        {% if (S.show_address and r.shop_location) or (S.show_contact and site_settings and (site_settings.company_phone or site_settings.company_email)) %}
+          <div class="receipt-thermal-contact">
+            {% if S.show_address and r.shop_location %}
+              <p class="receipt-thermal-mut">{{ r.shop_location }}</p>
+            {% endif %}
+            {% if S.show_contact and site_settings and (site_settings.company_phone or site_settings.company_email) %}
+              <p class="receipt-thermal-mut">
+                {{ site_settings.company_phone or '' }}{% if site_settings.company_phone and site_settings.company_email %} · {% endif %}{{ site_settings.company_email or '' }}
+              </p>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        {% if S.receipt_header %}
+          <div class="receipt-thermal-customhdr">{{ S.receipt_header }}</div>
+        {% endif %}
+
+        <dl class="receipt-thermal-meta">
+          <div><dt>Tx</dt><dd>#{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}</dd></div>
+          {% if S.show_server %}
+            <div><dt>Staff</dt><dd>{{ r.served_by or '—' }}</dd></div>
+          {% endif %}
+          <div><dt>From</dt><dd>{{ r.place_brought_from or '—' }} · {{ r.seller_phone or '—' }}</dd></div>
+        </dl>
+
+        <pre class="receipt receipt--items">{{ r.item_name }}
+{{ (r.qty or 0) }} × {{ "%.2f"|format(r.buying_price or 0) }} = {{ "%.2f"|format(r.total_cost or 0) }}</pre>
+
+        <section class="receipt-thermal-totals" aria-label="Total">
+          <div class="receipt-thermal-grand"><span>Total</span><span>{{ "%.2f"|format(r.total_cost or 0) }}</span></div>
+        </section>
+
+        {% if qr_on %}
+          {% set qr_payload = qr_site if (qm == 'website' and qr_site) else request.url %}
+          <div class="receipt-qr">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data={{ qr_payload|urlencode }}" alt="" width="96" height="96" />
+            <p class="receipt-qr-caption">{% if qm == 'website' and qr_site %}Scan for link{% else %}Scan for receipt details{% endif %}</p>
+          </div>
+        {% endif %}
+
+        {% if S.receipt_footer %}
+          <footer class="receipt-thermal-footer">{{ S.receipt_footer }}</footer>
+        {% endif %}
+
+        <pre class="receipt receipt--tail">Thank you
+Powered by Richcom POS</pre>
+      </div>
+    </div>
+  </div>
+{% endblock %}

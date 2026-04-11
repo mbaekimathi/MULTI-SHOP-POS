@@ -26,6 +26,18 @@
     </svg>
     Stock reports
   </a>
+  <a href="{{ url_for('it_support_stock_suppliers') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" />
+    </svg>
+    Suppliers
+  </a>
+  <a href="{{ url_for('it_support_stock_status_print') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 18h12v2H6v-2zm12-8H6a2 2 0 00-2 2v4h4v-3h8v3h4v-4a2 2 0 00-2-2z" />
+    </svg>
+    Print page
+  </a>
   <a href="{{ url_for('it_support_company_stock_settings') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
     <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 01-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -39,6 +51,7 @@
   {% set d = stock_data or {} %}
   {% set shops = stock_shops or [] %}
   {% set rows = stock_rows or [] %}
+  {% set tx_rows = transaction_rows or [] %}
   <div class="mx-auto max-w-6xl">
     <span id="stock-status"></span>
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
@@ -133,8 +146,8 @@
       {% endif %}
     </div>
 
-    <div id="stock-movement"></div>
-    <form method="get" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
+    <div id="stock-movement" class="hidden"></div>
+    <form method="get" class="hidden mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
       <div class="flex flex-wrap items-end gap-2.5">
         <div class="min-w-[10rem] flex-1">
           <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
@@ -176,7 +189,7 @@
       </div>
     </form>
 
-    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+    <div class="hidden mt-4 grid gap-4 xl:grid-cols-2">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
         <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock in items</h3>
         {% if not d.top_in_items %}
@@ -216,7 +229,61 @@
       </div>
     </div>
 
-    <div class="mt-4 grid gap-4 xl:grid-cols-2">
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Transactions</h3>
+        <span class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+          {{ tx_rows|length }} rows
+        </span>
+      </div>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">All stock transactions listed by time.</p>
+      {% if not tx_rows %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions found.</p>
+      {% else %}
+        <div class="mt-3 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+          <table class="min-w-[980px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">From</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">To</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller name</th>
+                <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Moved by</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in tx_rows %}
+                <tr>
+                  <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.from_where }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.to_where }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.place_brought_from or '-' }}</td>
+                  <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.qty }}</td>
+                  <td class="px-3 py-2">
+                    {% if r.payment_status == 'paid' %}
+                      PAID
+                    {% elif r.payment_status == 'partially_paid' %}
+                      PARTIALLY PAID
+                    {% elif r.payment_status == 'pending_payment' %}
+                      PENDING PAYMENT
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.moved_by }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="hidden mt-4 grid gap-4 xl:grid-cols-2">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
         <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily movement</h3>
         {% if not d.daily %}
@@ -293,7 +360,7 @@
       </div>
     </div>
 
-    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <div class="hidden mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
       <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">More stock pages</h3>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
         Open dedicated pages from the sidebar for Stock profitability analysis and Stock reports.

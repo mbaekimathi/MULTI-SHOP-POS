@@ -1,6 +1,9 @@
 {% if notifications_url %}
   <a
     href="{{ notifications_url }}"
+    data-rc-notif-bell="1"
+    data-rc-notif-count="{{ notification_count | default(0) }}"
+    data-rc-notif-scope="{{ notification_scope | default('portal') }}"
     class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
     aria-label="Notifications"
     title="Notifications"
@@ -14,4 +17,49 @@
       </span>
     {% endif %}
   </a>
+  <script>
+    (function () {
+      var bell = document.querySelector("[data-rc-notif-bell]");
+      if (!bell) return;
+      var scope = bell.getAttribute("data-rc-notif-scope") || "portal";
+      var key = "rc_notif_seen_" + scope;
+      var count = parseInt(bell.getAttribute("data-rc-notif-count") || "0", 10) || 0;
+      var seen = 0;
+      try {
+        seen = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+      } catch (e) {}
+      if (count < seen) {
+        try {
+          localStorage.setItem(key, String(count));
+        } catch (e) {}
+        seen = count;
+      }
+      if (window.location.pathname.indexOf("/notifications") !== -1) {
+        try {
+          localStorage.setItem(key, String(count));
+        } catch (e) {}
+        return;
+      }
+      if (count > seen) {
+        try {
+          var Ctx = window.AudioContext || window.webkitAudioContext;
+          if (Ctx) {
+            var ctx = new Ctx();
+            var o = ctx.createOscillator();
+            var g = ctx.createGain();
+            o.type = "sine";
+            o.frequency.value = 880;
+            g.gain.value = 0.08;
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.start();
+            o.stop(ctx.currentTime + 0.12);
+          }
+        } catch (e) {}
+        try {
+          localStorage.setItem(key, String(count));
+        } catch (e) {}
+      }
+    })();
+  </script>
 {% endif %}

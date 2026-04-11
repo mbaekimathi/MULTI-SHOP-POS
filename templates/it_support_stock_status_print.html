@@ -1,0 +1,406 @@
+{% extends "employee_layout.html" %}
+{% block title %}Print stock status — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Print stock status{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_company_stock_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Stock status
+  </a>
+  <a href="{{ url_for('it_support_stock_status_print') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 18h12v2H6v-2zm12-8H6a2 2 0 00-2 2v4h4v-3h8v3h4v-4a2 2 0 00-2-2z" />
+    </svg>
+    Print page
+  </a>
+{% endblock %}
+{% block employee_content %}
+  {% set shops = stock_shops or [] %}
+  {% set rows = stock_rows or [] %}
+  {% set f = analytics_filter or {} %}
+  <div class="mx-auto max-w-5xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Print stock status</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Select print type, then print a single long Excel-style list.
+      </p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+        Current period filter: {{ f.range_label or "selected period" }}.
+      </p>
+    </div>
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="grid gap-3 lg:grid-cols-2">
+        <div>
+          <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">What to print</p>
+          <label class="mb-2 flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <input type="radio" name="print-content" value="names_only" checked />
+            <span>Stock only (item names only, no quantities)</span>
+          </label>
+          <label class="mb-2 flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <input type="radio" name="print-content" value="with_qty" />
+            <span>Current stock (with quantities)</span>
+          </label>
+          <label class="flex items-start gap-2 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <input type="radio" name="print-content" value="day_stock" class="mt-0.5" />
+            <span>
+              Day stock count (blank form for staff)
+              <span class="mt-0.5 block text-xs font-normal text-[rgb(var(--rc-muted))]">Item names only; quantity columns are left empty to fill in by hand. Pick shop and date for the sheet header.</span>
+            </span>
+          </label>
+        </div>
+        <div id="print-scope-section">
+          <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Scope</p>
+          <label class="mb-2 flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <input type="radio" name="print-scope" value="all" checked />
+            <span>All (company + all shops)</span>
+          </label>
+          <label class="mb-2 flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <input type="radio" name="print-scope" value="company" />
+            <span>Company only</span>
+          </label>
+          <label class="flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <input type="radio" name="print-scope" value="selected_shops" />
+            <span>Selected shops</span>
+          </label>
+          <div id="print-shops-wrap" class="mt-2 hidden rounded-lg border border-[rgb(var(--rc-border))] p-3">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Select shop(s)</p>
+            <div class="max-h-44 space-y-1 overflow-y-auto">
+              {% for sh in shops %}
+                <label class="flex items-center gap-2 text-sm text-[rgb(var(--rc-page-fg))]">
+                  <input type="checkbox" class="print-shop-checkbox" value="{{ sh.id }}" />
+                  <span>{{ sh.shop_name or ("Shop " ~ sh.id) }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div id="day-stock-section" class="hidden lg:col-span-2">
+          <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Day stock count</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop</label>
+              <select id="daily-shop-select" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+                <option value="">Select shop…</option>
+                {% for sh in shops %}
+                  <option value="{{ sh.id }}">{{ sh.shop_name or ("Shop " ~ sh.id) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date</label>
+              <input id="daily-date-input" type="date" value="{{ today_iso }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">
+            Prints item names with <strong class="text-[rgb(var(--rc-page-fg))]">empty</strong> quantity cells for staff to fill in by hand.
+            <span class="block mt-1">Columns: opening, added, moved, sold, remaining — see legend on the printout.</span>
+          </p>
+        </div>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <button type="button" id="print-stock-btn" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wider">
+          Print now
+        </button>
+        <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wider">
+          Back to stock status
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var printBtn = document.getElementById("print-stock-btn");
+      var scopeRadios = document.querySelectorAll('input[name="print-scope"]');
+      var contentRadios = document.querySelectorAll('input[name="print-content"]');
+      var scopeSection = document.getElementById("print-scope-section");
+      var dayStockSection = document.getElementById("day-stock-section");
+      var dailyShopSelect = document.getElementById("daily-shop-select");
+      var dailyDateInput = document.getElementById("daily-date-input");
+      var shopsWrap = document.getElementById("print-shops-wrap");
+      var shopChecks = document.querySelectorAll(".print-shop-checkbox");
+      var dailyDataUrl = {{ url_for('it_support_stock_status_print_daily_data')|tojson }};
+      {% set _ss = site_settings or {} %}
+      var printCompanyHeader = {
+        name: {{ (_ss.company_name or "Point of Sale")|tojson }},
+        phone: {{ (_ss.company_phone or "")|tojson }},
+        email: {{ (_ss.company_email or "")|tojson }},
+        facebook: {{ (_ss.company_facebook or "")|tojson }},
+        instagram: {{ (_ss.company_instagram or "")|tojson }}
+      };
+
+      function selectedRadioValue(radios, fallbackValue) {
+        var selected = Array.prototype.find.call(radios, function (r) {
+          return r.checked;
+        });
+        return selected ? selected.value : fallbackValue;
+      }
+
+      function escapeHtml(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function buildCompanyHeaderHtml() {
+        var h = printCompanyHeader || {};
+        var parts = [];
+        if (h.name) {
+          parts.push("<div class='co-name'>" + escapeHtml(h.name) + "</div>");
+        }
+        if (h.phone) {
+          parts.push("<div class='co-line'>Tel: " + escapeHtml(h.phone) + "</div>");
+        }
+        if (h.email) {
+          parts.push("<div class='co-line'>Email: " + escapeHtml(h.email) + "</div>");
+        }
+        if (h.facebook) {
+          parts.push("<div class='co-line'>Facebook: " + escapeHtml(h.facebook) + "</div>");
+        }
+        if (h.instagram) {
+          parts.push("<div class='co-line'>Instagram: " + escapeHtml(h.instagram) + "</div>");
+        }
+        if (!parts.length) {
+          return "";
+        }
+        return "<div class='co-header'>" + parts.join("") + "</div>";
+      }
+
+      function syncPrintScopeUI() {
+        var scope = selectedRadioValue(scopeRadios, "all");
+        if (shopsWrap) shopsWrap.classList.toggle("hidden", scope !== "selected_shops");
+      }
+
+      function syncPrintContentUI() {
+        var content = selectedRadioValue(contentRadios, "names_only");
+        var namesOnly = content === "names_only";
+        var dayStock = content === "day_stock";
+        if (scopeSection) scopeSection.classList.toggle("hidden", namesOnly || dayStock);
+        if (dayStockSection) dayStockSection.classList.toggle("hidden", !dayStock);
+        if (namesOnly && shopsWrap) shopsWrap.classList.add("hidden");
+        if (!namesOnly && !dayStock) syncPrintScopeUI();
+      }
+
+      Array.prototype.forEach.call(scopeRadios, function (r) {
+        r.addEventListener("change", syncPrintScopeUI);
+      });
+      Array.prototype.forEach.call(contentRadios, function (r) {
+        r.addEventListener("change", syncPrintContentUI);
+      });
+      syncPrintContentUI();
+
+      function buildPrintHtml(options) {
+        var withQty = options.content === "with_qty";
+        var selectedShopIds = options.selectedShopIds || [];
+        var selectedShopIdSet = {};
+        selectedShopIds.forEach(function (id) {
+          selectedShopIdSet[String(id)] = true;
+        });
+        var allRows = {{ rows|tojson }};
+        var allShops = {{ shops|tojson }};
+        allRows = (allRows || []).slice().sort(function (a, b) {
+          var an = String((a && a.name) || "").toLowerCase();
+          var bn = String((b && b.name) || "").toLowerCase();
+          if (an < bn) return -1;
+          if (an > bn) return 1;
+          return 0;
+        });
+
+        var visibleShops = [];
+        if (options.scope === "all") {
+          visibleShops = allShops.slice();
+        } else if (options.scope === "selected_shops") {
+          visibleShops = allShops.filter(function (sh) {
+            return !!selectedShopIdSet[String(sh.id)];
+          });
+        }
+
+        var headCols = ["No.", "Item"];
+        if (withQty) {
+          if (options.scope === "all" || options.scope === "company") headCols.push("Company");
+          visibleShops.forEach(function (sh) {
+            headCols.push(sh.shop_name || ("Shop " + sh.id));
+          });
+          if (options.scope === "all") headCols.push("Total");
+        }
+        headCols.push("Stock In Qty");
+
+        var tableHead = "<tr>" + headCols.map(function (h) {
+          return "<th>" + escapeHtml(h) + "</th>";
+        }).join("") + "</tr>";
+
+        var tableRows = allRows.map(function (r, idx) {
+          var cols = [
+            "<td style='text-align:center'>" + (idx + 1) + "</td>",
+            "<td>" + escapeHtml(r.name || "") + "</td>"
+          ];
+          if (withQty) {
+            if (options.scope === "all" || options.scope === "company") {
+              cols.push("<td style='text-align:right'>" + Number(r.company_stock_qty || 0) + "</td>");
+            }
+            visibleShops.forEach(function (sh) {
+              var perShop = r.per_shop || {};
+              var q = Number(perShop[String(sh.id)] || 0);
+              cols.push("<td style='text-align:right'>" + q + "</td>");
+            });
+            if (options.scope === "all") {
+              cols.push("<td style='text-align:right;font-weight:700'>" + Number(r.total_stock_qty || 0) + "</td>");
+            }
+          }
+          cols.push("<td>&nbsp;</td>");
+          return "<tr>" + cols.join("") + "</tr>";
+        }).join("");
+
+        var scopeLabel = "All (company + shops)";
+        if (options.scope === "company") scopeLabel = "Company only";
+        if (options.scope === "selected_shops") scopeLabel = "Selected shops";
+        var contentLabel = withQty ? "Current stock (with quantities)" : "Stock only (item names)";
+
+        return "<!doctype html><html><head><meta charset='utf-8'><title>Stock Status Print</title><style>" +
+          "@page{size:80mm auto;margin:2mm}" +
+          "html,body{height:auto;overflow:visible}" +
+          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:11pt;line-height:1.2}" +
+          ".sheet{width:76mm;max-width:76mm}" +
+          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:8px;margin-bottom:10px}" +
+          ".co-name{font-size:13pt;font-weight:700;margin:0 0 4px;line-height:1.2}" +
+          ".co-line{font-size:9pt;color:#222;font-weight:600;margin:2px 0;line-height:1.25;word-wrap:break-word}" +
+          "h1{margin:0 0 4px;font-size:14pt;font-weight:700}" +
+          "p{margin:0 0 8px;font-size:10pt;font-weight:700;color:#222}" +
+          "table{width:100%;border-collapse:collapse;font-size:10pt;table-layout:fixed}" +
+          "th,td{border:1px solid #6b7280;padding:4px 3px;vertical-align:middle;font-weight:700;word-wrap:break-word}" +
+          "th{background:#e5e7eb;text-align:left}" +
+          "tbody tr:nth-child(even){background:#fafafa}" +
+          "thead{display:table-row-group}" +
+          "tr{page-break-inside:auto;break-inside:auto}" +
+          "td{height:18px}" +
+          "</style></head><body>" +
+          "<div class='sheet'>" +
+          buildCompanyHeaderHtml() +
+          "<h1>Company Stock Status</h1>" +
+          "<p><strong>Type:</strong> " + escapeHtml(contentLabel) + " <br/><strong>Scope:</strong> " + escapeHtml(scopeLabel) + "</p>" +
+          "<table><thead>" + tableHead + "</thead><tbody>" + tableRows + "</tbody></table>" +
+          "</div></body></html>";
+      }
+
+      function buildDayStockPrintHtml(payload) {
+        var rows = (payload && payload.rows) || [];
+        var shopName = (payload && payload.shop_name) || "Shop";
+        var reportDate = (payload && payload.date) || "";
+        var headCols = ["No.", "Item", "Opening", "Added", "Moved", "Sold", "Remaining"];
+        var tableHead = "<tr>" + headCols.map(function (h) {
+          return "<th>" + escapeHtml(h) + "</th>";
+        }).join("") + "</tr>";
+        var blankQty =
+          "<td class='blank-qty' style='text-align:right;min-height:28px'>&nbsp;</td>";
+        var tableRows = rows.map(function (r, idx) {
+          var cols = [
+            "<td style='text-align:center'>" + (idx + 1) + "</td>",
+            "<td>" + escapeHtml(r.name || "") + "</td>",
+            blankQty,
+            blankQty,
+            blankQty,
+            blankQty,
+            blankQty
+          ];
+          return "<tr>" + cols.join("") + "</tr>";
+        }).join("");
+        var note =
+          "<p class='note'><strong>Manual count sheet</strong> — enter figures by hand. " +
+          "<strong>Opening</strong> = stock at start of day; <strong>Added</strong> = supplier stock-in; " +
+          "<strong>Moved</strong> = company warehouse &amp; transfers (net); " +
+          "<strong>Sold</strong> = POS and other manual stock-outs; " +
+          "<strong>Remaining</strong> = stock at end of day.</p>";
+        return "<!doctype html><html><head><meta charset='utf-8'><title>Day stock count</title><style>" +
+          "@page{size:A4 landscape;margin:10mm}" +
+          "html,body{height:auto;overflow:visible}" +
+          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:11pt;line-height:1.25}" +
+          ".sheet{max-width:100%}" +
+          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:10px;margin-bottom:12px}" +
+          ".co-name{font-size:18pt;font-weight:700;margin:0 0 6px;line-height:1.2}" +
+          ".co-line{font-size:10pt;color:#333;font-weight:600;margin:3px 0;line-height:1.3;word-wrap:break-word}" +
+          "h1{margin:0 0 6px;font-size:16pt;font-weight:700}" +
+          "p.sub{margin:0 0 10px;font-size:11pt;font-weight:700;color:#333}" +
+          "p.note{margin:10px 0 0;font-size:9pt;color:#444;line-height:1.35}" +
+          "table{width:100%;border-collapse:collapse;font-size:10pt;table-layout:fixed}" +
+          "th,td{border:1px solid #6b7280;padding:5px 6px;vertical-align:middle;word-wrap:break-word}" +
+          "th{background:#e5e7eb;text-align:left}" +
+          "tbody tr:nth-child(even){background:#fafafa}" +
+          "thead{display:table-header-group}" +
+          "tr{page-break-inside:avoid}" +
+          "td.blank-qty{min-height:28px;height:28px}" +
+          "</style></head><body>" +
+          "<div class='sheet'>" +
+          buildCompanyHeaderHtml() +
+          "<h1>Day stock count</h1>" +
+          "<p class='sub'>" + escapeHtml(shopName) + " — " + escapeHtml(reportDate) + "</p>" +
+          "<table><thead>" + tableHead + "</thead><tbody>" + tableRows + "</tbody></table>" +
+          note +
+          "</div></body></html>";
+      }
+
+      if (printBtn) {
+        printBtn.addEventListener("click", function () {
+          var content = selectedRadioValue(contentRadios, "names_only");
+          if (content === "day_stock") {
+            var sid = dailyShopSelect ? dailyShopSelect.value : "";
+            var d = dailyDateInput ? (dailyDateInput.value || "").trim() : "";
+            if (!sid) {
+              alert("Select a shop for the day stock count.");
+              return;
+            }
+            if (!d) {
+              alert("Select a date.");
+              return;
+            }
+            var url = dailyDataUrl + "?shop_id=" + encodeURIComponent(sid) + "&date=" + encodeURIComponent(d);
+            fetch(url, { credentials: "same-origin" })
+              .then(function (res) { return res.json(); })
+              .then(function (data) {
+                if (!data || !data.ok) {
+                  alert((data && data.error) || "Could not load day stock data.");
+                  return;
+                }
+                var html = buildDayStockPrintHtml(data);
+                var w = window.open("", "_blank", "width=1100,height=800");
+                if (!w) return;
+                w.document.open();
+                w.document.write(html);
+                w.document.close();
+                w.focus();
+                w.print();
+              })
+              .catch(function () {
+                alert("Could not load day stock data.");
+              });
+            return;
+          }
+          var scope = content === "names_only" ? "all" : selectedRadioValue(scopeRadios, "all");
+          var selectedShopIds = Array.prototype.map.call(shopChecks, function (c) {
+            return c.checked ? c.value : null;
+          }).filter(function (v) { return !!v; });
+          if (content !== "names_only" && scope === "selected_shops" && !selectedShopIds.length) {
+            alert("Select at least one shop to print selected shops.");
+            return;
+          }
+          var html = buildPrintHtml({
+            scope: scope,
+            content: content,
+            selectedShopIds: selectedShopIds
+          });
+          var w = window.open("", "_blank", "width=1100,height=800");
+          if (!w) return;
+          w.document.open();
+          w.document.write(html);
+          w.document.close();
+          w.focus();
+          w.print();
+        });
+      }
+    })();
+  </script>
+{% endblock %}

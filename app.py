@@ -11,12 +11,13 @@ from datetime import date, datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from flask import (
     Flask,
+    jsonify,
     Response,
     abort,
     flash,
@@ -360,11 +361,79 @@ def inject_portal_context():
     }
 
 
+def _notify_new_shop_stock_request(
+    *,
+    req_id: int,
+    requesting_shop_id: int,
+    source_type: str,
+    source_shop_id: int | None,
+    request_type: str,
+    item_id: int,
+    qty: int,
+) -> None:
+    """Create scoped notifications for company IT/super_admin and the shops involved."""
+    from database import create_notification, get_item_by_id, get_shop_by_id
+
+    rq_shop = get_shop_by_id(int(requesting_shop_id)) or {}
+    rq_name = (rq_shop.get("shop_name") or "").strip() or f"Shop #{requesting_shop_id}"
+    item = get_item_by_id(int(item_id)) or {}
+    item_label = (item.get("name") or "").strip() or f"Item #{item_id}"
+    rt = (request_type or "stock_in").strip().lower()
+    st = (source_type or "").strip().lower()
+
+    create_notification(
+        title="Request received",
+        message=(
+            f"Request #{req_id}: {item_label} × {qty} submitted and is awaiting approval."
+        )[:500],
+        shop_id=int(requesting_shop_id),
+        audience_role="all",
+        link_url=url_for("shop_notifications", shop_id=int(requesting_shop_id)),
+        dedupe_key=f"sr:new:{req_id}:rq",
+    )
+
+    if rt == "return_to_company":
+        create_notification(
+            title="New return-to-company request",
+            message=(f"Request #{req_id}: {rq_name} requests to return {item_label} × {qty} to company stock.")[:500],
+            shop_id=None,
+            audience_role="admin_only",
+            link_url=url_for("notifications"),
+            dedupe_key=f"sr:new:{req_id}:admin",
+        )
+        return
+
+    if st == "company":
+        create_notification(
+            title="New stock request",
+            message=(f"Request #{req_id}: {rq_name} requests {item_label} × {qty} from company stock.")[:500],
+            shop_id=None,
+            audience_role="admin_only",
+            link_url=url_for("notifications"),
+            dedupe_key=f"sr:new:{req_id}:admin",
+        )
+        return
+
+    if st == "shop" and source_shop_id:
+        s = get_shop_by_id(int(source_shop_id)) or {}
+        src_nm = (s.get("shop_name") or "").strip() or f"Shop #{source_shop_id}"
+        create_notification(
+            title="Incoming stock request",
+            message=(
+                f"Request #{req_id}: {rq_name} requests {item_label} × {qty} from your shop ({src_nm})."
+            )[:500],
+            shop_id=int(source_shop_id),
+            audience_role="all",
+            link_url=url_for("shop_notifications", shop_id=int(source_shop_id)),
+            dedupe_key=f"sr:new:{req_id}:src:{int(source_shop_id)}",
+        )
+
+
 @app.context_processor
 def inject_notification_context():
     uid = session.get("employee_id")
     if not uid:
-        return {"notification_count": 0, "notifications_url": None}
+        return {"notification_count": 0, "notifications_url": None, "notification_scope": None}
     role_key = (session.get("employee_role") or "employee").strip().lower()
     shop_id = _effective_viewer_shop_id(role_key)
     try:
@@ -380,9 +449,11 @@ def inject_notification_context():
     notifications_url = (
         url_for("shop_notifications", shop_id=int(shop_id)) if shop_id else url_for("notifications")
     )
+    notification_scope = f"shop-{int(shop_id)}" if shop_id else "portal"
     return {
         "notification_count": int(notification_count or 0),
         "notifications_url": notifications_url,
+        "notification_scope": notification_scope,
     }
 
 
@@ -1155,7 +1226,7 @@ def _printing_settings_from_form() -> dict:
 @login_required
 def it_support_system_settings():
     role_key = session.get("employee_role") or "employee"
-    if role_key != "it_support":
+    if role_key not in ("it_support", "super_admin"):
         abort(403)
     if request.method == "POST":
         company_name = (request.form.get("company_name") or "").strip() or "Point of Sale"
@@ -1227,15 +1298,14 @@ def it_support_system_settings():
 
 
 def _it_support_only():
+    """IT support portal routes: allowed for IT support and super admin (same access)."""
     role_key = session.get("employee_role") or "employee"
-    if role_key != "it_support":
+    if role_key not in ("it_support", "super_admin"):
         abort(403)
 
 
 def _it_support_or_super_admin_only():
-    role_key = session.get("employee_role") or "employee"
-    if role_key not in ("it_support", "super_admin"):
-        abort(403)
+    _it_support_only()
 
 
 def _get_shop_or_404(shop_id: int):
@@ -1244,7 +1314,8 @@ def _get_shop_or_404(shop_id: int):
 
         shop = get_shop_by_id(shop_id)
     except Exception:
-        shop = None
+        app.logger.exception("Database error while loading shop id=%s", shop_id)
+        abort(503)
     if not shop:
         abort(404)
     return shop
@@ -1353,7 +1424,8 @@ def _it_support_stock_page(direction: str):
         item_id_raw = (request.form.get("item_id") or "").strip()
         qty_raw = (request.form.get("qty") or "").strip()
         buying_price_raw = (request.form.get("buying_price") or "").strip()
-        place_brought_from = (request.form.get("place_brought_from") or "").strip().upper()
+        seller_phone = (request.form.get("seller_phone") or "").strip()
+        seller_name = (request.form.get("seller_name") or "").strip().upper()
         stock_out_reason = (request.form.get("stock_out_reason") or "").strip().lower()
         refunded_raw = (request.form.get("refunded") or "").strip().lower()
         refund_amount_raw = (request.form.get("refund_amount") or "").strip()
@@ -1380,8 +1452,8 @@ def _it_support_stock_page(direction: str):
             if not buying_price_raw:
                 flash("Buying price is required for stock in.", "error")
                 return redirect(url_for("it_support_stock_in", item_id=item_id))
-            if not place_brought_from:
-                flash("Place brought from is required for stock in.", "error")
+            if not seller_phone:
+                flash("Seller phone is required for stock in.", "error")
                 return redirect(url_for("it_support_stock_in", item_id=item_id))
             try:
                 buying_price = float(buying_price_raw)
@@ -1411,14 +1483,25 @@ def _it_support_stock_page(direction: str):
                     return redirect(url_for("it_support_stock_out", item_id=item_id))
 
         try:
-            from database import create_stock_transaction
+            from database import create_stock_transaction, resolve_seller_name_and_phone
+
+            resolved_name, resolved_phone = (None, None)
+            if direction == "in":
+                resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                    seller_phone=seller_phone,
+                    seller_name=seller_name,
+                )
+                if not resolved_name or not resolved_phone:
+                    flash("Seller phone must be valid. If new, enter seller name to register.", "error")
+                    return redirect(url_for("it_support_stock_in", item_id=item_id))
 
             ok = create_stock_transaction(
                 item_id=item_id,
                 direction=direction,
                 qty=qty,
                 buying_price=buying_price,
-                place_brought_from=place_brought_from or None,
+                place_brought_from=(resolved_name if direction == "in" else None),
+                seller_phone=(resolved_phone if direction == "in" else None),
                 stock_out_reason=stock_out_reason.upper() if direction == "out" else None,
                 refunded=refunded if direction == "out" else False,
                 refund_amount=refund_amount if direction == "out" else None,
@@ -1653,17 +1736,20 @@ def it_support_company_stock_analytics():
     except Exception:
         stock_data = {}
     try:
-        from database import get_company_stock_status
+        from database import get_company_stock_status, list_company_stock_movements
 
         shops, stock_rows = get_company_stock_status(limit_items=2000)
+        transaction_rows = list_company_stock_movements(analytics_filter=analytics_filter, limit=2000)
     except Exception:
         shops, stock_rows = [], []
+        transaction_rows = []
     return render_template(
         "it_support_stock_analytics.html",
         analytics_filter=analytics_filter,
         stock_data=stock_data,
         stock_shops=shops,
         stock_rows=stock_rows,
+        transaction_rows=transaction_rows,
     )
 
 
@@ -1672,6 +1758,83 @@ def it_support_company_stock_analytics():
 def it_support_stock_status():
     _it_support_or_super_admin_only()
     return redirect(url_for("it_support_company_stock_analytics") + "#stock-status")
+
+
+@app.route("/it_support/stock-status/manual-stock-ins/<int:tx_id>/payment", methods=["POST"])
+@login_required
+def it_support_manual_stock_in_payment_update(tx_id: int):
+    _it_support_or_super_admin_only()
+    amount_raw = (request.form.get("amount_paid") or "").strip()
+    try:
+        amount_paid = float(amount_raw)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
+    if amount_paid < 0:
+        return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
+    try:
+        from database import update_shop_manual_stock_in_payment
+
+        row = update_shop_manual_stock_in_payment(tx_id=tx_id, amount_paid=amount_paid)
+    except Exception:
+        row = None
+    if not row:
+        return jsonify({"ok": False, "error": "Transaction not found."}), 404
+    return jsonify({"ok": True, "row": row})
+
+
+@app.route("/it_support/stock-status/print/daily-data")
+@login_required
+def it_support_stock_status_print_daily_data():
+    _it_support_or_super_admin_only()
+    shop_id = request.args.get("shop_id", type=int)
+    daily_date = (request.args.get("date") or "").strip()[:10]
+    if not shop_id or not daily_date:
+        return jsonify({"ok": False, "error": "shop_id and date are required."}), 400
+    try:
+        from database import list_shop_stock_count_sheet_items
+
+        rows = list_shop_stock_count_sheet_items(shop_id)
+    except Exception:
+        rows = []
+    shop_name = ""
+    try:
+        from database import get_cursor
+
+        with get_cursor() as cur:
+            cur.execute("SELECT shop_name FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
+            rr = cur.fetchone() or {}
+            shop_name = (rr.get("shop_name") or "").strip()
+    except Exception:
+        shop_name = ""
+    return jsonify(
+        {
+            "ok": True,
+            "rows": rows,
+            "shop_id": int(shop_id),
+            "shop_name": shop_name or f"Shop #{shop_id}",
+            "date": daily_date,
+        }
+    )
+
+
+@app.route("/it_support/stock-status/print")
+@login_required
+def it_support_stock_status_print():
+    _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    try:
+        from database import get_company_stock_status
+
+        shops, stock_rows = get_company_stock_status(limit_items=2000)
+    except Exception:
+        shops, stock_rows = [], []
+    return render_template(
+        "it_support_stock_status_print.html",
+        analytics_filter=analytics_filter,
+        stock_shops=shops,
+        stock_rows=stock_rows,
+        today_iso=date.today().strftime("%Y-%m-%d"),
+    )
 
 
 @app.route("/it_support/stock-analytics")
@@ -1687,14 +1850,17 @@ def it_support_stock_movement_analysis():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
     selected_shop_id = request.args.get("shop_id", type=int)
+    selected_employee_id = request.args.get("employee_id", type=int)
     try:
         from database import (
             get_company_stock_movement_analytics,
             list_company_stock_movements,
+            list_employees,
             list_shops,
         )
 
         shops = list_shops(limit=500)
+        employees = list_employees(limit=2000)
         movement = get_company_stock_movement_analytics(
             analytics_filter=analytics_filter,
             shop_id=selected_shop_id,
@@ -1702,10 +1868,12 @@ def it_support_stock_movement_analysis():
         movement_rows = list_company_stock_movements(
             analytics_filter=analytics_filter,
             shop_id=selected_shop_id,
+            employee_id=selected_employee_id,
             limit=1500,
         )
     except Exception:
         shops = []
+        employees = []
         movement = {}
         movement_rows = []
     return render_template(
@@ -1714,7 +1882,9 @@ def it_support_stock_movement_analysis():
         movement_data=movement,
         movement_rows=movement_rows,
         shops=shops,
+        employees=employees or [],
         selected_shop_id=selected_shop_id,
+        selected_employee_id=selected_employee_id,
     )
 
 
@@ -2089,12 +2259,13 @@ def _serialize_stock_in_row(tx: dict) -> dict:
 def it_support_stock_suppliers():
     _it_support_or_super_admin_only()
     try:
-        from database import get_company_item_supplier_summary
+        from database import list_company_stock_movements
 
-        rows = get_company_item_supplier_summary(limit_items=2500) or []
+        analytics_filter = _build_analytics_filter()
+        rows = list_company_stock_movements(analytics_filter=analytics_filter, limit=2500) or []
     except Exception:
         rows = []
-    return render_template("it_support_stock_suppliers.html", supplier_rows=rows)
+    return render_template("it_support_stock_suppliers.html", transaction_rows=rows)
 
 
 @app.route("/it_support/stock-reports/suppliers/<int:item_id>/stock-ins")
@@ -3110,6 +3281,139 @@ def shop_pos(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-pos/stock-in", methods=["POST"])
+def shop_pos_stock_in(shop_id: int):
+    """Quick manual stock-in from the POS page."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
+
+    item_id_raw = (request.form.get("item_id") or "").strip()
+    qty_raw = (request.form.get("qty") or "").strip()
+    buying_price_raw = (request.form.get("buying_price") or "").strip()
+    seller_phone = (request.form.get("seller_phone") or "").strip()
+    seller_name = (request.form.get("seller_name") or "").strip().upper()
+    payment_status = "pending_payment"
+    note = (request.form.get("note") or "").strip().upper()
+    employee_code = (request.form.get("employee_code") or "").strip()
+
+    emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
+    if emp_err:
+        if wants_json:
+            return jsonify({"ok": False, "error": emp_err}), emp_status
+        flash(emp_err, "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+    created_by_employee_id = int(emp_row["id"])
+
+    try:
+        item_id = int(item_id_raw)
+        qty = int(float(qty_raw))
+    except Exception:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid stock-in values."}), 400
+        flash("Invalid stock-in values.", "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    if qty <= 0:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Quantity must be greater than zero."}), 400
+        flash("Quantity must be greater than zero.", "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    tx_id = None
+    try:
+        from database import (
+            ensure_shop_items_for_shop,
+            get_latest_shop_manual_stock_in_tx_id,
+            resolve_seller_name_and_phone,
+            shop_manual_stock_in,
+        )
+
+        ensure_shop_items_for_shop(shop_id)
+        resolved_name, resolved_phone = resolve_seller_name_and_phone(
+            seller_phone=seller_phone,
+            seller_name=seller_name,
+        )
+        if not resolved_name or not resolved_phone:
+            if wants_json:
+                return jsonify({"ok": False, "error": "Seller phone must be valid. If new, provide seller name to register."}), 400
+            flash("Seller phone must be valid. If new, provide seller name to register.", "error")
+            return redirect(url_for("shop_pos", shop_id=shop_id))
+        ok = shop_manual_stock_in(
+            shop_id=shop_id,
+            item_id=item_id,
+            qty=qty,
+            buying_price=buying_price_raw,
+            place_brought_from=resolved_name,
+            seller_phone=resolved_phone,
+            payment_status=payment_status,
+            note=note or None,
+            created_by_employee_id=created_by_employee_id,
+        )
+        if ok:
+            tx_id = get_latest_shop_manual_stock_in_tx_id(
+                shop_id=shop_id,
+                item_id=item_id,
+                created_by_employee_id=created_by_employee_id,
+            )
+    except Exception:
+        ok = False
+
+    if not ok:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Could not stock in item. Check item and input details."}), 400
+        flash("Could not stock in item. Check item and input details.", "error")
+    else:
+        if wants_json:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": "Item stocked in successfully.",
+                    "tx_id": tx_id,
+                    "receipt_url": (
+                        url_for("shop_stock_in_receipt", shop_id=shop_id, tx_id=tx_id)
+                        if tx_id
+                        else None
+                    ),
+                }
+            )
+        flash("Item stocked in successfully.", "success")
+    return redirect(url_for("shop_pos", shop_id=shop_id))
+
+
+@app.route("/shops/<int:shop_id>/stock-in-receipt/<int:tx_id>")
+def shop_stock_in_receipt(shop_id: int, tx_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    try:
+        from database import get_shop_stock_in_receipt_row
+
+        receipt = get_shop_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+    except Exception:
+        receipt = None
+    if not receipt:
+        flash("Stock-in receipt not found.", "error")
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, view="manual"))
+    return render_template(
+        "shop_stock_in_receipt.html",
+        shop=shop,
+        receipt=receipt,
+        pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/catalog.json")
 def shop_pos_catalog_json(shop_id: int):
     """Lightweight catalog snapshot for live stock/price refresh without reloading the page."""
@@ -3145,6 +3449,35 @@ def shop_pos_catalog_json(shop_id: int):
     return jsonify({"ok": True, "items": items})
 
 
+def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[dict], Optional[str], int]:
+    """
+    Shared POS rule: 6-digit code, active employee, shop assignment (unless IT/super_admin).
+    Returns (employee_row, None, 200) on success, or (None, error_message, http_status) on failure.
+    """
+    code = (code or "").strip()
+    if not re.fullmatch(r"\d{6}", code):
+        return None, "Enter a valid 6-digit employee code.", 400
+
+    from database import get_employee_by_code
+
+    row = get_employee_by_code(code)
+    if not row:
+        return None, "Employee code not registered. Try another code.", 404
+
+    if (row.get("status") or "").lower() != "active":
+        return None, "Employee is not active. Enter another active employee code.", 403
+
+    role_key = (row.get("role") or "employee").lower()
+    try:
+        emp_shop_id = int(row.get("shop_id")) if row.get("shop_id") is not None else None
+    except (TypeError, ValueError):
+        emp_shop_id = None
+    if role_key not in ("super_admin", "it_support") and emp_shop_id != int(shop_id):
+        return None, "Employee is not assigned to this shop. Enter another code.", 403
+
+    return row, None, 200
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/authorize-employee", methods=["POST"])
 def shop_pos_authorize_employee(shop_id: int):
     """Validate 6-digit employee code for POS authorization."""
@@ -3155,25 +3488,9 @@ def shop_pos_authorize_employee(shop_id: int):
 
     data = request.get_json(force=True, silent=True) or {}
     code = (data.get("employee_code") or "").strip()
-    if not re.fullmatch(r"\d{6}", code):
-        return jsonify({"ok": False, "error": "Enter a valid 6-digit employee code."}), 400
-
-    from database import get_employee_by_code
-
-    row = get_employee_by_code(code)
-    if not row:
-        return jsonify({"ok": False, "error": "Employee code not registered. Try another code."}), 404
-
-    if (row.get("status") or "").lower() != "active":
-        return jsonify({"ok": False, "error": "Employee is not active. Enter another active employee code."}), 403
-
-    role_key = (row.get("role") or "employee").lower()
-    try:
-        emp_shop_id = int(row.get("shop_id")) if row.get("shop_id") is not None else None
-    except (TypeError, ValueError):
-        emp_shop_id = None
-    if role_key not in ("super_admin", "it_support") and emp_shop_id != int(shop_id):
-        return jsonify({"ok": False, "error": "Employee is not assigned to this shop. Enter another code."}), 403
+    row, err, status = _shop_pos_validate_employee_code(shop_id, code)
+    if err:
+        return jsonify({"ok": False, "error": err}), status
 
     return jsonify(
         {
@@ -3217,6 +3534,50 @@ def shop_pos_customer_lookup(shop_id: int):
             },
         }
     )
+
+
+@app.route("/sellers/lookup", methods=["POST"])
+def seller_lookup():
+    """Lookup registered seller by phone for stock-in forms."""
+    if not session.get("employee_id") and not session.get("shop_id"):
+        return jsonify({"ok": False, "error": "Authentication required."}), 401
+    phone = (request.form.get("seller_phone") or "").strip()
+    try:
+        from database import get_seller_by_phone
+
+        row = get_seller_by_phone(phone)
+    except Exception:
+        row = None
+    if not row:
+        return jsonify({"ok": True, "registered": False, "seller": None})
+    return jsonify(
+        {
+            "ok": True,
+            "registered": True,
+            "seller": {
+                "id": int(row.get("id") or 0),
+                "seller_name": (row.get("seller_name") or "").strip(),
+                "phone": (row.get("phone") or "").strip(),
+            },
+        }
+    )
+
+
+@app.route("/sellers/suggest", methods=["GET"])
+def seller_suggest():
+    """Live seller-name suggestions by prefix."""
+    if not session.get("employee_id") and not session.get("shop_id"):
+        return jsonify({"ok": False, "error": "Authentication required.", "suggestions": []}), 401
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 1:
+        return jsonify({"ok": True, "suggestions": []})
+    try:
+        from database import search_seller_names
+
+        suggestions = search_seller_names(q, limit=10)
+    except Exception:
+        suggestions = []
+    return jsonify({"ok": True, "suggestions": suggestions})
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/customer-upsert", methods=["POST"])
@@ -4693,11 +5054,167 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
         mode = "in"
 
     if request.method == "POST":
+        view_arg = (request.form.get("view") or request.args.get("view") or "auto").strip().lower()
+        if view_arg not in ("auto", "manual"):
+            view_arg = "auto"
+    else:
+        view_arg = (request.args.get("view") or "auto").strip().lower()
+        if view_arg not in ("auto", "manual"):
+            view_arg = "auto"
+
+    if request.method == "POST":
         action = (request.form.get("action") or "").strip()
+
+        if action == "batch_request_stock":
+            try:
+                from database import ensure_shop_items_for_shop, create_shop_stock_request
+
+                ensure_shop_items_for_shop(shop_id)
+                source_type = "company"
+                source_shop_id = None
+                batch_note = (request.form.get("batch_note") or "").strip().upper() or None
+                ok_count = 0
+                fail_count = 0
+                for key in request.form:
+                    m = re.match(r"^qty_(\d+)$", key)
+                    if not m:
+                        continue
+                    iid = int(m.group(1))
+                    q_raw = (request.form.get(key) or "").strip()
+                    if not q_raw:
+                        continue
+                    try:
+                        q = int(float(q_raw))
+                    except Exception:
+                        fail_count += 1
+                        continue
+                    if q <= 0:
+                        continue
+                    per_note = (request.form.get(f"note_{iid}") or "").strip().upper() or None
+                    line_note = per_note or batch_note
+                    req_id = create_shop_stock_request(
+                        requesting_shop_id=shop_id,
+                        request_type="stock_in",
+                        source_type=source_type,
+                        source_shop_id=source_shop_id,
+                        item_id=iid,
+                        qty=q,
+                        note=line_note,
+                        requested_by_employee_id=session.get("employee_id"),
+                    )
+                    if req_id:
+                        _notify_new_shop_stock_request(
+                            req_id=int(req_id),
+                            requesting_shop_id=shop_id,
+                            source_type=source_type,
+                            source_shop_id=source_shop_id,
+                            request_type="stock_in",
+                            item_id=iid,
+                            qty=q,
+                        )
+                        ok_count += 1
+                    else:
+                        fail_count += 1
+                if ok_count and not fail_count:
+                    flash(f"Submitted {ok_count} stock request(s) for approval.", "success")
+                elif ok_count:
+                    flash(
+                        f"Submitted {ok_count} request(s). {fail_count} line(s) could not be submitted "
+                        "(check company stock and shop stock update).",
+                        "warning",
+                    )
+                else:
+                    flash(
+                        "No requests submitted. Enter at least one quantity, or check company stock availability.",
+                        "error",
+                    )
+            except Exception as e:
+                app.logger.exception("Batch stock request failed: %s", e)
+                flash(f"Could not submit requests. {type(e).__name__}: {e}", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action == "batch_manual_in":
+            try:
+                from database import ensure_shop_items_for_shop, resolve_seller_name_and_phone, shop_manual_stock_in
+
+                ensure_shop_items_for_shop(shop_id)
+                payment_status = "pending_payment"
+                # Shared seller/note: only merged into lines that are actually stocked in (qty > 0 below).
+                apply_sp = (request.form.get("apply_all_seller_phone") or "").strip()
+                apply_sn = (request.form.get("apply_all_seller_name") or "").strip().upper()
+                apply_note = (request.form.get("apply_all_note") or "").strip().upper() or None
+                ok_count = 0
+                fail_count = 0
+                for key in request.form:
+                    m = re.match(r"^qty_(\d+)$", key)
+                    if not m:
+                        continue
+                    iid = int(m.group(1))
+                    q_raw = (request.form.get(key) or "").strip()
+                    if not q_raw:
+                        continue
+                    try:
+                        q = int(float(q_raw))
+                    except Exception:
+                        fail_count += 1
+                        continue
+                    if q <= 0:
+                        continue
+                    bp = (request.form.get(f"buying_price_{iid}") or "").strip()
+                    sp = (request.form.get(f"seller_phone_{iid}") or "").strip() or apply_sp
+                    sn = (request.form.get(f"seller_name_{iid}") or "").strip().upper() or apply_sn
+                    row_note = (request.form.get(f"note_{iid}") or "").strip().upper()
+                    line_note = row_note or apply_note
+                    resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                        seller_phone=sp,
+                        seller_name=sn,
+                    )
+                    if not resolved_name or not resolved_phone:
+                        fail_count += 1
+                        continue
+                    # Same value as legacy single-field flow: place on the receipt matches registered seller name.
+                    place_final = (resolved_name or "").strip()
+                    if not place_final:
+                        fail_count += 1
+                        continue
+                    ok = shop_manual_stock_in(
+                        shop_id=shop_id,
+                        item_id=iid,
+                        qty=q,
+                        buying_price=bp,
+                        place_brought_from=place_final,
+                        seller_phone=resolved_phone,
+                        payment_status=payment_status,
+                        note=line_note,
+                        created_by_employee_id=session.get("employee_id"),
+                    )
+                    if ok:
+                        ok_count += 1
+                    else:
+                        fail_count += 1
+                if ok_count and not fail_count:
+                    flash(f"Recorded {ok_count} manual stock-in line(s).", "success")
+                elif ok_count:
+                    flash(
+                        f"Recorded {ok_count} line(s). {fail_count} line(s) failed (check seller phone/name and inputs).",
+                        "warning",
+                    )
+                else:
+                    flash(
+                        "No manual stock-ins recorded. Enter quantities and valid seller details for each line.",
+                        "error",
+                    )
+            except Exception as e:
+                app.logger.exception("Batch manual stock-in failed: %s", e)
+                flash(f"Could not record stock-in. {type(e).__name__}: {e}", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
         item_id_raw = (request.form.get("item_id") or "").strip()
         qty_raw = (request.form.get("qty") or "").strip()
         buying_price_raw = (request.form.get("buying_price") or "").strip()
-        place_brought_from = (request.form.get("place_brought_from") or "").strip().upper()
+        seller_phone = (request.form.get("seller_phone") or "").strip()
+        seller_name = (request.form.get("seller_name") or "").strip().upper()
+        payment_status = "pending_payment"
         reason = (request.form.get("reason") or "").strip().lower()
         note = (request.form.get("note") or "").strip().upper()
 
@@ -4705,19 +5222,19 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             item_id = int(item_id_raw)
         except Exception:
             flash("Invalid item.", "error")
-            return redirect(url_for("shop_stock_management", shop_id=shop_id))
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
         try:
             qty = int(float(qty_raw))
         except Exception:
             flash("Quantity must be a whole number.", "error")
-            return redirect(url_for("shop_stock_management", shop_id=shop_id, item_id=item_id))
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
         try:
             from database import (
                 ensure_shop_items_for_shop,
-                create_notification,
                 create_shop_stock_request,
+                resolve_seller_name_and_phone,
                 shop_manual_stock_in,
                 shop_manual_stock_out,
                 shop_request_stock_from_company,
@@ -4749,12 +5266,14 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 if not req_id:
                     flash("Could not create stock request. Check source and stock availability.", "error")
                 else:
-                    create_notification(
-                        title="New stock request",
-                        message=f"Shop #{shop_id} requested item #{item_id} qty {qty}.",
-                        shop_id=shop_id,
-                        audience_role="admin_only",
-                        link_url=url_for("notifications"),
+                    _notify_new_shop_stock_request(
+                        req_id=int(req_id),
+                        requesting_shop_id=shop_id,
+                        source_type=source_type,
+                        source_shop_id=source_shop_id,
+                        request_type="stock_in",
+                        item_id=item_id,
+                        qty=qty,
                     )
                     flash("Stock request submitted for approval.", "success")
             elif action == "request_return":
@@ -4771,12 +5290,14 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 if not req_id:
                     flash("Could not create return request. Check shop stock availability.", "error")
                 else:
-                    create_notification(
-                        title="New return request",
-                        message=f"Shop #{shop_id} requested return of item #{item_id} qty {qty}.",
-                        shop_id=shop_id,
-                        audience_role="admin_only",
-                        link_url=url_for("notifications"),
+                    _notify_new_shop_stock_request(
+                        req_id=int(req_id),
+                        requesting_shop_id=shop_id,
+                        source_type="company",
+                        source_shop_id=None,
+                        request_type="return_to_company",
+                        item_id=item_id,
+                        qty=qty,
                     )
                     flash("Return request submitted for company approval.", "success")
             elif action == "request_company":
@@ -4807,12 +5328,26 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 else:
                     flash("Stock returned to company.", "success")
             elif action == "manual_in":
+                place_brought_from_raw = (request.form.get("place_brought_from") or "").strip().upper()
+                resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                    seller_phone=seller_phone,
+                    seller_name=seller_name,
+                )
+                if not resolved_name or not resolved_phone:
+                    flash("Seller phone must be valid. If new, provide seller name to register.", "error")
+                    return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+                place_use = place_brought_from_raw or (resolved_name or "")
+                if not place_use:
+                    flash("Place bought from or seller name is required.", "error")
+                    return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
                 ok = shop_manual_stock_in(
                     shop_id=shop_id,
                     item_id=item_id,
                     qty=qty,
                     buying_price=buying_price_raw,
-                    place_brought_from=place_brought_from,
+                    place_brought_from=place_use,
+                    seller_phone=resolved_phone,
+                    payment_status=payment_status,
                     note=note or None,
                     created_by_employee_id=session.get("employee_id"),
                 )
@@ -4841,70 +5376,34 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             app.logger.exception("Shop stock management failed: %s", e)
             flash(f"Could not update shop stock. {type(e).__name__}: {e}", "error")
 
-        if item_id:
-            return redirect(url_for("shop_stock_management_item", shop_id=shop_id, mode=mode, item_id=item_id))
-        return redirect(url_for("shop_stock_management", shop_id=shop_id, mode=mode))
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
-    selected_item_id = item_id or request.args.get("item_id", type=int)
     try:
         from database import (
             ensure_shop_items_for_shop,
             list_shop_stock_manage_items,
             list_shop_stock_transactions,
-            list_shops,
             list_stock_requests_for_session,
-            get_shop_stock_qty_map_for_item,
         )
 
         ensure_shop_items_for_shop(shop_id)
         items = list_shop_stock_manage_items(shop_id=shop_id, limit=500)
-        txs = list_shop_stock_transactions(shop_id=shop_id, item_id=selected_item_id, limit=200) if selected_item_id else []
-        selected_item = None
-        if selected_item_id and items:
-            selected_item = next((it for it in items if int(it.get("id", 0)) == int(selected_item_id)), None)
-        source_shops = [s for s in (list_shops(limit=500) or []) if int(s.get("id") or 0) != int(shop_id)]
-        shop_qty_map = get_shop_stock_qty_map_for_item(selected_item_id) if selected_item_id else {}
-        source_targets = [
-            {
-                "value": "company",
-                "label": "Company",
-                "qty_left": int((selected_item or {}).get("company_stock_qty") or 0),
-            }
-        ]
-        for s in source_shops:
-            sid = int(s.get("id") or 0)
-            source_targets.append(
-                {
-                    "value": f"shop:{sid}",
-                    "label": s.get("shop_name") or f"Shop #{sid}",
-                    "qty_left": int(shop_qty_map.get(sid) or 0),
-                }
-            )
+        txs = list_shop_stock_transactions(shop_id=shop_id, item_id=None, limit=200)
         request_rows = list_stock_requests_for_session(
             role_key=(session.get("employee_role") or "employee"),
             viewer_shop_id=shop_id,
             limit=200,
         )
-        item_request_rows = (
-            [r for r in (request_rows or []) if int(r.get("item_id") or 0) == int(selected_item_id)]
-            if selected_item_id
-            else (request_rows or [])
-        )
     except Exception:
-        items, txs, selected_item, source_shops, source_targets, request_rows, item_request_rows = [], [], None, [], [], [], []
+        items, txs, request_rows = [], [], []
 
     return render_template(
         "shop_stock_management.html",
         shop=shop,
         items=items,
-        selected_item_id=selected_item_id,
-        selected_item=selected_item,
-        item_page=(request.endpoint == "shop_stock_management_item"),
-        source_shops=source_shops,
-        source_targets=source_targets,
+        view=view_arg,
         stock_requests=request_rows,
-        item_stock_requests=item_request_rows,
-        mode=mode,
+        item_stock_requests=request_rows,
         transactions=txs,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -4915,12 +5414,32 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
 
 @app.route(
+    "/shops/<int:shop_id>/shop-stock-management/<string:stock_path_segment>",
+    methods=["GET", "POST"],
+)
+def shop_stock_management_legacy_segment(shop_id: int, stock_path_segment: str):
+    """
+    Old bookmarks used /shop-stock-management/in or /out without an item id.
+    The item-specific route is /shop-stock-management/<mode>/<item_id>; a single
+    trailing segment would otherwise 404.
+    """
+    seg = (stock_path_segment or "").strip().lower()
+    code = 302 if request.method == "POST" else 301
+    if seg in ("in", "auto"):
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, view="auto"), code=code)
+    if seg in ("out", "manual"):
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, view="manual"), code=code)
+    abort(404)
+
+
+@app.route(
     "/shops/<int:shop_id>/shop-stock-management/<string:mode>/<int:item_id>",
     methods=["GET"],
     endpoint="shop_stock_management_item",
 )
 def shop_stock_management_item(shop_id: int, mode: str, item_id: int):
-    return shop_stock_management(shop_id=shop_id, mode=mode, item_id=item_id)
+    # Legacy URLs; stock management is a single bulk page now.
+    return redirect(url_for("shop_stock_management", shop_id=shop_id, view="auto"))
 
 
 def _can_user_review_stock_request(row: dict, *, role_key: str, viewer_shop_id: int | None) -> bool:
@@ -4971,26 +5490,20 @@ def notifications():
     if shop_id:
         return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
     try:
-        from database import list_notifications_for_session, list_stock_requests_for_session, can_fulfill_stock_request
+        from database import list_stock_requests_for_session, can_fulfill_stock_request
 
-        rows = list_notifications_for_session(
-            employee_id=session.get("employee_id"),
-            shop_id=None,
-            role_key=role_key,
-            limit=300,
-        )
         stock_requests = list_stock_requests_for_session(
             role_key=role_key,
             viewer_shop_id=None,
             limit=300,
         )
     except Exception:
-        rows, stock_requests = [], []
+        stock_requests = []
     viewer_shop_id = _effective_viewer_shop_id(role_key)
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=viewer_shop_id)
         r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
-    return render_template("notifications.html", notifications=rows, stock_requests=stock_requests)
+    return render_template("notifications.html", stock_requests=stock_requests)
 
 
 @app.route("/shops/<int:shop_id>/notifications")
@@ -5249,22 +5762,13 @@ def shop_stock_analytics(shop_id: int):
     )
 
 
-@app.route("/shops/<int:shop_id>/shop-stock-reports")
-def shop_stock_reports(shop_id: int):
-    shop = _get_shop_or_404(shop_id)
-    gate = _require_shop_access(shop)
-    if gate is not None:
-        return gate
-    analytics_filter = _build_analytics_filter()
-    selected_view = (request.args.get("view") or "low_stock").strip().lower()
-    allowed_views = {"low_stock", "fast_moving", "valuation", "highest_value", "stagnant"}
-    if selected_view not in allowed_views:
-        selected_view = "low_stock"
-    reorder_threshold = request.args.get("reorder_threshold", type=int)
-    if reorder_threshold is None:
-        reorder_threshold = 5
-    reorder_threshold = max(0, min(500, int(reorder_threshold)))
-    # Canonicalize query params so the page URL does not keep empty fields.
+def _shop_stock_reports_canonical_query(
+    *,
+    selected_view: str,
+    analytics_filter: dict,
+    reorder_threshold: int,
+) -> Dict[str, Any]:
+    """Stable query dict for shop stock reports URLs (matches redirect normalization)."""
     clean_query: Dict[str, Any] = {
         "view": selected_view,
         "mode": analytics_filter.get("mode") or "single_day",
@@ -5281,6 +5785,183 @@ def shop_stock_reports(shop_id: int):
         clean_query["month"] = analytics_filter.get("month")
     elif clean_query["mode"] == "year" and analytics_filter.get("year"):
         clean_query["year"] = analytics_filter.get("year")
+    return clean_query
+
+
+@app.route("/shops/<int:shop_id>/shop-stock-profitability-analysis")
+def shop_stock_profitability_analysis(shop_id: int):
+    """Per-item profitability for this shop (margins, POS period sales, shop stock-in cost basis)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    selected_view = (request.args.get("view") or "margin").strip().lower()
+    allowed_views = {
+        "margin",
+        "stock_value",
+        "velocity",
+        "leakage",
+        "low_margin_high_volume",
+        "low_stock",
+    }
+    if selected_view not in allowed_views:
+        selected_view = "margin"
+    low_stock_threshold = request.args.get("low_stock_threshold", type=int)
+    if low_stock_threshold is None:
+        low_stock_threshold = 5
+    low_stock_threshold = max(0, min(500, int(low_stock_threshold)))
+    reorder_threshold = request.args.get("reorder_threshold", type=int)
+    if reorder_threshold is None:
+        reorder_threshold = low_stock_threshold
+    reorder_threshold = max(0, min(500, int(reorder_threshold)))
+
+    item_rows = []
+    avg_margin_pct = 0.0
+    total_stock_value = 0.0
+    dead_stock_value = 0.0
+    dead_stock_count = 0
+    high_value_zero_stock = []
+    low_margin_high_volume = []
+    low_stock_items = []
+    top_velocity_items = []
+    margin_rows = []
+    stock_value_rows = []
+
+    try:
+        from database import (
+            get_shop_avg_buying_price_by_item,
+            get_shop_item_sales_totals_by_item,
+            list_shop_items,
+        )
+
+        items = list_shop_items(shop_id=shop_id, limit=3000) or []
+        sales_map = get_shop_item_sales_totals_by_item(shop_id, analytics_filter)
+        avg_buy_map = get_shop_avg_buying_price_by_item(shop_id)
+
+        margin_sum = 0.0
+        margin_n = 0
+        for it in items:
+            try:
+                iid = int(it.get("id") or 0)
+            except Exception:
+                continue
+            if iid <= 0:
+                continue
+
+            try:
+                selling_price = float(
+                    it.get("selling_price")
+                    if it.get("selling_price") is not None
+                    else (it.get("price") or 0)
+                )
+            except Exception:
+                selling_price = 0.0
+            avg_buying_price = avg_buy_map.get(iid)
+            qty_sold = int((sales_map.get(iid) or {}).get("qty_sold") or 0)
+            revenue = float((sales_map.get(iid) or {}).get("revenue") or 0)
+            stock_qty = int(it.get("shop_stock_qty") or 0)
+
+            margin_amount = None
+            margin_pct = None
+            if avg_buying_price is not None and selling_price > 0:
+                margin_amount = selling_price - avg_buying_price
+                margin_pct = (margin_amount / selling_price) * 100.0
+                margin_sum += margin_pct
+                margin_n += 1
+
+            stock_value = max(stock_qty, 0) * (avg_buying_price or 0.0)
+            velocity = qty_sold / max(stock_qty, 1) if qty_sold > 0 else 0.0
+
+            row = {
+                "item_id": iid,
+                "category": (it.get("category") or "").strip(),
+                "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                "selling_price": selling_price,
+                "avg_buying_price": avg_buying_price,
+                "margin_amount": margin_amount,
+                "margin_pct": margin_pct,
+                "stock_qty": stock_qty,
+                "stock_value": stock_value,
+                "qty_sold": qty_sold,
+                "revenue": revenue,
+                "velocity": velocity,
+            }
+            item_rows.append(row)
+            total_stock_value += stock_value
+
+            if stock_qty > 0 and qty_sold == 0:
+                dead_stock_count += 1
+                dead_stock_value += stock_value
+            if stock_qty <= 0 and revenue > 0:
+                high_value_zero_stock.append(row)
+            if stock_qty <= low_stock_threshold:
+                low_stock_items.append(row)
+            if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
+                low_margin_high_volume.append(row)
+            if margin_pct is not None:
+                margin_rows.append(row)
+
+        avg_margin_pct = (margin_sum / margin_n) if margin_n else 0.0
+        margin_rows.sort(key=lambda r: (r.get("margin_pct") if r.get("margin_pct") is not None else -9999))
+        stock_value_rows = sorted(item_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
+        high_value_zero_stock.sort(key=lambda r: r.get("revenue") or 0, reverse=True)
+        low_margin_high_volume.sort(
+            key=lambda r: ((r.get("qty_sold") or 0), -(r.get("margin_pct") or 0)), reverse=True
+        )
+        low_stock_items.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("qty_sold") or 0)))
+        top_velocity_items = sorted(item_rows, key=lambda r: r.get("velocity") or 0, reverse=True)
+    except Exception:
+        item_rows = []
+
+    return render_template(
+        "shop_stock_profitability_analysis.html",
+        shop=shop,
+        analytics_filter=analytics_filter,
+        shop_stock_sidebar_focus="profitability",
+        selected_view=selected_view,
+        low_stock_threshold=low_stock_threshold,
+        reorder_threshold=reorder_threshold,
+        item_rows=item_rows,
+        avg_margin_pct=avg_margin_pct,
+        total_stock_value=total_stock_value,
+        dead_stock_value=dead_stock_value,
+        dead_stock_count=dead_stock_count,
+        margin_rows=(margin_rows[:100]),
+        stock_value_rows=(stock_value_rows[:100]),
+        high_value_zero_stock=(high_value_zero_stock[:100]),
+        low_margin_high_volume=(low_margin_high_volume[:100]),
+        low_stock_items=(low_stock_items[:150]),
+        top_velocity_items=(top_velocity_items[:100]),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-stock-reports")
+def shop_stock_reports(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    selected_view = (request.args.get("view") or "low_stock").strip().lower()
+    allowed_views = {"low_stock", "fast_moving", "valuation", "highest_value", "stagnant"}
+    if selected_view not in allowed_views:
+        selected_view = "low_stock"
+    reorder_threshold = request.args.get("reorder_threshold", type=int)
+    if reorder_threshold is None:
+        reorder_threshold = 5
+    reorder_threshold = max(0, min(500, int(reorder_threshold)))
+    # Canonicalize query params so the page URL does not keep empty fields.
+    clean_query = _shop_stock_reports_canonical_query(
+        selected_view=selected_view,
+        analytics_filter=analytics_filter,
+        reorder_threshold=reorder_threshold,
+    )
     if request.args.to_dict(flat=True) != {k: str(v) for k, v in clean_query.items()}:
         return redirect(url_for("shop_stock_reports", shop_id=shop_id, **clean_query))
     bundle = _load_shop_stock_live_report_rows(shop_id, analytics_filter, reorder_threshold)

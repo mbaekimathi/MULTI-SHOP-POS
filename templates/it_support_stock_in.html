@@ -30,8 +30,13 @@
               <input name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Place bought</label>
-              <input name="place_brought_from" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. CITY WHOLESALE MARKET" />
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Seller phone</label>
+              <input id="it-seller-phone" name="seller_phone" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="E.G. +254712345678" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Seller name</label>
+              <input id="it-seller-name" name="seller_name" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. COLLINS MWANGI" />
+              <p id="it-seller-hint" class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]"></p>
             </div>
             <div class="md:col-span-2">
               <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-2.5 text-sm">
@@ -54,7 +59,8 @@
                     <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Date</th>
                     <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Qty</th>
                     <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Buying</th>
-                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">From</th>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Seller name</th>
+                    <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Seller phone</th>
                     <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Note</th>
                   </tr>
                 </thead>
@@ -65,6 +71,7 @@
                       <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.qty }}</td>
                       <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(tx.buying_price or 0) }}</td>
                       <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.place_brought_from or "—" }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.seller_phone or "—" }}</td>
                       <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.note or "—" }}</td>
                     </tr>
                   {% endfor %}
@@ -75,5 +82,54 @@
       </div>
     </section>
   </div>
+  <script>
+    (function () {
+      var phone = document.getElementById("it-seller-phone");
+      var name = document.getElementById("it-seller-name");
+      var hint = document.getElementById("it-seller-hint");
+      var timer = null;
+      if (!phone || !name) return;
+      var url = {{ url_for('seller_lookup')|tojson }};
+      phone.addEventListener("input", function () {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+        var p = (phone.value || "").trim();
+        if (p.indexOf("+254") === 0) {
+          p = "254" + p.slice(4);
+        }
+        p = p.replace(/\s+/g, "");
+        if (phone.value !== p) phone.value = p;
+        var digits = p.replace(/\D/g, "");
+        if (!p) {
+          if (hint) hint.textContent = "";
+          return;
+        }
+        if (digits.length < 10) {
+          if (hint) hint.textContent = "Continue typing seller phone (10 digits)...";
+          return;
+        }
+        var valid10 = /^((07|01)\d{8})$/.test(digits);
+        var valid12 = /^((2547|2541)\d{8})$/.test(digits);
+        if (!valid10 && !valid12) {
+          if (hint) hint.textContent = "Use 07/01 (10 digits) or 2547/2541 (12 digits).";
+          return;
+        }
+        var fd = new FormData();
+        fd.append("seller_phone", p);
+        fetch(url, { method: "POST", body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.ok && data.registered && data.seller) {
+              name.value = String(data.seller.seller_name || "").toUpperCase();
+              if (hint) hint.textContent = "Registered seller found. Name auto-filled.";
+            } else if (hint) {
+              hint.textContent = "New seller phone. Enter seller name to register.";
+            }
+          })
+          .catch(function () {});
+        }, 220);
+      });
+    })();
+  </script>
 {% endblock %}
 
