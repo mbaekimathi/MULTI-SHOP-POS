@@ -5,7 +5,9 @@
   <a href="{{ url_for('it_support_company_stock_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Back to stock status</a>
 {% endblock %}
 {% block employee_content %}
+  {% set f = analytics_filter or {} %}
   {% set rows = transaction_rows or [] %}
+  {% set shops = stock_shops or [] %}
   {% set ns = namespace(pending=0, partial=0, paid=0, payable=0) %}
   {% for r in rows %}
     {% if r.payment_status == 'paid' %}
@@ -28,7 +30,7 @@
             Suppliers transactions
           </h2>
           <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-            Transactions-only list with place bought from and payment status.
+            Transactions for <span class="font-semibold">{{ f.range_label or 'selected period' }}</span>. Rows are grouped with partially paid first, then pending, then paid (newest first within each group).
           </p>
         </div>
         <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock status</a>
@@ -41,10 +43,67 @@
       </div>
     </div>
 
+    <form id="suppliers-filter-form" method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+      <p class="mb-3 text-[11px] text-[rgb(var(--rc-muted))]">Results update automatically when you change a filter.</p>
+      <div class="flex flex-wrap items-end gap-2.5">
+        <div class="min-w-[10rem] flex-1">
+          <label for="suppliers-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
+          <select id="suppliers-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+            <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div id="suppliers-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+          <label for="suppliers-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+          <input id="suppliers-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div id="suppliers-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="suppliers-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+            <input id="suppliers-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="suppliers-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+            <input id="suppliers-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+        </div>
+        <div id="suppliers-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+          <label for="suppliers-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+          <input id="suppliers-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div id="suppliers-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+          <label for="suppliers-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+          <input id="suppliers-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div class="min-w-[12rem] flex-1">
+          <label for="supplier-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Supplier name or phone</label>
+          <input id="supplier-q" type="search" name="supplier_q" value="{{ supplier_q or '' }}" placeholder="Search seller name or phone" autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div class="min-w-[10rem] flex-1">
+          <label for="moved-by-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Moved by</label>
+          <input id="moved-by-q" type="search" name="moved_by" value="{{ moved_by_q or '' }}" placeholder="Employee name" autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <div class="min-w-[11rem] flex-1">
+          <label for="filter-shop-id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
+          <select id="filter-shop-id" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+            <option value="">All shops</option>
+            {% for sh in shops %}
+              <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <a href="{{ url_for('it_support_stock_suppliers') }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Clear all</a>
+        </div>
+      </div>
+    </form>
+
     <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
       <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
         <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Transactions</h3>
-        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Showing all stock transactions ordered by latest first. On small screens, swipe horizontally or use cards below.</p>
+        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Filters apply as you change them. On small screens, swipe horizontally or use cards below.</p>
       </div>
       <div class="hidden overflow-x-auto md:block">
         <table class="min-w-[980px] w-full text-sm">
@@ -171,23 +230,35 @@
       <div class="relative mx-auto mt-8 w-[95%] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl sm:mt-16">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Update stock payment</h4>
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Total is buying price x quantity.</p>
+            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Record payment</h4>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter what you are paying <span class="font-semibold">now</span>; it is added to what is already recorded. When the total reaches the line total, status becomes paid.</p>
           </div>
           <button type="button" id="payment-modal-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
         </div>
         <div class="mt-4 grid gap-2 text-sm">
           <div><span class="text-[rgb(var(--rc-muted))]">Item:</span> <span id="pay-item" class="font-semibold text-[rgb(var(--rc-page-fg))]"></span></div>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Buying price</div><div id="pay-buying-price" class="font-semibold"></div></div>
             <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Qty</div><div id="pay-qty" class="font-semibold"></div></div>
-            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Total</div><div id="pay-total" class="font-bold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Line total</div><div id="pay-total" class="font-bold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Already paid</div><div id="pay-already" class="font-semibold tabular-nums"></div></div>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-3 py-2 text-sm">
+            <span class="text-[rgb(var(--rc-muted))]">Balance remaining</span>
+            <span id="pay-balance" class="font-bold tabular-nums text-[rgb(var(--rc-page-fg))]"></span>
           </div>
         </div>
         <form id="payment-form" class="mt-4">
           <input type="hidden" id="pay-tx-id" />
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Amount paid</label>
-          <input id="pay-amount-paid" name="amount_paid" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pay-additional">Pay now (added to recorded payments)</label>
+          <input id="pay-additional" name="additional_payment" type="number" min="0" step="0.01" autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+          <p id="pay-preview" class="mt-2 text-xs text-[rgb(var(--rc-muted))]"></p>
+          <details class="mt-3 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-3 py-2">
+            <summary class="cursor-pointer text-xs font-semibold text-[rgb(var(--rc-page-fg))]">Set total paid instead (replace)</summary>
+            <p class="mt-2 text-[11px] text-[rgb(var(--rc-muted))]">Use only to correct the running total. Leave “Pay now” empty when using this.</p>
+            <label class="mb-1 mt-2 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pay-amount-total">Total amount paid (cumulative)</label>
+            <input id="pay-amount-total" name="amount_paid" type="number" min="0" step="0.01" autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="Leave empty if using Pay now" />
+          </details>
           <div class="mt-4 flex justify-end gap-2">
             <button type="button" id="payment-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
             <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save payment</button>
@@ -210,26 +281,65 @@
       if (!modal || !openBtns.length || !form) return;
 
       var txIdEl = document.getElementById("pay-tx-id");
-      var amountPaidEl = document.getElementById("pay-amount-paid");
+      var additionalEl = document.getElementById("pay-additional");
+      var totalOverrideEl = document.getElementById("pay-amount-total");
       var itemEl = document.getElementById("pay-item");
       var buyingEl = document.getElementById("pay-buying-price");
       var qtyEl = document.getElementById("pay-qty");
       var totalEl = document.getElementById("pay-total");
+      var alreadyEl = document.getElementById("pay-already");
+      var balanceEl = document.getElementById("pay-balance");
+      var previewEl = document.getElementById("pay-preview");
+      var lineTotal = 0;
+      var alreadyPaid = 0;
 
       function fmt(v) { return Number(v || 0).toFixed(2); }
+      function parseNum(el) {
+        var s = (el && el.value) ? String(el.value).trim() : "";
+        if (s === "") return null;
+        var n = parseFloat(s);
+        return isNaN(n) ? null : n;
+      }
       function openModal() { modal.classList.remove("hidden"); }
       function closeModal() { modal.classList.add("hidden"); }
+
+      function syncPreview() {
+        var add = parseNum(additionalEl);
+        if (add === null || add <= 0) {
+          previewEl.textContent = balanceEl && balanceEl.textContent
+            ? "Balance due is " + balanceEl.textContent + "."
+            : "";
+          return;
+        }
+        var next = alreadyPaid + add;
+        var st = next >= lineTotal ? "Status will be paid." : "Status will be partially paid.";
+        previewEl.textContent = "After recording: total paid " + fmt(next) + " of " + fmt(lineTotal) + ". " + st;
+      }
 
       openBtns.forEach(function (btn) {
         btn.addEventListener("click", function () {
           txIdEl.value = btn.getAttribute("data-tx-id") || "";
-          amountPaidEl.value = btn.getAttribute("data-amount-paid") || "0";
+          lineTotal = parseFloat(btn.getAttribute("data-total-cost") || "0") || 0;
+          alreadyPaid = parseFloat(btn.getAttribute("data-amount-paid") || "0") || 0;
+          if (additionalEl) additionalEl.value = "";
+          if (totalOverrideEl) totalOverrideEl.value = "";
           itemEl.textContent = btn.getAttribute("data-item-name") || "-";
           buyingEl.textContent = fmt(btn.getAttribute("data-buying-price"));
           qtyEl.textContent = btn.getAttribute("data-qty") || "0";
-          totalEl.textContent = fmt(btn.getAttribute("data-total-cost"));
+          totalEl.textContent = fmt(lineTotal);
+          alreadyEl.textContent = fmt(alreadyPaid);
+          var bal = Math.max(0, lineTotal - alreadyPaid);
+          balanceEl.textContent = fmt(bal);
+          previewEl.textContent = bal > 0
+            ? "Enter the amount you are paying now. Balance due is " + fmt(bal) + "."
+            : "Line total already met; you can still adjust or add an overpayment via Set total paid instead.";
           openModal();
         });
+      });
+
+      if (additionalEl) additionalEl.addEventListener("input", syncPreview);
+      if (totalOverrideEl) totalOverrideEl.addEventListener("input", function () {
+        previewEl.textContent = "";
       });
 
       if (closeBtn) closeBtn.addEventListener("click", closeModal);
@@ -239,8 +349,24 @@
         e.preventDefault();
         var txId = txIdEl.value;
         if (!txId) return;
+        var add = parseNum(additionalEl);
+        var abs = parseNum(totalOverrideEl);
+        if (add !== null && add > 0 && abs !== null) {
+          alert("Use either “Pay now” or “Set total paid instead”, not both.");
+          return;
+        }
+        if ((add === null || add <= 0) && (abs === null)) {
+          alert("Enter an amount in “Pay now” or set “Total amount paid” in the advanced section.");
+          return;
+        }
         var fd = new FormData();
-        fd.append("amount_paid", amountPaidEl.value || "0");
+        if (add !== null && add > 0) {
+          fd.append("additional_payment", String(add));
+        } else if (abs !== null) {
+          fd.append("amount_paid", String(abs));
+        } else {
+          return;
+        }
         fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/payment", {
           method: "POST",
           body: fd
@@ -257,6 +383,67 @@
           alert("Failed to update payment.");
         });
       });
+    })();
+    (function () {
+      var form = document.getElementById("suppliers-filter-form");
+      if (!form) return;
+      var mode = document.getElementById("suppliers-filter-mode");
+      var day = document.getElementById("suppliers-filter-single-day");
+      var period = document.getElementById("suppliers-filter-period");
+      var month = document.getElementById("suppliers-filter-month");
+      var year = document.getElementById("suppliers-filter-year");
+      var debounceTimer = null;
+
+      function syncModePanels() {
+        var v = (mode && mode.value ? mode.value : "single_day").toLowerCase();
+        if (day) day.classList.toggle("hidden", v !== "single_day");
+        if (period) period.classList.toggle("hidden", v !== "period");
+        if (month) month.classList.toggle("hidden", v !== "month");
+        if (year) year.classList.toggle("hidden", v !== "year");
+      }
+
+      function applyFilters() {
+        form.submit();
+      }
+
+      function applyFiltersDebounced(delayMs) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(applyFilters, delayMs);
+      }
+
+      syncModePanels();
+
+      if (mode) {
+        mode.addEventListener("change", function () {
+          syncModePanels();
+          applyFilters();
+        });
+      }
+
+      ["filter-shop-id", "suppliers-single-day", "suppliers-start-date", "suppliers-end-date", "suppliers-month"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener("change", applyFilters);
+      });
+
+      if (year) {
+        year.addEventListener("change", applyFilters);
+        year.addEventListener("input", function () {
+          applyFiltersDebounced(450);
+        });
+      }
+
+      var supplierQ = document.getElementById("supplier-q");
+      var movedBy = document.getElementById("moved-by-q");
+      if (supplierQ) {
+        supplierQ.addEventListener("input", function () {
+          applyFiltersDebounced(380);
+        });
+      }
+      if (movedBy) {
+        movedBy.addEventListener("input", function () {
+          applyFiltersDebounced(380);
+        });
+      }
     })();
   </script>
 {% endblock %}

@@ -1,5 +1,430 @@
 {% extends "employee_layout.html" %}
 {% block title %}Item analytics — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Item analytics{% endblock %}
-{% block employee_content %}{% endblock %}
 
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_item_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+    Item management
+  </a>
+  <a href="{{ url_for('it_support_register_item') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+    Register item
+  </a>
+  <span class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/20">
+    <svg class="h-5 w-5 shrink-0 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m4 14v-6m4 6V9m4 10v-4m4 4V7" /></svg>
+    Item analytics
+  </span>
+{% endblock %}
+
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set catalog = catalog_items or [] %}
+
+  <div class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {# Shared date filter #}
+    <form id="item-analytics-filter-form" method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+      {% if selected_item_id %}
+        <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
+      {% endif %}
+      <div class="flex flex-wrap items-end gap-2.5">
+        <div class="min-w-[10rem] flex-1">
+          <label for="ia-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Period</label>
+          <select id="ia-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+            <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div id="ia-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+          <label for="ia-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+          <input id="ia-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+        </div>
+        <div id="ia-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="ia-start" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+            <input id="ia-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+          </div>
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="ia-end" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+            <input id="ia-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+          </div>
+        </div>
+        <div id="ia-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+          <label for="ia-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+          <input id="ia-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+        </div>
+        <div id="ia-filter-year" class="min-w-[8rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+          <label for="ia-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+          <input id="ia-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+        </div>
+        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Apply period</button>
+      </div>
+      <p class="mt-3 text-[11px] text-[rgb(var(--rc-muted))]">Analytics below use POS sales and stock movements dated within <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'the selected range' }}</span>.</p>
+    </form>
+
+    {% if detail %}
+      {% set it = detail.item %}
+      {% set s = detail.sales %}
+      {% set si = detail.stock_in %}
+      {% set me = detail.margin_estimate %}
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <a href="{{ url_for('it_support_item_analytics', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '') }}" class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+          All items
+        </a>
+        <span class="text-[rgb(var(--rc-muted))]">/</span>
+        <span class="font-semibold text-[rgb(var(--rc-page-fg))] truncate">{{ it.name }}</span>
+      </div>
+
+      <div class="overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-sm sm:p-8">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div class="flex gap-4">
+            {% set _img = static_upload_url(it.image_path) %}
+            {% if _img %}
+              <img src="{{ _img }}" alt="" class="h-24 w-24 shrink-0 rounded-2xl border border-[rgb(var(--rc-border))] object-cover shadow-md sm:h-28 sm:w-28" loading="lazy" />
+            {% else %}
+              <div class="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] sm:h-28 sm:w-28">
+                <svg class="h-12 w-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              </div>
+            {% endif %}
+            <div class="min-w-0">
+              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">{{ it.category }}</p>
+              <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ it.name }}</h2>
+              {% if it.description %}
+                <p class="mt-2 max-w-2xl text-sm text-[rgb(var(--rc-muted))]">{{ it.description }}</p>
+              {% endif %}
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/25">
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  List / cost {{ "%.2f"|format(it.price) }}
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-[rgb(var(--rc-primary))]/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25">
+                  Selling {{ "%.2f"|format(it.selling_price) }}
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-[rgb(var(--rc-surface-2))] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
+                  Company stock {{ it.stock_qty }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# KPIs #}
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">
+            <svg class="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
+            Qty sold
+          </div>
+          <div class="mt-2 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ s.total_qty }}</div>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">
+            <svg class="h-4 w-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Revenue
+          </div>
+          <div class="mt-2 text-2xl font-extrabold tabular-nums text-emerald-400">{{ "%.2f"|format(s.total_revenue) }}</div>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Avg selling price</div>
+          <div class="mt-2 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(s.avg_unit_price) }}</div>
+          <div class="mt-1 text-[10px] text-[rgb(var(--rc-muted))]">Per unit (POS lines)</div>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">POS lines / sales</div>
+          <div class="mt-2 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ s.line_count }} <span class="text-lg font-bold text-[rgb(var(--rc-muted))]">/</span> {{ s.sale_count }}</div>
+        </div>
+      </div>
+
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
+          <h3 class="flex items-center gap-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+            <svg class="h-5 w-5 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            Revenue by tender type
+          </h3>
+          <dl class="mt-4 space-y-3 text-sm">
+            <div class="flex justify-between gap-4 border-b border-[rgb(var(--rc-border))]/60 pb-2">
+              <dt class="text-[rgb(var(--rc-muted))]">Cash / instant sale</dt>
+              <dd class="font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(s.revenue_sale) }}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-[rgb(var(--rc-muted))]">Credit sales</dt>
+              <dd class="font-semibold tabular-nums text-amber-300">{{ "%.2f"|format(s.revenue_credit) }}</dd>
+            </div>
+          </dl>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
+          <h3 class="flex items-center gap-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+            <svg class="h-5 w-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+            Stock received (period)
+          </h3>
+          <dl class="mt-4 space-y-2 text-sm">
+            <div class="flex justify-between gap-4">
+              <dt class="text-[rgb(var(--rc-muted))]">Company warehouse in</dt>
+              <dd class="tabular-nums font-medium">{{ si.company_qty }} units · {{ "%.2f"|format(si.company_buy_value) }}</dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-[rgb(var(--rc-muted))]">Shop stock-ins</dt>
+              <dd class="tabular-nums font-medium">{{ si.shop_qty }} units · {{ "%.2f"|format(si.shop_buy_value) }}</dd>
+            </div>
+            <div class="mt-3 flex justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-3">
+              <dt class="font-semibold text-[rgb(var(--rc-page-fg))]">Total in · Avg buy</dt>
+              <dd class="tabular-nums font-bold">{{ si.total_qty_in }} · {{ "%.2f"|format(si.avg_buying_price) }}</dd>
+            </div>
+          </dl>
+          {% if me %}
+            <div class="mt-4 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 ring-1 ring-emerald-400/20">
+              <div class="font-semibold">Estimated gross margin (period)</div>
+              <div class="mt-1 tabular-nums">Revenue {{ "%.2f"|format(s.total_revenue) }} − est. COGS {{ "%.2f"|format(me.estimated_cogs) }} = <span class="font-bold">{{ "%.2f"|format(me.estimated_gross_margin) }}</span></div>
+              <p class="mt-2 text-[10px] leading-snug text-[rgb(var(--rc-muted))]">{{ me.note }}</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if detail.by_shop %}
+        <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By branch</h3>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Quantity sold and revenue for this item per shop.</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-[640px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-4 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
+                  <th class="px-4 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Revenue</th>
+                  <th class="px-4 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Lines</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in detail.by_shop %}
+                  <tr class="hover:bg-[rgb(var(--rc-surface-2))]/50">
+                    <td class="px-4 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums">{{ row.qty_sold }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums font-semibold text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ row.line_count }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if detail.by_day %}
+        <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily breakdown</h3>
+          </div>
+          <div class="max-h-72 overflow-y-auto">
+            <table class="w-full text-sm">
+              <thead class="sticky top-0 bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-4 py-2 text-left text-xs font-bold uppercase">Day</th>
+                  <th class="px-4 py-2 text-right text-xs font-bold uppercase">Qty</th>
+                  <th class="px-4 py-2 text-right text-xs font-bold uppercase">Revenue</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in detail.by_day %}
+                  <tr>
+                    <td class="px-4 py-2 text-[rgb(var(--rc-muted))]">{{ row.day }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums">{{ row.qty_sold }}</td>
+                    <td class="px-4 py-2 text-right tabular-nums font-medium">{{ "%.2f"|format(row.revenue) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if detail.by_employee %}
+        <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By employee</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-[500px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-4 py-2.5 text-left text-xs font-bold uppercase">Employee</th>
+                  <th class="px-4 py-2.5 text-left text-xs font-bold uppercase">Code</th>
+                  <th class="px-4 py-2.5 text-right text-xs font-bold uppercase">Qty</th>
+                  <th class="px-4 py-2.5 text-right text-xs font-bold uppercase">Revenue</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in detail.by_employee %}
+                  <tr>
+                    <td class="px-4 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                    <td class="px-4 py-2.5 text-[rgb(var(--rc-muted))]">{{ row.employee_code or "—" }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums">{{ row.qty_sold }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums">{{ "%.2f"|format(row.revenue) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if detail.lines %}
+        <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Recent POS lines</h3>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">Up to 200 lines in this period, newest first.</p>
+          </div>
+          <div class="hidden overflow-x-auto lg:block">
+            <table class="min-w-[920px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2.5 text-left text-xs font-bold uppercase">When</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-bold uppercase">Shop</th>
+                  <th class="px-3 py-2.5 text-right text-xs font-bold uppercase">Qty</th>
+                  <th class="px-3 py-2.5 text-right text-xs font-bold uppercase">Unit</th>
+                  <th class="px-3 py-2.5 text-right text-xs font-bold uppercase">Line total</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-bold uppercase">Type</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-bold uppercase">Customer</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-bold uppercase">Staff</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for line in detail.lines %}
+                  <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
+                    <td class="whitespace-nowrap px-3 py-2 text-[rgb(var(--rc-muted))]">{{ line.created_at }}</td>
+                    <td class="px-3 py-2">{{ line.shop_name }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ line.qty }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(line.unit_price) }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums font-medium">{{ "%.2f"|format(line.line_total) }}</td>
+                    <td class="px-3 py-2 text-xs uppercase">{{ line.sale_type }}</td>
+                    <td class="max-w-[10rem] truncate px-3 py-2 text-xs">{{ line.customer_name or "—" }}</td>
+                    <td class="px-3 py-2 text-xs">{{ line.employee_name or "—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="space-y-3 p-3 lg:hidden">
+            {% for line in detail.lines %}
+              <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-3 text-xs">
+                <div class="flex justify-between gap-2">
+                  <span class="text-[rgb(var(--rc-muted))]">{{ line.created_at }}</span>
+                  <span class="font-semibold text-emerald-400">{{ "%.2f"|format(line.line_total) }}</span>
+                </div>
+                <div class="mt-1 font-medium text-[rgb(var(--rc-page-fg))]">{{ line.shop_name }}</div>
+                <div class="mt-2 flex flex-wrap gap-2 text-[rgb(var(--rc-muted))]">
+                  <span>Qty {{ line.qty }}</span>
+                  <span>@ {{ "%.2f"|format(line.unit_price) }}</span>
+                  <span class="uppercase">{{ line.sale_type }}</span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+    {% else %}
+      {# Item picker #}
+      <div class="rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 sm:p-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-[rgb(var(--rc-page-fg))] sm:text-2xl">Select an item</h2>
+            <p class="mt-2 max-w-xl text-sm text-[rgb(var(--rc-muted))]">Choose a product to see buying activity, POS sales, revenue, average selling price, and branch breakdown for the period above.</p>
+          </div>
+          <div class="relative w-full sm:max-w-xs">
+            <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[rgb(var(--rc-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input id="item-analytics-picker-search" type="search" placeholder="Filter by name or category…" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-2.5 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" autocomplete="off" />
+          </div>
+        </div>
+      </div>
+
+      {% if not catalog %}
+        <p class="rounded-2xl border border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-12 text-center text-sm text-[rgb(var(--rc-muted))]">No items in the catalog yet.</p>
+      {% else %}
+        <div id="item-analytics-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {% for it in catalog %}
+            {% set blob = ((it.name or '') ~ ' ' ~ (it.category or ''))|lower %}
+            <a
+              href="{{ url_for('it_support_item_analytics', item_id=it.id, mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '') }}"
+              data-ia-search="{{ blob }}"
+              class="ia-card group flex gap-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm ring-1 ring-black/5 transition duration-200 hover:border-[rgb(var(--rc-primary))]/35 hover:shadow-md hover:ring-[rgb(var(--rc-primary))]/15"
+            >
+              {% set _thumb = static_upload_url(it.image_path) %}
+              {% if _thumb %}
+                <img src="{{ _thumb }}" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-[rgb(var(--rc-border))] transition duration-300 group-hover:scale-105" loading="lazy" />
+              {% else %}
+                <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
+                  <svg class="h-8 w-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                </div>
+              {% endif %}
+              <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))]">{{ it.category }}</p>
+                <div class="mt-0.5 font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-[rgb(var(--rc-primary))]">{{ it.name }}</div>
+                <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-[rgb(var(--rc-muted))]">
+                  <span>List {{ "%.2f"|format(it.price) }}</span>
+                  <span>·</span>
+                  <span>Sell {{ "%.2f"|format(it.selling_price if it.selling_price is not none else it.price) }}</span>
+                  <span>·</span>
+                  <span>Stock {{ it.stock_qty }}</span>
+                </div>
+              </div>
+              <svg class="h-5 w-5 shrink-0 self-center text-[rgb(var(--rc-muted))] transition group-hover:translate-x-0.5 group-hover:text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </a>
+          {% endfor %}
+        </div>
+        <p id="item-analytics-picker-empty" class="hidden py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No items match your search.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var mode = document.getElementById("ia-filter-mode");
+      var day = document.getElementById("ia-filter-single-day");
+      var period = document.getElementById("ia-filter-period");
+      var month = document.getElementById("ia-filter-month");
+      var year = document.getElementById("ia-filter-year");
+      if (mode) {
+        function sync() {
+          var v = (mode.value || "single_day").toLowerCase();
+          if (day) day.classList.toggle("hidden", v !== "single_day");
+          if (period) period.classList.toggle("hidden", v !== "period");
+          if (month) month.classList.toggle("hidden", v !== "month");
+          if (year) year.classList.toggle("hidden", v !== "year");
+        }
+        sync();
+        mode.addEventListener("change", sync);
+      }
+    })();
+    (function () {
+      var inp = document.getElementById("item-analytics-picker-search");
+      var grid = document.getElementById("item-analytics-grid");
+      var empty = document.getElementById("item-analytics-picker-empty");
+      if (!inp || !grid) return;
+      function norm(s) { return (s || "").toLowerCase().trim(); }
+      function apply() {
+        var q = norm(inp.value);
+        var cards = grid.querySelectorAll(".ia-card");
+        var n = 0;
+        cards.forEach(function (a) {
+          var hay = norm(a.getAttribute("data-ia-search") || "");
+          var show = !q || hay.indexOf(q) !== -1;
+          a.classList.toggle("hidden", !show);
+          if (show) n++;
+        });
+        if (empty) empty.classList.toggle("hidden", n > 0);
+      }
+      inp.addEventListener("input", apply);
+      apply();
+    })();
+  </script>
+{% endblock %}

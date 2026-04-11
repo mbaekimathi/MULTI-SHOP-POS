@@ -39,92 +39,175 @@
     Item audit
   </a>
 {% endblock %}
+
 {% block employee_content %}
-  <div class="mx-auto max-w-6xl">
-    <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Items</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Registered items appear here.</p>
+  {% set item_count = items|length %}
+  {% set active_count = items|selectattr('status', 'equalto', 'active')|list|length %}
+  {% set cat_groups = (items|sort(attribute='category')|groupby('category')|list) if items else [] %}
+  {% set category_count = cat_groups|length %}
+
+  <div class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {# Hero #}
+    <div class="relative overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] via-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-lg shadow-black/5 ring-1 ring-[rgb(var(--rc-border))]/60 sm:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[rgb(var(--rc-primary))]/10 blur-3xl motion-safe:animate-pulse" style="animation-duration: 4s;" aria-hidden="true"></div>
+      <div class="pointer-events-none absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex min-w-0 flex-1 gap-4">
+          <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-primary))] ring-1 ring-[rgb(var(--rc-primary))]/25 motion-safe:transition motion-safe:duration-300 motion-safe:hover:scale-105">
+            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Item catalog</h2>
+            <p class="mt-1.5 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Manage product records, pricing, and availability. Changes sync across company stock and shop operations.
+            </p>
+          </div>
+        </div>
+        <div class="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center">
+          <a
+            href="{{ url_for('it_support_register_item') }}"
+            class="btn-rc btn-rc-primary inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-md shadow-[rgb(var(--rc-primary))]/20 motion-safe:transition motion-safe:duration-200 motion-safe:hover:shadow-lg motion-safe:hover:brightness-105"
+          >
+            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Register item
+          </a>
+        </div>
       </div>
-      <a
-        href="{{ url_for('it_support_register_item') }}"
-        class="btn-rc btn-rc-primary px-5 py-2.5 text-sm sm:w-auto"
-      >
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        Register item
-      </a>
+
+      {# Stats #}
+      <div class="relative mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="group flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3 motion-safe:transition motion-safe:duration-200 motion-safe:hover:border-[rgb(var(--rc-primary))]/30 motion-safe:hover:bg-[rgb(var(--rc-surface-2))]">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 ring-1 ring-sky-400/20">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Total items</div>
+            <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ item_count }}</div>
+          </div>
+        </div>
+        <div class="group flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3 motion-safe:transition motion-safe:duration-200 motion-safe:hover:border-emerald-500/30 motion-safe:hover:bg-[rgb(var(--rc-surface-2))]">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-400/20">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Active</div>
+            <div class="text-2xl font-extrabold tabular-nums text-emerald-400">{{ active_count }}</div>
+          </div>
+        </div>
+        <div class="group flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3 motion-safe:transition motion-safe:duration-200 motion-safe:hover:border-violet-500/30 motion-safe:hover:bg-[rgb(var(--rc-surface-2))]">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400 ring-1 ring-violet-400/20">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Categories</div>
+            <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ category_count }}</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     {% if not items %}
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 text-sm text-[rgb(var(--rc-muted))]">
-        No items yet.
+      <div class="rc-im-empty-animate flex flex-col items-center justify-center rounded-3xl border border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/80 px-6 py-16 text-center">
+        <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
+          <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">No items yet</h3>
+        <p class="mt-2 max-w-sm text-sm text-[rgb(var(--rc-muted))]">Create your first product to start tracking stock and sales.</p>
+        <a href="{{ url_for('it_support_register_item') }}" class="btn-rc btn-rc-primary mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+          Register item
+        </a>
       </div>
     {% else %}
-      <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      {# Search #}
+      <div class="relative">
+        <label for="item-mgmt-search" class="sr-only">Search items</label>
+        <span class="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[rgb(var(--rc-muted))] motion-safe:transition-colors" aria-hidden="true">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </span>
+        <input
+          id="item-mgmt-search"
+          type="search"
+          autocomplete="off"
+          placeholder="Search by name or category…"
+          class="w-full rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-3.5 pl-12 pr-4 text-sm text-[rgb(var(--rc-page-fg))] shadow-inner shadow-black/5 outline-none ring-0 transition-[border-color,box-shadow] duration-200 placeholder:text-[rgb(var(--rc-muted))] focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+        />
+      </div>
+      <p id="item-mgmt-search-meta" class="text-xs text-[rgb(var(--rc-muted))]" aria-live="polite"></p>
+
+      {# Desktop table #}
+      <div class="hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-black/5 md:block">
         <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Image</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Category</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Name</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Original selling</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Selling price</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Company stock</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Stock update</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
+          <table class="min-w-[1020px] w-full text-sm">
+            <thead>
+              <tr class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/90 text-left text-[rgb(var(--rc-muted))] backdrop-blur-sm">
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Image</th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Category</th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Name</th>
+                <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Original</th>
+                <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Selling</th>
+                <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Stock</th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Stock upd.</th>
+                <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-              {% for grp in (items|sort(attribute='category')|groupby('category')) %}
-                <tr>
-                  <td colspan="9" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]/80">
+              {% for grp in cat_groups %}
+                <tr class="im-cat-row bg-gradient-to-r from-[rgb(var(--rc-surface-2))]/90 to-[rgb(var(--rc-surface-2))]/40" data-im-cat="{{ (grp.grouper or '')|lower }}">
+                  <td colspan="9" class="px-4 py-2.5">
                     <div class="flex items-center gap-2">
-                      <span class="text-xs font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-page-fg))]">
-                        {{ grp.grouper }}
-                      </span>
-                      <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-                        ({{ grp.list|length }} item{% if grp.list|length != 1 %}s{% endif %})
+                      <svg class="h-4 w-4 shrink-0 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <span class="text-xs font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-page-fg))]">{{ grp.grouper }}</span>
+                      <span class="rounded-full bg-[rgb(var(--rc-surface))] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
+                        {{ grp.list|length }} item{% if grp.list|length != 1 %}s{% endif %}
                       </span>
                     </div>
                   </td>
                 </tr>
 
                 {% for item in grp.list %}
-                  <tr class="align-top">
-                    <td class="px-4 py-3">
+                  {% set search_blob = ((item.name or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.description or ''))|lower %}
+                  <tr
+                    class="im-item-row group/row align-top motion-safe:transition-colors motion-safe:duration-150 hover:bg-[rgb(var(--rc-surface-2))]/40"
+                    data-im-search="{{ search_blob }}"
+                  >
+                    <td class="px-4 py-3.5">
                       {% set _item_img = static_upload_url(item.image_path) %}
                       {% if _item_img %}
-                        <img
-                          src="{{ _item_img }}"
-                          alt=""
-                          class="h-12 w-12 rounded-lg object-cover border border-[rgb(var(--rc-border))]"
-                          loading="lazy"
-                          decoding="async"
-                        />
+                        <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] ring-1 ring-black/5 motion-safe:transition motion-safe:duration-200 motion-safe:group-hover/row:ring-[rgb(var(--rc-primary))]/25">
+                          <img src="{{ _item_img }}" alt="" class="h-12 w-12 object-cover motion-safe:transition motion-safe:duration-300 motion-safe:group-hover/row:scale-105" loading="lazy" decoding="async" />
+                        </div>
                       {% else %}
-                        <div class="h-12 w-12 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                          <svg class="h-6 w-6 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </div>
                       {% endif %}
                     </td>
-                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-75">{{ item.category }}</td>
-                    <td class="px-4 py-3">
+                    <td class="px-4 py-3.5 font-medium text-[rgb(var(--rc-page-fg))]/80">{{ item.category }}</td>
+                    <td class="max-w-[14rem] px-4 py-3.5">
                       <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ item.name }}</div>
                       {% if item.description %}
-                        <div class="mt-1 text-xs text-[rgb(var(--rc-muted))] opacity-90">{{ item.description }}</div>
+                        <div class="mt-1 line-clamp-2 text-xs leading-snug text-[rgb(var(--rc-muted))]">{{ item.description }}</div>
                       {% endif %}
                     </td>
-                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
-                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</td>
-                    <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.stock_qty }}</td>
-                    <td class="px-4 py-3">
-                      <div class="flex items-center gap-3">
-                        <form method="post" action="{{ url_for('it_support_item_toggle_status', item_id=item.id) }}">
+                    <td class="px-4 py-3.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
+                    <td class="px-4 py-3.5 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</td>
+                    <td class="px-4 py-3.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ item.stock_qty }}</td>
+                    <td class="px-4 py-3.5">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <form method="post" action="{{ url_for('it_support_item_toggle_status', item_id=item.id) }}" class="inline">
                           <button
                             type="submit"
-                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
+                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition motion-safe:duration-200 motion-safe:hover:scale-105
                             {% if item.status == 'active' %}
                               bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
                             {% else %}
@@ -135,37 +218,28 @@
                             title="{% if item.status == 'active' %}Suspend item{% else %}Activate item{% endif %}"
                           >
                             <span class="sr-only">{% if item.status == 'active' %}Active (toggle to suspend){% else %}Suspended (toggle to activate){% endif %}</span>
-                            <span
-                              class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm"
-                              aria-hidden="true"
-                            >
-                              <span
-                                class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
-                                {% if item.status == 'active' %}translate-x-5{% else %}translate-x-0{% endif %}"
-                              ></span>
+                            <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
+                              <span class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform duration-200 ease-out {% if item.status == 'active' %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
                             </span>
                           </button>
                         </form>
-
-                        <span
-                          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
+                        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1
                           {% if item.status == 'active' %}
                             bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
                           {% else %}
                             bg-rose-500/10 text-rose-300 ring-rose-400/20
-                          {% endif %}"
-                        >
-                          <span class="h-1.5 w-1.5 rounded-full {% if item.status == 'active' %}bg-emerald-400 animate-pulse{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
-                          {% if item.status == 'active' %}Active{% else %}Suspended{% endif %}
+                          {% endif %}">
+                          <span class="h-1.5 w-1.5 rounded-full {% if item.status == 'active' %}bg-emerald-400 motion-safe:animate-pulse{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
+                          {% if item.status == 'active' %}Active{% else %}Off{% endif %}
                         </span>
                       </div>
                     </td>
-                    <td class="px-4 py-3">
-                      <div class="flex items-center gap-3">
-                        <form method="post" action="{{ url_for('it_support_item_toggle_stock_update', item_id=item.id) }}">
+                    <td class="px-4 py-3.5">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <form method="post" action="{{ url_for('it_support_item_toggle_stock_update', item_id=item.id) }}" class="inline">
                           <button
                             type="submit"
-                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
+                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition motion-safe:duration-200 motion-safe:hover:scale-105
                             {% if item.stock_update_enabled %}
                               bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
                             {% else %}
@@ -177,54 +251,36 @@
                           >
                             <span class="sr-only">{% if item.stock_update_enabled %}Stock update enabled (toggle to disable){% else %}Stock update disabled (toggle to enable){% endif %}</span>
                             <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
-                              <span
-                                class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
-                                {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"
-                              ></span>
+                              <span class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform duration-200 ease-out {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
                             </span>
                           </button>
                         </form>
-
-                        <span
-                          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
+                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1
                           {% if item.stock_update_enabled %}
                             bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
                           {% else %}
                             bg-rose-500/10 text-rose-300 ring-rose-400/20
-                          {% endif %}"
-                        >
+                          {% endif %}">
                           {% if item.stock_update_enabled %}
-                            <svg class="h-3.5 w-3.5 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            Enabled
+                            <svg class="h-3 w-3 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                            On
                           {% else %}
-                            <svg class="h-3.5 w-3.5 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636L5.636 18.364M6 6l12 12" />
-                            </svg>
-                            Disabled
+                            <svg class="h-3 w-3 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            Off
                           {% endif %}
                         </span>
                       </div>
                     </td>
-                    <td class="px-4 py-3">
-                      <div class="flex flex-wrap gap-2">
-                        <a
-                          href="{{ url_for('it_support_item_edit', item_id=item.id) }}"
-                          class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs"
-                        >
+                    <td class="px-4 py-3.5">
+                      <div class="flex flex-wrap items-center justify-end gap-2">
+                        <a href="{{ url_for('it_support_item_edit', item_id=item.id) }}" class="btn-rc btn-rc-ghost inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold motion-safe:transition motion-safe:hover:bg-[rgb(var(--rc-primary))]/10">
                           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                           Edit
                         </a>
-
-                        <form method="post" action="{{ url_for('it_support_item_delete', item_id=item.id) }}">
-                          <button
-                            type="submit"
-                            class="btn-rc btn-rc-danger px-3 py-1.5 text-xs"
-                            onclick="return confirm('Delete this item permanently?');"
-                          >
+                        <form method="post" action="{{ url_for('it_support_item_delete', item_id=item.id) }}" class="inline">
+                          <button type="submit" class="btn-rc btn-rc-danger inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold motion-safe:transition motion-safe:hover:opacity-95" onclick="return confirm('Delete this item permanently?');">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h4a2 2 0 012 2v2" />
                             </svg>
@@ -240,7 +296,184 @@
           </table>
         </div>
       </div>
+
+      {# Mobile cards #}
+      <div class="space-y-6 md:hidden">
+        {% for grp in cat_groups %}
+          <section class="im-mobile-cat space-y-3" data-im-cat="{{ (grp.grouper or '')|lower }}" aria-label="Category {{ grp.grouper }}">
+            <div class="flex items-center gap-2 px-1">
+              <svg class="h-5 w-5 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <h3 class="text-sm font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-page-fg))]">{{ grp.grouper }}</h3>
+              <span class="ml-auto text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ grp.list|length }} item{% if grp.list|length != 1 %}s{% endif %}</span>
+            </div>
+            {% for item in grp.list %}
+              {% set search_blob = ((item.name or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.description or ''))|lower %}
+              <article
+                class="im-item-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-black/5 motion-safe:transition motion-safe:duration-200 motion-safe:active:scale-[0.99]"
+                data-im-search="{{ search_blob }}"
+              >
+                <div class="flex gap-3 border-b border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 p-4">
+                  {% set _item_img = static_upload_url(item.image_path) %}
+                  {% if _item_img %}
+                    <img src="{{ _item_img }}" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-[rgb(var(--rc-border))]" loading="lazy" />
+                  {% else %}
+                    <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
+                      <svg class="h-8 w-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </div>
+                  {% endif %}
+                  <div class="min-w-0 flex-1">
+                    <div class="font-semibold leading-snug text-[rgb(var(--rc-page-fg))]">{{ item.name }}</div>
+                    {% if item.description %}
+                      <p class="mt-1 line-clamp-2 text-xs text-[rgb(var(--rc-muted))]">{{ item.description }}</p>
+                    {% endif %}
+                    <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                      <span class="rounded-lg bg-[rgb(var(--rc-surface-2))] px-2 py-1 tabular-nums font-medium text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-border))]">Orig. {{ "%.2f"|format(item.price) }}</span>
+                      <span class="rounded-lg bg-[rgb(var(--rc-primary))]/10 px-2 py-1 tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25">Sell {{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</span>
+                      <span class="rounded-lg bg-sky-500/10 px-2 py-1 tabular-nums font-medium text-sky-300 ring-1 ring-sky-400/20">Stock {{ item.stock_qty }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="space-y-3 p-4">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Listing status</span>
+                    <div class="flex items-center gap-2">
+                      <form method="post" action="{{ url_for('it_support_item_toggle_status', item_id=item.id) }}">
+                        <button type="submit" class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition {% if item.status == 'active' %}bg-emerald-600 ring-emerald-700{% else %}bg-rose-600 ring-rose-700{% endif %}" role="switch" aria-checked="{% if item.status == 'active' %}true{% else %}false{% endif %}">
+                          <span class="sr-only">Toggle status</span>
+                          <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 shadow-sm" aria-hidden="true">
+                            <span class="h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 {% if item.status == 'active' %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
+                          </span>
+                        </button>
+                      </form>
+                      <span class="text-[10px] font-extrabold uppercase tracking-wider {% if item.status == 'active' %}text-emerald-400{% else %}text-rose-300{% endif %}">{% if item.status == 'active' %}Active{% else %}Suspended{% endif %}</span>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Stock updates</span>
+                    <div class="flex items-center gap-2">
+                      <form method="post" action="{{ url_for('it_support_item_toggle_stock_update', item_id=item.id) }}">
+                        <button type="submit" class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition {% if item.stock_update_enabled %}bg-emerald-600 ring-emerald-700{% else %}bg-rose-600 ring-rose-700{% endif %}" role="switch" aria-checked="{% if item.stock_update_enabled %}true{% else %}false{% endif %}">
+                          <span class="sr-only">Toggle stock update</span>
+                          <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 shadow-sm" aria-hidden="true">
+                            <span class="h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
+                          </span>
+                        </button>
+                      </form>
+                      <span class="text-[10px] font-extrabold uppercase tracking-wider {% if item.stock_update_enabled %}text-emerald-400{% else %}text-rose-300{% endif %}">{% if item.stock_update_enabled %}Enabled{% else %}Disabled{% endif %}</span>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 pt-1">
+                    <a href="{{ url_for('it_support_item_edit', item_id=item.id) }}" class="btn-rc btn-rc-ghost flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                      Edit
+                    </a>
+                    <form method="post" action="{{ url_for('it_support_item_delete', item_id=item.id) }}" class="min-w-0 flex-1">
+                      <button type="submit" class="btn-rc btn-rc-danger flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold" onclick="return confirm('Delete this item permanently?');">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </article>
+            {% endfor %}
+          </section>
+        {% endfor %}
+      </div>
     {% endif %}
   </div>
+
+  <style>
+    @keyframes rcImFade {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .rc-im-empty-animate {
+      animation: rcImFade 0.5s ease-out both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rc-im-empty-animate { animation: none; }
+    }
+  </style>
 {% endblock %}
 
+{% block scripts %}
+  {{ super() }}
+  {% if items %}
+  <script>
+    (function () {
+      var input = document.getElementById("item-mgmt-search");
+      var meta = document.getElementById("item-mgmt-search-meta");
+      if (!input) return;
+
+      function norm(s) {
+        return (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+      }
+
+      function apply() {
+        var q = norm(input.value);
+        var rows = document.querySelectorAll("tr.im-item-row");
+        var cards = document.querySelectorAll(".im-item-card");
+        var catRows = document.querySelectorAll("tr.im-cat-row");
+        var mobileCats = document.querySelectorAll(".im-mobile-cat");
+        var visibleItems = 0;
+
+        rows.forEach(function (row) {
+          var hay = norm(row.getAttribute("data-im-search") || "");
+          var show = !q || hay.indexOf(q) !== -1;
+          row.classList.toggle("hidden", !show);
+          if (show) visibleItems += 1;
+        });
+
+        cards.forEach(function (card) {
+          var hay = norm(card.getAttribute("data-im-search") || "");
+          var show = !q || hay.indexOf(q) !== -1;
+          card.classList.toggle("hidden", !show);
+        });
+
+        catRows.forEach(function (cr) {
+          var cat = (cr.getAttribute("data-im-cat") || "").toLowerCase();
+          var next = cr.nextElementSibling;
+          var any = false;
+          while (next && next.classList.contains("im-item-row")) {
+            if (!next.classList.contains("hidden")) any = true;
+            next = next.nextElementSibling;
+          }
+          var catMatch = q && cat.indexOf(q) !== -1;
+          cr.classList.toggle("hidden", !any && !catMatch);
+        });
+
+        mobileCats.forEach(function (sec) {
+          var cat = (sec.getAttribute("data-im-cat") || "").toLowerCase();
+          var cardEls = sec.querySelectorAll(".im-item-card");
+          var anyCard = false;
+          cardEls.forEach(function (c) {
+            if (!c.classList.contains("hidden")) anyCard = true;
+          });
+          var catMatch = q && cat.indexOf(q) !== -1;
+          sec.classList.toggle("hidden", !anyCard && !catMatch);
+        });
+
+        if (meta) {
+          if (!q) {
+            meta.textContent = "";
+          } else {
+            meta.textContent = visibleItems === 0
+              ? "No items match your search."
+              : "Showing " + visibleItems + " matching row(s).";
+          }
+        }
+      }
+
+      var t;
+      input.addEventListener("input", function () {
+        clearTimeout(t);
+        t = setTimeout(apply, 120);
+      });
+      apply();
+    })();
+  </script>
+  {% endif %}
+{% endblock %}

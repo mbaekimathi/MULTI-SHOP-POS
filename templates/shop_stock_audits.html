@@ -6,18 +6,96 @@
   {% include "partials/shop_stock_workspace_sidebar.html" %}
 {% endblock %}
 {% block shop_content %}
+  {% set f = analytics_filter or {} %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Stock audits</h2>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          All stock transactions for this shop.
+          Stock transactions for this shop
+          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'selected period' }}</span>.
+          Filter by date, direction, source, item, or name search.
         </p>
       </div>
       <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
         {{ (transactions or [])|length }} records
       </div>
     </div>
+
+    <form method="get" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3">
+      <div class="flex flex-wrap items-end gap-2.5">
+        <div class="min-w-[10rem] flex-1">
+          <label for="audit-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
+          <select id="audit-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+            <option value="all" {% if (f.mode or 'all') == 'all' %}selected{% endif %}>All dates</option>
+            <option value="single_day" {% if (f.mode or '') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+
+        <div id="audit-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'all') not in ('single_day',) %}hidden{% endif %}">
+          <label for="audit-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+          <input id="audit-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+
+        <div id="audit-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="audit-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+            <input id="audit-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div class="min-w-[9.5rem] flex-1">
+            <label for="audit-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+            <input id="audit-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+        </div>
+
+        <div id="audit-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+          <label for="audit-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+          <input id="audit-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+
+        <div id="audit-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+          <label for="audit-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+          <input id="audit-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+      </div>
+
+      <div class="mt-3 flex flex-wrap items-end gap-2.5 border-t border-[rgb(var(--rc-border))]/60 pt-3">
+        <div class="min-w-[8rem] flex-1 sm:max-w-[11rem]">
+          <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
+          <select id="audit-direction" name="direction" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
+            <option value="" {% if not audit_direction %}selected{% endif %}>All</option>
+            <option value="in" {% if audit_direction == 'in' %}selected{% endif %}>In</option>
+            <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
+          </select>
+        </div>
+        <div class="min-w-[8rem] flex-1 sm:max-w-[11rem]">
+          <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
+          <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
+            <option value="" {% if not audit_source %}selected{% endif %}>All</option>
+            <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
+            <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual</option>
+          </select>
+        </div>
+        <div class="min-w-[12rem] flex-[2]">
+          <label for="audit-item-id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
+          <select id="audit-item-id" name="item_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
+            <option value="">All items</option>
+            {% for it in filter_items or [] %}
+              <option value="{{ it.id }}" {% if audit_item_id == it.id %}selected{% endif %}>{{ it.category }} — {{ it.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="min-w-[10rem] flex-[2]">
+          <label for="audit-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Search name / category</label>
+          <input id="audit-q" type="search" name="q" value="{{ audit_q or '' }}" placeholder="Contains…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]" />
+        </div>
+        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Apply filters</button>
+        <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
+      </div>
+    </form>
 
     {% if not transactions %}
       <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
@@ -145,4 +223,27 @@
       </div>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var mode = document.getElementById("audit-filter-mode");
+      var day = document.getElementById("audit-filter-single-day");
+      var period = document.getElementById("audit-filter-period");
+      var month = document.getElementById("audit-filter-month");
+      var year = document.getElementById("audit-filter-year");
+      if (!mode) return;
+      function sync() {
+        var m = mode.value || "all";
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (period) period.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
 {% endblock %}

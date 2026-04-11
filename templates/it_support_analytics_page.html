@@ -76,6 +76,115 @@
     </div>
   </form>
 
+  {% set show_analytics_toggle = analytics_key in ['revenue', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
+  {% if show_analytics_toggle %}
+    <style>
+      @keyframes rc-analytics-pulse-dot {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+        }
+        50% {
+          opacity: 0.85;
+          transform: scale(1.15);
+          box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
+        }
+      }
+      @keyframes rc-analytics-bar-bounce {
+        0%,
+        100% {
+          transform: scaleY(1);
+        }
+        50% {
+          transform: scaleY(0.72);
+        }
+      }
+      @keyframes rc-analytics-table-shimmer {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.55;
+        }
+      }
+      .rc-analytics-live-dot {
+        animation: rc-analytics-pulse-dot 2s ease-in-out infinite;
+      }
+      [data-it-analytics-view="visual"] .rc-analytics-icon-chart .rc-analytics-bar-1 {
+        animation: rc-analytics-bar-bounce 1.1s ease-in-out infinite;
+        transform-origin: bottom center;
+      }
+      [data-it-analytics-view="visual"] .rc-analytics-icon-chart .rc-analytics-bar-2 {
+        animation: rc-analytics-bar-bounce 1.1s ease-in-out infinite 0.12s;
+        transform-origin: bottom center;
+      }
+      [data-it-analytics-view="visual"] .rc-analytics-icon-chart .rc-analytics-bar-3 {
+        animation: rc-analytics-bar-bounce 1.1s ease-in-out infinite 0.24s;
+        transform-origin: bottom center;
+      }
+      [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row {
+        animation: rc-analytics-table-shimmer 1.6s ease-in-out infinite;
+      }
+      [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      .it-analytics-view-btn.it-analytics-active {
+        background: rgba(249, 115, 22, 0.14);
+        color: rgb(var(--rc-page-fg));
+        box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.38);
+      }
+      html[data-theme="dark"] .it-analytics-view-btn.it-analytics-active {
+        background: rgba(251, 146, 60, 0.12);
+        box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.35);
+      }
+    </style>
+    <div
+      id="it-support-analytics-toolbar"
+      class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 shadow-sm"
+      data-it-analytics-view="raw"
+      role="group"
+      aria-label="Analytics view mode"
+    >
+      <div class="flex items-center gap-2.5">
+        <span class="rc-analytics-live-dot inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true"></span>
+        <span class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Live view</span>
+      </div>
+      <div class="flex items-center gap-1 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1">
+        <button
+          type="button"
+          id="it-analytics-btn-raw"
+          class="it-analytics-view-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))]"
+          aria-pressed="true"
+        >
+          <svg class="rc-analytics-icon-table h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path class="rc-analytics-table-row" stroke-width="2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+          Raw data
+        </button>
+        <button
+          type="button"
+          id="it-analytics-btn-visual"
+          class="it-analytics-view-btn inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))]"
+          aria-pressed="false"
+        >
+          <svg class="rc-analytics-icon-chart h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect class="rc-analytics-bar-1" x="4" y="12" width="4" height="8" rx="1" />
+            <rect class="rc-analytics-bar-2" x="10" y="8" width="4" height="12" rx="1" />
+            <rect class="rc-analytics-bar-3" x="16" y="4" width="4" height="16" rx="1" />
+          </svg>
+          Insights
+        </button>
+      </div>
+    </div>
+    <div id="analytics-view-raw" class="analytics-view-raw">
+  {% endif %}
+
   {% if analytics_key == 'revenue' %}
     <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
@@ -1470,6 +1579,265 @@
     {% endif %}
   {% endif %}
 
+  {% if show_analytics_toggle %}
+    </div>
+    <div id="analytics-view-visual" class="analytics-view-visual hidden mt-4 space-y-4">
+      {% if analytics_key == 'revenue' %}
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash vs credit mix</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">See how payment types split for the selected period.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-rev-mix" aria-label="Cash versus credit chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily cash and credit</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Spot trends and volatility day over day.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-rev-daily" aria-label="Daily revenue chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Revenue by shop</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Compare locations — stacked cash and credit.</p>
+            <div class="relative mt-4 h-72 sm:h-80">
+              <canvas id="it-chart-rev-shops" aria-label="Revenue by shop chart"></canvas>
+            </div>
+          </div>
+        </div>
+      {% elif analytics_key == 'item' %}
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items by revenue</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Prioritize stock and promotions on strongest sellers.</p>
+            <div class="relative mt-4 h-80 sm:h-96">
+              <canvas id="it-chart-item-top" aria-label="Top items chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Revenue by shop</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Identify which branches move the most product value.</p>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-item-shops" aria-label="Item revenue by shop chart"></canvas>
+            </div>
+          </div>
+        </div>
+      {% elif analytics_key == 'period' %}
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily revenue</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Calendar view of performance.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-per-daily" aria-label="Daily period chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly revenue</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Staff and opening hours decisions.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-per-hourly" aria-label="Hourly period chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employees</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Who is driving the most revenue.</p>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-per-emp" aria-label="Employee period chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shops</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Branch comparison at a glance.</p>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-per-shop" aria-label="Shop period chart"></canvas>
+            </div>
+          </div>
+        </div>
+      {% elif analytics_key == 'employee' %}
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee ranking</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Cash vs credit contribution by team member.</p>
+          <div class="relative mt-4 h-[28rem] max-h-[80vh] sm:h-[32rem]">
+            <canvas id="it-chart-emp-rank" aria-label="Employee ranking chart"></canvas>
+          </div>
+        </div>
+      {% elif analytics_key == 'sales' %}
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily sales</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Momentum over the selected range.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-sales-daily" aria-label="Daily sales chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly sales</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Peak selling windows.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-sales-hour" aria-label="Hourly sales chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By shop</h3>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-sales-shop" aria-label="Sales by shop chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By employee</h3>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-sales-emp" aria-label="Sales by employee chart"></canvas>
+            </div>
+          </div>
+        </div>
+      {% elif analytics_key == 'credit' %}
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily credit</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Exposure trend over time.</p>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-cr-daily" aria-label="Daily credit chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly credit</h3>
+            <div class="relative mt-4 h-56 sm:h-64">
+              <canvas id="it-chart-cr-hour" aria-label="Hourly credit chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by shop</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Where terms concentrate.</p>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-cr-shop" aria-label="Credit by shop chart"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top customers on credit</h3>
+            <div class="relative mt-4 h-64 sm:h-72">
+              <canvas id="it-chart-cr-cust" aria-label="Credit by customer chart"></canvas>
+            </div>
+          </div>
+        </div>
+      {% elif analytics_key == 'customer' %}
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top customers by spend</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Focus retention and outreach on high-value relationships.</p>
+          <div class="relative mt-4 h-[28rem] max-h-[85vh] sm:h-[32rem]">
+            <canvas id="it-chart-cust-bar" aria-label="Top customers chart"></canvas>
+          </div>
+        </div>
+      {% elif analytics_key == 'shop' %}
+        {% if selected_shop_id %}
+          {% if sv == 'revenue' %}
+            <div class="grid gap-4 lg:grid-cols-2">
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash vs credit (this shop)</h3>
+                <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Mix for the selected period.</p>
+                <div class="relative mt-4 h-56 sm:h-64">
+                  <canvas id="it-chart-shop-rev-mix" aria-label="Shop cash versus credit"></canvas>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily trend</h3>
+                <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Sales and credit by day.</p>
+                <div class="relative mt-4 h-64 sm:h-72">
+                  <canvas id="it-chart-shop-rev-daily" aria-label="Shop daily revenue"></canvas>
+                </div>
+              </div>
+            </div>
+          {% elif sv == 'item' %}
+            <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+              <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items</h3>
+              <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Best sellers at this shop.</p>
+              <div class="relative mt-4 h-80 sm:h-96">
+                <canvas id="it-chart-shop-item-top" aria-label="Shop top items"></canvas>
+              </div>
+            </div>
+          {% elif sv == 'sales' or sv == 'credit' or sv == 'period' %}
+            <div class="grid gap-4 lg:grid-cols-2">
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily trend</h3>
+                <div class="relative mt-4 h-56 sm:h-64">
+                  <canvas id="it-chart-shop-trend-daily" aria-label="Shop daily trend"></canvas>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly trend</h3>
+                <div class="relative mt-4 h-56 sm:h-64">
+                  <canvas id="it-chart-shop-trend-hourly" aria-label="Shop hourly trend"></canvas>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By employee</h3>
+                <div class="relative mt-4 h-64 sm:h-72">
+                  <canvas id="it-chart-shop-emp" aria-label="Shop employee performance"></canvas>
+                </div>
+              </div>
+            </div>
+            {% if sv == 'credit' %}
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by customer</h3>
+                <div class="relative mt-4 h-64 sm:h-72">
+                  <canvas id="it-chart-shop-cr-cust" aria-label="Shop credit by customer"></canvas>
+                </div>
+              </div>
+            {% endif %}
+          {% elif sv == 'customer' %}
+            <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+              <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customers by spend</h3>
+              <div class="relative mt-4 h-[28rem] max-h-[85vh] sm:h-[32rem]">
+                <canvas id="it-chart-shop-cust-bar" aria-label="Shop customers"></canvas>
+              </div>
+            </div>
+          {% elif sv == 'stock' %}
+            <div class="grid gap-4 lg:grid-cols-2">
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock in</h3>
+                <div class="relative mt-4 h-64 sm:h-72">
+                  <canvas id="it-chart-shop-stock-in" aria-label="Shop stock in"></canvas>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock out</h3>
+                <div class="relative mt-4 h-64 sm:h-72">
+                  <canvas id="it-chart-shop-stock-out" aria-label="Shop stock out"></canvas>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily movement</h3>
+                <div class="relative mt-4 h-64 sm:h-72">
+                  <canvas id="it-chart-shop-stock-daily" aria-label="Shop daily stock"></canvas>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        {% else %}
+          <p class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 text-sm text-[rgb(var(--rc-muted))]">
+            Select a shop and load analytics to see chart insights here.
+          </p>
+        {% endif %}
+      {% endif %}
+    </div>
+    <script type="application/json" id="it-support-analytics-json">
+      {{ {
+        'key': analytics_key,
+        'revenue': rd if analytics_key == 'revenue' else none,
+        'item': idata if analytics_key == 'item' else none,
+        'period': pdata if analytics_key == 'period' else none,
+        'employee': edata if analytics_key == 'employee' else none,
+        'sales': sdata if analytics_key == 'sales' else none,
+        'credit': cdata if analytics_key == 'credit' else none,
+        'customer': cust if analytics_key == 'customer' else none,
+        'shop_view': sv if analytics_key == 'shop' else none,
+        'shop_data': svd if analytics_key == 'shop' else none,
+      }|tojson }}
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/it-support-analytics-charts.js') }}"></script>
+  {% endif %}
+
   <script>
     (function () {
       var mode = document.getElementById("analytics-filter-mode");
@@ -1489,4 +1857,71 @@
       sync();
     })();
   </script>
+  {% if show_analytics_toggle %}
+    <script>
+      (function () {
+        var raw = document.getElementById("analytics-view-raw");
+        var visual = document.getElementById("analytics-view-visual");
+        var btnRaw = document.getElementById("it-analytics-btn-raw");
+        var btnVis = document.getElementById("it-analytics-btn-visual");
+        var toolbar = document.getElementById("it-support-analytics-toolbar");
+        var jsonEl = document.getElementById("it-support-analytics-json");
+        if (!raw || !visual || !btnRaw || !btnVis || !toolbar) return;
+
+        var STORAGE_KEY = "it-support-analytics-view";
+
+        function readPayload() {
+          if (!jsonEl) return null;
+          try {
+            return JSON.parse((jsonEl.textContent || "").trim() || "{}");
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function setView(view) {
+          var v = view === "visual" ? "visual" : "raw";
+          toolbar.setAttribute("data-it-analytics-view", v);
+          raw.classList.toggle("hidden", v !== "raw");
+          visual.classList.toggle("hidden", v !== "visual");
+          btnRaw.setAttribute("aria-pressed", v === "raw" ? "true" : "false");
+          btnVis.setAttribute("aria-pressed", v === "visual" ? "true" : "false");
+          btnRaw.classList.toggle("it-analytics-active", v === "raw");
+          btnVis.classList.toggle("it-analytics-active", v === "visual");
+          try {
+            localStorage.setItem(STORAGE_KEY, v);
+          } catch (e) {}
+
+          if (v === "visual") {
+            if (typeof window.itSupportAnalyticsChartsDestroy === "function") {
+              window.itSupportAnalyticsChartsDestroy();
+            }
+            requestAnimationFrame(function () {
+              var payload = readPayload();
+              if (payload && typeof window.itSupportAnalyticsChartsRender === "function") {
+                window.itSupportAnalyticsChartsRender(payload);
+              }
+            });
+          } else if (typeof window.itSupportAnalyticsChartsDestroy === "function") {
+            window.itSupportAnalyticsChartsDestroy();
+          }
+        }
+
+        var initial = "visual";
+        try {
+          var stored = localStorage.getItem(STORAGE_KEY);
+          if (stored === "raw" || stored === "visual") initial = stored;
+        } catch (e) {}
+
+        btnRaw.addEventListener("click", function () {
+          setView("raw");
+        });
+        btnVis.addEventListener("click", function () {
+          setView("visual");
+        });
+
+        setView(initial);
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

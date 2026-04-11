@@ -1764,19 +1764,36 @@ def it_support_stock_status():
 @login_required
 def it_support_manual_stock_in_payment_update(tx_id: int):
     _it_support_or_super_admin_only()
-    amount_raw = (request.form.get("amount_paid") or "").strip()
-    try:
-        amount_paid = float(amount_raw)
-    except Exception:
-        return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
-    if amount_paid < 0:
-        return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
-    try:
-        from database import update_shop_manual_stock_in_payment
+    add_raw = (request.form.get("additional_payment") or "").strip()
+    if add_raw != "":
+        try:
+            additional_payment = float(add_raw)
+        except Exception:
+            return jsonify({"ok": False, "error": "Invalid additional payment amount."}), 400
+        if additional_payment < 0:
+            return jsonify({"ok": False, "error": "Additional payment cannot be negative."}), 400
+        try:
+            from database import update_shop_manual_stock_in_payment
 
-        row = update_shop_manual_stock_in_payment(tx_id=tx_id, amount_paid=amount_paid)
-    except Exception:
-        row = None
+            row = update_shop_manual_stock_in_payment(
+                tx_id, additional_payment=additional_payment
+            )
+        except Exception:
+            row = None
+    else:
+        amount_raw = (request.form.get("amount_paid") or "").strip()
+        try:
+            amount_paid = float(amount_raw)
+        except Exception:
+            return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
+        if amount_paid < 0:
+            return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
+        try:
+            from database import update_shop_manual_stock_in_payment
+
+            row = update_shop_manual_stock_in_payment(tx_id, amount_paid=amount_paid)
+        except Exception:
+            row = None
     if not row:
         return jsonify({"ok": False, "error": "Transaction not found."}), 404
     return jsonify({"ok": True, "row": row})
@@ -2258,14 +2275,35 @@ def _serialize_stock_in_row(tx: dict) -> dict:
 @login_required
 def it_support_stock_suppliers():
     _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    supplier_q = (request.args.get("supplier_q") or "").strip()
+    moved_by_q = (request.args.get("moved_by") or "").strip()
+    filter_shop_id = request.args.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
     try:
-        from database import list_company_stock_movements
+        from database import list_company_stock_movements, list_shops
 
-        analytics_filter = _build_analytics_filter()
-        rows = list_company_stock_movements(analytics_filter=analytics_filter, limit=2500) or []
+        rows = list_company_stock_movements(
+            analytics_filter=analytics_filter,
+            shop_id=filter_shop_id,
+            supplier_search=supplier_q or None,
+            moved_by_contains=moved_by_q or None,
+            sort_payment_status_groups=True,
+            limit=2500,
+        ) or []
+        stock_shops = list_shops(limit=500) or []
     except Exception:
-        rows = []
-    return render_template("it_support_stock_suppliers.html", transaction_rows=rows)
+        rows, stock_shops = [], []
+    return render_template(
+        "it_support_stock_suppliers.html",
+        analytics_filter=analytics_filter,
+        transaction_rows=rows,
+        supplier_q=supplier_q,
+        moved_by_q=moved_by_q,
+        filter_shop_id=filter_shop_id,
+        stock_shops=stock_shops,
+    )
 
 
 @app.route("/it_support/stock-reports/suppliers/<int:item_id>/stock-ins")
@@ -2478,7 +2516,27 @@ def it_support_company_stock_update():
 @login_required
 def it_support_item_analytics():
     _it_support_only()
-    return render_template("it_support_item_analytics.html")
+    analytics_filter = _build_analytics_filter()
+    item_id = request.args.get("item_id", type=int)
+    catalog_items = []
+    detail = None
+    try:
+        from database import get_it_support_item_detail_analytics, list_items
+
+        catalog_items = list_items(limit=500) or []
+        if item_id:
+            detail = get_it_support_item_detail_analytics(item_id, analytics_filter)
+    except Exception:
+        catalog_items, detail = [], None
+    if item_id and not detail:
+        flash("Item not found or analytics could not be loaded.", "error")
+    return render_template(
+        "it_support_item_analytics.html",
+        analytics_filter=analytics_filter,
+        catalog_items=catalog_items,
+        detail=detail,
+        selected_item_id=item_id,
+    )
 
 
 @app.route("/it_support/item-management/item-audit")
@@ -2936,13 +2994,35 @@ def it_support_customer_transactions():
 @login_required
 def it_support_credit_payments():
     _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    all_time = (request.args.get("all_time") or "").strip().lower() in ("1", "true", "yes", "on")
+    filter_shop_id = request.args.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
+    customer_q = (request.args.get("customer_q") or "").strip()
+    customers = []
+    shops = []
     try:
-        from database import list_all_shops_credit_customers_with_balance
+        from database import list_all_shops_credit_customers_with_balance, list_shops
 
-        customers = list_all_shops_credit_customers_with_balance(limit=5000)
+        shops = list_shops(limit=500) or []
+        customers = list_all_shops_credit_customers_with_balance(
+            limit=5000,
+            analytics_filter=None if all_time else analytics_filter,
+            shop_id=filter_shop_id,
+            customer_q=customer_q or None,
+        )
     except Exception:
-        customers = []
-    return render_template("it_support_credit_payments.html", customers=customers)
+        customers, shops = [], []
+    return render_template(
+        "it_support_credit_payments.html",
+        customers=customers,
+        shops=shops,
+        analytics_filter=analytics_filter,
+        filter_shop_id=filter_shop_id,
+        customer_q=customer_q,
+        credit_all_time=all_time,
+    )
 
 
 @app.route("/it_support/credit-payments/customer")
@@ -3224,7 +3304,7 @@ def shop_login(shop_id: int):
 def shop_logout(shop_id: int):
     """End shop password session for this branch (does not clear employee portal session).
 
-    After sign-out, users are redirected to the site home page (``/``, ``index``).
+    After sign-out, users are redirected to the public shop login page (``/shop-login``).
     """
     shop = _get_shop_or_404(shop_id)
     try:
@@ -3235,7 +3315,7 @@ def shop_logout(shop_id: int):
         session.pop("shop_id", None)
         session.pop("shop_name", None)
         flash("You have been signed out from this shop.", "success")
-    return redirect(url_for("index"), code=303)
+    return redirect(url_for("public_shop_login"), code=303)
 
 
 @app.route("/shops/<int:shop_id>/profile")
@@ -5992,16 +6072,53 @@ def shop_stock_audits(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
-    try:
-        from database import list_shop_stock_audit_rows
+    _audit_all = {
+        "mode": "all",
+        "range_label": "All dates (newest first, up to 2000 rows)",
+    }
+    mode_arg = (request.args.get("mode") or "").strip().lower()
+    if not request.args or mode_arg == "all":
+        analytics_filter = _audit_all
+    elif mode_arg in ("single_day", "period", "month", "year"):
+        analytics_filter = _build_analytics_filter()
+    else:
+        analytics_filter = _audit_all
+    direction = (request.args.get("direction") or "").strip().lower()
+    if direction not in ("", "in", "out"):
+        direction = ""
+    source_f = (request.args.get("source") or "").strip().lower()
+    if source_f not in ("", "company", "manual"):
+        source_f = ""
+    item_id = request.args.get("item_id", type=int)
+    q = (request.args.get("q") or "").strip()
 
-        txs = list_shop_stock_audit_rows(shop_id=shop_id, limit=2000)
+    txs = []
+    filter_items = []
+    try:
+        from database import list_shop_items, list_shop_stock_audit_rows
+
+        filter_items = list_shop_items(shop_id=shop_id, limit=3000) or []
+        txs = list_shop_stock_audit_rows(
+            shop_id=shop_id,
+            limit=2000,
+            analytics_filter=analytics_filter,
+            direction=direction or None,
+            source=source_f or None,
+            item_id=item_id if item_id and item_id > 0 else None,
+            search=q or None,
+        )
     except Exception:
         txs = []
     return render_template(
         "shop_stock_audits.html",
         shop=shop,
         transactions=txs,
+        analytics_filter=analytics_filter,
+        audit_direction=direction,
+        audit_source=source_f,
+        audit_item_id=item_id if item_id and item_id > 0 else None,
+        audit_q=q,
+        filter_items=filter_items,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",

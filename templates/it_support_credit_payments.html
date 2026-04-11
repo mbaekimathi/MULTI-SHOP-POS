@@ -13,24 +13,93 @@
 {% endblock %}
 
 {% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set shop_list = shops or [] %}
+
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">All shops credit balances</h2>
-    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">View customers with outstanding credit and receive payments using FIFO clearing.</p>
+    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Customers with outstanding credit on credit sales in the selected window. Use FIFO payment from each customer&apos;s detail page.</p>
   </div>
+
+  <form id="credit-payments-filter-form" method="get" class="mt-4 space-y-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <p class="text-[11px] text-[rgb(var(--rc-muted))]">Results update as you change filters.</p>
+    <div class="flex flex-wrap items-end gap-2.5">
+      <div class="min-w-[10rem] flex-1">
+        <label for="cp-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
+        <select id="cp-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+          <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div id="cp-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+        <label for="cp-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+        <input id="cp-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+      </div>
+      <div id="cp-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="cp-start" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+          <input id="cp-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+        </div>
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="cp-end" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+          <input id="cp-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+        </div>
+      </div>
+      <div id="cp-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+        <label for="cp-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+        <input id="cp-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+      </div>
+      <div id="cp-filter-year" class="min-w-[8rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+        <label for="cp-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+        <input id="cp-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+      </div>
+    </div>
+    <div class="flex flex-wrap items-end gap-2.5 border-t border-[rgb(var(--rc-border))]/80 pt-4">
+      <div class="min-w-[12rem] flex-1">
+        <label for="cp-shop" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
+        <select id="cp-shop" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
+          <option value="">All shops</option>
+          {% for sh in shop_list %}
+            <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="min-w-[10rem] flex-1 sm:min-w-[14rem]">
+        <label for="cp-customer-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Customer name or phone</label>
+        <input id="cp-customer-q" type="search" name="customer_q" value="{{ customer_q or '' }}" placeholder="Search…" autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
+      </div>
+      <div class="flex flex-wrap items-center gap-3 pb-1">
+        <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-[rgb(var(--rc-muted))]">
+          <input id="cp-all-time" type="checkbox" name="all_time" value="1" class="rounded border-[rgb(var(--rc-border))]" {% if credit_all_time %}checked{% endif %} />
+          <span>All time (ignore dates)</span>
+        </label>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('it_support_credit_payments') }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Clear all</a>
+      </div>
+    </div>
+    <p class="text-[11px] text-[rgb(var(--rc-muted))]">
+      {% if credit_all_time %}
+        Showing <span class="font-semibold text-[rgb(var(--rc-page-fg))]">lifetime</span> outstanding balances (all credit sales).
+      {% else %}
+        Including only credit sales dated within <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'the selected range' }}</span>.
+      {% endif %}
+    </p>
+  </form>
 
   <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
     {% if not customers %}
-      <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances.</p>
+      <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances for these filters.</p>
     {% else %}
       <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
         <div class="overflow-x-auto">
-          <table class="min-w-[1060px] w-full text-sm">
+          <table class="min-w-[820px] w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
@@ -40,18 +109,19 @@
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for c in customers %}
-                <tr>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ c.shop_name }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ c.shop_code or '-' }}</td>
-                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ c.tx_count }}</td>
-                  <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(c.credit_total) }}</td>
-                  <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(c.paid_total) }}</td>
-                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(c.balance) }}</td>
-                  <td class="px-3 py-2">
+                <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
+                  <td class="px-3 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ c.shop_name }}</td>
+                  <td class="max-w-[18rem] px-3 py-2.5">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</div>
+                    <div class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</div>
+                  </td>
+                  <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ c.tx_count }}</td>
+                  <td class="px-3 py-2.5 tabular-nums text-amber-400">{{ "%.2f"|format(c.credit_total) }}</td>
+                  <td class="px-3 py-2.5 tabular-nums text-emerald-400">{{ "%.2f"|format(c.paid_total) }}</td>
+                  <td class="px-3 py-2.5 font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(c.balance) }}</td>
+                  <td class="px-3 py-2.5">
                     <a href="{{ url_for('it_support_credit_payments_customer', shop_id=c.shop_id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
-                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]"
                        aria-label="View customer credit">
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -69,3 +139,70 @@
   </div>
 {% endblock %}
 
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var form = document.getElementById("credit-payments-filter-form");
+      var mode = document.getElementById("cp-filter-mode");
+      var day = document.getElementById("cp-filter-single-day");
+      var period = document.getElementById("cp-filter-period");
+      var month = document.getElementById("cp-filter-month");
+      var year = document.getElementById("cp-filter-year");
+      var allTime = document.getElementById("cp-all-time");
+      var debounceTimer = null;
+
+      function syncPanels() {
+        if (!mode) return;
+        var v = (mode.value || "single_day").toLowerCase();
+        if (day) day.classList.toggle("hidden", v !== "single_day");
+        if (period) period.classList.toggle("hidden", v !== "period");
+        if (month) month.classList.toggle("hidden", v !== "month");
+        if (year) year.classList.toggle("hidden", v !== "year");
+      }
+
+      function applyFilters() {
+        if (form) form.submit();
+      }
+
+      function applyFiltersDebounced(delayMs) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(applyFilters, delayMs);
+      }
+
+      if (!form) return;
+
+      syncPanels();
+
+      if (mode) {
+        mode.addEventListener("change", function () {
+          syncPanels();
+          applyFilters();
+        });
+      }
+
+      ["cp-single-day", "cp-start", "cp-end", "cp-month", "cp-shop"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener("change", applyFilters);
+      });
+
+      if (year) {
+        year.addEventListener("change", applyFilters);
+        year.addEventListener("input", function () {
+          applyFiltersDebounced(450);
+        });
+      }
+
+      var customerQ = document.getElementById("cp-customer-q");
+      if (customerQ) {
+        customerQ.addEventListener("input", function () {
+          applyFiltersDebounced(380);
+        });
+      }
+
+      if (allTime) {
+        allTime.addEventListener("change", applyFilters);
+      }
+    })();
+  </script>
+{% endblock %}

@@ -31,24 +31,6 @@
       </div>
     </section>
 
-    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <label class="block flex-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
-          <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Search items</span>
-          <input
-            type="search"
-            id="js-stock-item-search"
-            autocomplete="off"
-            placeholder="Type to filter by item name…"
-            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
-          />
-        </label>
-        <span class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-          <span id="js-stock-visible-count">{{ (items or [])|length }}</span> / {{ (items or [])|length }} items
-        </span>
-      </div>
-    </section>
-
     {% if not items %}
       <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
         <p class="text-sm text-[rgb(var(--rc-muted))]">No items available.</p>
@@ -68,6 +50,23 @@
             <div>
               <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Optional note (applies to lines without their own note)</label>
               <input name="batch_note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. WEEKLY RESTOCK" />
+            </div>
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <label class="block min-w-0 flex-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+                  <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Search items</span>
+                  <input
+                    type="search"
+                    id="js-stock-item-search"
+                    autocomplete="off"
+                    placeholder="Filter by name, enter qty below — focusing qty clears search for the next item"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
+                  />
+                </label>
+                <span class="shrink-0 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] sm:pb-2">
+                  <span id="js-stock-visible-count">{{ (items or [])|length }}</span> / {{ (items or [])|length }} shown
+                </span>
+              </div>
             </div>
             <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
               <table class="min-w-[640px] w-full text-sm">
@@ -96,7 +95,7 @@
                           min="0"
                           step="1"
                           value=""
-                          class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm"
+                          class="js-stock-qty-input w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm"
                           placeholder="0"
                         />
                       </td>
@@ -120,12 +119,83 @@
           <div class="mb-4 rounded-xl border border-teal-400/25 bg-teal-500/5 px-4 py-3">
             <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Manual stock in</h3>
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-              Enter quantity and buy price only on lines you are stocking in. Shared seller and note below apply <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">only to those lines</strong> (quantity &gt; 0). Per-row seller fields override the shared defaults.
+              Enter quantity and buy price on the rows you are stocking in. Below the list, use <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">One seller &amp; note for all lines</strong> (before submit) to fill seller fields on lines with quantity &gt; 0. Per-row values override the shared defaults.
             </p>
           </div>
           <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}" class="space-y-4">
             <input type="hidden" name="action" value="batch_manual_in" />
             <input type="hidden" name="view" value="manual" />
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <label class="block min-w-0 flex-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
+                  <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Search items</span>
+                  <input
+                    type="search"
+                    id="js-stock-item-search"
+                    autocomplete="off"
+                    placeholder="Filter by name, enter qty below — focusing qty clears search for the next item"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
+                  />
+                </label>
+                <span class="shrink-0 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] sm:pb-2">
+                  <span id="js-stock-visible-count">{{ (items or [])|length }}</span> / {{ (items or [])|length }} shown
+                </span>
+              </div>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+              <table class="min-w-[960px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Co.</th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Buy price</th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller phone <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller name / place <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Note <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for it in items %}
+                    <tr
+                      class="js-stock-row js-manual-stock-row"
+                      data-stock-search="{{ (it.name ~ ' ' ~ (it.category or ''))|lower }}"
+                      data-item-id="{{ it.id }}"
+                    >
+                      <td class="px-2 py-2 align-top font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</td>
+                      <td class="px-2 py-2 align-top whitespace-nowrap">{{ it.shop_stock_qty }}</td>
+                      <td class="px-2 py-2 align-top whitespace-nowrap">{{ it.company_stock_qty }}</td>
+                      <td class="px-2 py-2 align-top whitespace-nowrap">
+                        <input name="qty_{{ it.id }}" type="number" min="0" step="1" class="js-manual-qty js-stock-qty-input w-20 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-sm" placeholder="0" />
+                      </td>
+                      <td class="px-2 py-2 align-top whitespace-nowrap">
+                        <input
+                          name="buying_price_{{ it.id }}"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-sm"
+                          placeholder="0"
+                          {% if it.last_buying_price is not none %}value="{{ '%.2f' % it.last_buying_price }}"{% endif %}
+                          title="{% if it.last_buying_price is not none %}Last recorded buying price for this item at this shop{% else %}No previous shop stock-in price yet{% endif %}"
+                        />
+                      </td>
+                      <td class="px-2 py-2 align-top min-w-[120px]">
+                        <input name="seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="js-seller-phone w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs" placeholder="+254…" />
+                      </td>
+                      <td class="px-2 py-2 align-top min-w-[140px]">
+                        <input name="seller_name_{{ it.id }}" data-seller-name="{{ it.id }}" class="js-seller-name w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="NAME / PLACE" />
+                        <p class="js-seller-hint mt-1 text-[10px] text-[rgb(var(--rc-muted))]" data-seller-hint="{{ it.id }}"></p>
+                      </td>
+                      <td class="px-2 py-2 align-top min-w-[100px]">
+                        <input name="note_{{ it.id }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="NOTE" />
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
             <div class="rounded-2xl border border-teal-400/35 bg-[rgb(var(--rc-surface-2))] p-4">
               <p class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">One seller &amp; note for all lines</p>
               <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
@@ -171,60 +241,6 @@
               </button>
               <p id="js-apply-all-copy-feedback" class="mt-2 text-[10px] text-[rgb(var(--rc-muted))]"></p>
               <p id="js-apply-all-hint" class="mt-2 text-[10px] text-[rgb(var(--rc-muted))]"></p>
-            </div>
-            <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
-              <table class="min-w-[960px] w-full text-sm">
-                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                  <tr>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Co.</th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Buy price</th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller phone <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller name / place <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Note <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                  {% for it in items %}
-                    <tr
-                      class="js-stock-row js-manual-stock-row"
-                      data-stock-search="{{ (it.name ~ ' ' ~ (it.category or ''))|lower }}"
-                      data-item-id="{{ it.id }}"
-                    >
-                      <td class="px-2 py-2 align-top font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</td>
-                      <td class="px-2 py-2 align-top whitespace-nowrap">{{ it.shop_stock_qty }}</td>
-                      <td class="px-2 py-2 align-top whitespace-nowrap">{{ it.company_stock_qty }}</td>
-                      <td class="px-2 py-2 align-top whitespace-nowrap">
-                        <input name="qty_{{ it.id }}" type="number" min="0" step="1" class="js-manual-qty w-20 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-sm" placeholder="0" />
-                      </td>
-                      <td class="px-2 py-2 align-top whitespace-nowrap">
-                        <input
-                          name="buying_price_{{ it.id }}"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-sm"
-                          placeholder="0"
-                          {% if it.last_buying_price is not none %}value="{{ '%.2f' % it.last_buying_price }}"{% endif %}
-                          title="{% if it.last_buying_price is not none %}Last recorded buying price for this item at this shop{% else %}No previous shop stock-in price yet{% endif %}"
-                        />
-                      </td>
-                      <td class="px-2 py-2 align-top min-w-[120px]">
-                        <input name="seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="js-seller-phone w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs" placeholder="+254…" />
-                      </td>
-                      <td class="px-2 py-2 align-top min-w-[140px]">
-                        <input name="seller_name_{{ it.id }}" data-seller-name="{{ it.id }}" class="js-seller-name w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="NAME / PLACE" />
-                        <p class="js-seller-hint mt-1 text-[10px] text-[rgb(var(--rc-muted))]" data-seller-hint="{{ it.id }}"></p>
-                      </td>
-                      <td class="px-2 py-2 align-top min-w-[100px]">
-                        <input name="note_{{ it.id }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="NOTE" />
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
             </div>
             <button type="submit" class="btn-rc btn-rc-success w-full px-6 py-3 text-sm font-semibold">Submit manual stock-in</button>
           </form>
@@ -352,8 +368,8 @@
       var input = document.getElementById("js-stock-item-search");
       var rows = document.querySelectorAll(".js-stock-row");
       var countEl = document.getElementById("js-stock-visible-count");
-      var total = rows.length;
       if (!input || !countEl) return;
+
       function sync() {
         var q = (input.value || "").trim().toLowerCase();
         var n = 0;
@@ -365,8 +381,18 @@
         });
         countEl.textContent = String(n);
       }
+
       input.addEventListener("input", sync);
       input.addEventListener("change", sync);
+
+      document.querySelectorAll(".js-stock-qty-input").forEach(function (qtyEl) {
+        qtyEl.addEventListener("focus", function () {
+          if ((input.value || "").trim() !== "") {
+            input.value = "";
+            sync();
+          }
+        });
+      });
     })();
   </script>
   <script>
