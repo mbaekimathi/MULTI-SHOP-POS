@@ -33,6 +33,15 @@
         <input type="number" min="0" max="500" name="reorder_threshold" value="{{ reorder_threshold or 5 }}" class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))]" />
         <button class="btn-rc btn-rc-primary px-3 py-1.5 text-xs">Apply</button>
       </form>
+      <div class="mt-3">
+        <input
+          id="stock-reports-live-search"
+          type="search"
+          autocomplete="off"
+          placeholder="Search by item, category or description..."
+          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+        />
+      </div>
       <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
         <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total stock valuation</div>
         <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_valuation or 0) }}</div>
@@ -139,4 +148,41 @@
     </div>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var input = document.getElementById("stock-reports-live-search");
+      if (!input) return;
+      var bodies = Array.prototype.slice.call(document.querySelectorAll("table tbody"));
+      function applyFilter() {
+        var q = String(input.value || "").trim().toLowerCase();
+        bodies.forEach(function (body) {
+          var rows = Array.prototype.slice.call(body.querySelectorAll("tr"));
+          var visibleCount = 0;
+          rows.forEach(function (row) {
+            var cellCount = row.querySelectorAll("td").length;
+            if (!cellCount) return;
+            if (cellCount === 1) {
+              row.classList.toggle("hidden", !!q);
+              return;
+            }
+            var hay = String(row.textContent || "").toLowerCase();
+            var show = !q || hay.indexOf(q) !== -1;
+            row.classList.toggle("hidden", !show);
+            if (show) visibleCount += 1;
+          });
+          rows.forEach(function (row) {
+            if (row.querySelectorAll("td").length === 1) {
+              row.classList.toggle("hidden", !!q && visibleCount > 0);
+            }
+          });
+        });
+      }
+      input.addEventListener("input", applyFilter);
+      applyFilter();
+    })();
+  </script>
 {% endblock %}

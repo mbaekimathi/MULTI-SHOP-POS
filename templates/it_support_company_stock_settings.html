@@ -24,6 +24,15 @@
           <p class="text-xs text-[rgb(var(--rc-muted))]">{{ items|length }} item(s). Changes apply on save.</p>
           <button type="submit" class="btn-rc btn-rc-primary px-5 py-2.5 text-sm font-bold uppercase tracking-wider">Save all levels</button>
         </div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-3">
+          <input
+            id="company-stock-settings-live-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search by item, category or description..."
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+          />
+        </div>
 
         <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
           <div class="overflow-x-auto">
@@ -46,7 +55,7 @@
                   {% set low = (it.low_stock_threshold or 0)|int %}
                   {% set rl = (it.reorder_level or 0)|int %}
                   {% set warn = low > 0 and sq <= low %}
-                  <tr class="{% if warn %}bg-amber-500/10{% else %}hover:bg-[rgb(var(--rc-surface-2))]/35{% endif %}">
+                  <tr class="{% if warn %}bg-amber-500/10{% else %}hover:bg-[rgb(var(--rc-surface-2))]/35{% endif %} company-stock-settings-row" data-settings-search="{{ ((it.name or '') ~ ' ' ~ (it.category or '') ~ ' ' ~ (it.description or ''))|lower }}">
                     <td class="px-3 py-2 align-middle">
                       {% set _img = static_upload_url(it.image_path) %}
                       {% if _img %}
@@ -101,4 +110,24 @@
       </form>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var input = document.getElementById("company-stock-settings-live-search");
+      if (!input) return;
+      var rows = Array.prototype.slice.call(document.querySelectorAll(".company-stock-settings-row"));
+      function applyFilter() {
+        var q = String(input.value || "").trim().toLowerCase();
+        rows.forEach(function (row) {
+          var hay = String(row.getAttribute("data-settings-search") || "");
+          row.classList.toggle("hidden", !!q && hay.indexOf(q) === -1);
+        });
+      }
+      input.addEventListener("input", applyFilter);
+      applyFilter();
+    })();
+  </script>
 {% endblock %}

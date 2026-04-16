@@ -3862,6 +3862,69 @@ def get_it_support_customer_transactions(
         return []
 
 
+def get_it_support_customer_transaction_items(
+    customer_name: str,
+    customer_phone: str,
+    limit: int = 5000,
+    analytics_filter: Optional[dict] = None,
+    shop_id: Optional[int] = None,
+):
+    """Item-level transactions for one customer identity."""
+    n = (customer_name or "").strip() or "WALK IN"
+    p = (customer_phone or "").strip() or "-"
+    range_where, range_params = _analytics_where_clause(analytics_filter or {}, "sps")
+    shop_scope = " AND sps.shop_id=%s" if shop_id else ""
+    sql = """
+    SELECT
+        sps.id AS sale_id,
+        sps.shop_id,
+        sh.shop_name,
+        sh.shop_code,
+        sps.sale_type,
+        COALESCE(NULLIF(sps.employee_name, ''), 'Unknown') AS employee_name,
+        COALESCE(NULLIF(sps.employee_code, ''), '-') AS employee_code,
+        sps.created_at,
+        COALESCE(NULLIF(si.item_name, ''), 'Item') AS item_name,
+        COALESCE(si.qty, 0) AS qty,
+        COALESCE(si.line_total, 0) AS amount
+    FROM shop_pos_sales sps
+    JOIN shop_pos_sale_items si ON si.sale_id = sps.id
+    LEFT JOIN shops sh ON sh.id = sps.shop_id
+    WHERE COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN')=%s
+      AND COALESCE(NULLIF(sps.customer_phone, ''), '-')=%s
+      AND {range_where}
+      {shop_scope}
+    ORDER BY sps.created_at DESC, sps.id DESC, si.id DESC
+    LIMIT %s
+    """.format(range_where=range_where, shop_scope=shop_scope)
+    try:
+        with get_cursor() as cur:
+            args = [n, p, *range_params]
+            if shop_id:
+                args.append(int(shop_id))
+            args.append(int(limit))
+            cur.execute(sql, tuple(args))
+            rows = cur.fetchall() or []
+        return [
+            {
+                "sale_id": int(r.get("sale_id") or 0),
+                "shop_id": r.get("shop_id"),
+                "shop_name": r.get("shop_name") or "Shop",
+                "shop_code": r.get("shop_code") or "",
+                "sale_type": (r.get("sale_type") or "").strip().lower(),
+                "employee_name": r.get("employee_name") or "Unknown",
+                "employee_code": (r.get("employee_code") or "").strip(),
+                "created_at": r.get("created_at"),
+                "item_name": r.get("item_name") or "Item",
+                "qty": int(r.get("qty") or 0),
+                "amount": float(r.get("amount") or 0),
+            }
+            for r in rows
+        ]
+    except pymysql.Error:
+        return []
+
+
 def get_it_support_customer_detail_analytics(
     customer_name: str, customer_phone: str, analytics_filter: dict, shop_id: Optional[int] = None
 ):
@@ -3934,6 +3997,32 @@ def get_it_support_customer_detail_analytics(
     GROUP BY HOUR(sps.created_at)
     ORDER BY hour_of_day ASC
     """
+    # Split sale vs credit for visual charts.
+    daily_split_sql = f"""
+    SELECT
+        DATE(sps.created_at) AS day,
+        COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount,
+        COUNT(CASE WHEN sps.sale_type='sale' THEN 1 END) AS sale_tx_count,
+        COUNT(CASE WHEN sps.sale_type='credit' THEN 1 END) AS credit_tx_count
+    FROM shop_pos_sales sps
+    WHERE {where_sql}
+    GROUP BY DATE(sps.created_at)
+    ORDER BY day ASC
+    LIMIT 90
+    """
+    hourly_split_sql = f"""
+    SELECT
+        HOUR(sps.created_at) AS hour_of_day,
+        COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount,
+        COUNT(CASE WHEN sps.sale_type='sale' THEN 1 END) AS sale_tx_count,
+        COUNT(CASE WHEN sps.sale_type='credit' THEN 1 END) AS credit_tx_count
+    FROM shop_pos_sales sps
+    WHERE {where_sql}
+    GROUP BY HOUR(sps.created_at)
+    ORDER BY hour_of_day ASC
+    """
     shops_sql = f"""
     SELECT
         s.id AS shop_id,
@@ -3975,6 +4064,10 @@ def get_it_support_customer_detail_analytics(
         "avg_ticket": 0.0,
         "daily": [],
         "hourly": [],
+        "daily_sale": [],
+        "daily_credit": [],
+        "hourly_sale": [],
+        "hourly_credit": [],
         "shops": [],
         "employees": [],
         "top_items": [],
@@ -4026,6 +4119,45 @@ def get_it_support_customer_detail_analytics(
                     "amount": float(r.get("amount") or 0),
                 }
                 for r in (cur.fetchall() or [])
+            ]
+
+            # Sale vs credit split
+            cur.execute(daily_split_sql, tuple(params))
+            dailySplitRows = cur.fetchall() or []
+            out["daily_sale"] = [
+                {
+                    "day": str(r.get("day") or ""),
+                    "tx_count": int(r.get("sale_tx_count") or 0),
+                    "amount": float(r.get("sale_amount") or 0),
+                }
+                for r in dailySplitRows
+            ]
+            out["daily_credit"] = [
+                {
+                    "day": str(r.get("day") or ""),
+                    "tx_count": int(r.get("credit_tx_count") or 0),
+                    "amount": float(r.get("credit_amount") or 0),
+                }
+                for r in dailySplitRows
+            ]
+
+            cur.execute(hourly_split_sql, tuple(params))
+            hourlySplitRows = cur.fetchall() or []
+            out["hourly_sale"] = [
+                {
+                    "hour": f"{int(r.get('hour_of_day') or 0):02d}:00",
+                    "tx_count": int(r.get("sale_tx_count") or 0),
+                    "amount": float(r.get("sale_amount") or 0),
+                }
+                for r in hourlySplitRows
+            ]
+            out["hourly_credit"] = [
+                {
+                    "hour": f"{int(r.get('hour_of_day') or 0):02d}:00",
+                    "tx_count": int(r.get("credit_tx_count") or 0),
+                    "amount": float(r.get("credit_amount") or 0),
+                }
+                for r in hourlySplitRows
             ]
 
             cur.execute(shops_sql, tuple(params))

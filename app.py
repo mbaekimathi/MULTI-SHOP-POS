@@ -2543,7 +2543,13 @@ def it_support_item_analytics():
 @login_required
 def it_support_item_audit():
     _it_support_only()
-    return render_template("it_support_item_audit.html")
+    try:
+        from database import list_items
+
+        items = list_items(limit=5000) or []
+    except Exception:
+        items = []
+    return render_template("it_support_item_audit.html", items=items)
 
 
 @app.route("/it_support/items/<int:item_id>/toggle-status", methods=["POST"])
@@ -2945,6 +2951,7 @@ def it_support_customer_transactions():
     try:
         from database import (
             get_it_support_customer_detail_analytics,
+            get_it_support_customer_transaction_items,
             get_it_support_customer_transactions,
         )
 
@@ -2961,8 +2968,32 @@ def it_support_customer_transactions():
             analytics_filter=analytics_filter,
             shop_id=scoped_shop_id,
         )
+        tx_item_rows = get_it_support_customer_transaction_items(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+            analytics_filter=analytics_filter,
+            shop_id=scoped_shop_id,
+        )
+        items_by_sale_id = {}
+        for row in (tx_item_rows or []):
+            try:
+                sale_id = int(row.get("sale_id") or 0)
+            except Exception:
+                sale_id = 0
+            if sale_id <= 0:
+                continue
+            items_by_sale_id.setdefault(sale_id, []).append(
+                {
+                    "item_name": row.get("item_name") or "Item",
+                    "qty": int(row.get("qty") or 0),
+                    "amount": float(row.get("amount") or 0),
+                }
+            )
     except Exception:
         txs = []
+        tx_item_rows = []
+        items_by_sale_id = {}
         analytics = {
             "total_amount": 0.0,
             "total_tx_count": 0,
@@ -2987,6 +3018,8 @@ def it_support_customer_transactions():
         analytics_filter=analytics_filter,
         customer_analytics=analytics,
         transactions=txs,
+        transaction_item_rows=tx_item_rows,
+        transaction_items_by_sale_id=items_by_sale_id,
     )
 
 

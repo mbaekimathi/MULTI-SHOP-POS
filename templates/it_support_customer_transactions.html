@@ -16,6 +16,7 @@
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   {% set a = customer_analytics or {} %}
+  {% set tx_items_map = transaction_items_by_sale_id or {} %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -78,222 +79,89 @@
     </div>
   </form>
 
-  <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+  <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">No. of transactions</div>
+      <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ a.total_tx_count or 0 }}</div>
+    </div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total sale</div>
+      <div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(a.sale_amount or 0) }}</div>
+    </div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total credit</div>
+      <div class="mt-2 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(a.credit_amount or 0) }}</div>
+    </div>
     <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
       <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total revenue</div>
       <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(a.total_amount or 0) }}</div>
     </div>
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
-      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Transactions</div>
-      <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ a.total_tx_count or 0 }}</div>
-    </div>
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
-      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sales / Credit</div>
-      <div class="mt-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(a.sale_amount or 0) }} / {{ "%.2f"|format(a.credit_amount or 0) }}</div>
-      <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ a.sale_tx_count or 0 }} sale tx • {{ a.credit_tx_count or 0 }} credit tx</div>
-    </div>
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
-      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Items bought</div>
-      <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ a.total_item_qty or 0 }}</div>
-      <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ a.distinct_items or 0 }} distinct items</div>
-    </div>
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
-      <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Average ticket</div>
-      <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(a.avg_ticket or 0) }}</div>
-    </div>
   </div>
 
-  <div class="mt-4 grid gap-4 xl:grid-cols-2">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items</h3>
-      {% if not a.top_items %}
-        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No item records for this filter.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[520px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for row in a.top_items %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.qty_sold }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.revenue) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Period analytics (daily + hourly)</h3>
-      <div class="mt-3 grid gap-4 xl:grid-cols-2">
-        <div>
-          <h4 class="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Daily</h4>
-          {% if not a.daily %}
-            <p class="text-sm text-[rgb(var(--rc-muted))]">No daily records for this filter.</p>
-          {% else %}
-            <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-              <div class="overflow-x-auto">
-                <table class="min-w-[520px] w-full text-sm">
-                  <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Day</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                    {% for row in a.daily %}
-                      <tr>
-                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
-                        <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
-                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.amount) }}</td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          {% endif %}
-        </div>
-        <div>
-          <h4 class="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Hourly</h4>
-          {% if not a.hourly %}
-            <p class="text-sm text-[rgb(var(--rc-muted))]">No hourly records for this filter.</p>
-          {% else %}
-            <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-              <div class="overflow-x-auto">
-                <table class="min-w-[520px] w-full text-sm">
-                  <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Hour</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
-                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                    {% for row in a.hourly %}
-                      <tr>
-                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.hour }}</td>
-                        <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
-                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.amount) }}</td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
+  <div class="mt-4 flex flex-wrap items-center gap-2">
+    <button
+      id="customer-tx-tab-raw-btn"
+      type="button"
+      class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider"
+      aria-controls="customer-tx-tab-raw"
+      aria-selected="true"
+    >
+      Raw data
+    </button>
+    <button
+      id="customer-tx-tab-visual-btn"
+      type="button"
+      class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider"
+      aria-controls="customer-tx-tab-visual"
+      aria-selected="false"
+    >
+      Visual analytics
+    </button>
   </div>
 
-  <div class="mt-4 grid gap-4 xl:grid-cols-2">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shop analytics</h3>
-      {% if not a.shops %}
-        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop records for this filter.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[580px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for row in a.shops %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code or '-' }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.amount) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee who served analytics</h3>
-      {% if not a.employees %}
-        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee records for this filter.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[720px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for row in a.employees %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
-                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount) }}</td>
-                    <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount) }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.amount) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All customer transactions</h3>
+  <div id="customer-tx-tab-raw" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customer transactions</h3>
     {% if not transactions %}
       <p class="text-sm text-[rgb(var(--rc-muted))]">No transactions found for this customer.</p>
     {% else %}
       <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
         <div class="overflow-x-auto">
-          <table class="min-w-[1080px] w-full text-sm">
+          <table class="min-w-[1260px] w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transaction</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Receipt</th>
+                <th class="px-3 py-2 text-center text-xs font-bold uppercase tracking-wider">&nbsp;</th>
+                <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Amount</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee who served</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop bought from</th>
+                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date and time</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Items</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for tx in transactions %}
+                {% set sale_items = tx_items_map.get(tx.id, []) %}
                 <tr>
                   <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">#{{ tx.id }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.created_at or '-' }}</td>
+                  <td class="px-3 py-2 text-center">
+                    <button
+                      type="button"
+                      class="tx-items-toggle inline-flex items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1.5 text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                      data-target="tx-items-{{ tx.id }}"
+                      aria-expanded="false"
+                      aria-label="View items bought"
+                      title="View items bought"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                  </td>
+                  <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.total_amount) }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name }}</td>
                   <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                  <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ tx.created_at or '-' }}</td>
                   <td class="px-3 py-2">
                     {% if tx.sale_type == 'credit' %}
                       <span class="rounded-full border border-amber-300/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">credit</span>
@@ -301,9 +169,34 @@
                       <span class="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">sale</span>
                     {% endif %}
                   </td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.item_count }}</td>
-                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.total_amount) }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name }}{% if tx.employee_code %} ({{ tx.employee_code }}){% endif %}</td>
+                </tr>
+                <tr id="tx-items-{{ tx.id }}" class="hidden bg-[rgb(var(--rc-surface-2))]/30">
+                  <td colspan="7" class="px-4 py-3">
+                    {% if not sale_items %}
+                      <p class="text-xs text-[rgb(var(--rc-muted))]">No item lines found for this transaction.</p>
+                    {% else %}
+                      <div class="overflow-hidden rounded-lg border border-[rgb(var(--rc-border))]">
+                        <table class="w-full text-xs">
+                          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                            <tr>
+                              <th class="px-3 py-2 text-left font-bold uppercase tracking-wider">Item bought</th>
+                              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">Quantity</th>
+                              <th class="px-3 py-2 text-right font-bold uppercase tracking-wider">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                            {% for it in sale_items %}
+                              <tr>
+                                <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ it.item_name }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ it.qty }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(it.amount) }}</td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    {% endif %}
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -312,10 +205,158 @@
       </div>
     {% endif %}
   </div>
+
+  <div id="customer-tx-tab-visual" class="mt-4 hidden">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Visual analytics</h3>
+
+      <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Purchases trend (sale) — Day</h4>
+          <div class="mt-3 h-64">
+            <canvas id="customer-chart-sale-day"></canvas>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Purchases trend (sale) — Time</h4>
+          <div class="mt-3 h-64">
+            <canvas id="customer-chart-sale-hour"></canvas>
+          </div>
+        </div>
+      </div>
+
+      {% if (a.credit_amount or 0) > 0 or (a.credit_tx_count or 0) > 0 %}
+        <div class="mt-4 grid gap-4 xl:grid-cols-2">
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Purchases trend (credit) — Day</h4>
+            <div class="mt-3 h-64">
+              <canvas id="customer-chart-credit-day"></canvas>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+            <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Purchases trend (credit) — Time</h4>
+            <div class="mt-3 h-64">
+              <canvas id="customer-chart-credit-hour"></canvas>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="mt-4 rounded-xl border border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-6">
+          <p class="text-sm text-[rgb(var(--rc-muted))]">No credit purchases for this customer in the selected period.</p>
+        </div>
+      {% endif %}
+
+      <div class="mt-4 grid gap-4 xl:grid-cols-2">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items customer buys (by qty)</h4>
+          <div class="mt-3 h-64">
+            <canvas id="customer-chart-items"></canvas>
+          </div>
+          <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Top items are based on total quantity in the selected period.</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items</h4>
+          {% if not a.top_items %}
+            <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No item records for this filter.</p>
+          {% else %}
+            <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+              <div class="overflow-x-auto">
+                <table class="min-w-[520px] w-full text-sm">
+                  <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for row in a.top_items %}
+                      <tr>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.qty_sold }}</td>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.revenue) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+          <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shops</h4>
+          {% if not a.shops %}
+            <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop records for this filter.</p>
+          {% else %}
+            <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+              <div class="overflow-x-auto">
+                <table class="min-w-[520px] w-full text-sm">
+                  <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Code</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
+                      <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                    {% for row in a.shops %}
+                      <tr>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.shop_code or '-' }}</td>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                        <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.amount) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Employee who served</h4>
+        {% if not a.employees %}
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No employee records for this filter.</p>
+        {% else %}
+          <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+            <div class="overflow-x-auto">
+              <table class="min-w-[720px] w-full text-sm">
+                <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Transactions</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                  {% for row in a.employees %}
+                    <tr>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount) }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount) }}</td>
+                      <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.amount) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     (function () {
       var mode = document.getElementById("analytics-filter-mode");
@@ -333,6 +374,257 @@
       }
       mode.addEventListener("change", sync);
       sync();
+    })();
+    (function () {
+      var toggles = document.querySelectorAll(".tx-items-toggle");
+      if (!toggles.length) return;
+      toggles.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var id = btn.getAttribute("data-target");
+          if (!id) return;
+          var row = document.getElementById(id);
+          if (!row) return;
+          var isHidden = row.classList.contains("hidden");
+          row.classList.toggle("hidden", !isHidden);
+          btn.setAttribute("aria-expanded", isHidden ? "true" : "false");
+        });
+      });
+    })();
+    (function () {
+      var rawBtn = document.getElementById("customer-tx-tab-raw-btn");
+      var visualBtn = document.getElementById("customer-tx-tab-visual-btn");
+      var rawTab = document.getElementById("customer-tx-tab-raw");
+      var visualTab = document.getElementById("customer-tx-tab-visual");
+      if (!rawBtn || !visualBtn || !rawTab || !visualTab) return;
+
+      var visualChartsInited = false;
+      var visualCharts = {};
+
+      var dailySale = {{ (customer_analytics.daily_sale or [])|tojson }};
+      var hourlySale = {{ (customer_analytics.hourly_sale or [])|tojson }};
+      var dailyCredit = {{ (customer_analytics.daily_credit or [])|tojson }};
+      var hourlyCredit = {{ (customer_analytics.hourly_credit or [])|tojson }};
+      var topItems = {{ (customer_analytics.top_items or [])|tojson }};
+
+      function fmtMoney(n) {
+        var x = Number(n) || 0;
+        return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function sortAscByLabel(rows, key) {
+        return (rows || []).slice().sort(function (a, b) {
+          return String((a && a[key]) || "").localeCompare(String((b && b[key]) || ""));
+        });
+      }
+
+      function initVisualCharts() {
+        if (visualChartsInited) return;
+        visualChartsInited = true;
+        if (typeof Chart === "undefined") return;
+
+        var fg = document.documentElement.dataset.theme === "dark" ? "#e2e8f0" : "#0f172a";
+        var muted = document.documentElement.dataset.theme === "dark" ? "#94a3b8" : "#64748b";
+        var grid = document.documentElement.dataset.theme === "dark" ? "rgba(148,163,184,0.12)" : "rgba(100,116,139,0.18)";
+
+        var common = function () {
+          return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: fg, font: { size: 11 } } },
+              tooltip: {
+                backgroundColor: "rgba(15,23,42,0.92)",
+                titleColor: "#f8fafc",
+                bodyColor: "#e2e8f0",
+                borderColor: "rgba(148,163,184,0.3)",
+                borderWidth: 1,
+                padding: 10,
+              },
+            },
+            scales: {},
+          };
+        };
+
+        // Sale: Day
+        var saleDayEl = document.getElementById("customer-chart-sale-day");
+        var saleDay = sortAscByLabel(dailySale, "day");
+        if (saleDayEl && saleDay && saleDay.length) {
+          visualCharts.saleDay = new Chart(saleDayEl, {
+            type: "line",
+            data: {
+              labels: saleDay.map(function (r) { return String(r.day || ""); }),
+              datasets: [
+                {
+                  label: "Cash sales",
+                  data: saleDay.map(function (r) { return Number(r.amount) || 0; }),
+                  borderColor: "rgba(52, 211, 153, 1)",
+                  backgroundColor: "rgba(52, 211, 153, 0.12)",
+                  fill: true,
+                  tension: 0.35,
+                },
+              ],
+            },
+            options: (function () {
+              var o = common();
+              o.scales = {
+                x: { ticks: { color: muted }, grid: { color: grid } },
+                y: {
+                  ticks: {
+                    color: muted,
+                    callback: function (v) { return fmtMoney(v); },
+                  },
+                  grid: { color: grid },
+                },
+              };
+              return o;
+            })(),
+          });
+        }
+
+        // Sale: Hour
+        var saleHourEl = document.getElementById("customer-chart-sale-hour");
+        var saleHour = sortAscByLabel(hourlySale, "hour");
+        if (saleHourEl && saleHour && saleHour.length) {
+          visualCharts.saleHour = new Chart(saleHourEl, {
+            type: "bar",
+            data: {
+              labels: saleHour.map(function (r) { return String(r.hour || ""); }),
+              datasets: [
+                {
+                  label: "Cash sales",
+                  data: saleHour.map(function (r) { return Number(r.amount) || 0; }),
+                  backgroundColor: "rgba(52, 211, 153, 0.65)",
+                },
+              ],
+            },
+            options: (function () {
+              var o = common();
+              o.scales = {
+                x: { ticks: { color: muted }, grid: { display: false } },
+                y: {
+                  ticks: {
+                    color: muted,
+                    callback: function (v) { return fmtMoney(v); },
+                  },
+                  grid: { color: grid },
+                },
+              };
+              return o;
+            })(),
+          });
+        }
+
+        // Credit: Day
+        var creditDayEl = document.getElementById("customer-chart-credit-day");
+        var creditDay = sortAscByLabel(dailyCredit, "day");
+        if (creditDayEl && creditDay && creditDay.length) {
+          visualCharts.creditDay = new Chart(creditDayEl, {
+            type: "line",
+            data: {
+              labels: creditDay.map(function (r) { return String(r.day || ""); }),
+              datasets: [
+                {
+                  label: "Credit purchases",
+                  data: creditDay.map(function (r) { return Number(r.amount) || 0; }),
+                  borderColor: "rgba(251, 191, 36, 1)",
+                  backgroundColor: "rgba(251, 191, 36, 0.15)",
+                  fill: true,
+                  tension: 0.35,
+                },
+              ],
+            },
+            options: (function () {
+              var o = common();
+              o.scales = {
+                x: { ticks: { color: muted }, grid: { color: grid } },
+                y: {
+                  ticks: {
+                    color: muted,
+                    callback: function (v) { return fmtMoney(v); },
+                  },
+                  grid: { color: grid },
+                },
+              };
+              return o;
+            })(),
+          });
+        }
+
+        // Credit: Hour
+        var creditHourEl = document.getElementById("customer-chart-credit-hour");
+        var creditHour = sortAscByLabel(hourlyCredit, "hour");
+        if (creditHourEl && creditHour && creditHour.length) {
+          visualCharts.creditHour = new Chart(creditHourEl, {
+            type: "bar",
+            data: {
+              labels: creditHour.map(function (r) { return String(r.hour || ""); }),
+              datasets: [
+                {
+                  label: "Credit purchases",
+                  data: creditHour.map(function (r) { return Number(r.amount) || 0; }),
+                  backgroundColor: "rgba(251, 191, 36, 0.65)",
+                },
+              ],
+            },
+            options: (function () {
+              var o = common();
+              o.scales = {
+                x: { ticks: { color: muted }, grid: { display: false } },
+                y: {
+                  ticks: {
+                    color: muted,
+                    callback: function (v) { return fmtMoney(v); },
+                  },
+                  grid: { color: grid },
+                },
+              };
+              return o;
+            })(),
+          });
+        }
+
+        // Items chart (qty)
+        var itemsEl = document.getElementById("customer-chart-items");
+        if (itemsEl && topItems && topItems.length) {
+          visualCharts.items = new Chart(itemsEl, {
+            type: "bar",
+            data: {
+              labels: topItems.slice(0, 10).map(function (r) { return String(r.item_name || "").slice(0, 30); }),
+              datasets: [
+                {
+                  label: "Qty purchased",
+                  data: topItems.slice(0, 10).map(function (r) { return Number(r.qty_sold) || 0; }),
+                  backgroundColor: "rgba(56, 189, 248, 0.55)",
+                },
+              ],
+            },
+            options: (function () {
+              var o = common();
+              o.indexAxis = "y";
+              o.scales = {
+                x: {
+                  ticks: { color: muted },
+                  grid: { display: false },
+                },
+                y: { ticks: { color: muted }, grid: { display: false } },
+              };
+              return o;
+            })(),
+          });
+        }
+      }
+
+      function show(raw) {
+        rawTab.classList.toggle("hidden", !raw);
+        visualTab.classList.toggle("hidden", raw);
+        rawBtn.setAttribute("aria-selected", raw ? "true" : "false");
+        visualBtn.setAttribute("aria-selected", raw ? "false" : "true");
+        if (!raw) initVisualCharts();
+      }
+
+      rawBtn.addEventListener("click", function () { show(true); });
+      visualBtn.addEventListener("click", function () { show(false); });
+      show(true);
     })();
   </script>
 {% endblock %}

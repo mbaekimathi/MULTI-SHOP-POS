@@ -73,6 +73,15 @@
         <div class="flex items-center justify-between gap-2 bg-[rgb(var(--rc-surface-2))] px-4 py-3">
           <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and current stock</h3>
         </div>
+        <div class="border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3">
+          <input
+            id="company-stock-update-live-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search by item, category or description..."
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+          />
+        </div>
         {% if not rows %}
           <p class="px-4 py-4 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
         {% else %}
@@ -89,7 +98,13 @@
             </thead>
             <tbody id="lines" class="divide-y divide-[rgb(var(--rc-border))]">
               {% for r in rows %}
-                <tr class="line" data-item-id="{{ r.id }}" data-company-stock="{{ r.company_stock_qty or 0 }}" data-per-shop='{{ (r.per_shop or {})|tojson|e }}'>
+                <tr
+                  class="line"
+                  data-item-id="{{ r.id }}"
+                  data-company-stock="{{ r.company_stock_qty or 0 }}"
+                  data-per-shop='{{ (r.per_shop or {})|tojson|e }}'
+                  data-search="{{ ((r.name or '') ~ ' ' ~ (r.category or '') ~ ' ' ~ (r.description or ''))|lower }}"
+                >
                   <td class="px-3 py-2">
                     <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</div>
                     <div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.category or "—" }} · ITEM #{{ r.id }}</div>
@@ -179,6 +194,20 @@
       if (fromShopEl) fromShopEl.addEventListener("change", syncStockColumns);
       if (toShopEl) toShopEl.addEventListener("change", syncStockColumns);
       syncActionUI();
+
+      var searchInput = document.getElementById("company-stock-update-live-search");
+      function syncLiveSearch() {
+        if (!lines || !searchInput) return;
+        var q = String(searchInput.value || "").trim().toLowerCase();
+        lines.querySelectorAll("tr.line").forEach(function (tr) {
+          var hay = String(tr.getAttribute("data-search") || "");
+          tr.classList.toggle("hidden", !!q && hay.indexOf(q) === -1);
+        });
+      }
+      if (searchInput) {
+        searchInput.addEventListener("input", syncLiveSearch);
+        syncLiveSearch();
+      }
     })();
   </script>
 {% endblock %}

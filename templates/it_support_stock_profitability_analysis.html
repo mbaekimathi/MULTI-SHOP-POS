@@ -62,6 +62,15 @@
           <div class="text-xs text-[rgb(var(--rc-muted))]">{{ dead_stock_count or 0 }} items</div>
         </div>
       </div>
+      <div class="mt-4">
+        <input
+          id="stock-profitability-live-search"
+          type="search"
+          autocomplete="off"
+          placeholder="Search by item, category or description..."
+          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+        />
+      </div>
     </div>
 
     {% if selected_view == "margin" %}
@@ -259,4 +268,41 @@
     </div>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var input = document.getElementById("stock-profitability-live-search");
+      if (!input) return;
+      var bodies = Array.prototype.slice.call(document.querySelectorAll("table tbody"));
+      function applyFilter() {
+        var q = String(input.value || "").trim().toLowerCase();
+        bodies.forEach(function (body) {
+          var rows = Array.prototype.slice.call(body.querySelectorAll("tr"));
+          var visibleCount = 0;
+          rows.forEach(function (row) {
+            var cellCount = row.querySelectorAll("td").length;
+            if (!cellCount) return;
+            if (cellCount === 1) {
+              row.classList.toggle("hidden", !!q);
+              return;
+            }
+            var hay = String(row.textContent || "").toLowerCase();
+            var show = !q || hay.indexOf(q) !== -1;
+            row.classList.toggle("hidden", !show);
+            if (show) visibleCount += 1;
+          });
+          rows.forEach(function (row) {
+            if (row.querySelectorAll("td").length === 1) {
+              row.classList.toggle("hidden", !!q && visibleCount > 0);
+            }
+          });
+        });
+      }
+      input.addEventListener("input", applyFilter);
+      applyFilter();
+    })();
+  </script>
 {% endblock %}

@@ -1,5 +1,90 @@
 {% extends "employee_layout.html" %}
 {% block title %}Item audit — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Item audit{% endblock %}
-{% block employee_content %}{% endblock %}
+{% block employee_content %}
+  {% set audit_items = items or [] %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Item audit</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Review item catalog details and quickly search by item, category, or description.</p>
+      <div class="mt-3">
+        <input
+          id="item-audit-live-search"
+          type="search"
+          autocomplete="off"
+          placeholder="Search by item, category or description..."
+          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+        />
+      </div>
+    </div>
+
+    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      {% if not audit_items %}
+        <p class="px-5 py-6 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
+      {% else %}
+        <div class="overflow-x-auto">
+          <table class="min-w-[980px] w-full text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Item</th>
+                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Category</th>
+                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Description</th>
+                <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Stock</th>
+                <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Price</th>
+                <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Selling</th>
+                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for it in audit_items %}
+                <tr class="item-audit-row" data-item-audit-search="{{ ((it.name or '') ~ ' ' ~ (it.category or '') ~ ' ' ~ (it.description or ''))|lower }}">
+                  <td class="px-3 py-2">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name or "—" }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">ITEM #{{ it.id }}</div>
+                  </td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ it.category or "—" }}</td>
+                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ it.description or "—" }}</td>
+                  <td class="px-3 py-2 text-right tabular-nums">{{ it.stock_qty or 0 }}</td>
+                  <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(it.price or 0) }}</td>
+                  <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(it.selling_price if it.selling_price is not none else it.price or 0) }}</td>
+                  <td class="px-3 py-2">{{ it.status or "—" }}</td>
+                </tr>
+              {% endfor %}
+              <tr id="item-audit-empty-row" class="hidden">
+                <td colspan="7" class="px-3 py-5 text-center text-[rgb(var(--rc-muted))]">No items match your search.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var input = document.getElementById("item-audit-live-search");
+      if (!input) return;
+      var rows = Array.prototype.slice.call(document.querySelectorAll(".item-audit-row"));
+      var emptyRow = document.getElementById("item-audit-empty-row");
+      function applyFilter() {
+        var q = String(input.value || "").trim().toLowerCase();
+        var visible = 0;
+        rows.forEach(function (row) {
+          var hay = String(row.getAttribute("data-item-audit-search") || "");
+          var show = !q || hay.indexOf(q) !== -1;
+          row.classList.toggle("hidden", !show);
+          if (show) visible += 1;
+        });
+        if (emptyRow) {
+          emptyRow.classList.toggle("hidden", visible > 0);
+        }
+      }
+      input.addEventListener("input", applyFilter);
+      applyFilter();
+    })();
+  </script>
+{% endblock %}
 

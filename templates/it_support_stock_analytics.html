@@ -105,6 +105,15 @@
           {{ rows|length }} items
         </div>
       </div>
+      <div class="border-t border-[rgb(var(--rc-border))] px-5 py-3">
+        <input
+          id="stock-status-live-search"
+          type="search"
+          autocomplete="off"
+          placeholder="Search by item, category or description..."
+          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+        />
+      </div>
       {% if not rows %}
         <p class="px-5 pb-5 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
       {% else %}
@@ -126,7 +135,7 @@
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for r in rows %}
-                <tr class="align-middle">
+                <tr class="align-middle stock-status-row" data-stock-status-search="{{ ((r.name or '') ~ ' ' ~ (r.category or '') ~ ' ' ~ (r.description or ''))|lower }}">
                   <td class="px-3 py-2">
                     <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</div>
                     <div class="text-xs text-[rgb(var(--rc-muted))]">ITEM #{{ r.id }}</div>
@@ -385,6 +394,20 @@
       }
       mode.addEventListener("change", sync);
       sync();
+    })();
+    (function () {
+      var input = document.getElementById("stock-status-live-search");
+      if (!input) return;
+      var rows = Array.prototype.slice.call(document.querySelectorAll(".stock-status-row"));
+      function applySearch() {
+        var q = String(input.value || "").trim().toLowerCase();
+        rows.forEach(function (row) {
+          var hay = String(row.getAttribute("data-stock-status-search") || "");
+          row.classList.toggle("hidden", !!q && hay.indexOf(q) === -1);
+        });
+      }
+      input.addEventListener("input", applySearch);
+      applySearch();
     })();
   </script>
 {% endblock %}

@@ -38,6 +38,16 @@
         Tip: leave quantity blank to skip a row. Stock out requires reason and refund choice per filled row over zero qty.
       </p>
     </div>
+    <div class="mb-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+      <label for="stock-management-live-search" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search</label>
+      <input
+        id="stock-management-live-search"
+        type="search"
+        autocomplete="off"
+        placeholder="Search by item, category or description..."
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+      />
+    </div>
 
     {% if not items %}
       <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-5 py-6">
@@ -76,7 +86,12 @@
                   </tr>
                   {% set ns_in.prev = cat %}
                 {% endif %}
-                <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
+                {% set desc = (it.description or '') %}
+                <tr
+                  class="hover:bg-[rgb(var(--rc-surface-2))]/40 stock-row"
+                  data-stock-search="{{ ((it.name or '') ~ ' ' ~ (cat or '') ~ ' ' ~ desc)|lower }}"
+                  data-stock-category="{{ cat|lower }}"
+                >
                   <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-3 py-2.5 shadow-[1px_0_0_rgb(var(--rc-border))]">
                     <div class="flex items-center gap-2">
                       {% set _item_img = static_upload_url(it.image_path) %}
@@ -177,7 +192,12 @@
                   </tr>
                   {% set ns_out.prev = cat %}
                 {% endif %}
-                <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
+                {% set desc = (it.description or '') %}
+                <tr
+                  class="hover:bg-[rgb(var(--rc-surface-2))]/40 stock-row"
+                  data-stock-search="{{ ((it.name or '') ~ ' ' ~ (cat or '') ~ ' ' ~ desc)|lower }}"
+                  data-stock-category="{{ cat|lower }}"
+                >
                   <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-3 py-2.5 shadow-[1px_0_0_rgb(var(--rc-border))]">
                     <div class="flex items-center gap-2">
                       {% set _item_img = static_upload_url(it.image_path) %}
@@ -284,6 +304,38 @@
 
       btnIn.addEventListener("click", function () { setMode("in"); });
       btnOut.addEventListener("click", function () { setMode("out"); });
+
+      var liveSearchInput = document.getElementById("stock-management-live-search");
+      function applyLiveSearch() {
+        if (!liveSearchInput) return;
+        var query = String(liveSearchInput.value || "").trim().toLowerCase();
+        [formIn, formOut].forEach(function (formEl) {
+          if (!formEl) return;
+          var rows = Array.prototype.slice.call(formEl.querySelectorAll("tbody tr"));
+          var visibleByCategory = {};
+          rows.forEach(function (row) {
+            if (row.classList.contains("stock-row")) {
+              var hay = String(row.getAttribute("data-stock-search") || "");
+              var show = !query || hay.indexOf(query) !== -1;
+              row.classList.toggle("hidden", !show);
+              if (show) {
+                var catKey = String(row.getAttribute("data-stock-category") || "");
+                visibleByCategory[catKey] = true;
+              }
+            }
+          });
+          rows.forEach(function (row) {
+            if (!row.classList.contains("stock-row")) {
+              var sectionText = String((row.textContent || "").trim()).toLowerCase();
+              row.classList.toggle("hidden", query && !visibleByCategory[sectionText]);
+            }
+          });
+        });
+      }
+      if (liveSearchInput) {
+        liveSearchInput.addEventListener("input", applyLiveSearch);
+        applyLiveSearch();
+      }
 
       function syncRefundRow(itemId) {
         var sel = document.querySelector('[name="out_refunded_' + itemId + '"]');

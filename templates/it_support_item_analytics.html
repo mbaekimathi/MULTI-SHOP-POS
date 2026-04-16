@@ -339,7 +339,7 @@
           </div>
           <div class="relative w-full sm:max-w-xs">
             <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[rgb(var(--rc-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input id="item-analytics-picker-search" type="search" placeholder="Filter by name or category…" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-2.5 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" autocomplete="off" />
+            <input id="item-analytics-picker-search" type="search" placeholder="Filter by item, category or description…" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-2.5 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" autocomplete="off" />
           </div>
         </div>
       </div>
@@ -349,7 +349,7 @@
       {% else %}
         <div id="item-analytics-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {% for it in catalog %}
-            {% set blob = ((it.name or '') ~ ' ' ~ (it.category or ''))|lower %}
+            {% set blob = ((it.name or '') ~ ' ' ~ (it.category or '') ~ ' ' ~ (it.description or ''))|lower %}
             <a
               href="{{ url_for('it_support_item_analytics', item_id=it.id, mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '') }}"
               data-ia-search="{{ blob }}"
