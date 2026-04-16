@@ -3758,13 +3758,14 @@ def get_it_support_customer_analytics(analytics_filter: dict):
         COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN') AS customer_name,
         COALESCE(NULLIF(sps.customer_phone, ''), '-') AS customer_phone,
         COUNT(*) AS tx_count,
+        MAX(sps.created_at) AS last_tx_at,
         COALESCE(SUM(sps.total_amount), 0) AS total_amount,
         COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
         COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount
     FROM shop_pos_sales sps
     WHERE {where_sql}
     GROUP BY customer_name, customer_phone
-    ORDER BY total_amount DESC, tx_count DESC, customer_name ASC
+    ORDER BY last_tx_at DESC, tx_count DESC, total_amount DESC, customer_name ASC
     LIMIT 2000
     """
     out = {
@@ -3787,6 +3788,7 @@ def get_it_support_customer_analytics(analytics_filter: dict):
                     "customer_name": r.get("customer_name") or "WALK IN",
                     "customer_phone": r.get("customer_phone") or "-",
                     "tx_count": int(r.get("tx_count") or 0),
+                    "last_tx_at": r.get("last_tx_at"),
                     "total_amount": float(r.get("total_amount") or 0),
                     "sale_amount": float(r.get("sale_amount") or 0),
                     "credit_amount": float(r.get("credit_amount") or 0),
