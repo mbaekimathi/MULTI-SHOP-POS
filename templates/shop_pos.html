@@ -41,7 +41,7 @@
         radial-gradient(ellipse 85% 60% at 108% 8%, rgba(var(--rc-accent), 0.16), transparent 50%),
         radial-gradient(ellipse 70% 50% at -8% 92%, rgba(var(--rc-primary), 0.1), transparent 48%),
         radial-gradient(ellipse 55% 40% at 85% 75%, rgba(var(--rc-accent), 0.08), transparent 42%),
-        linear-gradient(168deg, rgb(var(--rc-page-bg)) 0%, rgb(var(--rc-page-bg)) 100%);
+        linear-gradient(168deg, rgb(var(--rc-surface-2)) 0%, rgb(var(--rc-surface-2)) 100%);
     }
     .dark .pos-page-atmosphere__base {
       background:
@@ -49,7 +49,7 @@
         radial-gradient(ellipse 90% 65% at 105% 5%, rgba(var(--rc-accent), 0.2), transparent 52%),
         radial-gradient(ellipse 75% 55% at -10% 95%, rgba(var(--rc-primary), 0.14), transparent 50%),
         radial-gradient(ellipse 50% 38% at 80% 80%, rgba(99, 102, 241, 0.12), transparent 45%),
-        linear-gradient(168deg, rgb(var(--rc-page-bg)) 0%, rgb(var(--rc-page-bg)) 100%);
+        linear-gradient(168deg, rgb(var(--rc-page-bg)) 0%, rgb(var(--rc-surface-2)) 100%);
     }
     .pos-page-atmosphere__orb {
       position: absolute;
@@ -240,6 +240,128 @@
       opacity: 1;
       pointer-events: auto;
     }
+    #pos-cart-backdrop {
+      transition:
+        opacity 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+        backdrop-filter 0.35s ease;
+    }
+    #pos-cart-backdrop.is-visible {
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    @media (max-width: 639px) {
+      #pos-cart-backdrop.is-visible {
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-backdrop {
+        transition: opacity 0.2s ease;
+      }
+      #pos-cart-backdrop.is-visible {
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+      }
+    }
+    /* Drawer surface: glass stack + responsive sheet radius (mobile) */
+    #pos-cart-drawer.pos-cart-drawer {
+      isolation: isolate;
+      background:
+        linear-gradient(165deg, rgba(var(--rc-surface), 0.99) 0%, rgba(var(--rc-surface-2), 0.94) 45%, rgba(var(--rc-surface), 0.98) 100%);
+      backdrop-filter: saturate(1.15) blur(18px);
+      -webkit-backdrop-filter: saturate(1.15) blur(18px);
+      box-shadow:
+        0 -28px 64px -24px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(var(--rc-primary), 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+    .dark #pos-cart-drawer.pos-cart-drawer {
+      background:
+        linear-gradient(165deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.88) 50%, rgba(15, 23, 42, 0.95) 100%);
+      box-shadow:
+        0 -32px 72px -28px rgba(0, 0, 0, 0.65),
+        0 0 0 1px rgba(var(--rc-primary), 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    @media (min-width: 1024px) {
+      #pos-cart-drawer.pos-cart-drawer {
+        box-shadow:
+          -24px 0 64px -20px rgba(0, 0, 0, 0.4),
+          0 0 0 1px rgba(var(--rc-primary), 0.14),
+          inset 1px 0 0 rgba(255, 255, 255, 0.06);
+      }
+      .dark #pos-cart-drawer.pos-cart-drawer {
+        box-shadow:
+          -28px 0 72px -24px rgba(0, 0, 0, 0.75),
+          0 0 0 1px rgba(var(--rc-primary), 0.2),
+          inset 1px 0 0 rgba(255, 255, 255, 0.04);
+      }
+    }
+    /* Light mode: cart reads as stacked solid cards (blur + translucent washes blended away) */
+    html:not(.dark) #pos-cart-drawer.pos-cart-drawer {
+      background: rgb(var(--rc-surface));
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      box-shadow:
+        0 -12px 40px rgba(15, 23, 42, 0.14),
+        0 0 0 1px rgb(var(--rc-border));
+    }
+    @media (min-width: 1024px) {
+      html:not(.dark) #pos-cart-drawer.pos-cart-drawer {
+        box-shadow:
+          -12px 0 48px rgba(15, 23, 42, 0.12),
+          0 0 0 1px rgb(var(--rc-border));
+      }
+    }
+    html:not(.dark) #pos-cart-drawer .pos-cart-drawer__header {
+      background: rgb(var(--rc-surface));
+      border-bottom: 1px solid rgb(var(--rc-border));
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      box-shadow: none;
+    }
+    html:not(.dark) #pos-cart-lines-section {
+      background: rgb(var(--rc-surface-2));
+    }
+    html:not(.dark) #pos-cart-drawer .pos-cart-lines-toolbar {
+      background: rgb(var(--rc-surface));
+      border-bottom: 1px solid rgb(var(--rc-border));
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    html:not(.dark) .pos-cart-checkout-shell {
+      background: rgb(var(--rc-surface-2));
+      border-top: 1px solid rgb(var(--rc-border));
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    html:not(.dark) .pos-cart-checkout-card {
+      background: rgb(var(--rc-surface));
+      border: 1px solid rgb(var(--rc-border));
+      box-shadow:
+        0 2px 8px rgba(15, 23, 42, 0.07),
+        0 0 0 1px rgba(15, 23, 42, 0.04);
+    }
+    html:not(.dark) #pos-cart-lines > div.group {
+      background: rgb(var(--rc-surface));
+      border: 1px solid rgb(var(--rc-border));
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    html:not(.dark) #pos-cart-lines > div.group:hover {
+      border-color: rgba(var(--rc-primary), 0.45);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+    }
+    html:not(.dark) #pos-cart-lines .pos-cart-qty-controls {
+      background: rgb(var(--rc-surface-2));
+      border: 1px solid rgb(var(--rc-border));
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    html:not(.dark) #pos-cart-lines .pos-line-price {
+      background: rgb(var(--rc-surface)) !important;
+      border: 1px solid rgb(var(--rc-border)) !important;
+      color: rgb(var(--rc-page-fg)) !important;
+    }
     /* Bottom-right FAB: single cart control on all viewports */
     .pos-cart-open-trigger {
       position: relative;
@@ -292,20 +414,55 @@
     }
     #pos-cart-toggle-fab {
       z-index: 65;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       box-shadow:
-        0 12px 40px rgba(0, 0, 0, 0.2),
-        0 4px 12px rgba(0, 0, 0, 0.1),
-        0 0 0 1px rgba(var(--rc-primary), 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
-      background: linear-gradient(145deg, rgba(var(--rc-surface)) 0%, rgba(var(--rc-surface-2)) 100%);
-      animation: pos-cart-fab-float 4.5s ease-in-out infinite;
+        0 16px 44px -8px rgba(0, 0, 0, 0.28),
+        0 4px 16px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(var(--rc-primary), 0.42),
+        0 0 32px -6px rgba(var(--rc-primary), 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      background: linear-gradient(
+        155deg,
+        rgba(var(--rc-surface), 0.92) 0%,
+        rgba(var(--rc-surface-2), 0.88) 50%,
+        rgba(var(--rc-surface), 0.9) 100%
+      );
+      animation: pos-cart-fab-float 5s ease-in-out infinite;
     }
     .dark #pos-cart-toggle-fab {
       box-shadow:
-        0 14px 44px rgba(0, 0, 0, 0.55),
-        0 4px 14px rgba(0, 0, 0, 0.35),
-        0 0 0 1px rgba(var(--rc-primary), 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        0 18px 48px -10px rgba(0, 0, 0, 0.6),
+        0 4px 18px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(var(--rc-primary), 0.5),
+        0 0 40px -8px rgba(var(--rc-primary), 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      background: linear-gradient(
+        155deg,
+        rgba(30, 41, 59, 0.92) 0%,
+        rgba(15, 23, 42, 0.9) 100%
+      );
+    }
+    #pos-cart-toggle-fab .pos-cart-badge {
+      min-width: 1.35rem;
+      height: 1.35rem;
+      padding: 0 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%);
+      box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.28),
+        0 0 0 2px rgba(var(--rc-surface), 0.95),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    @media (min-width: 640px) {
+      #pos-cart-toggle-fab .pos-cart-badge {
+        min-width: 1.4rem;
+        height: 1.4rem;
+        font-size: 0.68rem;
+      }
     }
     .pos-cart-fab-ripple {
       position: absolute;
@@ -320,11 +477,18 @@
     }
     #pos-cart-toggle-fab.pos-cart-btn--live {
       box-shadow:
-        0 12px 40px rgba(0, 0, 0, 0.2),
+        0 16px 44px -8px rgba(0, 0, 0, 0.3),
+        0 0 0 2px rgba(var(--rc-primary), 0.62),
+        0 0 36px rgba(var(--rc-primary), 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      animation: pos-cart-fab-float 3.2s ease-in-out infinite;
+    }
+    .dark #pos-cart-toggle-fab.pos-cart-btn--live {
+      box-shadow:
+        0 18px 48px -10px rgba(0, 0, 0, 0.65),
         0 0 0 2px rgba(var(--rc-primary), 0.55),
-        0 0 28px rgba(var(--rc-primary), 0.45),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
-      animation: pos-cart-fab-float 3s ease-in-out infinite;
+        0 0 42px rgba(var(--rc-primary), 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     #pos-cart-toggle-fab.pos-cart-btn--live .pos-cart-fab-icon {
       animation: pos-cart-icon-nudge 2.8s ease-in-out infinite;
@@ -420,9 +584,221 @@
         background: linear-gradient(90deg, rgb(var(--rc-primary)), rgb(var(--rc-accent)));
       }
     }
+    /* ── Catalog shell: content column + search + chips (modern glass) ── */
+    .pos-page-content {
+      position: relative;
+      z-index: 1;
+    }
+    .pos-search-panel {
+      position: relative;
+      overflow: hidden;
+      border-radius: 1.25rem;
+      padding: 0.875rem;
+      border: 1px solid rgba(var(--rc-border), 0.55);
+      background:
+        linear-gradient(145deg, rgba(var(--rc-surface), 0.97) 0%, rgba(var(--rc-surface-2), 0.65) 55%, rgba(var(--rc-surface), 0.88) 100%);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.1) inset,
+        0 20px 50px -28px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(var(--rc-primary), 0.07);
+    }
+    .pos-search-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background:
+        radial-gradient(120% 80% at 0% 0%, rgba(var(--rc-primary), 0.12), transparent 52%),
+        radial-gradient(90% 70% at 100% 0%, rgba(var(--rc-accent), 0.08), transparent 48%);
+      opacity: 0.9;
+    }
+    .pos-search-panel > * {
+      position: relative;
+      z-index: 1;
+    }
+    .dark .pos-search-panel {
+      border-color: rgba(var(--rc-border), 0.45);
+      background:
+        linear-gradient(155deg, rgba(15, 23, 42, 0.72) 0%, rgba(var(--rc-surface-2), 0.55) 50%, rgba(15, 23, 42, 0.5) 100%);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.05) inset,
+        0 24px 56px -28px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(var(--rc-primary), 0.12);
+    }
+    @media (min-width: 640px) {
+      .pos-search-panel {
+        padding: 1rem 1.15rem;
+      }
+    }
+    @media (min-width: 768px) {
+      .pos-search-panel {
+        padding: 1.15rem 1.35rem;
+      }
+    }
+    #pos-search {
+      border-radius: 0.9rem;
+      border: 1px solid rgba(var(--rc-border), 0.55);
+      background:
+        linear-gradient(180deg, rgba(var(--rc-surface), 0.95) 0%, rgba(var(--rc-surface-2), 0.55) 100%);
+      box-shadow:
+        inset 0 1px 2px rgba(0, 0, 0, 0.06),
+        0 1px 0 rgba(255, 255, 255, 0.06);
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+    }
+    .dark #pos-search {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(var(--rc-surface-2), 0.4) 100%);
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+    #pos-search:focus {
+      border-color: rgba(var(--rc-primary), 0.45);
+      box-shadow:
+        0 0 0 3px rgba(var(--rc-primary), 0.14),
+        inset 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .pos-cat-chip {
+      border-radius: 9999px;
+      padding: 0.5rem 0.95rem;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid rgba(var(--rc-border), 0.55);
+      color: rgb(var(--rc-muted));
+      background:
+        linear-gradient(165deg, rgba(var(--rc-surface), 0.9) 0%, rgba(var(--rc-surface-2), 0.5) 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+      transition:
+        transform 0.18s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+    }
+    .pos-cat-chip:hover {
+      transform: translateY(-1px);
+      border-color: rgba(var(--rc-primary), 0.38);
+      color: rgb(var(--rc-page-fg));
+      box-shadow:
+        0 6px 18px -10px rgba(var(--rc-primary), 0.35),
+        0 1px 0 rgba(255, 255, 255, 0.1) inset;
+    }
+    .pos-cat-chip:active {
+      transform: translateY(0);
+    }
+    .dark .pos-cat-chip {
+      background: linear-gradient(165deg, rgba(30, 41, 59, 0.65) 0%, rgba(15, 23, 42, 0.45) 100%);
+      border-color: rgba(var(--rc-border), 0.45);
+    }
+    .pos-cat-section__title-block {
+      border-left: 3px solid rgb(var(--rc-primary));
+      padding-left: 0.85rem;
+    }
+    .pos-cat-section__title-block h2 {
+      font-size: 0.875rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-page-fg));
+      line-height: 1.25;
+    }
+    @media (min-width: 640px) {
+      .pos-cat-section__title-block h2 {
+        font-size: 1rem;
+        letter-spacing: 0.16em;
+      }
+    }
+    .pos-cat-section__hint {
+      margin-top: 0.35rem;
+      font-size: 0.625rem;
+      font-weight: 500;
+      line-height: 1.45;
+      color: rgb(var(--rc-muted));
+    }
+    @media (min-width: 640px) {
+      .pos-cat-section__hint {
+        font-size: 0.75rem;
+      }
+    }
+    .pos-cat-section__count {
+      border-radius: 9999px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-variant-numeric: tabular-nums;
+      color: rgb(var(--rc-primary));
+      border: 1px solid rgba(var(--rc-primary), 0.28);
+      background:
+        linear-gradient(135deg, rgba(var(--rc-primary), 0.14) 0%, rgba(var(--rc-accent), 0.08) 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+    }
+    .dark .pos-cat-section__count {
+      color: rgb(var(--rc-accent));
+      border-color: rgba(var(--rc-primary), 0.35);
+    }
+    .pos-catalog-empty {
+      border-radius: 1.5rem;
+      border: 1px dashed rgba(var(--rc-border), 0.65);
+      background:
+        linear-gradient(165deg, rgba(var(--rc-surface), 0.55) 0%, rgba(var(--rc-surface-2), 0.35) 100%);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 16px 48px -28px rgba(0, 0, 0, 0.12);
+    }
+    .dark .pos-catalog-empty {
+      background: linear-gradient(165deg, rgba(15, 23, 42, 0.45) 0%, rgba(var(--rc-surface-2), 0.25) 100%);
+      box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.4);
+    }
+    .pos-catalog-empty__icon {
+      border-radius: 1rem;
+      border: 1px solid rgba(var(--rc-border), 0.45);
+      background:
+        linear-gradient(145deg, rgba(var(--rc-surface), 0.95) 0%, rgba(var(--rc-surface-2), 0.65) 100%);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.1) inset,
+        0 12px 28px -18px rgba(var(--rc-primary), 0.2);
+      color: rgb(var(--rc-primary));
+    }
+    .dark .pos-catalog-empty__icon {
+      border-color: rgba(var(--rc-border), 0.4);
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.5) 100%);
+    }
+    .pos-pos-header-shell {
+      border-bottom: 1px solid rgba(var(--rc-primary), 0.18);
+      box-shadow:
+        0 4px 32px -8px rgba(0, 0, 0, 0.1),
+        0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }
+    .dark .pos-pos-header-shell {
+      border-bottom-color: rgba(var(--rc-primary), 0.22);
+      box-shadow:
+        0 12px 40px -12px rgba(0, 0, 0, 0.45),
+        0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    }
+    #pos-no-results.pos-no-results {
+      padding: 2.75rem 1rem;
+      border-radius: 1rem;
+      font-weight: 600;
+      color: rgb(var(--rc-muted));
+      background: rgba(var(--rc-surface), 0.45);
+      border: 1px dashed rgba(var(--rc-border), 0.55);
+    }
+    footer.pos-footer-pos {
+      box-shadow: 0 -12px 40px -20px rgba(0, 0, 0, 0.08);
+    }
+    .dark footer.pos-footer-pos {
+      box-shadow: 0 -16px 48px -18px rgba(0, 0, 0, 0.45);
+    }
     /* Horizontal product strip: small cards, swipe / scroll */
     .pos-item-scroll {
       display: flex;
+      flex-wrap: nowrap;
       gap: 0.5rem;
       overflow-x: auto;
       overflow-y: hidden;
@@ -443,6 +819,25 @@
     /* Desktop: prev/next icons for horizontal category strips (buttons after strip in DOM so they paint on top) */
     .pos-cat-strip-outer {
       position: relative;
+      z-index: 0;
+      margin-top: 0.35rem;
+      padding: 0.65rem 0.55rem 0.7rem;
+      border-radius: 1.15rem;
+      background:
+        linear-gradient(180deg, rgba(var(--rc-surface), 0.98) 0%, rgba(var(--rc-surface-2), 0.88) 100%);
+      border: 1px solid rgba(var(--rc-border), 0.5);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 8px 28px -14px rgba(0, 0, 0, 0.14),
+        0 0 0 1px rgba(var(--rc-primary), 0.05);
+    }
+    .dark .pos-cat-strip-outer {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.85) 100%);
+      border-color: rgba(var(--rc-border), 0.55);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 12px 36px -16px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(var(--rc-primary), 0.08);
     }
     .pos-cat-strip-outer .pos-item-scroll {
       position: relative;
@@ -512,7 +907,7 @@
         display: none;
       }
     }
-    .pos-item-card .pos-item-name {
+    .pos-item-card:not(.pos-item-card--media) .pos-item-name {
       text-shadow: none;
     }
     .pos-item-stock.pos-item-stock--detail {
@@ -719,17 +1114,122 @@
     #pos-cart-lines-section {
       min-height: 12rem;
       flex: 1 1 auto;
+      background:
+        radial-gradient(ellipse 120% 70% at 50% 0%, rgba(var(--rc-primary), 0.09), transparent 52%),
+        linear-gradient(180deg, rgba(var(--rc-page-bg), 0.45) 0%, rgba(var(--rc-surface), 0.15) 100%);
+    }
+    .dark #pos-cart-lines-section {
+      background:
+        radial-gradient(ellipse 120% 70% at 50% 0%, rgba(var(--rc-primary), 0.12), transparent 50%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(var(--rc-surface-2), 0.2) 100%);
     }
     #pos-cart-lines {
       -webkit-overflow-scrolling: touch;
       overscroll-behavior-y: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(var(--rc-muted), 0.4) transparent;
+    }
+    #pos-cart-lines::-webkit-scrollbar {
+      width: 7px;
+    }
+    #pos-cart-lines::-webkit-scrollbar-thumb {
+      background: rgba(var(--rc-muted), 0.35);
+      border-radius: 9999px;
+    }
+    .pos-cart-drawer__header {
+      position: relative;
+      border-bottom: 1px solid rgba(var(--rc-border), 0.5);
+      background:
+        linear-gradient(125deg, rgba(var(--rc-surface-2), 0.75) 0%, rgba(var(--rc-surface), 0.45) 55%, rgba(var(--rc-accent), 0.06) 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 12px 36px -24px rgba(0, 0, 0, 0.18);
+    }
+    .dark .pos-cart-drawer__header {
+      background:
+        linear-gradient(125deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.65) 100%);
+      box-shadow: 0 16px 40px -22px rgba(0, 0, 0, 0.55);
+    }
+    .pos-cart-lines-toolbar {
+      border-bottom: 1px solid rgba(var(--rc-border), 0.42);
+      background: rgba(var(--rc-surface), 0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .dark .pos-cart-lines-toolbar {
+      background: rgba(15, 23, 42, 0.58);
+    }
+    #pos-cart-line-count {
+      font-size: 0.7rem !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-primary)) !important;
+    }
+    .pos-cart-drawer__handle-pill {
+      background: linear-gradient(
+        90deg,
+        rgba(var(--rc-border), 0.25) 0%,
+        rgba(var(--rc-border), 0.65) 50%,
+        rgba(var(--rc-border), 0.25) 100%
+      );
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    }
+    #pos-cart-close {
+      border-radius: 0.85rem;
+      transition:
+        transform 0.18s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease,
+        color 0.2s ease;
+    }
+    #pos-cart-close:hover {
+      background: rgba(var(--rc-primary), 0.12);
+      box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.22);
+    }
+    #pos-cart-close:active {
+      transform: scale(0.94);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-close:active {
+        transform: none;
+      }
+    }
+    .pos-cart-subtotal-row {
+      align-items: flex-end;
+    }
+    .pos-cart-subtotal-row .pos-cart-currency-pill {
+      border-radius: 0.75rem;
+      border: 1px solid rgba(var(--rc-primary), 0.22);
+      background: linear-gradient(135deg, rgba(var(--rc-primary), 0.12) 0%, rgba(var(--rc-accent), 0.08) 100%);
+      color: rgb(var(--rc-primary));
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+    #pos-cart-subtotal {
+      font-variant-numeric: tabular-nums;
+      color: rgb(var(--rc-page-fg));
+      letter-spacing: -0.03em;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .dark #pos-cart-subtotal {
+      color: #f8fafc !important;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     }
     .pos-cart-checkout-shell {
-      border-top: 1px solid rgba(var(--rc-border), 0.85);
+      border-top: 1px solid rgba(var(--rc-border), 0.65);
       background:
-        radial-gradient(120% 120% at 0% 0%, rgba(var(--rc-primary), 0.08), transparent 52%),
-        radial-gradient(120% 120% at 100% 100%, rgba(var(--rc-accent), 0.08), transparent 56%),
-        rgba(var(--rc-surface-2), 0.35);
+        radial-gradient(120% 100% at 0% 0%, rgba(var(--rc-primary), 0.12), transparent 55%),
+        radial-gradient(100% 90% at 100% 100%, rgba(var(--rc-accent), 0.1), transparent 58%),
+        linear-gradient(180deg, rgba(var(--rc-surface-2), 0.55) 0%, rgba(var(--rc-surface), 0.75) 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .dark .pos-cart-checkout-shell {
+      background:
+        radial-gradient(120% 100% at 0% 0%, rgba(var(--rc-primary), 0.14), transparent 52%),
+        radial-gradient(100% 90% at 100% 100%, rgba(var(--rc-accent), 0.12), transparent 56%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.65) 0%, rgba(var(--rc-surface-2), 0.5) 100%);
     }
     @media (max-width: 1023px) {
       #pos-cart-drawer {
@@ -742,7 +1242,7 @@
         max-height: none;
       }
       #pos-cart-lines {
-        max-height: min(34dvh, 15rem);
+        max-height: min(42dvh, 17.5rem);
         overflow-y: auto;
       }
       .pos-cart-checkout-shell {
@@ -753,19 +1253,19 @@
       }
     }
     .pos-cart-checkout-card {
-      border: 1px solid rgba(var(--rc-border), 0.75);
+      border: 1px solid rgba(var(--rc-border), 0.55);
       background:
-        linear-gradient(180deg, rgba(var(--rc-surface), 0.96) 0%, rgba(var(--rc-surface), 0.88) 100%);
-      box-shadow: 0 8px 24px -20px rgba(var(--rc-primary), 0.45);
+        linear-gradient(165deg, rgba(var(--rc-surface), 0.98) 0%, rgba(var(--rc-surface-2), 0.72) 100%);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        0 12px 32px -22px rgba(var(--rc-primary), 0.35);
+      border-radius: 1rem;
     }
-    .pos-sale-type-btn {
-      border-color: rgba(var(--rc-border), 0.85);
-      background: rgba(var(--rc-surface), 0.65);
-      color: rgb(var(--rc-muted));
-    }
-    .pos-sale-type-btn:hover {
-      border-color: rgba(var(--rc-primary), 0.35);
-      color: rgb(var(--rc-page-fg));
+    .dark .pos-cart-checkout-card {
+      background: linear-gradient(165deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.72) 100%);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.05) inset,
+        0 14px 36px -20px rgba(0, 0, 0, 0.55);
     }
     .pos-sale-type-btn .pos-mode-icon {
       display: inline-flex;
@@ -777,25 +1277,71 @@
       background: rgba(var(--rc-primary), 0.12);
       color: rgb(var(--rc-primary));
     }
+    .pos-sale-type-btn:not(.is-active) {
+      border: 1px solid rgba(var(--rc-border), 0.75);
+      background: linear-gradient(180deg, rgba(var(--rc-surface), 0.98) 0%, rgba(var(--rc-surface-2), 0.88) 100%);
+      color: rgb(var(--rc-page-fg));
+      font-weight: 800;
+    }
+    .dark .pos-sale-type-btn:not(.is-active) {
+      border-color: rgba(148, 163, 184, 0.45);
+      background: linear-gradient(180deg, rgb(51, 65, 85) 0%, rgb(30, 41, 59) 100%);
+      color: #f8fafc;
+    }
+    .pos-sale-type-btn:not(.is-active) .pos-mode-icon {
+      background: rgba(var(--rc-primary), 0.2);
+      color: rgb(var(--rc-primary));
+    }
+    .dark .pos-sale-type-btn:not(.is-active) .pos-mode-icon {
+      background: rgba(45, 212, 191, 0.2);
+      color: rgb(94, 234, 212);
+    }
+    .pos-sale-type-btn:hover:not(.is-active) {
+      border-color: rgba(var(--rc-primary), 0.5);
+    }
     .pos-payment-method-btn.is-active .pos-mode-icon,
     .pos-sale-type-btn.is-active .pos-mode-icon {
       background: rgba(var(--rc-primary), 0.2);
     }
     .pos-payment-method-btn {
       transition: all 0.2s ease;
-      border-color: rgba(var(--rc-border), 0.85);
-      background: rgba(var(--rc-surface), 0.65);
-      color: rgb(var(--rc-muted));
     }
-    .pos-payment-method-btn:hover {
-      border-color: rgba(var(--rc-primary), 0.35);
+    .pos-payment-method-btn:not(.is-active) {
+      border: 1px solid rgba(var(--rc-border), 0.75);
+      background: linear-gradient(180deg, rgba(var(--rc-surface), 0.98) 0%, rgba(var(--rc-surface-2), 0.88) 100%);
       color: rgb(var(--rc-page-fg));
+      font-weight: 800;
+    }
+    .dark .pos-payment-method-btn:not(.is-active) {
+      border-color: rgba(148, 163, 184, 0.45);
+      background: linear-gradient(180deg, rgb(51, 65, 85) 0%, rgb(30, 41, 59) 100%);
+      color: #f8fafc;
+    }
+    .pos-payment-method-btn:not(.is-active) .pos-mode-icon {
+      background: rgba(var(--rc-primary), 0.2);
+      color: rgb(var(--rc-primary));
+    }
+    .dark .pos-payment-method-btn:not(.is-active) .pos-mode-icon {
+      background: rgba(45, 212, 191, 0.2);
+      color: rgb(94, 234, 212);
+    }
+    .pos-payment-method-btn:hover:not(.is-active) {
+      border-color: rgba(var(--rc-primary), 0.5);
+      color: rgb(var(--rc-page-fg));
+    }
+    .dark .pos-payment-method-btn:hover:not(.is-active) {
+      color: #ffffff;
     }
     .pos-payment-method-btn.is-active {
-      border-color: rgba(var(--rc-primary), 0.45);
-      background: linear-gradient(135deg, rgba(var(--rc-primary), 0.18) 0%, rgba(var(--rc-accent), 0.12) 100%);
+      border: 1px solid rgba(var(--rc-primary), 0.55);
+      background: linear-gradient(135deg, rgba(var(--rc-primary), 0.28) 0%, rgba(var(--rc-accent), 0.18) 100%);
       color: rgb(var(--rc-page-fg));
+      font-weight: 800;
       box-shadow: 0 8px 20px -12px rgba(var(--rc-primary), 0.5);
+    }
+    .dark .pos-payment-method-btn.is-active {
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
     }
     /* Transaction type color coding */
     #pos-sale-type-sale.is-active {
@@ -852,6 +1398,160 @@
     #pos-payment-method-both.is-active .pos-mode-icon {
       background: rgba(99, 102, 241, 0.22);
       color: rgb(79, 70, 229);
+    }
+    /* Dark theme: solid fills + white labels on selected sale / payment (readable) */
+    .dark #pos-sale-type-sale.is-active {
+      background: linear-gradient(135deg, rgb(22, 101, 52) 0%, rgb(5, 150, 105) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+      box-shadow: 0 10px 28px -12px rgba(16, 185, 129, 0.55);
+    }
+    .dark #pos-sale-type-sale.is-active .pos-mode-icon {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .dark #pos-sale-type-credit.is-active {
+      background: linear-gradient(135deg, rgb(180, 83, 9) 0%, rgb(245, 158, 11) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+    }
+    .dark #pos-sale-type-credit.is-active .pos-mode-icon {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .dark #pos-sale-type-quote.is-active {
+      background: linear-gradient(135deg, rgb(109, 40, 217) 0%, rgb(168, 85, 247) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+    }
+    .dark #pos-sale-type-quote.is-active .pos-mode-icon {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .dark #pos-payment-method-cash.is-active {
+      background: linear-gradient(135deg, rgb(29, 78, 216) 0%, rgb(14, 165, 233) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+      box-shadow: 0 10px 28px -12px rgba(37, 99, 235, 0.5);
+    }
+    .dark #pos-payment-method-cash.is-active .pos-mode-icon {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .dark #pos-payment-method-mpesa.is-active {
+      background: linear-gradient(135deg, rgb(22, 101, 52) 0%, rgb(16, 185, 129) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+      box-shadow: 0 10px 28px -12px rgba(5, 150, 105, 0.5);
+    }
+    .dark #pos-payment-method-mpesa.is-active .pos-mode-icon {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .dark #pos-payment-method-both.is-active {
+      background: linear-gradient(135deg, rgb(79, 70, 229) 0%, rgb(168, 85, 247) 100%);
+      border-color: rgba(255, 255, 255, 0.22);
+      color: #ffffff !important;
+      box-shadow: 0 10px 28px -12px rgba(99, 102, 241, 0.5);
+    }
+    .dark #pos-payment-method-both.is-active .pos-mode-icon {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    /* Primary checkout CTA: always high-contrast (fixes green-on-green text) */
+    #pos-cart-proceed.btn-rc.btn-rc-success {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: linear-gradient(135deg, rgb(4, 120, 87) 0%, rgb(16, 185, 129) 50%, rgb(5, 150, 105) 100%);
+      color: #ffffff !important;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      box-shadow:
+        0 6px 24px rgba(5, 150, 105, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+    #pos-cart-proceed.btn-rc.btn-rc-success:hover:not(:disabled) {
+      filter: brightness(1.08);
+      color: #ffffff !important;
+    }
+    #pos-cart-proceed.btn-rc.btn-rc-success:disabled {
+      background: linear-gradient(135deg, rgb(71, 85, 105) 0%, rgb(51, 65, 85) 100%);
+      border-color: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.72) !important;
+      box-shadow: none;
+      text-shadow: none;
+      opacity: 1 !important;
+      filter: none;
+    }
+    /* Cart drawer: form labels + helper copy readable on dark panels */
+    #pos-cart-drawer label {
+      color: rgb(var(--rc-page-fg)) !important;
+      font-weight: 600;
+    }
+    .dark #pos-cart-drawer label {
+      color: #e2e8f0 !important;
+    }
+    #pos-cart-drawer .pos-cart-card-heading,
+    #pos-cart-drawer #pos-cart-section-label {
+      color: rgb(var(--rc-page-fg)) !important;
+    }
+    .dark #pos-cart-drawer .pos-cart-card-heading,
+    .dark #pos-cart-drawer #pos-cart-section-label {
+      color: #cbd5e1 !important;
+    }
+    #pos-cart-drawer .pos-cart-drawer__header p.text-\[10px\] {
+      color: rgb(var(--rc-muted));
+    }
+    .dark #pos-cart-drawer .pos-cart-drawer__header p.text-\[10px\] {
+      color: #94a3b8 !important;
+    }
+    #pos-cart-drawer #pos-cart-drawer-title {
+      color: rgb(var(--rc-page-fg)) !important;
+    }
+    .dark #pos-cart-drawer #pos-cart-drawer-title {
+      color: #f8fafc !important;
+    }
+    #pos-cart-drawer #pos-customer-lookup-status,
+    #pos-cart-drawer #pos-customer-rule,
+    #pos-cart-drawer #pos-quote-only + p,
+    #pos-cart-drawer #pos-payment-split-hint,
+    #pos-cart-drawer #pos-credit-due-section .mt-1 {
+      color: #64748b !important;
+    }
+    .dark #pos-cart-drawer #pos-customer-lookup-status,
+    .dark #pos-cart-drawer #pos-customer-rule,
+    .dark #pos-cart-drawer #pos-quote-only + p,
+    .dark #pos-cart-drawer #pos-payment-split-hint,
+    .dark #pos-cart-drawer #pos-credit-due-section .mt-1 {
+      color: #cbd5e1 !important;
+    }
+    .dark #pos-cart-drawer #pos-auth-status {
+      color: #94a3b8 !important;
+    }
+    .dark #pos-cart-drawer #pos-auth-status.pos-auth-status--ok {
+      color: #4ade80 !important;
+    }
+    .dark #pos-cart-drawer #pos-auth-status.pos-auth-status--error {
+      color: #fca5a5 !important;
+    }
+    .dark #pos-cart-drawer .pos-auth-input {
+      background: rgb(15, 23, 42) !important;
+      border: 1px solid rgba(148, 163, 184, 0.45) !important;
+      color: #f8fafc !important;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+    .dark #pos-cart-drawer .pos-auth-input::placeholder {
+      color: #94a3b8 !important;
+    }
+    #pos-cart-drawer #pos-cart-clear.btn-rc-ghost {
+      border-width: 2px;
+      font-weight: 800;
+      color: rgb(var(--rc-page-fg)) !important;
+    }
+    .dark #pos-cart-drawer #pos-cart-clear.btn-rc-ghost {
+      background: rgba(30, 41, 59, 0.65) !important;
+      border-color: rgba(148, 163, 184, 0.45) !important;
+      color: #f1f5f9 !important;
     }
     #pos-payment-cash-amount,
     #pos-payment-mpesa-amount {
@@ -920,11 +1620,394 @@
       opacity: 0.75;
       cursor: not-allowed;
     }
+
+    /* ── POS redesign: surfaces + motion (theme tokens) ── */
+    .pos-surface-page {
+      --pos-card-ambient: rgba(var(--rc-primary), 0.06);
+      --pos-chip-bg: rgba(var(--rc-surface-2), 0.92);
+      --pos-chip-border: rgba(var(--rc-border), 0.65);
+      /* Solid page canvas (under content; atmosphere uses matching base) */
+      background-color: rgb(var(--rc-surface-2));
+    }
+    .dark .pos-surface-page {
+      --pos-card-ambient: rgba(var(--rc-primary), 0.1);
+      --pos-chip-bg: rgba(var(--rc-surface-2), 0.55);
+      --pos-chip-border: rgba(var(--rc-border), 0.5);
+      background-color: rgb(var(--rc-page-bg));
+    }
+    @keyframes pos-enter-rise {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    @keyframes pos-panel-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .pos-surface-page .pos-search-panel {
+      animation: pos-panel-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    }
+    #pos-catalog .pos-cat-section {
+      animation: pos-panel-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    }
+    #pos-catalog .pos-cat-section:nth-child(1) {
+      animation-delay: 0.04s;
+    }
+    #pos-catalog .pos-cat-section:nth-child(2) {
+      animation-delay: 0.08s;
+    }
+    #pos-catalog .pos-cat-section:nth-child(3) {
+      animation-delay: 0.12s;
+    }
+    #pos-catalog .pos-cat-section:nth-child(4) {
+      animation-delay: 0.16s;
+    }
+    #pos-catalog .pos-cat-section:nth-child(5) {
+      animation-delay: 0.2s;
+    }
+    #pos-catalog .pos-cat-section:nth-child(n + 6) {
+      animation-delay: 0.24s;
+    }
+    .pos-cat-section .pos-item-card {
+      animation: pos-enter-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+      transition:
+        transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.28s ease,
+        border-color 0.2s ease;
+    }
+    .pos-cat-section .pos-item-card:nth-child(1) {
+      animation-delay: 0.02s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(2) {
+      animation-delay: 0.05s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(3) {
+      animation-delay: 0.08s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(4) {
+      animation-delay: 0.11s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(5) {
+      animation-delay: 0.14s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(6) {
+      animation-delay: 0.17s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(7) {
+      animation-delay: 0.2s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(8) {
+      animation-delay: 0.23s;
+    }
+    .pos-cat-section .pos-item-card:nth-child(n + 9) {
+      animation-delay: 0.26s;
+    }
+    .pos-item-card:hover {
+      transform: translateY(-2px) scale(1.03);
+      box-shadow:
+        0 12px 28px -14px rgba(0, 0, 0, 0.38),
+        0 0 0 1px rgba(var(--rc-primary), 0.25);
+    }
+    .pos-item-card:active {
+      transform: translateY(0) scale(1.01);
+    }
+    .pos-item-card.pos-item-card--media:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow:
+        0 20px 44px -20px rgba(0, 0, 0, 0.28),
+        0 0 0 1px rgba(var(--rc-primary), 0.22),
+        0 0 24px -8px rgba(var(--rc-primary), 0.18);
+    }
+    .pos-item-card.pos-item-card--media:active {
+      transform: translateY(-1px) scale(1.01);
+    }
+    .dark .pos-item-card.pos-item-card--media:hover {
+      box-shadow:
+        0 24px 50px -22px rgba(0, 0, 0, 0.65),
+        0 0 0 1px rgba(var(--rc-primary), 0.35),
+        0 0 32px -10px rgba(var(--rc-primary), 0.15);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pos-surface-page .pos-search-panel,
+      #pos-catalog .pos-cat-section,
+      .pos-cat-section .pos-item-card {
+        animation: none !important;
+      }
+      .pos-item-card:hover,
+      .pos-item-card.pos-item-card--media:hover {
+        transform: none;
+      }
+      .pos-item-card.pos-item-card--media:hover {
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.06) inset,
+          0 10px 40px -18px rgba(0, 0, 0, 0.18),
+          0 2px 8px -4px rgba(0, 0, 0, 0.08);
+      }
+    }
+    /* POS cards: full-bleed image + floating details (glass strip) */
+    .pos-item-card.pos-item-card--media {
+      position: relative;
+      isolation: isolate;
+      min-height: 11.5rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(var(--rc-border), 0.4);
+      background: rgb(var(--rc-surface-2));
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.06) inset,
+        0 12px 40px -16px rgba(0, 0, 0, 0.35),
+        0 2px 8px -2px rgba(0, 0, 0, 0.12);
+      transition:
+        transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.3s ease,
+        border-color 0.25s ease;
+    }
+    .dark .pos-item-card.pos-item-card--media {
+      border-color: rgba(var(--rc-border), 0.5);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 18px 48px -18px rgba(0, 0, 0, 0.6),
+        0 4px 14px -4px rgba(0, 0, 0, 0.4);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card-media {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      border-radius: inherit;
+      background: linear-gradient(145deg, rgb(var(--rc-surface-2)) 0%, rgb(var(--rc-surface)) 100%);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__img {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card-media__scrim {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.05) 0%,
+        rgba(0, 0, 0, 0.15) 35%,
+        rgba(0, 0, 0, 0.55) 70%,
+        rgba(0, 0, 0, 0.82) 100%
+      );
+    }
+    .pos-item-card.pos-item-card--media:hover .pos-item-card__img {
+      transform: scale(1.05);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .pos-item-card.pos-item-card--media:hover .pos-item-card__img {
+        transform: none;
+      }
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(
+        145deg,
+        rgba(var(--rc-primary), 0.45) 0%,
+        rgba(var(--rc-accent), 0.35) 45%,
+        rgb(var(--rc-surface-2)) 100%
+      );
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__placeholder span {
+      font-size: 1.75rem;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    }
+    /* Floating detail strip — glass + high-contrast text */
+    .pos-item-card.pos-item-card--media .pos-item-card__panel {
+      position: relative;
+      z-index: 2;
+      margin-top: auto;
+      width: 100%;
+      flex: 0 0 auto;
+      padding: 0.55rem 0.5rem 0.5rem;
+      border-radius: 0 0 0.875rem 0.875rem;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.72) 100%);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.35);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-name {
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__stock-label {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-stock.pos-item-stock--detail.is-in-stock {
+      color: #ecfdf5 !important;
+      background: rgba(5, 150, 105, 0.92) !important;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-stock.pos-item-stock--detail.is-out {
+      color: #fff !important;
+      background: rgba(190, 24, 93, 0.92) !important;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__price-row {
+      margin-top: 0.2rem;
+      padding-top: 0.45rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__price {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 3rem;
+      padding: 0.25rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: #0f172a !important;
+      background: linear-gradient(135deg, #fde68a 0%, #fcd34d 50%, #fbbf24 100%);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    @media (min-width: 640px) {
+      .pos-item-card.pos-item-card--media {
+        min-height: 12rem;
+      }
+      .pos-item-card.pos-item-card--media .pos-item-card__price {
+        font-size: 0.78rem;
+        padding: 0.28rem 0.6rem;
+      }
+    }
+    /* Cart lines (JS-generated markup): airy rows + line total emphasis */
+    #pos-cart-lines > div.group {
+      align-items: flex-start;
+      min-width: 0;
+      gap: 0.75rem 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(var(--rc-border), 0.55);
+      background: linear-gradient(
+        165deg,
+        rgba(var(--rc-surface), 0.98) 0%,
+        rgba(var(--rc-surface-2), 0.72) 100%
+      );
+      box-shadow: 0 2px 12px -6px rgba(0, 0, 0, 0.12);
+      transition:
+        transform 0.22s ease,
+        box-shadow 0.22s ease,
+        border-color 0.2s ease;
+    }
+    .dark #pos-cart-lines > div.group {
+      border-color: rgba(148, 163, 184, 0.38);
+      background: linear-gradient(165deg, rgb(51, 65, 85) 0%, rgb(30, 41, 59) 100%);
+      box-shadow: 0 4px 20px -8px rgba(0, 0, 0, 0.45);
+    }
+    #pos-cart-lines > div.group:hover {
+      transform: scale(1.012);
+      box-shadow: 0 8px 24px -12px rgba(var(--rc-primary), 0.22);
+      border-color: rgba(var(--rc-primary), 0.28);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-lines > div.group:hover {
+        transform: none;
+      }
+    }
+    #pos-cart-lines > div.group > div:last-child > span:first-child {
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: rgb(var(--rc-primary));
+    }
+    .dark #pos-cart-lines > div.group > div:last-child > span:first-child {
+      color: rgb(94, 234, 212) !important;
+    }
+    #pos-cart-lines .pos-cart-qty-controls {
+      background: rgba(var(--rc-surface), 0.95);
+      border: 1px solid rgba(var(--rc-border), 0.55);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+    .dark #pos-cart-lines .pos-cart-qty-controls {
+      background: rgb(15, 23, 42);
+      border-color: rgba(148, 163, 184, 0.4);
+    }
+    #pos-cart-lines .pos-qty-btn {
+      border-radius: 0.65rem;
+      transition: background 0.18s ease, transform 0.15s ease;
+    }
+    #pos-cart-lines .pos-qty-btn:hover {
+      transform: scale(1.06);
+      background: rgba(var(--rc-primary), 0.12) !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-lines .pos-qty-btn:hover {
+        transform: none;
+      }
+    }
+    #pos-cart-lines .pos-line-price {
+      border-radius: 0.65rem !important;
+      border-color: rgba(var(--rc-border), 0.55) !important;
+      background: linear-gradient(180deg, rgba(var(--rc-surface), 0.98) 0%, rgba(var(--rc-surface-2), 0.65) 100%) !important;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+      min-width: 5.5rem;
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+    .dark #pos-cart-lines .pos-line-price {
+      background: rgb(15, 23, 42) !important;
+      border-color: rgba(148, 163, 184, 0.45) !important;
+      color: #f8fafc !important;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+    #pos-cart-lines .pos-line-price:focus {
+      border-color: rgba(var(--rc-primary), 0.45) !important;
+      box-shadow:
+        0 0 0 3px rgba(var(--rc-primary), 0.12),
+        inset 0 1px 2px rgba(0, 0, 0, 0.05);
+      outline: none;
+    }
+    /* Checkout block: pinned feel on large drawers */
+    @media (min-width: 1024px) {
+      #pos-cart-drawer {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
+      .pos-cart-checkout-shell {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+      }
+    }
   </style>
 {% endblock %}
 
 {% block body %}
-  <div class="relative isolate flex min-h-screen flex-col overflow-x-hidden bg-[rgb(var(--rc-page-bg))]">
+  <div class="pos-surface-page relative isolate flex min-h-screen flex-col overflow-x-hidden">
     <div class="pos-page-atmosphere pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
       <div class="pos-page-atmosphere__base"></div>
       <div class="pos-page-atmosphere__orb pos-page-atmosphere__orb--a"></div>
@@ -946,15 +2029,15 @@
     <button
       type="button"
       id="pos-cart-toggle-fab"
-      class="pos-cart-open-trigger pos-cart-btn fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] flex h-[3.75rem] w-[3.75rem] items-center justify-center overflow-visible rounded-full text-[rgb(var(--rc-page-fg))] sm:h-16 sm:w-16"
+      class="pos-cart-open-trigger pos-cart-btn fixed bottom-[max(0.85rem,env(safe-area-inset-bottom))] right-[max(0.65rem,env(safe-area-inset-right))] flex h-14 w-14 items-center justify-center overflow-visible rounded-full text-[rgb(var(--rc-page-fg))] sm:bottom-[max(1rem,env(safe-area-inset-bottom))] sm:right-[max(0.75rem,env(safe-area-inset-right))] sm:h-16 sm:w-16"
       aria-expanded="false"
       aria-controls="pos-cart-drawer"
       aria-label="Open cart"
     >
       <span class="pos-cart-fab-ripple" aria-hidden="true"></span>
-      <span class="pos-cart-icon-wrap relative z-[1] flex h-[3.15rem] w-[3.15rem] items-center justify-center sm:h-[3.5rem] sm:w-[3.5rem]">
+      <span class="pos-cart-icon-wrap relative z-[1] flex h-12 w-12 items-center justify-center sm:h-[3.5rem] sm:w-[3.5rem]">
         <svg
-          class="pos-cart-fab-icon h-[1.65rem] w-[1.65rem] text-[rgb(var(--rc-primary))] drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] sm:h-7 sm:w-7"
+          class="pos-cart-fab-icon h-6 w-6 text-[rgb(var(--rc-primary))] drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] sm:h-7 sm:w-7"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -964,7 +2047,7 @@
         </svg>
       </span>
       <span
-        class="pos-cart-badge absolute right-0.5 top-0.5 z-[2] flex h-5 min-w-[1.25rem] translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-gradient-to-br from-[rgb(var(--rc-primary))] to-[rgb(var(--rc-accent))] px-1 text-[10px] font-black text-white shadow-lg ring-2 ring-[rgb(var(--rc-surface))] transition-opacity"
+        class="pos-cart-badge absolute right-0 top-0 z-[2] flex translate-x-1/3 -translate-y-1/3 items-center justify-center text-white transition-opacity"
         >0</span
       >
     </button>
@@ -975,7 +2058,7 @@
         aria-hidden="true"
       ></div>
       <div
-        class="relative overflow-visible border-b border-[rgb(var(--rc-primary))]/25 shadow-[0_4px_24px_rgba(0,0,0,0.07)] backdrop-blur-xl dark:border-[rgb(var(--rc-primary))]/30 dark:shadow-[0_8px_32px_rgba(0,0,0,0.25)]"
+        class="pos-pos-header-shell relative overflow-visible border-b border-[rgb(var(--rc-primary))]/20 backdrop-blur-xl dark:border-[rgb(var(--rc-primary))]/25"
       >
         <div
           class="pointer-events-none absolute inset-0 bg-[rgb(var(--rc-surface))]"
@@ -1086,13 +2169,13 @@
       </div>
     </header>
 
-    <div class="relative mx-auto flex min-h-0 w-full min-w-0 flex-1 max-w-[1920px] flex-col gap-5 px-[max(0.65rem,env(safe-area-inset-left))] py-5 pr-[max(0.65rem,env(safe-area-inset-right))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-6 sm:px-4 sm:py-7 md:px-6 lg:gap-8 lg:px-8 lg:py-9 lg:pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <main class="min-w-0 flex-1 space-y-5 sm:space-y-6 md:space-y-7">
+    <div class="pos-page-content relative mx-auto flex min-h-0 w-full min-w-0 flex-1 max-w-[1920px] flex-col gap-5 px-[max(0.65rem,env(safe-area-inset-left))] py-5 pr-[max(0.65rem,env(safe-area-inset-right))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-6 sm:px-4 sm:py-7 md:px-6 lg:gap-8 lg:px-8 lg:py-9 lg:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <main class="pos-catalog-main min-w-0 flex-1 space-y-5 sm:space-y-6 md:space-y-7 lg:space-y-8">
         {% if not items %}
           <div
-            class="flex flex-col items-center justify-center border-y border-dashed border-[rgb(var(--rc-border))]/80 bg-transparent px-6 py-20 text-center"
+            class="pos-catalog-empty flex flex-col items-center justify-center px-6 py-20 text-center"
           >
-            <span class="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-[rgb(var(--rc-surface-2))]/80 text-[rgb(var(--rc-muted))]">
+            <span class="pos-catalog-empty__icon mb-4 flex h-14 w-14 items-center justify-center">
               <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" /></svg>
             </span>
             <p class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">No items on the floor</p>
@@ -1100,7 +2183,7 @@
           </div>
         {% else %}
           {# Search + chips #}
-          <div class="space-y-3 rounded-2xl border border-[rgb(var(--rc-border))]/75 bg-[rgb(var(--rc-surface))]/80 p-3 shadow-sm ring-1 ring-black/5 backdrop-blur-md sm:space-y-4 sm:p-4 md:p-5 dark:bg-[rgb(var(--rc-surface))]/70 dark:ring-white/10">
+          <div class="pos-search-panel space-y-3 sm:space-y-4">
             <label class="sr-only" for="pos-search">Search items</label>
             <div class="relative w-full min-w-0">
               <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[rgb(var(--rc-muted))] sm:left-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -1111,14 +2194,14 @@
                 type="search"
                 autocomplete="off"
                 placeholder="Search name, category, or description…"
-                class="w-full min-w-0 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/50 py-2.5 pl-10 pr-4 text-base text-[rgb(var(--rc-page-fg))] placeholder:text-[rgb(var(--rc-muted))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/15 sm:py-3 sm:pl-11 sm:text-sm"
+                class="w-full min-w-0 py-2.5 pl-10 pr-4 text-base text-[rgb(var(--rc-page-fg))] placeholder:text-[rgb(var(--rc-muted))] outline-none transition sm:py-3 sm:pl-11 sm:text-sm"
               />
             </div>
             <div class="flex flex-wrap gap-2 sm:gap-2.5" id="pos-cat-chips" role="tablist" aria-label="Jump to category">
               {% for cat, rows in (items|groupby('category')) %}
                 <button
                   type="button"
-                  class="pos-cat-chip shrink-0 rounded-lg border border-transparent bg-[rgb(var(--rc-surface-2))]/80 px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:border-[rgb(var(--rc-border))] hover:text-[rgb(var(--rc-page-fg))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:px-4 sm:text-xs"
+                  class="pos-cat-chip shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:px-4"
                   data-target="pos-cat-{{ loop.index0 }}"
                 >
                   {{ cat }}
@@ -1134,25 +2217,25 @@
                 class="pos-cat-section scroll-mt-[calc(5rem+env(safe-area-inset-top))] sm:scroll-mt-28"
                 data-category="{{ cat|e }}"
               >
-                <div class="mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-4">
-                  <div class="min-w-0 border-l-[3px] border-[rgb(var(--rc-primary))] pl-3">
-                    <h2 class="text-sm font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-page-fg))] sm:text-base">{{ cat }}</h2>
-                    <p class="mt-0.5 text-[10px] font-medium text-[rgb(var(--rc-muted))] sm:text-xs">
+                <div class="pos-cat-section__toolbar mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-5">
+                  <div class="pos-cat-section__title-block min-w-0">
+                    <h2>{{ cat }}</h2>
+                    <p class="pos-cat-section__hint">
                       <span class="sm:hidden">Swipe to browse · tap to add</span>
-                      <span class="hidden sm:inline">Arrow buttons or trackpad · click to add · live stock</span>
+                      <span class="hidden sm:inline">Scroll or use arrows · tap to add · live stock</span>
                     </p>
                   </div>
-                  <span class="shrink-0 rounded-full bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-[10px] font-bold tabular-nums uppercase tracking-[0.1em] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]/80">{{ rows|length }} items</span>
+                  <span class="pos-cat-section__count shrink-0">{{ rows|length }} items</span>
                 </div>
 
                 <div class="pos-cat-strip-outer">
                   <div
-                    class="pos-item-scroll touch-pan-x overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 md:pl-12 md:pr-12 lg:-mx-8 lg:px-8 lg:pl-14 lg:pr-14"
+                    class="pos-item-scroll pos-item-scroll--bleed touch-pan-x overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 md:pl-12 md:pr-12 lg:-mx-8 lg:px-8 lg:pl-14 lg:pr-14"
                   >
                   {% for it in rows %}
                     <button
                       type="button"
-                      class="pos-item-card group relative flex w-[6.75rem] shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-[rgb(var(--rc-border))]/90 bg-[rgb(var(--rc-surface))] text-left shadow-sm ring-1 ring-black/5 transition duration-200 hover:-translate-y-0.5 hover:border-[rgb(var(--rc-primary))]/35 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] active:scale-[0.98] sm:w-[7.25rem] dark:bg-[rgb(var(--rc-surface-2))]/90 dark:ring-white/10"
+                      class="pos-item-card pos-item-card--media group relative flex w-[7.25rem] shrink-0 snap-start snap-always flex-col overflow-hidden rounded-2xl text-left sm:w-[7.85rem] md:w-[8.5rem]"
                       data-item-id="{{ it.id }}"
                       data-name="{{ it.name|e }}"
                       data-price="{{ '%.2f'|format(it.price) if it.price is not none else '0.00' }}"
@@ -1161,28 +2244,27 @@
                       data-search="{{ (it.category ~ ' ' ~ it.name ~ ' ' ~ (it.description or ''))|lower|e }}"
                       aria-label="Add {{ it.name|e }} to cart"
                     >
-                      <div
-                        class="pos-item-card-media flex h-14 w-full shrink-0 items-center justify-center overflow-hidden rounded-t-[0.45rem] bg-[rgb(var(--rc-surface-2))] p-1 sm:h-16"
-                      >
+                      <div class="pos-item-card-media">
                         {% set _item_img = static_upload_url(it.image_path) %}
                         {% if _item_img %}
                           <img
                             src="{{ _item_img }}"
                             alt=""
-                            class="max-h-full max-w-full object-contain object-center transition duration-300 group-hover:scale-[1.03]"
+                            class="pos-item-card__img"
                             loading="lazy"
                             decoding="async"
                           />
                         {% else %}
-                          <div class="flex h-full min-h-[2.5rem] w-full items-center justify-center rounded bg-gradient-to-br from-[rgb(var(--rc-surface-2))] via-[rgb(var(--rc-border))]/30 to-[rgb(var(--rc-surface))]">
-                            <span class="select-none text-lg font-black text-[rgb(var(--rc-muted))]/45">{{ (it.name[:1] or '?')|e }}</span>
+                          <div class="pos-item-card__placeholder">
+                            <span class="select-none">{{ (it.name[:1] or '?')|e }}</span>
                           </div>
                         {% endif %}
+                        <div class="pos-item-card-media__scrim" aria-hidden="true"></div>
                       </div>
-                      <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-1.5 pt-1.5">
-                        <p class="pos-item-name line-clamp-2 min-h-[2rem] text-[10px] font-bold leading-tight text-[rgb(var(--rc-page-fg))] sm:text-[11px]">{{ it.name }}</p>
-                        <div class="flex items-center justify-between gap-1 border-b border-[rgb(var(--rc-border))]/50 pb-1">
-                          <span class="shrink-0 text-[8px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Stock</span>
+                      <div class="pos-item-card__panel mt-auto flex w-full flex-col gap-1.5">
+                        <p class="pos-item-name line-clamp-2 min-h-0 text-[10px] font-extrabold leading-snug tracking-tight sm:text-[11px]">{{ it.name }}</p>
+                        <div class="pos-item-card__meta flex items-center justify-between gap-1">
+                          <span class="pos-item-card__stock-label shrink-0 text-[8px] font-semibold uppercase tracking-[0.14em]">Stock</span>
                           {% if it.shop_stock_qty > 0 %}
                             <span
                               class="pos-item-stock pos-item-stock--detail is-in-stock tabular-nums text-[10px] sm:text-[11px]"
@@ -1199,14 +2281,10 @@
                             >
                           {% endif %}
                         </div>
-                        {% if it.description %}
-                          <p class="line-clamp-1 text-[9px] leading-tight text-[rgb(var(--rc-muted))]">{{ it.description|striptags|truncate(36) }}</p>
-                        {% endif %}
-                        <div class="mt-auto flex items-center justify-between gap-0.5 border-t border-[rgb(var(--rc-border))]/60 pt-1">
-                          <span class="text-[11px] font-black tabular-nums leading-none text-[rgb(var(--rc-primary))] sm:text-xs">
+                        <div class="pos-item-card__price-row flex justify-center">
+                          <span class="pos-item-card__price tabular-nums leading-none">
                             {% if it.price is not none %}{{ "%.2f"|format(it.price) }}{% else %}0.00{% endif %}
                           </span>
-                          <span class="shrink-0 rounded bg-[rgb(var(--rc-primary))]/14 px-1 py-px text-[8px] font-extrabold uppercase text-[rgb(var(--rc-primary))]">+</span>
                         </div>
                       </div>
                     </button>
@@ -1237,12 +2315,12 @@
             {% endfor %}
           </div>
 
-          <p id="pos-no-results" class="hidden py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No items match your search.</p>
+          <p id="pos-no-results" class="pos-no-results hidden text-center text-sm">No items match your search.</p>
         {% endif %}
       </main>
     </div>
 
-    <footer class="pos-footer-slim relative mt-auto overflow-hidden border-t border-[rgb(var(--rc-primary))]/20 backdrop-blur-md dark:border-[rgb(var(--rc-primary))]/28">
+    <footer class="pos-footer-pos pos-footer-slim relative mt-auto overflow-hidden border-t border-[rgb(var(--rc-primary))]/22 backdrop-blur-xl dark:border-[rgb(var(--rc-primary))]/32">
       <div
         class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgb(var(--rc-primary))]/50 to-transparent"
         aria-hidden="true"
@@ -1314,12 +2392,12 @@
     {# Cart: backdrop + drawer (all breakpoints) #}
     <div
       id="pos-cart-backdrop"
-      class="fixed inset-0 z-40 bg-black/55 opacity-0 pointer-events-none backdrop-blur-[2px] transition-opacity duration-300"
+      class="fixed inset-0 z-40 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-300"
       aria-hidden="true"
     ></div>
     <div
       id="pos-cart-drawer"
-      class="fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden border border-[rgb(var(--rc-border))] border-b-0 bg-[rgb(var(--rc-surface))] shadow-[0_-24px_60px_rgba(0,0,0,0.22)] ring-1 ring-[rgb(var(--rc-primary))]/10 max-sm:h-[100svh] max-sm:max-h-[100svh] lg:inset-y-0 lg:left-auto lg:right-0 lg:top-0 lg:h-full lg:max-h-none lg:w-[min(26rem,100vw)] lg:max-w-[94vw] lg:rounded-none lg:rounded-l-[1.75rem] lg:border lg:border-y lg:border-l lg:border-r-0 lg:shadow-2xl lg:shadow-black/20"
+      class="pos-cart-drawer fixed inset-x-0 bottom-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden max-sm:h-[100svh] max-sm:max-h-[100svh] max-lg:rounded-t-[1.35rem] max-lg:border-x max-lg:border-t max-lg:border-[rgb(var(--rc-border))] max-lg:border-b-0 lg:inset-y-0 lg:left-auto lg:right-0 lg:top-0 lg:h-full lg:max-h-none lg:w-[min(26rem,100vw)] lg:max-w-[94vw] lg:rounded-none lg:rounded-l-[1.75rem] lg:border lg:border-y lg:border-l lg:border-r-0 lg:border-[rgb(var(--rc-border))]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="pos-cart-drawer-title"
@@ -1327,9 +2405,9 @@
     >
       <div class="pos-cart-drawer-top-accent shrink-0" aria-hidden="true"></div>
       <div class="flex shrink-0 justify-center pt-3 pb-1 lg:hidden">
-        <span class="h-1.5 w-12 rounded-full bg-[rgb(var(--rc-border))]" aria-hidden="true"></span>
+        <span class="pos-cart-drawer__handle-pill h-1.5 w-14 rounded-full" aria-hidden="true"></span>
       </div>
-      <div class="flex shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-surface-2))]/80 via-[rgb(var(--rc-surface))]/90 to-transparent px-4 py-3.5 sm:px-5 lg:rounded-tl-[1.75rem] lg:pt-5">
+      <div class="pos-cart-drawer__header flex shrink-0 items-center justify-between gap-3 px-4 py-3.5 sm:px-5 sm:py-4 lg:rounded-tl-[1.75rem] lg:pt-5">
         <div class="flex min-w-0 items-center gap-3">
           <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[rgb(var(--rc-primary))]/20 to-[rgb(var(--rc-accent))]/10 text-[rgb(var(--rc-primary))] ring-1 ring-[rgb(var(--rc-primary))]/20">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -1346,23 +2424,23 @@
         </button>
       </div>
       <div id="pos-cart-lines-section" class="flex min-h-0 flex-1 flex-col">
-        <div class="flex shrink-0 items-end justify-between gap-2 border-b border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/90 px-4 py-2 sm:px-5">
-          <p id="pos-cart-section-label" class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Items in cart</p>
+        <div class="pos-cart-lines-toolbar flex shrink-0 items-end justify-between gap-2 px-4 py-2.5 sm:px-5">
+          <p id="pos-cart-section-label" class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Items in cart</p>
           <p id="pos-cart-line-count" class="text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]"></p>
         </div>
-        <div id="pos-cart-lines" class="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3 sm:px-5"></div>
+        <div id="pos-cart-lines" class="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-4 sm:space-y-3 sm:px-5"></div>
       </div>
-      <div class="pos-cart-checkout-shell space-y-3 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 lg:pb-5 lg:overflow-visible lg:max-h-none">
-        <div class="flex items-end justify-between gap-3">
+      <div class="pos-cart-checkout-shell space-y-4 px-4 py-5 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-6 lg:pb-5 lg:overflow-visible lg:max-h-none">
+        <div class="pos-cart-subtotal-row flex items-end justify-between gap-3 border-b border-[rgb(var(--rc-border))]/50 pb-4">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Subtotal</p>
-            <p id="pos-cart-subtotal" class="text-2xl font-black tabular-nums tracking-tight text-[rgb(var(--rc-page-fg))]">0.00</p>
+            <p id="pos-cart-subtotal" class="text-3xl font-black tabular-nums tracking-tight sm:text-[1.85rem]">0.00</p>
           </div>
-          <span class="rounded-xl bg-[rgb(var(--rc-surface))] px-2 py-1 text-[10px] font-bold uppercase text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">Local</span>
+          <span class="pos-cart-currency-pill px-2.5 py-1 text-[10px] uppercase tracking-wide">Local</span>
         </div>
 
         <div id="pos-customer-card" class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Transaction type</p>
+          <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Transaction type</p>
           <div class="grid grid-cols-3 gap-2">
             <button type="button" id="pos-sale-type-sale" class="pos-sale-type-btn is-active inline-flex items-center justify-center gap-1.5 rounded-xl border border-[rgb(var(--rc-border))] px-2 py-2.5 text-xs font-bold uppercase tracking-wider">
               <span class="pos-mode-icon"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.667 0-4 1.333-4 4s1.333 4 4 4 4-1.333 4-4-1.333-4-4-4zm0 0V5m0 11v3m7-7h-3M8 12H5" /></svg></span>
@@ -1380,7 +2458,7 @@
           <input type="checkbox" id="pos-quote-only" class="hidden" />
           <p class="text-[10px] text-[rgb(var(--rc-muted))]">Quote only (no stock change).</p>
           <div id="pos-sale-payment-section" class="space-y-2 border-t border-[rgb(var(--rc-border))]/70 pt-3 mt-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payment</p>
+            <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Payment</p>
             <div class="grid grid-cols-3 gap-2">
               <button type="button" id="pos-payment-method-cash" class="pos-payment-method-btn inline-flex items-center justify-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-bold uppercase tracking-wide">
                 <span class="pos-mode-icon"><svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.667 0-4 1.333-4 4s1.333 4 4 4 4-1.333 4-4-1.333-4-4-4zm0 0V5m0 11v3" /></svg></span>
@@ -1408,7 +2486,7 @@
             <p id="pos-payment-split-hint" class="hidden text-[10px] text-[rgb(var(--rc-muted))]">Type one amount only. The other updates automatically.</p>
           </div>
           <div id="pos-credit-due-section" class="hidden space-y-2 border-t border-[rgb(var(--rc-border))]/70 pt-3 mt-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Credit payment</p>
+            <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Credit payment</p>
             <div>
               <label for="pos-credit-due-date" class="mb-1 block text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Due date</label>
               <input
@@ -1423,7 +2501,7 @@
         </div>
 
         <div class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Customer details</p>
+          <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Customer details</p>
           <div>
             <label id="pos-customer-phone-label" for="pos-customer-phone" class="mb-1 block text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Customer phone (optional)</label>
             <input id="pos-customer-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="e.g. 08012345678" class="pos-auth-input w-full rounded-xl border px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
@@ -1437,7 +2515,7 @@
         </div>
 
         <div class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Employee authorization</p>
+          <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Employee authorization</p>
           <p id="pos-auth-lock-note" class="hidden rounded-lg border border-rose-400/45 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-700 dark:text-rose-300">
             Locked: add name + phone.
           </p>
@@ -2250,18 +3328,18 @@
             '" /></label>'
           : '<p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">' + fmt(line.price) + " each</p>";
         return (
-          '<div class="group flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/60 p-2.5 shadow-sm transition hover:border-[rgb(var(--rc-primary))]/25">' +
+          '<div class="pos-cart-line-row group flex min-w-0 items-center gap-3 rounded-2xl border p-2.5 shadow-sm transition sm:gap-3">' +
           '<div class="min-w-0 flex-1">' +
           '<p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">' +
           escapeHtml(line.name) +
           "</p>" +
           priceRow +
           "</div>" +
-          '<div class="flex flex-col items-end gap-1">' +
-          '<span class="text-xs font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">' +
+          '<div class="flex shrink-0 flex-col items-end gap-1">' +
+          '<span class="pos-cart-line-total text-xs font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">' +
           lt +
           "</span>" +
-          '<div class="flex items-center gap-0.5 rounded-xl bg-[rgb(var(--rc-surface))] p-0.5 ring-1 ring-[rgb(var(--rc-border))]">' +
+          '<div class="pos-cart-qty-controls flex items-center gap-0.5 rounded-xl p-0.5">' +
           '<button type="button" class="pos-qty-btn flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
           line.id +
           '" data-delta="-1" aria-label="Decrease">−</button>' +
