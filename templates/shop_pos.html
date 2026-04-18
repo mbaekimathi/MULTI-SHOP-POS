@@ -3635,7 +3635,6 @@
         if (paySec) paySec.classList.toggle("hidden", must || isQuote);
         if (!must && dueIn) dueIn.value = "";
         updatePaymentMethodState();
-        updateCustomerSectionState();
       }
 
       function round2(n) {
@@ -3671,7 +3670,10 @@
         if (splitSec) splitSec.classList.toggle("hidden", salePaymentMethod !== "both");
         if (splitHint) splitHint.classList.toggle("hidden", salePaymentMethod !== "both");
         if (cartDrawer) cartDrawer.classList.toggle("pos-cart--split-payment", salePaymentMethod === "both");
-        if (!cashIn || !mpesaIn) return;
+        if (!cashIn || !mpesaIn) {
+          updateCustomerSectionState();
+          return;
+        }
         if (salePaymentMethod === "cash") {
           cashIn.value = total.toFixed(2);
           mpesaIn.value = "";
@@ -3705,6 +3707,7 @@
           cashIn.value = "";
           mpesaIn.value = "";
         }
+        updateCustomerSectionState();
       }
 
       function syncSplitAmounts(changed) {
@@ -3769,11 +3772,21 @@
         var verifyBtn = document.getElementById("pos-auth-verify");
         var lockNoteEl = document.getElementById("pos-auth-lock-note");
         var lookupStatusEl = document.getElementById("pos-customer-lookup-status");
+        var quoteEl = document.getElementById("pos-quote-only");
         var name = ((nameEl && nameEl.value) || "").trim();
         var phone = normalizePhone((phoneEl && phoneEl.value) || "");
         var hasBoth = !!name && lenDigits(phone) >= 7;
         var creditMode = saleType === "credit";
-        var lockAuth = creditMode && !hasBoth;
+        var quoteOnly = !!(quoteEl && quoteEl.checked);
+        var lockCredit = creditMode && !hasBoth;
+        var lockForPayment = saleType === "sale" && !quoteOnly && !salePaymentMethod;
+        var lockAuth = lockCredit || lockForPayment;
+        var needProceedRefresh = false;
+        if (lockForPayment && authorizedEmployee) {
+          authorizedEmployee = null;
+          lastVerifiedAuthCode = "";
+          needProceedRefresh = true;
+        }
 
         if (card) {
           card.classList.toggle("pos-customer-card--required", creditMode && !hasBoth);
@@ -3791,17 +3804,23 @@
           authCodeEl.disabled = lockAuth;
           authCodeEl.setAttribute("aria-disabled", lockAuth ? "true" : "false");
           authCodeEl.classList.toggle("pos-auth-locked", lockAuth);
-          if (lockAuth && authCodeEl.value) authCodeEl.value = "";
+          if (lockCredit && authCodeEl.value) authCodeEl.value = "";
         }
         if (verifyBtn) {
           verifyBtn.disabled = lockAuth || authVerifyInFlight;
           verifyBtn.setAttribute("aria-disabled", verifyBtn.disabled ? "true" : "false");
           verifyBtn.classList.toggle("pos-auth-locked", lockAuth);
         }
-        if (lockNoteEl) lockNoteEl.classList.toggle("hidden", !lockAuth);
-        if (lookupStatusEl && lockAuth) {
+        if (lockNoteEl) {
+          lockNoteEl.classList.toggle("hidden", !lockAuth);
+          if (lockAuth) {
+            lockNoteEl.textContent = lockCredit ? "Locked: add name + phone." : "Locked: select payment method first.";
+          }
+        }
+        if (lookupStatusEl && lockCredit) {
           setCustomerLookupStatus("Credit needs name + phone first.", "error");
         }
+        if (needProceedRefresh) updateProceedState();
       }
 
       function validateCustomerInput() {
@@ -3820,11 +3839,10 @@
       function updateProceedState() {
         var btn = document.getElementById("pos-cart-proceed");
         if (!btn) return;
+        updatePaymentMethodState();
         var lines = load();
         var can = lines.length > 0 && !!authorizedEmployee;
         btn.disabled = !can;
-        updatePaymentMethodState();
-        updateCustomerSectionState();
       }
 
       function verifyAuthorizationCode() {
@@ -3837,6 +3855,12 @@
             setCustomerLookupStatus("Complete customer details first for credit sale.", "error");
             return;
           }
+        }
+        var quoteElVerify = document.getElementById("pos-quote-only");
+        var quoteOnlyVerify = !!(quoteElVerify && quoteElVerify.checked);
+        if (saleType === "sale" && !quoteOnlyVerify && !salePaymentMethod) {
+          setAuthStatus("Select payment method.", "error");
+          return;
         }
         var raw = (codeEl.value || "").replace(/\D/g, "").slice(0, 6);
         codeEl.value = raw;
@@ -6399,7 +6423,6 @@
         quoteOnlyToggle.addEventListener("change", function () {
           var quoteBtn = document.getElementById("pos-sale-type-quote");
           if (quoteBtn) quoteBtn.classList.toggle("is-active", !!quoteOnlyToggle.checked);
-          updateCustomerSectionState();
           updatePaymentMethodState();
         });
       }
