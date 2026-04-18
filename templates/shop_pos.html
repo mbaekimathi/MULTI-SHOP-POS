@@ -343,14 +343,13 @@
         0 2px 8px rgba(15, 23, 42, 0.07),
         0 0 0 1px rgba(15, 23, 42, 0.04);
     }
-    html:not(.dark) #pos-cart-lines > div.group {
+    html:not(.dark) #pos-cart-lines.pos-cart-lines-list {
       background: rgb(var(--rc-surface));
       border: 1px solid rgb(var(--rc-border));
-      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
     }
-    html:not(.dark) #pos-cart-lines > div.group:hover {
-      border-color: rgba(var(--rc-primary), 0.45);
-      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+    html:not(.dark) #pos-cart-lines .pos-cart-line-item:hover {
+      background: rgba(var(--rc-primary), 0.06);
     }
     html:not(.dark) #pos-cart-lines .pos-cart-qty-controls {
       background: rgb(var(--rc-surface-2));
@@ -1195,11 +1194,8 @@
         transform: none;
       }
     }
-    .pos-cart-subtotal-row {
-      align-items: flex-end;
-    }
-    .pos-cart-subtotal-row .pos-cart-currency-pill {
-      border-radius: 0.75rem;
+    .pos-cart-lines-toolbar .pos-cart-currency-pill {
+      border-radius: 0.5rem;
       border: 1px solid rgba(var(--rc-primary), 0.22);
       background: linear-gradient(135deg, rgba(var(--rc-primary), 0.12) 0%, rgba(var(--rc-accent), 0.08) 100%);
       color: rgb(var(--rc-primary));
@@ -1209,12 +1205,10 @@
     #pos-cart-subtotal {
       font-variant-numeric: tabular-nums;
       color: rgb(var(--rc-page-fg));
-      letter-spacing: -0.03em;
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+      letter-spacing: -0.02em;
     }
     .dark #pos-cart-subtotal {
       color: #f8fafc !important;
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     }
     .pos-cart-checkout-shell {
       border-top: 1px solid rgba(var(--rc-border), 0.65);
@@ -1242,7 +1236,7 @@
         max-height: none;
       }
       #pos-cart-lines {
-        max-height: min(42dvh, 17.5rem);
+        max-height: min(58dvh, 28rem);
         overflow-y: auto;
       }
       .pos-cart-checkout-shell {
@@ -1917,47 +1911,44 @@
         padding: 0.2rem 0.5rem;
       }
     }
-    /* Cart lines (JS-generated markup): airy rows + line total emphasis */
-    #pos-cart-lines > div.group {
-      align-items: flex-start;
+    /* Cart lines: compact list rows (dense, more lines visible without scroll) */
+    #pos-cart-lines.pos-cart-lines-list {
+      border-radius: 0.65rem;
+      border: 1px solid rgba(var(--rc-border), 0.42);
+      background: rgba(var(--rc-surface), 0.35);
+    }
+    .dark #pos-cart-lines.pos-cart-lines-list {
+      border-color: rgba(148, 163, 184, 0.28);
+      background: rgba(15, 23, 42, 0.35);
+    }
+    #pos-cart-lines .pos-cart-line-item {
+      align-items: center;
       min-width: 0;
-      gap: 0.75rem 1rem;
-      padding: 0.85rem 1rem;
-      border-radius: 1rem;
-      border: 1px solid rgba(var(--rc-border), 0.55);
-      background: linear-gradient(
-        165deg,
-        rgba(var(--rc-surface), 0.98) 0%,
-        rgba(var(--rc-surface-2), 0.72) 100%
-      );
-      box-shadow: 0 2px 12px -6px rgba(0, 0, 0, 0.12);
-      transition:
-        transform 0.22s ease,
-        box-shadow 0.22s ease,
-        border-color 0.2s ease;
+      gap: 0.5rem 0.75rem;
+      padding: 0.45rem 0.6rem;
+      border-bottom: 1px solid rgba(var(--rc-border), 0.38);
+      background: transparent;
+      transition: background 0.15s ease;
     }
-    .dark #pos-cart-lines > div.group {
-      border-color: rgba(148, 163, 184, 0.38);
-      background: linear-gradient(165deg, rgb(51, 65, 85) 0%, rgb(30, 41, 59) 100%);
-      box-shadow: 0 4px 20px -8px rgba(0, 0, 0, 0.45);
+    #pos-cart-lines .pos-cart-line-item:last-child {
+      border-bottom: none;
     }
-    #pos-cart-lines > div.group:hover {
-      transform: scale(1.012);
-      box-shadow: 0 8px 24px -12px rgba(var(--rc-primary), 0.22);
-      border-color: rgba(var(--rc-primary), 0.28);
+    .dark #pos-cart-lines .pos-cart-line-item {
+      border-bottom-color: rgba(148, 163, 184, 0.22);
     }
-    @media (prefers-reduced-motion: reduce) {
-      #pos-cart-lines > div.group:hover {
-        transform: none;
-      }
+    #pos-cart-lines .pos-cart-line-item:hover {
+      background: rgba(var(--rc-primary), 0.05);
     }
-    #pos-cart-lines > div.group > div:last-child > span:first-child {
-      font-size: 0.95rem;
+    .dark #pos-cart-lines .pos-cart-line-item:hover {
+      background: rgba(var(--rc-primary), 0.08);
+    }
+    #pos-cart-lines .pos-cart-line-item .pos-cart-line-total {
+      font-size: 0.8rem;
       font-weight: 800;
       letter-spacing: -0.02em;
       color: rgb(var(--rc-primary));
     }
-    .dark #pos-cart-lines > div.group > div:last-child > span:first-child {
+    .dark #pos-cart-lines .pos-cart-line-item .pos-cart-line-total {
       color: rgb(94, 234, 212) !important;
     }
     #pos-cart-lines .pos-cart-qty-controls {
@@ -2419,8 +2410,8 @@
       <div class="flex shrink-0 justify-center pt-3 pb-1 lg:hidden">
         <span class="pos-cart-drawer__handle-pill h-1.5 w-14 rounded-full" aria-hidden="true"></span>
       </div>
-      <div class="pos-cart-drawer__header flex shrink-0 items-center justify-between gap-3 px-4 py-3.5 sm:px-5 sm:py-4 lg:rounded-tl-[1.75rem] lg:pt-5">
-        <div class="flex min-w-0 items-center gap-3">
+      <div class="pos-cart-drawer__header flex shrink-0 items-center justify-between gap-2 px-4 py-3.5 sm:gap-3 sm:px-5 sm:py-4 lg:rounded-tl-[1.75rem] lg:pt-5">
+        <div class="flex min-w-0 flex-1 items-center gap-3">
           <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[rgb(var(--rc-primary))]/20 to-[rgb(var(--rc-accent))]/10 text-[rgb(var(--rc-primary))] ring-1 ring-[rgb(var(--rc-primary))]/20">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -2431,26 +2422,35 @@
             <h2 id="pos-cart-drawer-title" class="truncate text-base font-bold text-[rgb(var(--rc-page-fg))]">Cart · checkout</h2>
           </div>
         </div>
-        <button type="button" id="pos-cart-close" class="btn-rc btn-rc-ghost h-10 w-10 shrink-0 rounded-xl p-0" aria-label="Close cart">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
+        <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            id="pos-cart-proceed"
+            class="btn-rc btn-rc-success shrink-0 rounded-xl px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider disabled:cursor-not-allowed sm:px-3 sm:py-2.5 sm:text-xs"
+            disabled
+          >
+            Authorize &amp; proceed
+          </button>
+          <button type="button" id="pos-cart-close" class="btn-rc btn-rc-ghost h-10 w-10 shrink-0 rounded-xl p-0" aria-label="Close cart">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
       </div>
       <div id="pos-cart-lines-section" class="flex min-h-0 flex-1 flex-col">
-        <div class="pos-cart-lines-toolbar flex shrink-0 items-end justify-between gap-2 px-4 py-2.5 sm:px-5">
+        <div class="pos-cart-lines-toolbar flex shrink-0 flex-wrap items-end justify-between gap-x-2 gap-y-1.5 px-4 py-2 sm:px-5">
           <p id="pos-cart-section-label" class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Items in cart</p>
-          <p id="pos-cart-line-count" class="text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]"></p>
-        </div>
-        <div id="pos-cart-lines" class="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-4 sm:space-y-3 sm:px-5"></div>
-      </div>
-      <div class="pos-cart-checkout-shell space-y-4 px-4 py-5 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-6 lg:pb-5 lg:overflow-visible lg:max-h-none">
-        <div class="pos-cart-subtotal-row flex items-end justify-between gap-3 border-b border-[rgb(var(--rc-border))]/50 pb-4">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Subtotal</p>
-            <p id="pos-cart-subtotal" class="text-3xl font-black tabular-nums tracking-tight sm:text-[1.85rem]">0.00</p>
+          <div class="flex flex-col items-end gap-0.5 sm:flex-row sm:items-baseline sm:gap-4">
+            <p id="pos-cart-line-count" class="text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]"></p>
+            <div class="flex items-baseline gap-1.5 sm:gap-2">
+              <span class="text-[9px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Subtotal</span>
+              <span id="pos-cart-subtotal" class="text-lg font-black tabular-nums leading-none tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">0.00</span>
+              <span class="pos-cart-currency-pill shrink-0 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">Local</span>
+            </div>
           </div>
-          <span class="pos-cart-currency-pill px-2.5 py-1 text-[10px] uppercase tracking-wide">Local</span>
         </div>
-
+        <div id="pos-cart-lines" class="min-h-0 flex-1 overflow-y-auto px-4 py-2 sm:px-5 sm:py-3"></div>
+      </div>
+      <div class="pos-cart-checkout-shell space-y-3 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-5 lg:pb-5 lg:overflow-visible lg:max-h-none">
         <div id="pos-customer-card" class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
           <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Transaction type</p>
           <div class="grid grid-cols-3 gap-2">
@@ -2538,9 +2538,6 @@
           <p id="pos-auth-status" class="pos-auth-status--muted text-[10px]">Enter employee code.</p>
         </div>
 
-        <button type="button" id="pos-cart-proceed" class="btn-rc btn-rc-success w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-50" disabled>
-          Authorize & proceed
-        </button>
         <button type="button" id="pos-cart-clear" class="btn-rc btn-rc-ghost w-full rounded-xl py-3 text-xs font-bold uppercase tracking-wider">Clear cart</button>
       </div>
     </div>
@@ -3329,36 +3326,36 @@
           ? fmt(Math.max(0, parseFloat(line.originalSellingPrice)))
           : "0";
         var priceRow = allowEdit
-          ? '<label class="mt-0.5 flex flex-col gap-0.5 text-xs text-[rgb(var(--rc-muted))]"><span>Price each <span class="font-normal opacity-90">(min ' +
+          ? '<label class="mt-0 flex max-w-[11rem] flex-col gap-0 text-[10px] leading-tight text-[rgb(var(--rc-muted))]"><span>Each <span class="font-normal opacity-90">(min ' +
             minEach +
             ")</span></span><input type=\"number\" step=\"0.01\" min=\"" +
             minEach +
-            "\" inputmode=\"decimal\" class=\"pos-line-price w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1 text-xs font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]\" data-id=\"" +
+            "\" inputmode=\"decimal\" class=\"pos-line-price w-24 rounded-md border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]\" data-id=\"" +
             line.id +
             '" value="' +
             fmt(line.price) +
             '" /></label>'
-          : '<p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">' + fmt(line.price) + " each</p>";
+          : '<p class="text-[10px] leading-tight text-[rgb(var(--rc-muted))]">' + fmt(line.price) + " each</p>";
         return (
-          '<div class="pos-cart-line-row group flex min-w-0 items-center gap-3 rounded-2xl border p-2.5 shadow-sm transition sm:gap-3">' +
+          '<div class="pos-cart-line-item group flex min-w-0 items-center gap-2">' +
           '<div class="min-w-0 flex-1">' +
-          '<p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">' +
+          '<p class="truncate text-[13px] font-semibold leading-tight text-[rgb(var(--rc-page-fg))]">' +
           escapeHtml(line.name) +
           "</p>" +
           priceRow +
           "</div>" +
-          '<div class="flex shrink-0 flex-col items-end gap-1">' +
+          '<div class="flex shrink-0 items-center gap-2">' +
           '<span class="pos-cart-line-total text-xs font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">' +
           lt +
           "</span>" +
-          '<div class="pos-cart-qty-controls flex items-center gap-0.5 rounded-xl p-0.5">' +
-          '<button type="button" class="pos-qty-btn flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
+          '<div class="pos-cart-qty-controls flex items-center gap-0.5 rounded-lg p-0.5">' +
+          '<button type="button" class="pos-qty-btn flex h-7 w-7 items-center justify-center rounded-md text-base leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
           line.id +
           '" data-delta="-1" aria-label="Decrease">−</button>' +
-          '<span class="min-w-[1.75rem] text-center text-xs font-black tabular-nums">' +
+          '<span class="min-w-[1.5rem] text-center text-[11px] font-black tabular-nums">' +
           line.qty +
           "</span>" +
-          '<button type="button" class="pos-qty-btn flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
+          '<button type="button" class="pos-qty-btn flex h-7 w-7 items-center justify-center rounded-md text-base leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
           line.id +
           '" data-delta="1" aria-label="Increase">+</button>' +
           "</div></div></div>"
@@ -3383,7 +3380,10 @@
         var inner = lines.length ? html : empty;
 
         var el = document.getElementById("pos-cart-lines");
-        if (el) el.innerHTML = inner;
+        if (el) {
+          el.innerHTML = inner;
+          el.classList.toggle("pos-cart-lines-list", lines.length > 0);
+        }
 
         var subS = fmt(sub);
         var st = document.getElementById("pos-cart-subtotal");
