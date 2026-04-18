@@ -1,0 +1,75 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop stock settings — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop stock settings{% endblock %}
+
+{% block shop_sidebar_links %}
+  {% set selected_view = '' %}
+  {% include "partials/shop_stock_workspace_sidebar.html" %}
+{% endblock %}
+
+{% block shop_content %}
+  <div class="space-y-6">
+    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Per-shop stock thresholds</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Set shop overrides for low-stock threshold and reorder level. Leave at 0 to use company stock settings defaults.
+      </p>
+    </section>
+
+    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      {% if not items %}
+        <p class="text-sm text-[rgb(var(--rc-muted))]">No items available.</p>
+      {% else %}
+        <form method="post" action="{{ url_for('shop_stock_settings', shop_id=shop.id) }}" class="space-y-4">
+          <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+            <table class="min-w-[980px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Shop low-stock</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Shop reorder</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for it in items %}
+                  <tr class="stock-row">
+                    <td class="px-3 py-2">
+                      <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
+                      <div class="text-xs text-[rgb(var(--rc-muted))]">{{ it.category or "—" }}</div>
+                    </td>
+                    <td class="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        name="shop_low_stock_threshold_{{ it.id }}"
+                        value="{{ it.shop_low_stock_threshold or 0 }}"
+                        class="w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1.5 text-right text-sm text-[rgb(var(--rc-page-fg))]"
+                      />
+                    </td>
+                    <td class="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        name="shop_reorder_level_{{ it.id }}"
+                        value="{{ it.shop_reorder_level or 0 }}"
+                        class="w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1.5 text-right text-sm text-[rgb(var(--rc-page-fg))]"
+                      />
+                      <div class="mt-1 text-[10px] text-[rgb(var(--rc-muted))]">
+                        Suggested: {{ it.suggested_reorder_level or 0 }}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-end">
+            <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider">Save shop stock settings</button>
+          </div>
+        </form>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

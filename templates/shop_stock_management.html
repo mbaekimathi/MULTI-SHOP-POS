@@ -59,7 +59,7 @@
                     type="search"
                     id="js-stock-item-search"
                     autocomplete="off"
-                    placeholder="Filter by name, enter qty below — focusing qty clears search for the next item"
+                    placeholder="Filter by name, then enter quantity directly in the rows below"
                     class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
                   />
                 </label>
@@ -133,7 +133,7 @@
                     type="search"
                     id="js-stock-item-search"
                     autocomplete="off"
-                    placeholder="Filter by name, enter qty below — focusing qty clears search for the next item"
+                    placeholder="Filter by name, then enter quantity directly in the rows below"
                     class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
                   />
                 </label>
@@ -385,14 +385,35 @@
       input.addEventListener("input", sync);
       input.addEventListener("change", sync);
 
+      function focusRowAfterClear(row, qtyEl) {
+        if (!row) return;
+        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        try {
+          row.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch (e) {}
+        setTimeout(function () {
+          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        }, 1400);
+        if (qtyEl && document.activeElement !== qtyEl) {
+          qtyEl.focus({ preventScroll: true });
+        }
+      }
+
       document.querySelectorAll(".js-stock-qty-input").forEach(function (qtyEl) {
         qtyEl.addEventListener("focus", function () {
+          var row = qtyEl.closest(".js-stock-row");
           if ((input.value || "").trim() !== "") {
             input.value = "";
             sync();
+            requestAnimationFrame(function () {
+              focusRowAfterClear(row, qtyEl);
+            });
+          } else {
+            focusRowAfterClear(row, qtyEl);
           }
         });
       });
+
     })();
   </script>
   <script>

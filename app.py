@@ -1765,6 +1765,7 @@ def it_support_stock_status():
 def it_support_manual_stock_in_payment_update(tx_id: int):
     _it_support_or_super_admin_only()
     add_raw = (request.form.get("additional_payment") or "").strip()
+    use_fifo = (request.form.get("fifo") or "").strip().lower() in ("1", "true", "yes", "on")
     if add_raw != "":
         try:
             additional_payment = float(add_raw)
@@ -1773,11 +1774,26 @@ def it_support_manual_stock_in_payment_update(tx_id: int):
         if additional_payment < 0:
             return jsonify({"ok": False, "error": "Additional payment cannot be negative."}), 400
         try:
-            from database import update_shop_manual_stock_in_payment
+            if use_fifo:
+                from database import apply_supplier_payment_fifo_from_tx
 
-            row = update_shop_manual_stock_in_payment(
-                tx_id, additional_payment=additional_payment
-            )
+                fifo_res = apply_supplier_payment_fifo_from_tx(tx_id, additional_payment)
+                if not fifo_res:
+                    row = None
+                else:
+                    row = {
+                        "id": int(tx_id),
+                        "payment_status": "updated",
+                        "amount_paid": None,
+                        "fifo_allocated_count": len(fifo_res.get("allocated") or []),
+                        "fifo_unused": float(fifo_res.get("unused") or 0.0),
+                    }
+            else:
+                from database import update_shop_manual_stock_in_payment
+
+                row = update_shop_manual_stock_in_payment(
+                    tx_id, additional_payment=additional_payment
+                )
         except Exception:
             row = None
     else:
@@ -1921,11 +1937,6 @@ def it_support_stock_profitability_analysis():
     }
     if selected_view not in allowed_views:
         selected_view = "margin"
-    low_stock_threshold = request.args.get("low_stock_threshold", type=int)
-    if low_stock_threshold is None:
-        low_stock_threshold = 5
-    low_stock_threshold = max(0, min(500, int(low_stock_threshold)))
-
     item_rows = []
     avg_margin_pct = 0.0
     total_stock_value = 0.0
@@ -1938,41 +1949,50 @@ def it_support_stock_profitability_analysis():
     margin_rows = []
     stock_value_rows = []
 
+    from database import (
+        get_company_stock_status,
+        get_it_support_item_analytics,
+        get_cursor,
+        list_stock_manage_items,
+    )
+
     try:
-        from database import (
-            get_company_stock_status,
-            get_it_support_item_analytics,
-            get_cursor,
-            list_stock_manage_items,
-        )
-
         items = list_stock_manage_items(limit=3000) or []
+    except Exception:
+        items = []
+    try:
         _, stock_rows = get_company_stock_status(limit_items=3000)
-        item_sales = get_it_support_item_analytics(analytics_filter=analytics_filter)
+    except Exception:
+        stock_rows = []
+    try:
+        item_sales = get_it_support_item_analytics(analytics_filter=analytics_filter) or {}
+    except Exception:
+        item_sales = {}
 
-        stock_map = {}
-        for r in stock_rows or []:
-            try:
-                iid = int(r.get("id") or 0)
-            except Exception:
-                continue
-            if iid > 0:
-                stock_map[iid] = int(r.get("total_stock_qty") or 0)
+    stock_map = {}
+    for r in stock_rows or []:
+        try:
+            iid = int(r.get("id") or 0)
+        except Exception:
+            continue
+        if iid > 0:
+            stock_map[iid] = int(r.get("total_stock_qty") or 0)
 
-        sales_map = {}
-        for r in (item_sales or {}).get("top_items") or []:
-            try:
-                iid = int(r.get("item_id") or 0)
-            except Exception:
-                continue
-            if iid <= 0:
-                continue
-            sales_map[iid] = {
-                "qty_sold": int(r.get("qty_sold") or 0),
-                "revenue": float(r.get("revenue") or 0),
-            }
+    sales_map = {}
+    for r in (item_sales or {}).get("top_items") or []:
+        try:
+            iid = int(r.get("item_id") or 0)
+        except Exception:
+            continue
+        if iid <= 0:
+            continue
+        sales_map[iid] = {
+            "qty_sold": int(r.get("qty_sold") or 0),
+            "revenue": float(r.get("revenue") or 0),
+        }
 
-        avg_buy_map = {}
+    avg_buy_map = {}
+    try:
         with get_cursor() as cur:
             cur.execute(
                 """
@@ -1994,85 +2014,88 @@ def it_support_stock_profitability_analysis():
                     continue
                 if iid > 0 and bq > 0:
                     avg_buy_map[iid] = bv / bq
-
-        margin_sum = 0.0
-        margin_n = 0
-        for it in items:
-            try:
-                iid = int(it.get("id") or 0)
-            except Exception:
-                continue
-            if iid <= 0:
-                continue
-
-            try:
-                selling_price = float(
-                    it.get("selling_price")
-                    if it.get("selling_price") is not None
-                    else (it.get("price") or 0)
-                )
-            except Exception:
-                selling_price = 0.0
-            avg_buying_price = avg_buy_map.get(iid)
-            qty_sold = int((sales_map.get(iid) or {}).get("qty_sold") or 0)
-            revenue = float((sales_map.get(iid) or {}).get("revenue") or 0)
-            stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
-
-            margin_amount = None
-            margin_pct = None
-            if avg_buying_price is not None and selling_price > 0:
-                margin_amount = selling_price - avg_buying_price
-                margin_pct = (margin_amount / selling_price) * 100.0
-                margin_sum += margin_pct
-                margin_n += 1
-
-            stock_value = max(stock_qty, 0) * (avg_buying_price or 0.0)
-            velocity = qty_sold / max(stock_qty, 1) if qty_sold > 0 else 0.0
-
-            row = {
-                "item_id": iid,
-                "category": (it.get("category") or "").strip(),
-                "name": (it.get("name") or "").strip() or f"Item #{iid}",
-                "selling_price": selling_price,
-                "avg_buying_price": avg_buying_price,
-                "margin_amount": margin_amount,
-                "margin_pct": margin_pct,
-                "stock_qty": stock_qty,
-                "stock_value": stock_value,
-                "qty_sold": qty_sold,
-                "revenue": revenue,
-                "velocity": velocity,
-            }
-            item_rows.append(row)
-            total_stock_value += stock_value
-
-            if stock_qty > 0 and qty_sold == 0:
-                dead_stock_count += 1
-                dead_stock_value += stock_value
-            if stock_qty <= 0 and revenue > 0:
-                high_value_zero_stock.append(row)
-            if stock_qty <= low_stock_threshold:
-                low_stock_items.append(row)
-            if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
-                low_margin_high_volume.append(row)
-            if margin_pct is not None:
-                margin_rows.append(row)
-
-        avg_margin_pct = (margin_sum / margin_n) if margin_n else 0.0
-        margin_rows.sort(key=lambda r: (r.get("margin_pct") if r.get("margin_pct") is not None else -9999))
-        stock_value_rows = sorted(item_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
-        high_value_zero_stock.sort(key=lambda r: r.get("revenue") or 0, reverse=True)
-        low_margin_high_volume.sort(key=lambda r: ((r.get("qty_sold") or 0), -(r.get("margin_pct") or 0)), reverse=True)
-        low_stock_items.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("qty_sold") or 0)))
-        top_velocity_items = sorted(item_rows, key=lambda r: r.get("velocity") or 0, reverse=True)
     except Exception:
-        item_rows = []
+        avg_buy_map = {}
+
+    margin_sum = 0.0
+    margin_n = 0
+    for it in items:
+        try:
+            iid = int(it.get("id") or 0)
+        except Exception:
+            continue
+        if iid <= 0:
+            continue
+
+        try:
+            selling_price = float(
+                it.get("selling_price")
+                if it.get("selling_price") is not None
+                else (it.get("price") or 0)
+            )
+        except Exception:
+            selling_price = 0.0
+        avg_buying_price = avg_buy_map.get(iid)
+        qty_sold = int((sales_map.get(iid) or {}).get("qty_sold") or 0)
+        revenue = float((sales_map.get(iid) or {}).get("revenue") or 0)
+        stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
+        row_low_stock_threshold = max(0, int(it.get("low_stock_threshold") or 0))
+        row_reorder_level = max(0, int(it.get("reorder_level") or 0))
+
+        margin_amount = None
+        margin_pct = None
+        if avg_buying_price is not None and selling_price > 0:
+            margin_amount = selling_price - avg_buying_price
+            margin_pct = (margin_amount / selling_price) * 100.0
+            margin_sum += margin_pct
+            margin_n += 1
+
+        stock_value = max(stock_qty, 0) * (avg_buying_price or 0.0)
+        velocity = qty_sold / max(stock_qty, 1) if qty_sold > 0 else 0.0
+
+        row = {
+            "item_id": iid,
+            "category": (it.get("category") or "").strip(),
+            "name": (it.get("name") or "").strip() or f"Item #{iid}",
+            "selling_price": selling_price,
+            "avg_buying_price": avg_buying_price,
+            "margin_amount": margin_amount,
+            "margin_pct": margin_pct,
+            "stock_qty": stock_qty,
+            "stock_value": stock_value,
+            "qty_sold": qty_sold,
+            "revenue": revenue,
+            "velocity": velocity,
+            "low_stock_threshold": row_low_stock_threshold,
+            "reorder_level": row_reorder_level,
+        }
+        item_rows.append(row)
+        total_stock_value += stock_value
+
+        if stock_qty > 0 and qty_sold == 0:
+            dead_stock_count += 1
+            dead_stock_value += stock_value
+        if stock_qty <= 0 and revenue > 0:
+            high_value_zero_stock.append(row)
+        if row_low_stock_threshold > 0 and stock_qty <= row_low_stock_threshold:
+            low_stock_items.append(row)
+        if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
+            low_margin_high_volume.append(row)
+        if margin_pct is not None:
+            margin_rows.append(row)
+
+    avg_margin_pct = (margin_sum / margin_n) if margin_n else 0.0
+    margin_rows.sort(key=lambda r: (r.get("margin_pct") if r.get("margin_pct") is not None else -9999))
+    stock_value_rows = sorted(item_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
+    high_value_zero_stock.sort(key=lambda r: r.get("revenue") or 0, reverse=True)
+    low_margin_high_volume.sort(key=lambda r: ((r.get("qty_sold") or 0), -(r.get("margin_pct") or 0)), reverse=True)
+    low_stock_items.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("qty_sold") or 0)))
+    top_velocity_items = sorted(item_rows, key=lambda r: r.get("velocity") or 0, reverse=True)
 
     return render_template(
         "it_support_stock_profitability_analysis.html",
         analytics_filter=analytics_filter,
         selected_view=selected_view,
-        low_stock_threshold=low_stock_threshold,
         item_rows=item_rows,
         avg_margin_pct=avg_margin_pct,
         total_stock_value=total_stock_value,
@@ -2271,38 +2294,189 @@ def _serialize_stock_in_row(tx: dict) -> dict:
     }
 
 
+def _compute_shop_reorder_suggestion(stock_qty: int, movement_row: dict) -> int:
+    """Compute balanced reorder suggestion from movement + current stock (advisory only)."""
+    stock_qty = max(0, int(stock_qty or 0))
+    mv = movement_row or {}
+    out_qty = max(0, int(mv.get("out_qty") or 0))
+    in_qty = max(0, int(mv.get("in_qty") or 0))
+    lookback_days = max(7, int(mv.get("lookback_days") or 30))
+    if out_qty <= 0:
+        return 0
+    daily_out = out_qty / float(lookback_days)
+    baseline = daily_out * 7.0
+    safety = max(1.0, daily_out * 2.0)
+    two_week_cover = daily_out * 14.0
+    stock_gap = max(0.0, two_week_cover - float(stock_qty))
+    suggested = baseline + safety + (stock_gap * 0.35)
+    if in_qty > 0:
+        suggested -= min(suggested * 0.4, in_qty / 4.0)
+    max_cap = max(5.0, daily_out * 30.0)
+    suggested = max(0.0, min(suggested, max_cap))
+    return int(round(suggested))
+
+
 @app.route("/it_support/stock-reports/suppliers")
 @login_required
 def it_support_stock_suppliers():
     _it_support_or_super_admin_only()
-    analytics_filter = _build_analytics_filter()
+    has_date_filter = any(
+        (request.args.get(k) or "").strip()
+        for k in ("mode", "single_day", "start_date", "end_date", "month", "year")
+    )
+    analytics_filter = _build_analytics_filter() if has_date_filter else {"range_label": "All dates"}
     supplier_q = (request.args.get("supplier_q") or "").strip()
     moved_by_q = (request.args.get("moved_by") or "").strip()
     filter_shop_id = request.args.get("shop_id", type=int)
     if filter_shop_id is not None and filter_shop_id <= 0:
         filter_shop_id = None
     try:
-        from database import list_company_stock_movements, list_shops
+        from database import list_company_supplier_stock_ins, list_shops
 
-        rows = list_company_stock_movements(
+        rows = list_company_supplier_stock_ins(
             analytics_filter=analytics_filter,
             shop_id=filter_shop_id,
             supplier_search=supplier_q or None,
             moved_by_contains=moved_by_q or None,
-            sort_payment_status_groups=True,
-            limit=2500,
+            limit=5000,
         ) or []
         stock_shops = list_shops(limit=500) or []
     except Exception:
         rows, stock_shops = [], []
+
+    by_supplier = {}
+    for r in rows:
+        nm = (r.get("seller_name") or "-").strip() or "-"
+        ph = (r.get("seller_phone") or "-").strip() or "-"
+        key = f"{nm}||{ph}"
+        g = by_supplier.get(key)
+        if g is None:
+            g = {
+                "seller_name": nm,
+                "seller_phone": ph,
+                "tx_count": 0,
+                "total_qty": 0,
+                "total_cost": 0.0,
+                "amount_paid": 0.0,
+                "balance": 0.0,
+                "last_activity": r.get("created_at"),
+            }
+            by_supplier[key] = g
+        g["tx_count"] += 1
+        g["total_qty"] += int(r.get("qty") or 0)
+        g["total_cost"] += float(r.get("total_cost") or 0)
+        g["amount_paid"] += float(r.get("amount_paid") or 0)
+        g["balance"] = max(g["total_cost"] - g["amount_paid"], 0.0)
+        if (r.get("created_at") or "") > (g.get("last_activity") or ""):
+            g["last_activity"] = r.get("created_at")
+
+    supplier_groups = sorted(
+        by_supplier.values(),
+        key=lambda x: (
+            -float(x.get("balance") or 0.0),
+            -float(x.get("total_cost") or 0.0),
+            str(x.get("seller_name") or ""),
+        ),
+    )
     return render_template(
-        "it_support_stock_suppliers.html",
+        "it_support_stock_suppliers_grouped.html",
         analytics_filter=analytics_filter,
+        has_date_filter=has_date_filter,
         transaction_rows=rows,
+        supplier_groups=supplier_groups,
         supplier_q=supplier_q,
         moved_by_q=moved_by_q,
         filter_shop_id=filter_shop_id,
         stock_shops=stock_shops,
+    )
+
+
+@app.route("/it_support/stock-reports/suppliers/seller")
+@login_required
+def it_support_stock_supplier_detail():
+    _it_support_or_super_admin_only()
+    has_date_filter = any(
+        (request.args.get(k) or "").strip()
+        for k in ("mode", "single_day", "start_date", "end_date", "month", "year")
+    )
+    analytics_filter = _build_analytics_filter() if has_date_filter else {"range_label": "All dates"}
+    seller_name = (request.args.get("seller_name") or "").strip() or "-"
+    seller_phone = (request.args.get("seller_phone") or "").strip() or "-"
+    filter_shop_id = request.args.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
+    should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
+    try:
+        from database import list_company_supplier_stock_ins
+
+        rows = list_company_supplier_stock_ins(
+            analytics_filter=analytics_filter,
+            shop_id=filter_shop_id,
+            supplier_search=None,
+            moved_by_contains=None,
+            limit=10000,
+        ) or []
+    except Exception:
+        rows = []
+    rows = [
+        r
+        for r in rows
+        if ((r.get("seller_name") or "-").strip() or "-") == seller_name
+        and ((r.get("seller_phone") or "-").strip() or "-") == seller_phone
+    ]
+    payment_rows = [r for r in rows if float(r.get("amount_paid") or 0) > 0]
+    total_cost = sum(float(r.get("total_cost") or 0) for r in rows)
+    total_paid = sum(float(r.get("amount_paid") or 0) for r in rows)
+    total_balance = max(total_cost - total_paid, 0.0)
+    return render_template(
+        "it_support_stock_supplier_detail.html",
+        seller_name=seller_name,
+        seller_phone=seller_phone,
+        analytics_filter=analytics_filter,
+        has_date_filter=has_date_filter,
+        supplier_rows=rows,
+        supplier_payment_rows=payment_rows,
+        total_cost=total_cost,
+        total_paid=total_paid,
+        total_balance=total_balance,
+        filter_shop_id=filter_shop_id,
+        supplier_q=(request.args.get("supplier_q") or "").strip(),
+        moved_by_q=(request.args.get("moved_by") or "").strip(),
+        supplier_should_print=should_print,
+    )
+
+
+@app.route("/it_support/stock-reports/suppliers/transaction")
+@login_required
+def it_support_stock_supplier_transaction_detail():
+    _it_support_or_super_admin_only()
+    tx_id = request.args.get("tx_id", type=int)
+    if not tx_id:
+        abort(404)
+    seller_name = (request.args.get("seller_name") or "").strip() or "-"
+    seller_phone = (request.args.get("seller_phone") or "").strip() or "-"
+    try:
+        from database import get_shop_manual_stock_in_transaction
+
+        row = get_shop_manual_stock_in_transaction(tx_id)
+    except Exception:
+        row = None
+    if not row:
+        abort(404)
+    return render_template(
+        "it_support_stock_supplier_transaction_detail.html",
+        tx=row,
+        seller_name=seller_name,
+        seller_phone=seller_phone,
+        mode=(request.args.get("mode") or "").strip(),
+        single_day=(request.args.get("single_day") or "").strip(),
+        start_date=(request.args.get("start_date") or "").strip(),
+        end_date=(request.args.get("end_date") or "").strip(),
+        month=(request.args.get("month") or "").strip(),
+        year=(request.args.get("year") or "").strip(),
+        filter_shop_id=request.args.get("shop_id", type=int),
+        supplier_q=(request.args.get("supplier_q") or "").strip(),
+        moved_by_q=(request.args.get("moved_by") or "").strip(),
     )
 
 
@@ -2325,22 +2499,59 @@ def it_support_stock_supplier_stock_ins(item_id: int):
 def it_support_company_stock_settings():
     _it_support_or_super_admin_only()
     try:
-        from database import init_items_table, list_items_for_company_stock_settings, set_item_stock_alert_levels
+        from database import (
+            get_shop_item_stock_movement_summary,
+            init_items_table,
+            init_shop_items_table,
+            list_items_for_company_stock_settings,
+            list_shop_items,
+            list_shops,
+            set_item_stock_alert_levels,
+        )
 
         init_items_table()
+        init_shop_items_table()
         items = list_items_for_company_stock_settings(limit=8000) or []
+        shops = list_shops(limit=1000) or []
+        shop_reorder_totals = {}
+        for sh in shops:
+            sid = int(sh.get("id") or 0)
+            if sid <= 0:
+                continue
+            s_items = list_shop_items(shop_id=sid, limit=8000) or []
+            movement_map = get_shop_item_stock_movement_summary(shop_id=sid, lookback_days=30) or {}
+            for s_it in s_items:
+                iid = int(s_it.get("id") or 0)
+                if iid <= 0:
+                    continue
+                shop_override = int(s_it.get("shop_reorder_level") or 0)
+                suggested = _compute_shop_reorder_suggestion(
+                    stock_qty=int(s_it.get("shop_stock_qty") or 0),
+                    movement_row=(movement_map.get(iid) or {}),
+                )
+                effective = shop_override if shop_override > 0 else suggested
+                if effective <= 0:
+                    continue
+                shop_reorder_totals[iid] = int(shop_reorder_totals.get(iid, 0)) + int(effective)
+        for it in items:
+            try:
+                iid = int(it.get("id") or 0)
+            except Exception:
+                iid = 0
+            it["reorder_level"] = int(shop_reorder_totals.get(iid, 0))
     except Exception:
         items = []
 
     if request.method == "POST":
         allowed_ids = sorted({int(i.get("id") or 0) for i in items if i.get("id")} - {0})
+        reorder_by_id = {int(i.get("id") or 0): int(i.get("reorder_level") or 0) for i in items if i.get("id")}
         ok = True
         for iid in allowed_ids:
             try:
                 low_v = int(float((request.form.get(f"low_stock_{iid}") or "0").strip() or 0))
-                rl_v = int(float((request.form.get(f"reorder_level_{iid}") or "0").strip() or 0))
             except Exception:
-                low_v, rl_v = 0, 0
+                low_v = 0
+            rl_v = int(reorder_by_id.get(iid, 0))
             if not set_item_stock_alert_levels(iid, low_v, rl_v):
                 ok = False
                 break
@@ -3028,33 +3239,58 @@ def it_support_customer_transactions():
 def it_support_credit_payments():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
-    all_time = (request.args.get("all_time") or "").strip().lower() in ("1", "true", "yes", "on")
+    all_time_arg = (request.args.get("all_time") or "").strip().lower()
+    all_time = all_time_arg in ("1", "true", "yes", "on")
+    mode = (request.args.get("mode") or "").strip()
+    single_day = (request.args.get("single_day") or "").strip()
+    start_date = (request.args.get("start_date") or "").strip()
+    end_date = (request.args.get("end_date") or "").strip()
+    month = (request.args.get("month") or "").strip()
+    year = (request.args.get("year") or "").strip()
     filter_shop_id = request.args.get("shop_id", type=int)
     if filter_shop_id is not None and filter_shop_id <= 0:
         filter_shop_id = None
     customer_q = (request.args.get("customer_q") or "").strip()
-    customers = []
+    should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
+
+    # Default behavior: show all credit sales until the user intentionally applies filters.
+    has_explicit_filter = bool(
+        all_time
+        or mode
+        or single_day
+        or start_date
+        or end_date
+        or month
+        or year
+        or filter_shop_id
+        or customer_q
+    )
+    if not has_explicit_filter:
+        all_time = True
+
+    sales = []
     shops = []
     try:
-        from database import list_all_shops_credit_customers_with_balance, list_shops
+        from database import list_company_credit_customers, list_shops
 
         shops = list_shops(limit=500) or []
-        customers = list_all_shops_credit_customers_with_balance(
+        sales = list_company_credit_customers(
             limit=5000,
             analytics_filter=None if all_time else analytics_filter,
             shop_id=filter_shop_id,
             customer_q=customer_q or None,
         )
     except Exception:
-        customers, shops = [], []
+        sales, shops = [], []
     return render_template(
         "it_support_credit_payments.html",
-        customers=customers,
+        credit_sales=sales,
         shops=shops,
         analytics_filter=analytics_filter,
         filter_shop_id=filter_shop_id,
         customer_q=customer_q,
         credit_all_time=all_time,
+        credit_should_print=should_print,
     )
 
 
@@ -3088,6 +3324,122 @@ def it_support_credit_payments_customer():
         total_credit=total_credit,
         total_paid=total_paid,
         total_due=total_due,
+    )
+
+
+@app.route("/company/credit-payments/customer")
+@login_required
+def company_credit_payments_customer():
+    role_key = (session.get("employee_role") or "").strip().lower()
+    if role_key not in ("admin", "it_support", "super_admin"):
+        abort(403)
+    customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    back_shop_id = request.args.get("back_shop_id", type=int)
+    should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
+    try:
+        from database import (
+            get_company_customer_credit_items,
+            get_company_customer_credit_payments,
+            get_company_customer_credit_transactions,
+        )
+
+        txs = get_company_customer_credit_transactions(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+        )
+        payments = get_company_customer_credit_payments(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+        )
+        credit_items = get_company_customer_credit_items(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=20000,
+        )
+    except Exception:
+        txs = []
+        payments = []
+        credit_items = []
+    total_credit = sum(float(t.get("total_amount") or 0) for t in txs)
+    total_paid = sum(float(t.get("paid_amount") or 0) for t in txs)
+    total_due = max(total_credit - total_paid, 0.0)
+    return render_template(
+        "company_credit_payments_customer.html",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        transactions=txs,
+        payment_transactions=payments,
+        credit_items=credit_items,
+        total_credit=total_credit,
+        total_paid=total_paid,
+        total_due=total_due,
+        back_shop_id=back_shop_id,
+        company_should_print=should_print,
+    )
+
+
+@app.route("/company/credit-payments/pay", methods=["POST"])
+@login_required
+def company_credit_payments_pay():
+    role_key = (session.get("employee_role") or "").strip().lower()
+    if role_key not in ("admin", "it_support", "super_admin"):
+        abort(403)
+    customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
+    back_shop_id = request.form.get("back_shop_id", type=int)
+    amount_raw = (request.form.get("amount") or "").strip()
+    payment_method = (request.form.get("payment_method") or "").strip().lower()
+    if payment_method not in ("cash", "mpesa", "bank", "other"):
+        flash("Select a valid payment method.", "error")
+        return redirect(
+            url_for(
+                "company_credit_payments_customer",
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                back_shop_id=back_shop_id,
+            )
+        )
+    try:
+        amount = float(amount_raw)
+    except Exception:
+        flash("Enter a valid amount.", "error")
+        return redirect(
+            url_for(
+                "company_credit_payments_customer",
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                back_shop_id=back_shop_id,
+            )
+        )
+    try:
+        from database import apply_company_credit_payment_fifo
+
+        res = apply_company_credit_payment_fifo(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            amount=amount,
+            payment_method=payment_method,
+        )
+    except Exception:
+        res = {"ok": False, "error": "Could not apply payment."}
+    if not res.get("ok"):
+        flash(res.get("error") or "Could not apply payment.", "error")
+    else:
+        unused = float(res.get("unused") or 0)
+        if unused > 0.0001:
+            flash(f"Payment applied. Unused amount: {unused:.2f}", "success")
+        else:
+            flash("Payment applied successfully.", "success")
+    return redirect(
+        url_for(
+            "company_credit_payments_customer",
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            back_shop_id=back_shop_id,
+        )
     )
 
 
@@ -3167,6 +3519,38 @@ def it_support_credit_sale_detail():
         shop_id=shop_id,
         sale=d["sale"],
         items=d.get("items") or [],
+    )
+
+
+@app.route("/company/credit-payments/sale")
+@login_required
+def company_credit_sale_detail():
+    role_key = (session.get("employee_role") or "").strip().lower()
+    if role_key not in ("admin", "it_support", "super_admin"):
+        abort(403)
+    shop_id = request.args.get("shop_id", type=int)
+    sale_id = request.args.get("sale_id", type=int)
+    customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    back_shop_id = request.args.get("back_shop_id", type=int)
+    if not shop_id or not sale_id:
+        abort(404)
+    try:
+        from database import get_shop_credit_sale_detail
+
+        d = get_shop_credit_sale_detail(shop_id=shop_id, sale_id=sale_id) or {}
+    except Exception:
+        d = {}
+    if not d.get("sale"):
+        abort(404)
+    return render_template(
+        "company_credit_sale_detail.html",
+        shop_id=shop_id,
+        sale=d["sale"],
+        items=d.get("items") or [],
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        back_shop_id=back_shop_id,
     )
 
 
@@ -3757,12 +4141,42 @@ def shop_pos_record_sale(shop_id: int):
     credit_due_raw = (data.get("credit_due_date") or "").strip() or None
     if sale_type != "credit":
         credit_due_raw = None
+    payment_method = (data.get("payment_method") or "").strip().lower()
+    if sale_type == "credit":
+        payment_method = "credit"
+    elif payment_method not in ("cash", "mpesa", "both"):
+        return jsonify({"ok": False, "error": "Select a valid payment method."}), 400
+    try:
+        cash_amount = float(data.get("cash_amount") or 0)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid cash amount."}), 400
+    try:
+        mpesa_amount = float(data.get("mpesa_amount") or 0)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid M-Pesa amount."}), 400
+    if cash_amount < 0 or mpesa_amount < 0:
+        return jsonify({"ok": False, "error": "Payment amounts cannot be negative."}), 400
+    if sale_type != "credit":
+        if payment_method == "cash":
+            cash_amount = total_amount
+            mpesa_amount = 0.0
+        elif payment_method == "mpesa":
+            cash_amount = 0.0
+            mpesa_amount = total_amount
+        elif abs(round(cash_amount + mpesa_amount, 2) - round(total_amount, 2)) > 0.01:
+            return jsonify({"ok": False, "error": "Cash + M-Pesa must equal the total amount."}), 400
+    else:
+        cash_amount = 0.0
+        mpesa_amount = 0.0
     try:
         from database import create_shop_pos_sale
 
         ok, sale_err = create_shop_pos_sale(
             shop_id=shop_id,
             sale_type=sale_type,
+            payment_method=payment_method,
+            cash_amount=cash_amount,
+            mpesa_amount=mpesa_amount,
             total_amount=total_amount,
             item_count=item_count,
             customer_name=(data.get("customer_name") or "").strip() or None,
@@ -4996,16 +5410,35 @@ def shop_credit_payments(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    role_key = (session.get("employee_role") or "").strip().lower()
+    company_credit_mode = role_key == "admin"
     try:
-        from database import list_shop_credit_customers_with_balance
+        if company_credit_mode:
+            from database import list_company_credit_customers
 
-        customers = list_shop_credit_customers_with_balance(shop_id=shop_id, limit=2000)
+            rows = list_company_credit_customers(limit=2000, analytics_filter=None, shop_id=None, customer_q=None)
+            customers = [
+                {
+                    "customer_name": r.get("customer_name") or "WALK IN",
+                    "customer_phone": r.get("customer_phone") or "-",
+                    "tx_count": int(r.get("tx_count") or 0),
+                    "credit_total": float(r.get("total_amount") or 0),
+                    "paid_total": float(r.get("paid_amount") or 0),
+                    "balance": float(r.get("remaining_amount") or 0),
+                }
+                for r in (rows or [])
+            ]
+        else:
+            from database import list_shop_credit_customers_with_balance
+
+            customers = list_shop_credit_customers_with_balance(shop_id=shop_id, limit=2000)
     except Exception:
         customers = []
     return render_template(
         "shop_credit_payments.html",
         shop=shop,
         customers=customers,
+        company_credit_mode=company_credit_mode,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -5920,13 +6353,9 @@ def shop_stock_profitability_analysis(shop_id: int):
     }
     if selected_view not in allowed_views:
         selected_view = "margin"
-    low_stock_threshold = request.args.get("low_stock_threshold", type=int)
-    if low_stock_threshold is None:
-        low_stock_threshold = 5
-    low_stock_threshold = max(0, min(500, int(low_stock_threshold)))
     reorder_threshold = request.args.get("reorder_threshold", type=int)
     if reorder_threshold is None:
-        reorder_threshold = low_stock_threshold
+        reorder_threshold = 5
     reorder_threshold = max(0, min(500, int(reorder_threshold)))
 
     item_rows = []
@@ -5974,6 +6403,14 @@ def shop_stock_profitability_analysis(shop_id: int):
             qty_sold = int((sales_map.get(iid) or {}).get("qty_sold") or 0)
             revenue = float((sales_map.get(iid) or {}).get("revenue") or 0)
             stock_qty = int(it.get("shop_stock_qty") or 0)
+            company_low_stock_threshold = max(0, int(it.get("low_stock_threshold") or 0))
+            company_reorder_level = max(0, int(it.get("reorder_level") or 0))
+            shop_low_stock_threshold = max(0, int(it.get("shop_low_stock_threshold") or 0))
+            shop_reorder_level = max(0, int(it.get("shop_reorder_level") or 0))
+            row_low_stock_threshold = (
+                shop_low_stock_threshold if shop_low_stock_threshold > 0 else company_low_stock_threshold
+            )
+            row_reorder_level = shop_reorder_level if shop_reorder_level > 0 else company_reorder_level
 
             margin_amount = None
             margin_pct = None
@@ -5999,6 +6436,8 @@ def shop_stock_profitability_analysis(shop_id: int):
                 "qty_sold": qty_sold,
                 "revenue": revenue,
                 "velocity": velocity,
+                "low_stock_threshold": row_low_stock_threshold,
+                "reorder_level": row_reorder_level,
             }
             item_rows.append(row)
             total_stock_value += stock_value
@@ -6008,7 +6447,7 @@ def shop_stock_profitability_analysis(shop_id: int):
                 dead_stock_value += stock_value
             if stock_qty <= 0 and revenue > 0:
                 high_value_zero_stock.append(row)
-            if stock_qty <= low_stock_threshold:
+            if row_low_stock_threshold > 0 and stock_qty <= row_low_stock_threshold:
                 low_stock_items.append(row)
             if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
                 low_margin_high_volume.append(row)
@@ -6033,7 +6472,6 @@ def shop_stock_profitability_analysis(shop_id: int):
         analytics_filter=analytics_filter,
         shop_stock_sidebar_focus="profitability",
         selected_view=selected_view,
-        low_stock_threshold=low_stock_threshold,
         reorder_threshold=reorder_threshold,
         item_rows=item_rows,
         avg_margin_pct=avg_margin_pct,
@@ -6500,6 +6938,81 @@ def _shop_settings_template_extra(shop: dict) -> dict:
 @app.route("/shops/<int:shop_id>/shop-settings")
 def shop_settings(shop_id: int):
     return redirect(url_for("shop_settings_appearance", shop_id=shop_id), code=302)
+
+
+@app.route("/shops/<int:shop_id>/shop-stock-settings", methods=["GET", "POST"])
+def shop_stock_settings(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    try:
+        from database import (
+            get_shop_item_stock_movement_summary,
+            init_shop_items_table,
+            list_shop_items,
+            set_shop_item_stock_alert_levels,
+        )
+
+        init_shop_items_table()
+        items = list_shop_items(shop_id=shop_id, limit=5000) or []
+        movement_map = get_shop_item_stock_movement_summary(shop_id=shop_id, lookback_days=30) or {}
+    except Exception:
+        items = []
+        movement_map = {}
+
+    # Suggest reorder levels only (does not mutate stock). Suggestions adapt to sales + stock movement + current stock.
+    for it in items:
+        try:
+            iid = int(it.get("id") or 0)
+        except Exception:
+            iid = 0
+        suggested_int = _compute_shop_reorder_suggestion(
+            stock_qty=int(it.get("shop_stock_qty") or 0),
+            movement_row=(movement_map.get(iid) or {}),
+        )
+
+        it["suggested_reorder_level"] = suggested_int
+        # Use suggestions as dynamic defaults only when shop override isn't set.
+        if int(it.get("shop_reorder_level") or 0) <= 0 and suggested_int > 0:
+            it["shop_reorder_level"] = suggested_int
+
+    if request.method == "POST":
+        updated = 0
+        try:
+            from database import set_shop_item_stock_alert_levels
+
+            for it in items:
+                iid = int(it.get("id") or 0)
+                if iid <= 0:
+                    continue
+                lo_raw = (request.form.get(f"shop_low_stock_threshold_{iid}") or "0").strip()
+                rl_raw = (request.form.get(f"shop_reorder_level_{iid}") or "0").strip()
+                try:
+                    lo_v = int(float(lo_raw or 0))
+                except Exception:
+                    lo_v = 0
+                try:
+                    rl_v = int(float(rl_raw or 0))
+                except Exception:
+                    rl_v = 0
+                if set_shop_item_stock_alert_levels(shop_id, iid, lo_v, rl_v):
+                    updated += 1
+            flash("Shop stock settings updated." if updated else "No stock settings changed.", "success")
+        except Exception:
+            flash("Could not update shop stock settings.", "error")
+        return redirect(url_for("shop_stock_settings", shop_id=shop_id))
+
+    return render_template(
+        "shop_stock_settings.html",
+        shop=shop,
+        items=items,
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
 
 
 @app.route("/shops/<int:shop_id>/shop-settings/appearance", methods=["GET", "POST"])

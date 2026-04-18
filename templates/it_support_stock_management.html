@@ -1,6 +1,51 @@
 {% extends "employee_layout.html" %}
 {% block title %}Company stock management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Company stock management{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_company_stock_update') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+    </svg>
+    Shop stock update
+  </a>
+  <a href="{{ url_for('it_support_stock_movement_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Stock movement analysis
+  </a>
+  <a href="{{ url_for('it_support_stock_profitability_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
+    </svg>
+    Stock profitability analysis
+  </a>
+  <a href="{{ url_for('it_support_stock_reports') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    Stock reports
+  </a>
+  <a href="{{ url_for('it_support_stock_suppliers') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" />
+    </svg>
+    Suppliers
+  </a>
+  <a href="{{ url_for('it_support_stock_status_print') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 18h12v2H6v-2zm12-8H6a2 2 0 00-2 2v4h4v-3h8v3h4v-4a2 2 0 00-2-2z" />
+    </svg>
+    Print page
+  </a>
+  <a href="{{ url_for('it_support_company_stock_settings') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 01-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    Company stock settings
+  </a>
+{% endblock %}
 {% block employee_content %}
   <div class="mx-auto max-w-[110rem]">
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -336,6 +381,41 @@
         liveSearchInput.addEventListener("input", applyLiveSearch);
         applyLiveSearch();
       }
+
+      function highlightAndKeepRow(row, qtyInput) {
+        if (!row) return;
+        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        try {
+          row.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch (e) {}
+        setTimeout(function () {
+          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        }, 1400);
+        if (qtyInput && document.activeElement !== qtyInput) {
+          qtyInput.focus({ preventScroll: true });
+        }
+      }
+
+      document
+        .querySelectorAll('input[name^="in_qty_"], input[name^="out_qty_"]')
+        .forEach(function (qtyInput) {
+          qtyInput.addEventListener("focus", function () {
+            var row = qtyInput.closest("tr.stock-row");
+            if (!liveSearchInput) {
+              highlightAndKeepRow(row, qtyInput);
+              return;
+            }
+            if ((liveSearchInput.value || "").trim() !== "") {
+              liveSearchInput.value = "";
+              applyLiveSearch();
+              requestAnimationFrame(function () {
+                highlightAndKeepRow(row, qtyInput);
+              });
+            } else {
+              highlightAndKeepRow(row, qtyInput);
+            }
+          });
+        });
 
       function syncRefundRow(itemId) {
         var sel = document.querySelector('[name="out_refunded_' + itemId + '"]');

@@ -11,13 +11,18 @@
 
 {% block shop_content %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Customers with credit balances</h2>
-    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Click a customer to view credit transactions and receive payments (FIFO clearing).</p>
+    {% if company_credit_mode %}
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company credit customers</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Admin view combines credit balances across all shops by customer (same name and phone).</p>
+    {% else %}
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Customers with credit balances</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Click a customer to view credit transactions and receive payments (FIFO clearing).</p>
+    {% endif %}
   </div>
 
   <div class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
     {% if not customers %}
-      <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances.</p>
+      <p class="text-sm text-[rgb(var(--rc-muted))]">{% if company_credit_mode %}No company credit balances.{% else %}No outstanding credit balances.{% endif %}</p>
     {% else %}
       <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
         <div class="overflow-x-auto">
@@ -42,16 +47,29 @@
                   <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(c.credit_total) }}</td>
                   <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(c.paid_total) }}</td>
                   <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(c.balance) }}</td>
-                  <td class="px-3 py-2">
-                    <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
-                       class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
-                       aria-label="View customer credit">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
-                      </svg>
-                    </a>
-                  </td>
+                  {% if not company_credit_mode %}
+                    <td class="px-3 py-2">
+                      <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
+                         class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                         aria-label="View customer credit">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                        </svg>
+                      </a>
+                    </td>
+                  {% else %}
+                    <td class="px-3 py-2">
+                      <a href="{{ url_for('company_credit_payments_customer', customer_name=c.customer_name, customer_phone=c.customer_phone, back_shop_id=shop.id) }}"
+                         class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                         aria-label="View customer credit sales">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                        </svg>
+                      </a>
+                    </td>
+                  {% endif %}
                 </tr>
               {% endfor %}
             </tbody>

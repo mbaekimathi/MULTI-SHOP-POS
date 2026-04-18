@@ -44,18 +44,19 @@
     </div>
 
     <form id="suppliers-filter-form" method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-      <p class="mb-3 text-[11px] text-[rgb(var(--rc-muted))]">Results update automatically when you change a filter.</p>
+      <p class="mb-3 text-[11px] text-[rgb(var(--rc-muted))]">All transactions are shown by default. Filters apply only after you click Apply filters.</p>
       <div class="flex flex-wrap items-end gap-2.5">
         <div class="min-w-[10rem] flex-1">
           <label for="suppliers-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
           <select id="suppliers-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
-            <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="" {% if not has_date_filter %}selected{% endif %}>All dates</option>
+            <option value="single_day" {% if has_date_filter and (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
             <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
             <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
             <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
           </select>
         </div>
-        <div id="suppliers-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+        <div id="suppliers-filter-single-day" class="min-w-[10rem] flex-1 {% if not has_date_filter or (f.mode or '') != 'single_day' %}hidden{% endif %}">
           <label for="suppliers-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
           <input id="suppliers-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
         </div>
@@ -95,6 +96,7 @@
           </select>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply filters</button>
           <a href="{{ url_for('it_support_stock_suppliers') }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Clear all</a>
         </div>
       </div>
@@ -117,6 +119,7 @@
               <th class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
               <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
               <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Moved by</th>
+              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Notes</th>
               <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
             </tr>
           </thead>
@@ -141,6 +144,7 @@
                   {% endif %}
                 </td>
                 <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.moved_by }}</td>
+                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ r.note or "-" }}</td>
                 <td class="px-3 py-2.5">
                   {% set can_pay = (r.movement_scope == 'shop' and r.source == 'manual' and (r.direction or '') == 'in' and r.tx_id) %}
                   {% if can_pay %}
@@ -191,6 +195,7 @@
               <div><span class="font-semibold">To:</span> {{ r.to_where }}</div>
               <div class="col-span-2"><span class="font-semibold">Place:</span> {{ r.place_brought_from or "-" }}</div>
               <div class="col-span-2"><span class="font-semibold">Moved by:</span> {{ r.moved_by }}</div>
+              <div class="col-span-2"><span class="font-semibold">Notes:</span> {{ r.note or "-" }}</div>
             </div>
             <div class="mt-2 flex items-center justify-between gap-2">
               <div>
@@ -392,23 +397,13 @@
       var period = document.getElementById("suppliers-filter-period");
       var month = document.getElementById("suppliers-filter-month");
       var year = document.getElementById("suppliers-filter-year");
-      var debounceTimer = null;
 
       function syncModePanels() {
-        var v = (mode && mode.value ? mode.value : "single_day").toLowerCase();
+        var v = (mode && mode.value ? mode.value : "").toLowerCase();
         if (day) day.classList.toggle("hidden", v !== "single_day");
         if (period) period.classList.toggle("hidden", v !== "period");
         if (month) month.classList.toggle("hidden", v !== "month");
         if (year) year.classList.toggle("hidden", v !== "year");
-      }
-
-      function applyFilters() {
-        form.submit();
-      }
-
-      function applyFiltersDebounced(delayMs) {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(applyFilters, delayMs);
       }
 
       syncModePanels();
@@ -416,32 +411,6 @@
       if (mode) {
         mode.addEventListener("change", function () {
           syncModePanels();
-          applyFilters();
-        });
-      }
-
-      ["filter-shop-id", "suppliers-single-day", "suppliers-start-date", "suppliers-end-date", "suppliers-month"].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener("change", applyFilters);
-      });
-
-      if (year) {
-        year.addEventListener("change", applyFilters);
-        year.addEventListener("input", function () {
-          applyFiltersDebounced(450);
-        });
-      }
-
-      var supplierQ = document.getElementById("supplier-q");
-      var movedBy = document.getElementById("moved-by-q");
-      if (supplierQ) {
-        supplierQ.addEventListener("input", function () {
-          applyFiltersDebounced(380);
-        });
-      }
-      if (movedBy) {
-        movedBy.addEventListener("input", function () {
-          applyFiltersDebounced(380);
         });
       }
     })();

@@ -22,17 +22,6 @@
         Current period: <span class="font-semibold">{{ f.range_label or "selected period" }}</span>.
         <a href="{{ url_for('it_support_stock_suppliers') }}" class="ml-1 font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Supplier buying analysis</a>
       </p>
-      <form method="get" class="mt-3 flex flex-wrap items-end gap-2">
-        <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
-        <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
-        <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
-        <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
-        <input type="hidden" name="month" value="{{ f.month or '' }}" />
-        <input type="hidden" name="year" value="{{ f.year or '' }}" />
-        <label class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Reorder level</label>
-        <input type="number" min="0" max="500" name="reorder_threshold" value="{{ reorder_threshold or 5 }}" class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))]" />
-        <button class="btn-rc btn-rc-primary px-3 py-1.5 text-xs">Apply</button>
-      </form>
       <div class="mt-3">
         <input
           id="stock-reports-live-search"

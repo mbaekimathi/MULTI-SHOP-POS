@@ -1,0 +1,289 @@
+{% extends "employee_layout.html" %}
+{% block title %}Supplier statement — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Supplier statement{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_stock_suppliers') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Back to suppliers</a>
+{% endblock %}
+
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  <div class="mx-auto max-w-6xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ seller_name }}</h2>
+          <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Phone: {{ seller_phone }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Range: {{ f.range_label or 'All dates' }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{{ url_for('it_support_stock_suppliers', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-sm font-semibold">Back</a>
+          <a href="{{ url_for('it_support_stock_supplier_detail', seller_name=seller_name, seller_phone=seller_phone, mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q, print=1) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-sm font-semibold">Print statement</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-3">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Items total cost</div><div class="mt-2 text-2xl font-extrabold text-amber-300">{{ "%.2f"|format(total_cost or 0) }}</div></div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-2 text-2xl font-extrabold text-emerald-300">{{ "%.2f"|format(total_paid or 0) }}</div></div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance</div><div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_balance or 0) }}</div></div>
+    </div>
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center gap-2 border-b border-[rgb(var(--rc-border))] pb-3">
+        <button type="button" id="tab-items-btn" class="tab-btn rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]">Transactions</button>
+        <button type="button" id="tab-payments-btn" class="tab-btn rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]">All payments</button>
+      </div>
+
+      <div id="tab-items-panel" class="tab-panel mt-4">
+        <table class="min-w-[980px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Unit price</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total cost</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Notes</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in supplier_rows %}
+              <tr>
+                <td class="px-3 py-2">{{ r.created_at }}</td>
+                <td class="px-3 py-2">{{ r.shop_name }}</td>
+                <td class="px-3 py-2 font-semibold">{{ r.item_name }}</td>
+                <td class="px-3 py-2">{{ r.qty }}</td>
+                <td class="px-3 py-2">{{ "%.2f"|format(r.buying_price) }}</td>
+                <td class="px-3 py-2 text-amber-300">{{ "%.2f"|format(r.total_cost) }}</td>
+                <td class="px-3 py-2 text-emerald-300">{{ "%.2f"|format(r.amount_paid) }}</td>
+                <td class="px-3 py-2 font-semibold">{{ "%.2f"|format(r.balance) }}</td>
+                <td class="px-3 py-2">
+                  {{ r.note or "-" }}
+                </td>
+                <td class="px-3 py-2">
+                  {% if r.payment_status == 'paid' %}
+                    <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/25">Paid</span>
+                  {% elif r.payment_status == 'partially_paid' %}
+                    <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/25">Partial payment</span>
+                  {% else %}
+                    <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-rose-300 ring-1 ring-rose-400/25">Pending</span>
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2">
+                  <button
+                    type="button"
+                    class="js-payment-open inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
+                    data-tx-id="{{ r.tx_id }}"
+                    data-item-name="{{ r.item_name }}"
+                    data-qty="{{ r.qty }}"
+                    data-buying-price="{{ r.buying_price }}"
+                    data-total-cost="{{ r.total_cost }}"
+                    data-amount-paid="{{ r.amount_paid }}"
+                  >
+                    Pay
+                  </button>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="11" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No item rows for this supplier.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="tab-payments-panel" class="tab-panel mt-4 hidden">
+        <table class="min-w-[760px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for p in supplier_payment_rows %}
+              <tr>
+                <td class="px-3 py-2">{{ p.created_at }}</td>
+                <td class="px-3 py-2">{{ p.shop_name }}</td>
+                <td class="px-3 py-2">{{ p.item_name }}</td>
+                <td class="px-3 py-2 text-emerald-300 font-semibold">{{ "%.2f"|format(p.amount_paid) }}</td>
+                <td class="px-3 py-2 uppercase">{{ p.payment_status.replace('_', ' ') }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No payment rows for this supplier.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="supplier-statement-print" class="hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-base font-semibold">Supplier Statement</h3>
+      <p class="text-sm">Seller: {{ seller_name }} ({{ seller_phone }})</p>
+      <p class="text-xs">Range: {{ f.range_label or 'All dates' }}</p>
+      <p class="text-sm mt-2">Total cost: {{ "%.2f"|format(total_cost or 0) }} | Paid: {{ "%.2f"|format(total_paid or 0) }} | Balance: {{ "%.2f"|format(total_balance or 0) }}</p>
+
+      <h4 class="mt-4 text-sm font-semibold">All items</h4>
+      <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
+        <thead><tr><th class="px-2 py-1 text-left">Date</th><th class="px-2 py-1 text-left">Shop</th><th class="px-2 py-1 text-left">Item</th><th class="px-2 py-1 text-left">Qty</th><th class="px-2 py-1 text-left">Unit</th><th class="px-2 py-1 text-left">Total</th><th class="px-2 py-1 text-left">Paid</th><th class="px-2 py-1 text-left">Balance</th></tr></thead>
+        <tbody>
+          {% for r in supplier_rows %}
+            <tr><td class="px-2 py-1">{{ r.created_at }}</td><td class="px-2 py-1">{{ r.shop_name }}</td><td class="px-2 py-1">{{ r.item_name }}</td><td class="px-2 py-1">{{ r.qty }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.buying_price) }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.total_cost) }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.amount_paid) }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.balance) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h4 class="mt-4 text-sm font-semibold">All payments</h4>
+      <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
+        <thead><tr><th class="px-2 py-1 text-left">Date</th><th class="px-2 py-1 text-left">Shop</th><th class="px-2 py-1 text-left">Item</th><th class="px-2 py-1 text-left">Payment</th><th class="px-2 py-1 text-left">Status</th></tr></thead>
+        <tbody>
+          {% for p in supplier_payment_rows %}
+            <tr><td class="px-2 py-1">{{ p.created_at }}</td><td class="px-2 py-1">{{ p.shop_name }}</td><td class="px-2 py-1">{{ p.item_name }}</td><td class="px-2 py-1">{{ "%.2f"|format(p.amount_paid) }}</td><td class="px-2 py-1">{{ p.payment_status.replace('_', ' ') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="payment-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
+      <div class="relative mx-auto mt-8 w-[95%] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl sm:mt-16">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Record payment</h4>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter amount to pay for this supplier transaction.</p>
+          </div>
+          <button type="button" id="payment-modal-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
+        </div>
+        <div class="mt-4 grid gap-2 text-sm">
+          <div><span class="text-[rgb(var(--rc-muted))]">Item:</span> <span id="pay-item" class="font-semibold text-[rgb(var(--rc-page-fg))]"></span></div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Buying price</div><div id="pay-buying-price" class="font-semibold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Qty</div><div id="pay-qty" class="font-semibold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Line total</div><div id="pay-total" class="font-bold"></div></div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Already paid</div><div id="pay-already" class="font-semibold tabular-nums"></div></div>
+          </div>
+        </div>
+        <form id="payment-form" class="mt-4">
+          <input type="hidden" id="pay-tx-id" />
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pay-additional">Pay now</label>
+          <input id="pay-additional" name="additional_payment" type="number" min="0" step="0.01" autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" id="payment-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
+            <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <style>
+    @media print {
+      nav, header, aside, .btn-rc, .tab-btn, #tab-items-panel, #tab-payments-panel { display: none !important; }
+      #supplier-statement-print { display: block !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
+      #supplier-statement-print table, #supplier-statement-print th, #supplier-statement-print td { color: #000 !important; }
+    }
+  </style>
+  <script>
+    (function () {
+      var itemsBtn = document.getElementById("tab-items-btn");
+      var payBtn = document.getElementById("tab-payments-btn");
+      var itemsPanel = document.getElementById("tab-items-panel");
+      var payPanel = document.getElementById("tab-payments-panel");
+      if (!itemsBtn || !payBtn || !itemsPanel || !payPanel) return;
+      function setTab(name) {
+        var items = name === "items";
+        itemsPanel.classList.toggle("hidden", !items);
+        payPanel.classList.toggle("hidden", items);
+        itemsBtn.classList.toggle("bg-[rgb(var(--rc-surface-2))]", items);
+        payBtn.classList.toggle("bg-[rgb(var(--rc-surface-2))]", !items);
+      }
+      itemsBtn.addEventListener("click", function () { setTab("items"); });
+      payBtn.addEventListener("click", function () { setTab("payments"); });
+      setTab("items");
+      {% if supplier_should_print %}
+      window.addEventListener("load", function () { window.print(); });
+      {% endif %}
+    })();
+
+    (function () {
+      var modal = document.getElementById("payment-modal");
+      var openBtns = document.querySelectorAll(".js-payment-open");
+      var closeBtn = document.getElementById("payment-modal-close");
+      var cancelBtn = document.getElementById("payment-cancel");
+      var form = document.getElementById("payment-form");
+      if (!modal || !openBtns.length || !form) return;
+
+      var txIdEl = document.getElementById("pay-tx-id");
+      var additionalEl = document.getElementById("pay-additional");
+      var itemEl = document.getElementById("pay-item");
+      var buyingEl = document.getElementById("pay-buying-price");
+      var qtyEl = document.getElementById("pay-qty");
+      var totalEl = document.getElementById("pay-total");
+      var alreadyEl = document.getElementById("pay-already");
+
+      function fmt(v) { return Number(v || 0).toFixed(2); }
+      function parseNum(el) {
+        var s = (el && el.value) ? String(el.value).trim() : "";
+        if (s === "") return null;
+        var n = parseFloat(s);
+        return isNaN(n) ? null : n;
+      }
+      function openModal() { modal.classList.remove("hidden"); }
+      function closeModal() { modal.classList.add("hidden"); }
+
+      openBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          txIdEl.value = btn.getAttribute("data-tx-id") || "";
+          itemEl.textContent = btn.getAttribute("data-item-name") || "-";
+          buyingEl.textContent = fmt(btn.getAttribute("data-buying-price"));
+          qtyEl.textContent = btn.getAttribute("data-qty") || "0";
+          totalEl.textContent = fmt(btn.getAttribute("data-total-cost"));
+          alreadyEl.textContent = fmt(btn.getAttribute("data-amount-paid"));
+          additionalEl.value = "";
+          openModal();
+        });
+      });
+
+      if (closeBtn) closeBtn.addEventListener("click", closeModal);
+      if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var txId = txIdEl.value;
+        var add = parseNum(additionalEl);
+        if (!txId || add === null || add <= 0) {
+          alert("Enter a valid payment amount.");
+          return;
+        }
+        var fd = new FormData();
+        fd.append("additional_payment", String(add));
+        fd.append("fifo", "1");
+        fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/payment", {
+          method: "POST",
+          body: fd
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            alert((data && data.error) || "Failed to update payment.");
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          alert("Failed to update payment.");
+        });
+      });
+    })();
+  </script>
+{% endblock %}

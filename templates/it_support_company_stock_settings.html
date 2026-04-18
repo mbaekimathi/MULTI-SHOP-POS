@@ -9,7 +9,7 @@
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock settings</h2>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
         Set per-item <strong class="text-[rgb(var(--rc-page-fg))]">low stock</strong> (alert when company stock is at or below this level) and
-        <strong class="text-[rgb(var(--rc-page-fg))]">reorder level</strong> (suggested quantity to bring stock back up to when reordering).
+        <strong class="text-[rgb(var(--rc-page-fg))]">reorder level</strong> (auto-computed as the sum of all current shop reorder levels for each item).
         Use <span class="font-mono text-xs">0</span> to disable a threshold. Rows highlighted when current stock is at or below low stock (and low stock &gt; 0).
       </p>
     </div>
@@ -93,7 +93,8 @@
                         max="999999"
                         step="1"
                         value="{{ rl }}"
-                        class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-right text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-sky-500/25"
+                        readonly
+                        class="w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/70 px-2 py-1.5 text-right text-sm text-[rgb(var(--rc-page-fg))] outline-none"
                         aria-label="Reorder level for {{ it.name|e }}"
                       />
                     </td>
@@ -127,6 +128,38 @@
         });
       }
       input.addEventListener("input", applyFilter);
+
+      function highlightAndKeepRow(row, field) {
+        if (!row) return;
+        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        try {
+          row.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch (e) {}
+        setTimeout(function () {
+          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        }, 1400);
+        if (field && document.activeElement !== field) {
+          field.focus({ preventScroll: true });
+        }
+      }
+
+      document
+        .querySelectorAll('input[name^="low_stock_"], input[name^="reorder_level_"]')
+        .forEach(function (field) {
+          field.addEventListener("focus", function () {
+            var row = field.closest(".company-stock-settings-row");
+            if ((input.value || "").trim() !== "") {
+              input.value = "";
+              applyFilter();
+              requestAnimationFrame(function () {
+                highlightAndKeepRow(row, field);
+              });
+            } else {
+              highlightAndKeepRow(row, field);
+            }
+          });
+        });
+
       applyFilter();
     })();
   </script>

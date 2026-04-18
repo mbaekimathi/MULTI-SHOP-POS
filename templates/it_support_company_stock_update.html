@@ -204,9 +204,45 @@
           tr.classList.toggle("hidden", !!q && hay.indexOf(q) === -1);
         });
       }
+
+      function highlightAndKeepRow(row, qtyInput) {
+        if (!row) return;
+        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        try {
+          row.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch (e) {}
+        setTimeout(function () {
+          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        }, 1400);
+        if (qtyInput && document.activeElement !== qtyInput) {
+          qtyInput.focus({ preventScroll: true });
+        }
+      }
+
       if (searchInput) {
         searchInput.addEventListener("input", syncLiveSearch);
         syncLiveSearch();
+      }
+
+      if (lines) {
+        lines.querySelectorAll("input[name='qty[]']").forEach(function (qtyInput) {
+          qtyInput.addEventListener("focus", function () {
+            var row = qtyInput.closest("tr.line");
+            if (!searchInput) {
+              highlightAndKeepRow(row, qtyInput);
+              return;
+            }
+            if ((searchInput.value || "").trim() !== "") {
+              searchInput.value = "";
+              syncLiveSearch();
+              requestAnimationFrame(function () {
+                highlightAndKeepRow(row, qtyInput);
+              });
+            } else {
+              highlightAndKeepRow(row, qtyInput);
+            }
+          });
+        });
       }
     })();
   </script>

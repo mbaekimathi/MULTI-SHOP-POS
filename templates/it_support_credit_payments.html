@@ -17,12 +17,12 @@
   {% set shop_list = shops or [] %}
 
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">All shops credit balances</h2>
-    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Customers with outstanding credit on credit sales in the selected window. Use FIFO payment from each customer&apos;s detail page.</p>
+    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company credit customers</h2>
+    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Credit from all shops is combined per customer (same name and phone), so new credits add to existing customer totals.</p>
   </div>
 
   <form id="credit-payments-filter-form" method="get" class="mt-4 space-y-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <p class="text-[11px] text-[rgb(var(--rc-muted))]">Results update as you change filters.</p>
+    <p class="text-[11px] text-[rgb(var(--rc-muted))]">By default, all credit sales are shown. Select filters and click Apply.</p>
     <div class="flex flex-wrap items-end gap-2.5">
       <div class="min-w-[10rem] flex-1">
         <label for="cp-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
@@ -77,52 +77,52 @@
         </label>
       </div>
       <div class="flex flex-wrap gap-2">
+        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Apply filters</button>
         <a href="{{ url_for('it_support_credit_payments') }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Clear all</a>
+        <a href="{{ url_for('it_support_credit_payments', all_time=1, print=1) }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Print all credit sales</a>
       </div>
     </div>
     <p class="text-[11px] text-[rgb(var(--rc-muted))]">
       {% if credit_all_time %}
-        Showing <span class="font-semibold text-[rgb(var(--rc-page-fg))]">lifetime</span> outstanding balances (all credit sales).
+        Showing <span class="font-semibold text-[rgb(var(--rc-page-fg))]">lifetime</span> credit sales.
       {% else %}
-        Including only credit sales dated within <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'the selected range' }}</span>.
+        Showing only credit sales dated within <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'the selected range' }}</span>.
       {% endif %}
     </p>
   </form>
 
-  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    {% if not customers %}
-      <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances for these filters.</p>
+  <div id="credit-sales-print-area" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    {% if not credit_sales %}
+      <p class="text-sm text-[rgb(var(--rc-muted))]">No credit customers for these filters.</p>
     {% else %}
       <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
         <div class="overflow-x-auto">
-          <table class="min-w-[820px] w-full text-sm">
+          <table class="min-w-[680px] w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View</th>
+                <th class="col-customer px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+                <th class="col-tx px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit sales</th>
+                <th class="col-total px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
+                <th class="col-paid px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
+                <th class="col-balance px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
+                <th class="col-view px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-              {% for c in customers %}
+              {% for s in credit_sales %}
                 <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
-                  <td class="px-3 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ c.shop_name }}</td>
-                  <td class="max-w-[18rem] px-3 py-2.5">
-                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</div>
-                    <div class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</div>
+                  <td class="col-customer max-w-[18rem] px-3 py-2.5">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.customer_name }}</div>
+                    <div class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ s.customer_phone }}</div>
                   </td>
-                  <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ c.tx_count }}</td>
-                  <td class="px-3 py-2.5 tabular-nums text-amber-400">{{ "%.2f"|format(c.credit_total) }}</td>
-                  <td class="px-3 py-2.5 tabular-nums text-emerald-400">{{ "%.2f"|format(c.paid_total) }}</td>
-                  <td class="px-3 py-2.5 font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(c.balance) }}</td>
-                  <td class="px-3 py-2.5">
-                    <a href="{{ url_for('it_support_credit_payments_customer', shop_id=c.shop_id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
+                  <td class="col-tx px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ s.tx_count }}</td>
+                  <td class="col-total px-3 py-2.5 tabular-nums text-amber-400">{{ "%.2f"|format(s.total_amount) }}</td>
+                  <td class="col-paid px-3 py-2.5 tabular-nums text-emerald-400">{{ "%.2f"|format(s.paid_amount) }}</td>
+                  <td class="col-balance px-3 py-2.5 font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(s.remaining_amount) }}</td>
+                  <td class="col-view px-3 py-2.5">
+                    <a href="{{ url_for('company_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}"
                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]"
-                       aria-label="View customer credit">
+                       aria-label="View customer credit sales">
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
@@ -135,12 +135,89 @@
           </table>
         </div>
       </div>
+      <div class="print-only-table mt-3 hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit sales</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in credit_sales %}
+              <tr>
+                <td class="px-3 py-2.5">
+                  <div class="font-semibold">{{ s.customer_name }}</div>
+                  <div class="text-xs">{{ s.customer_phone }}</div>
+                </td>
+                <td class="px-3 py-2.5">{{ s.tx_count }}</td>
+                <td class="px-3 py-2.5 tabular-nums">{{ "%.2f"|format(s.total_amount) }}</td>
+                <td class="px-3 py-2.5 tabular-nums">{{ "%.2f"|format(s.paid_amount) }}</td>
+                <td class="px-3 py-2.5 tabular-nums font-semibold">{{ "%.2f"|format(s.remaining_amount) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% endif %}
   </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
+  <style>
+    @media print {
+      #credit-payments-filter-form,
+      nav,
+      header,
+      aside,
+      .btn-rc {
+        display: none !important;
+      }
+      #credit-sales-print-area {
+        border: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .overflow-hidden,
+      .overflow-x-auto {
+        overflow: visible !important;
+      }
+      table {
+        font-size: 11px !important;
+        width: 100% !important;
+      }
+      #credit-sales-print-area > .overflow-hidden {
+        display: none !important;
+      }
+      .print-only-table {
+        display: block !important;
+      }
+      .col-customer,
+      .col-total,
+      .col-paid,
+      .col-balance {
+        display: table-cell !important;
+        color: #000 !important;
+      }
+      .col-total *,
+      .col-paid *,
+      .col-balance * {
+        color: #000 !important;
+      }
+      .col-shop,
+      .col-sale-id,
+      .col-items,
+      .col-status,
+      .col-view {
+        display: none !important;
+      }
+    }
+  </style>
   <script>
     (function () {
       var form = document.getElementById("credit-payments-filter-form");
@@ -149,8 +226,6 @@
       var period = document.getElementById("cp-filter-period");
       var month = document.getElementById("cp-filter-month");
       var year = document.getElementById("cp-filter-year");
-      var allTime = document.getElementById("cp-all-time");
-      var debounceTimer = null;
 
       function syncPanels() {
         if (!mode) return;
@@ -161,48 +236,19 @@
         if (year) year.classList.toggle("hidden", v !== "year");
       }
 
-      function applyFilters() {
-        if (form) form.submit();
-      }
-
-      function applyFiltersDebounced(delayMs) {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(applyFilters, delayMs);
-      }
-
       if (!form) return;
 
       syncPanels();
 
       if (mode) {
-        mode.addEventListener("change", function () {
-          syncPanels();
-          applyFilters();
-        });
+        mode.addEventListener("change", syncPanels);
       }
 
-      ["cp-single-day", "cp-start", "cp-end", "cp-month", "cp-shop"].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener("change", applyFilters);
+      {% if credit_should_print %}
+      window.addEventListener("load", function () {
+        window.print();
       });
-
-      if (year) {
-        year.addEventListener("change", applyFilters);
-        year.addEventListener("input", function () {
-          applyFiltersDebounced(450);
-        });
-      }
-
-      var customerQ = document.getElementById("cp-customer-q");
-      if (customerQ) {
-        customerQ.addEventListener("input", function () {
-          applyFiltersDebounced(380);
-        });
-      }
-
-      if (allTime) {
-        allTime.addEventListener("change", applyFilters);
-      }
+      {% endif %}
     })();
   </script>
 {% endblock %}
