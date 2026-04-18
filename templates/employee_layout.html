@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-  <div class="flex min-h-screen flex-col md:h-screen md:max-h-screen md:flex-row md:overflow-hidden">
+  <div class="flex min-h-screen flex-col md:h-screen md:max-h-screen md:min-h-0 md:flex-row">
     <div
       id="employee-sidebar-backdrop"
       class="fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
@@ -103,9 +103,9 @@
       </nav>
     </aside>
 
-    <div class="flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0 md:overflow-hidden">
+    <div class="flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0">
       <header
-        class="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 backdrop-blur-md md:h-16 md:px-6"
+        class="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 overflow-visible border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 backdrop-blur-md md:h-16 md:px-6"
       >
         <div class="flex min-w-0 items-center gap-3">
           <button
