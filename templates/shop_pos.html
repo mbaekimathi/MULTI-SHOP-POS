@@ -1755,14 +1755,16 @@
           0 2px 8px -4px rgba(0, 0, 0, 0.08);
       }
     }
-    /* POS cards: full-bleed image + floating details (glass strip) */
+    /* POS cards: image in upper region + details panel below (not full-bleed background) */
     .pos-item-card.pos-item-card--media {
       position: relative;
       isolation: isolate;
-      min-height: 11.5rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 11.75rem;
       border-radius: 1rem;
       border: 1px solid rgba(var(--rc-border), 0.4);
-      background: rgb(var(--rc-surface-2));
+      background: rgb(var(--rc-surface));
       box-shadow:
         0 1px 0 rgba(255, 255, 255, 0.06) inset,
         0 12px 40px -16px rgba(0, 0, 0, 0.35),
@@ -1780,11 +1782,13 @@
         0 4px 14px -4px rgba(0, 0, 0, 0.4);
     }
     .pos-item-card.pos-item-card--media .pos-item-card-media {
-      position: absolute;
-      inset: 0;
+      position: relative;
       z-index: 0;
+      flex: 1 1 auto;
+      width: 100%;
+      min-height: 7rem;
       overflow: hidden;
-      border-radius: inherit;
+      border-radius: 0.875rem 0.875rem 0 0;
       background: linear-gradient(145deg, rgb(var(--rc-surface-2)) 0%, rgb(var(--rc-surface)) 100%);
     }
     .pos-item-card.pos-item-card--media .pos-item-card__img {
@@ -1793,25 +1797,13 @@
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      padding: 0.25rem;
+      object-fit: contain;
       object-position: center;
       transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
     }
-    .pos-item-card.pos-item-card--media .pos-item-card-media__scrim {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      pointer-events: none;
-      background: linear-gradient(
-        180deg,
-        rgba(0, 0, 0, 0.05) 0%,
-        rgba(0, 0, 0, 0.15) 35%,
-        rgba(0, 0, 0, 0.55) 70%,
-        rgba(0, 0, 0, 0.82) 100%
-      );
-    }
     .pos-item-card.pos-item-card--media:hover .pos-item-card__img {
-      transform: scale(1.05);
+      transform: scale(1.04);
     }
     @media (prefers-reduced-motion: reduce) {
       .pos-item-card.pos-item-card--media:hover .pos-item-card__img {
@@ -1837,55 +1829,69 @@
       color: #fff;
       text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
     }
-    /* Floating detail strip — glass + high-contrast text */
     .pos-item-card.pos-item-card--media .pos-item-card__panel {
       position: relative;
-      z-index: 2;
-      margin-top: auto;
+      z-index: 1;
       width: 100%;
       flex: 0 0 auto;
-      padding: 0.55rem 0.5rem 0.5rem;
+      gap: 0.2rem;
+      padding: 0.28rem 0.35rem 0.32rem;
       border-radius: 0 0 0.875rem 0.875rem;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.72) 100%);
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.96) 100%);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border-top: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .dark .pos-item-card.pos-item-card--media .pos-item-card__panel {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(2, 6, 23, 0.98) 100%);
+      border-top-color: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.45);
     }
     .pos-item-card.pos-item-card--media .pos-item-name {
       color: #ffffff;
       font-weight: 800;
       letter-spacing: -0.02em;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+      line-height: 1.2;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     }
     .pos-item-card.pos-item-card--media .pos-item-card__stock-label {
-      color: rgba(255, 255, 255, 0.9);
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+    }
+    .pos-item-card.pos-item-card--media .pos-item-card__meta {
+      gap: 0.25rem;
     }
     .pos-item-card.pos-item-card--media .pos-item-stock.pos-item-stock--detail.is-in-stock {
       color: #ecfdf5 !important;
       background: rgba(5, 150, 105, 0.92) !important;
       border: 1px solid rgba(255, 255, 255, 0.35);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      padding: 0.06rem 0.28rem !important;
+      font-size: 0.6rem !important;
     }
     .pos-item-card.pos-item-card--media .pos-item-stock.pos-item-stock--detail.is-out {
-      color: #fff !important;
+      color: #ffffff !important;
       background: rgba(190, 24, 93, 0.92) !important;
       border: 1px solid rgba(255, 255, 255, 0.35);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      padding: 0.06rem 0.28rem !important;
+      font-size: 0.6rem !important;
     }
     .pos-item-card.pos-item-card--media .pos-item-card__price-row {
-      margin-top: 0.2rem;
-      padding-top: 0.45rem;
+      margin-top: 0.08rem;
+      padding-top: 0.22rem;
       border-top: 1px solid rgba(255, 255, 255, 0.18);
     }
     .pos-item-card.pos-item-card--media .pos-item-card__price {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-width: 3rem;
-      padding: 0.25rem 0.55rem;
+      min-width: 2.65rem;
+      padding: 0.18rem 0.45rem;
       border-radius: 9999px;
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       font-weight: 900;
       letter-spacing: -0.02em;
       color: #0f172a !important;
@@ -1897,11 +1903,18 @@
     }
     @media (min-width: 640px) {
       .pos-item-card.pos-item-card--media {
-        min-height: 12rem;
+        min-height: 12.5rem;
+      }
+      .pos-item-card.pos-item-card--media .pos-item-card-media {
+        min-height: 7.75rem;
+      }
+      .pos-item-card.pos-item-card--media .pos-item-stock.pos-item-stock--detail.is-in-stock,
+      .pos-item-card.pos-item-card--media .pos-item-stock.pos-item-stock--detail.is-out {
+        font-size: 0.65rem !important;
       }
       .pos-item-card.pos-item-card--media .pos-item-card__price {
-        font-size: 0.78rem;
-        padding: 0.28rem 0.6rem;
+        font-size: 0.72rem;
+        padding: 0.2rem 0.5rem;
       }
     }
     /* Cart lines (JS-generated markup): airy rows + line total emphasis */
@@ -2259,9 +2272,8 @@
                             <span class="select-none">{{ (it.name[:1] or '?')|e }}</span>
                           </div>
                         {% endif %}
-                        <div class="pos-item-card-media__scrim" aria-hidden="true"></div>
                       </div>
-                      <div class="pos-item-card__panel mt-auto flex w-full flex-col gap-1.5">
+                      <div class="pos-item-card__panel flex w-full shrink-0 flex-col gap-1.5">
                         <p class="pos-item-name line-clamp-2 min-h-0 text-[10px] font-extrabold leading-snug tracking-tight sm:text-[11px]">{{ it.name }}</p>
                         <div class="pos-item-card__meta flex items-center justify-between gap-1">
                           <span class="pos-item-card__stock-label shrink-0 text-[8px] font-semibold uppercase tracking-[0.14em]">Stock</span>
