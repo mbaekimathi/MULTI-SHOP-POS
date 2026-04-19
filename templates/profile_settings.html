@@ -95,7 +95,7 @@
           Save changes
         </button>
         <a
-          href="{% if portal_employee %}{{ portal_employee.dashboard_url }}{% else %}{{ url_for('index') }}{% endif %}"
+          href="{% if portal_employee %}{{ portal_employee.dashboard_url }}{% else %}{{ url_for('employee_login') }}{% endif %}"
           class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
           >Cancel</a
         >

@@ -39,7 +39,7 @@
   {# Default: full settings nav — hidden while viewing POS / printing / receipt sub-areas #}
   <div id="settings-sidebar-default" class="flex flex-col gap-1">
     <a
-      href="{{ url_for('it_support_system_settings') }}#system"
+      href="{{ url_for('it_support_system_settings', tab='system') }}"
       data-settings-tab="system"
       class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -50,7 +50,7 @@
       System settings
     </a>
     <a
-      href="{{ url_for('it_support_system_settings') }}#company"
+      href="{{ url_for('it_support_system_settings', tab='company') }}"
       data-settings-tab="company"
       class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -60,7 +60,7 @@
       Company settings
     </a>
     <a
-      href="{{ url_for('it_support_system_settings') }}#website"
+      href="{{ url_for('it_support_system_settings', tab='website') }}"
       data-settings-tab="website"
       class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -70,7 +70,7 @@
       Website settings
     </a>
     <a
-      href="{{ url_for('it_support_system_settings') }}#pos"
+      href="{{ url_for('it_support_system_settings', tab='pos') }}"
       data-settings-tab="pos"
       class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -85,7 +85,7 @@
   <div id="settings-sidebar-pos" class="hidden flex flex-col gap-1">
     <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Point of sale</p>
     <a
-      href="{{ url_for('it_support_system_settings') }}#pos"
+      href="{{ url_for('it_support_system_settings', tab='pos') }}"
       data-settings-tab="pos"
       class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -95,7 +95,7 @@
       Point of sale settings
     </a>
     <a
-      href="{{ url_for('it_support_system_settings') }}#printing"
+      href="{{ url_for('it_support_system_settings', tab='printing') }}"
       data-settings-tab="printing"
       class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -105,7 +105,7 @@
       Printing settings
     </a>
     <a
-      href="{{ url_for('it_support_system_settings') }}#receipt"
+      href="{{ url_for('it_support_system_settings', tab='receipt') }}"
       data-settings-tab="receipt"
       class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
     >
@@ -115,7 +115,7 @@
       Receipt settings
     </a>
     <a
-      href="{{ url_for('it_support_system_settings') }}#system"
+      href="{{ url_for('it_support_system_settings', tab='system') }}"
       class="mt-1 text-xs font-semibold text-[rgb(var(--rc-muted))] underline-offset-2 hover:text-[rgb(var(--rc-primary))] hover:underline"
     >
       ← All system settings
@@ -125,7 +125,7 @@
 {% block employee_content %}
   <form method="post" enctype="multipart/form-data" action="{{ url_for('it_support_system_settings') }}" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
     <input type="hidden" name="return_hash" id="return_hash" value="#system" />
-    <div id="tab-system" data-panel="system">
+    <div id="system" data-panel="system" class="scroll-mt-24">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">System settings</h2>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Theme defaults for the portal UI.</p>
 
@@ -157,7 +157,7 @@
       </div>
     </div>
 
-    <div id="tab-company" data-panel="company" class="hidden">
+    <div id="company" data-panel="company" class="hidden scroll-mt-24">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</h2>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Company identity and contact details.</p>
 
@@ -209,7 +209,7 @@
       </div>
     </div>
 
-    <div id="tab-website" data-panel="website" class="hidden">
+    <div id="website" data-panel="website" class="hidden scroll-mt-24">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Website settings</h2>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Public website configuration.</p>
 
@@ -225,34 +225,75 @@
       </div>
     </div>
 
-    <div id="tab-pos" data-panel="pos" class="hidden">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Point of sale settings</h2>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">POS configuration placeholders.</p>
-
-      <div class="mt-6 grid gap-4 md:grid-cols-2">
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Currency</label>
-          <select class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
-            <option>USD</option>
-            <option>EUR</option>
-            <option>GBP</option>
-          </select>
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Tax rate (%)</label>
-          <input type="number" min="0" step="0.01" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-printing" data-panel="printing" class="hidden">
+    <div id="pos" data-panel="pos" class="hidden scroll-mt-24">
       {% set ps = printing_settings %}
       <div class="border-b border-[rgb(var(--rc-border))] pb-4">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Printing settings</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Control POS printing behavior, receipt copies, and which printer connection types staff may use.</p>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Point of sale settings</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Cart modes, customer fields, tax on totals, discounts, and compulsory printing — separate from receipt layout and printer hardware below.</p>
       </div>
 
       <div class="mt-6 space-y-6">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit sales</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When off, the Credit option is hidden in the POS cart and only cash sales can be recorded.</p>
+          </div>
+          <input type="checkbox" name="pos_allow_credit_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_credit_sale %}checked{% endif %} />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Quotations</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When off, quotation mode is hidden in the POS cart.</p>
+          </div>
+          <input type="checkbox" name="pos_allow_quotations" value="1" class="rc-receipt-switch" {% if ps.pos_allow_quotations %}checked{% endif %} />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customer details (cash sale)</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When off, the customer phone/name block is hidden for normal sales. Credit and quotation still show customer fields when needed.</p>
+          </div>
+          <input type="checkbox" name="pos_show_customer_details_sale" value="1" class="rc-receipt-switch" {% if ps.pos_show_customer_details_sale %}checked{% endif %} />
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Tax in POS totals</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, the tax rate from <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Receipt format</strong> is added to sale, credit, and quotation amounts. When off, cart and checkout use line totals with no tax.</p>
+          </div>
+          <input type="checkbox" name="pos_include_tax" value="1" class="rc-receipt-switch" {% if ps.pos_include_tax %}checked{% endif %} />
+        </div>
+
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">POS inventory</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+            Choose whether checkout deducts <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portions</strong>, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">shop stock</strong>, or neither. Kitchen and shop stock cannot both be on — when kitchen is on, the POS uses portion counts from the shop / IT dashboard instead of store stock.
+          </p>
+          <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
+            <div>
+              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portions</p>
+              <p class="text-xs text-[rgb(var(--rc-muted))]">Track and deduct portion counts on sale. Edit counts on the shop dashboard or IT dashboard.</p>
+            </div>
+            <input type="checkbox" name="pos_kitchen_portions" value="1" class="rc-receipt-switch js-pos-inv-kitchen" {% if ps.pos_kitchen_portions %}checked{% endif %} />
+          </div>
+          <div class="mt-3 flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Deduct shop stock on sale</p>
+              <p class="text-xs text-[rgb(var(--rc-muted))]">When on, normal shop stock rules apply at checkout. Turn off if you only use kitchen portions or do not track inventory on the POS.</p>
+            </div>
+            <input type="checkbox" name="pos_shop_stock_sale" value="1" class="rc-receipt-switch js-pos-inv-store" {% if ps.pos_shop_stock_sale %}checked{% endif %} />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Discounts (edit line prices)</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers can change the unit price of each line in the cart.</p>
+          </div>
+          <input type="checkbox" name="pos_allow_line_price_edit" value="1" class="rc-receipt-switch" {% if ps.allow_line_price_edit %}checked{% endif %} />
+        </div>
+
         <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
           <div>
             <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</p>
@@ -260,15 +301,17 @@
           </div>
           <input type="checkbox" name="printing_compulsory_sale" value="1" class="rc-receipt-switch" {% if ps.print_compulsory_sale %}checked{% endif %} />
         </div>
+      </div>
+    </div>
 
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Allow discounting (edit line prices)</p>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers can change the unit price of each item in the cart on the POS.</p>
-          </div>
-          <input type="checkbox" name="printing_allow_line_price_edit" value="1" class="rc-receipt-switch" {% if ps.allow_line_price_edit %}checked{% endif %} />
-        </div>
+    <div id="printing" data-panel="printing" class="hidden scroll-mt-24">
+      {% set ps = printing_settings %}
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Printing settings</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Control POS printing behavior, receipt copies, and which printer connection types staff may use.</p>
+      </div>
 
+      <div class="mt-6 space-y-6">
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipts to print per sale</label>
           <p class="mb-2 text-xs text-[rgb(var(--rc-muted))]">The POS currently prints <strong class="font-medium text-[rgb(var(--rc-page-fg))]">one customer receipt only</strong> per checkout. This option is kept for future use (extra company/cashier copies).</p>
@@ -303,7 +346,7 @@
       </div>
     </div>
 
-    <div id="tab-receipt" data-panel="receipt" class="hidden">
+    <div id="receipt" data-panel="receipt" class="hidden scroll-mt-24">
       {% set rs = receipt_settings %}
       <div class="border-b border-[rgb(var(--rc-border))] pb-4">
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Receipt format</h2>
@@ -611,6 +654,7 @@
     (function () {
       var DEFAULT_TAB = "system";
       var POS_TABS = { pos: 1, printing: 1, receipt: 1 };
+      var SERVER_TAB = {{ (initial_settings_tab or "")|tojson }};
 
       function normalize(tab) {
         if (tab === "system" || tab === "company" || tab === "website" || tab === "pos" || tab === "printing" || tab === "receipt") {
@@ -643,11 +687,21 @@
           a.classList.toggle("text-[rgb(var(--rc-page-fg))]", true);
           a.setAttribute("aria-current", active ? "page" : "false");
         });
+
+        var anchor = document.getElementById(tab);
+        var hashTab = (window.location.hash || "").replace("#", "");
+        if (anchor && (hashTab === tab || (!hashTab && SERVER_TAB === tab))) {
+          requestAnimationFrame(function () {
+            anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
       }
 
       function fromHash() {
         var h = (window.location.hash || "").replace("#", "");
-        return normalize(h || DEFAULT_TAB);
+        if (h) return normalize(h);
+        if (SERVER_TAB) return normalize(SERVER_TAB);
+        return DEFAULT_TAB;
       }
 
       window.addEventListener("hashchange", function () {
@@ -659,7 +713,16 @@
       var rh = document.getElementById("return_hash");
       function syncReturnHash() {
         if (!rh) return;
-        rh.value = window.location.hash || "#system";
+        var h = (window.location.hash || "").replace("#", "");
+        if (h) {
+          rh.value = "#" + h;
+          return;
+        }
+        if (SERVER_TAB) {
+          rh.value = "#" + SERVER_TAB;
+          return;
+        }
+        rh.value = "#system";
       }
       window.addEventListener("hashchange", syncReturnHash);
       syncReturnHash();
@@ -709,7 +772,7 @@
     })();
 
     (function () {
-      var tab = document.getElementById("tab-receipt");
+      var tab = document.getElementById("receipt");
       if (!tab) return;
       var body = document.getElementById("receipt-preview-body");
       var paper = document.getElementById("receipt-print-preview");
@@ -957,6 +1020,19 @@
         bindPreview();
         updateReceiptPreview();
       }
+    })();
+  </script>
+  <script>
+    (function () {
+      var k = document.querySelector('input[name="pos_kitchen_portions"].js-pos-inv-kitchen');
+      var s = document.querySelector('input[name="pos_shop_stock_sale"].js-pos-inv-store');
+      if (!k || !s) return;
+      k.addEventListener("change", function () {
+        if (k.checked) s.checked = false;
+      });
+      s.addEventListener("change", function () {
+        if (s.checked) k.checked = false;
+      });
     })();
   </script>
 {% endblock %}

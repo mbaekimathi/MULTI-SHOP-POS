@@ -5,8 +5,7 @@
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">All quotations</h2>
     <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-      <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> branch quotes and <strong class="text-[rgb(var(--rc-page-fg))]">online</strong> submissions from the public
-      <a href="{{ url_for('quote') }}" class="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400">quote page</a>.
+      <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> branch quotes and <strong class="text-[rgb(var(--rc-page-fg))]">online</strong> channel quotations.
       Online rows show <strong class="text-[rgb(var(--rc-page-fg))]">Website</strong> as the shop.
     </p>
   </div>
@@ -80,7 +79,7 @@
                     {% if q.shop_code %}<span class="block text-xs text-[rgb(var(--rc-muted))]">{{ q.shop_code }}</span>{% endif %}
                   {% else %}
                     <span class="font-medium text-[rgb(var(--rc-page-fg))]">Website</span>
-                    <span class="block text-xs text-[rgb(var(--rc-muted))]">Public quote page</span>
+                    <span class="block text-xs text-[rgb(var(--rc-muted))]">Online channel</span>
                   {% endif %}
                 </td>
                 <td class="px-4 py-3 text-[rgb(var(--rc-page-fg))]">

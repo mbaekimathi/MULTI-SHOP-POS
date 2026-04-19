@@ -7,6 +7,7 @@
   style="--rc-font-family: {{ font_family if font_family else 'Plus Jakarta Sans' }}"
 >
   <head>
+    {% include "partials/system_public_brand.html" %}
     <meta charset="utf-8" />
     <script>
       (function () {
@@ -399,6 +400,137 @@
         color: transparent;
         animation: gradient-x 10s ease infinite;
       }
+      /* Auth top bar (login / shop / signup) */
+      .auth-top-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 70;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      html[data-theme="dark"] .auth-top-bar {
+        border-bottom-color: rgba(51, 65, 85, 0.6);
+        background: rgba(15, 23, 42, 0.88);
+      }
+      .auth-top-bar__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 0;
+        font-size: 0.875rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: rgb(15 23 42);
+        text-decoration: none;
+      }
+      html[data-theme="dark"] .auth-top-bar__brand {
+        color: rgb(248 250 252);
+      }
+      .auth-top-bar__brand img {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.5rem;
+        object-fit: cover;
+      }
+      .auth-top-bar__brand-mark {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.5rem;
+        background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 800;
+      }
+      .auth-top-bar__nav {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.35rem;
+        flex-shrink: 0;
+      }
+      .auth-top-bar__nav a {
+        display: none;
+        padding: 0.35rem 0.65rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: rgb(71 85 105);
+        text-decoration: none;
+        border-radius: 0.375rem;
+      }
+      .auth-top-bar__nav a:hover {
+        color: rgb(91 33 182);
+        background: rgba(124, 58, 237, 0.08);
+      }
+      html[data-theme="dark"] .auth-top-bar__nav a {
+        color: rgb(203 213 225);
+      }
+      html[data-theme="dark"] .auth-top-bar__nav a:hover {
+        color: rgb(196 181 253);
+        background: rgba(124, 58, 237, 0.15);
+      }
+      @media (min-width: 640px) {
+        .auth-top-bar__nav a {
+          display: inline-flex;
+        }
+      }
+      body:has(.form-auth-bg--accent-purple) .auth-top-bar {
+        border-bottom-color: rgba(124, 58, 237, 0.28);
+        background: rgba(9, 9, 11, 0.92);
+      }
+      html[data-theme="light"] body:has(.form-auth-bg--accent-purple) .auth-top-bar {
+        border-bottom-color: rgba(124, 58, 237, 0.22);
+        background: rgba(255, 255, 255, 0.94);
+      }
+      body:has(.form-auth-bg--accent-purple) .auth-top-bar__brand {
+        color: rgb(250 250 250);
+      }
+      html[data-theme="light"] body:has(.form-auth-bg--accent-purple) .auth-top-bar__brand {
+        color: rgb(24 24 27);
+      }
+      body:has(.form-auth-bg--accent-purple) .auth-top-bar__brand-mark {
+        background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+      }
+      body:has(.form-auth-bg--accent-purple) .auth-top-bar__nav a:hover {
+        color: rgb(196 181 253);
+        background: rgba(124, 58, 237, 0.14);
+      }
+      html[data-theme="light"] body:has(.form-auth-bg--accent-purple) .auth-top-bar__nav a:hover {
+        color: rgb(91 33 182);
+        background: rgba(124, 58, 237, 0.1);
+      }
+      html[data-theme="dark"] body:has(.form-auth-bg--accent-purple) .auth-top-bar__nav a:hover {
+        color: rgb(221 214 254);
+        background: rgba(124, 58, 237, 0.16);
+      }
+      .form-auth-bg--accent-purple .auth-purpose-strip--employee .auth-purpose-strip__glow,
+      .form-auth-bg--accent-purple .auth-purpose-strip--signup .auth-purpose-strip__glow {
+        background: radial-gradient(circle at 45% 45%, rgba(124, 58, 237, 0.45), transparent 62%);
+      }
+      .form-auth-bg--accent-purple .auth-purpose-strip--shop .auth-purpose-strip__glow {
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(124, 58, 237, 0.42),
+          rgba(167, 139, 250, 0.22),
+          transparent 65%
+        );
+      }
+      .form-auth-bg--has-topbar {
+        padding-top: 3.25rem;
+      }
+
       /* Modern auth & forms */
       .form-auth-bg {
         position: relative;
@@ -571,6 +703,98 @@
         z-index: 2;
         font-size: 0.75rem;
         color: rgba(148, 163, 184, 0.85);
+      }
+      .auth-purpose-strip {
+        position: relative;
+        width: 100%;
+        margin-top: 1.5rem;
+      }
+      /* Do not rely on Tailwind hidden/lg:* — hero strip only on wide viewports, compact strip on narrow */
+      .auth-purpose-strip--hero {
+        display: none;
+        margin-top: 1.75rem;
+        max-width: min(100%, 26rem);
+      }
+      @media (min-width: 1024px) {
+        .auth-purpose-strip--hero {
+          display: block;
+        }
+      }
+      .auth-purpose-strip--compact {
+        display: block;
+        margin-top: 0;
+        margin-bottom: 1.25rem;
+        max-width: min(100%, 22rem);
+        margin-left: auto;
+        margin-right: auto;
+      }
+      @media (min-width: 1024px) {
+        .auth-purpose-strip--compact {
+          display: none;
+        }
+      }
+      .auth-purpose-strip__glow {
+        position: absolute;
+        inset: -18% -12% -12%;
+        border-radius: 50%;
+        filter: blur(40px);
+        opacity: 0.42;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .auth-purpose-strip--employee .auth-purpose-strip__glow {
+        background: radial-gradient(circle at 45% 45%, rgba(139, 92, 246, 0.55), transparent 62%);
+      }
+      .auth-purpose-strip--shop .auth-purpose-strip__glow {
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(45, 212, 191, 0.42),
+          rgba(99, 102, 241, 0.22),
+          transparent 65%
+        );
+      }
+      .auth-purpose-strip--signup .auth-purpose-strip__glow {
+        background: radial-gradient(
+          circle at 42% 42%,
+          rgba(167, 139, 250, 0.48),
+          rgba(244, 114, 182, 0.18),
+          transparent 62%
+        );
+      }
+      .auth-purpose-strip__frame {
+        position: relative;
+        z-index: 1;
+        border-radius: 1.25rem;
+        padding: 0.45rem;
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.05));
+        box-shadow: 0 24px 52px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+      }
+      html[data-theme="light"] .auth-purpose-strip--compact .auth-purpose-strip__frame {
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.92));
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        border-color: rgba(148, 163, 184, 0.38);
+      }
+      .auth-purpose-strip__img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 0.85rem;
+        vertical-align: middle;
+      }
+      .auth-purpose-strip__caption {
+        position: relative;
+        z-index: 1;
+        margin: 0.65rem 0 0;
+        text-align: center;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(203, 213, 225, 0.95);
+      }
+      html[data-theme="light"] .auth-purpose-strip--compact .auth-purpose-strip__caption {
+        color: rgba(71, 85, 105, 0.95);
       }
       .auth-main {
         display: flex;
@@ -1050,36 +1274,36 @@
         color: rgb(254 215 170);
       }
 
-      /* Employee login (/login) — indigo / violet company portal */
+      /* Employee login (/login) — purple (aligned with marketing site) */
       .form-auth-bg--employee {
         background-color: #020617;
-        background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(99, 102, 241, 0.32), transparent 55%),
-          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(139, 92, 246, 0.22), transparent 52%),
-          radial-gradient(ellipse 55% 45% at 0% 100%, rgba(59, 130, 246, 0.14), transparent 48%),
+        background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(124, 58, 237, 0.28), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(91, 33, 182, 0.2), transparent 52%),
+          radial-gradient(ellipse 55% 45% at 0% 100%, rgba(167, 139, 250, 0.12), transparent 48%),
           linear-gradient(180deg, #020617 0%, #0f172a 100%);
       }
       html[data-theme="light"] .form-auth-bg--employee {
-        background-color: #f8fafc;
-        background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(99, 102, 241, 0.14), transparent 55%),
-          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(139, 92, 246, 0.1), transparent 52%),
-          linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+        background-color: #faf5ff;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(124, 58, 237, 0.12), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(91, 33, 182, 0.08), transparent 52%),
+          linear-gradient(180deg, #faf5ff 0%, #f8fafc 100%);
       }
       .form-auth-bg--employee .auth-hero__mesh {
-        background: linear-gradient(155deg, #0f172a 0%, #1e1b4b 38%, #312e81 72%, #1e1b4b 100%);
+        background: linear-gradient(155deg, #0f172a 0%, #1e1b4b 40%, #4c1d95 72%, #1e1b4b 100%);
       }
       .form-auth-bg--employee .auth-hero__aurora {
-        background: radial-gradient(ellipse 50% 45% at 25% 25%, rgba(99, 102, 241, 0.5), transparent 55%),
-          radial-gradient(ellipse 45% 40% at 75% 70%, rgba(139, 92, 246, 0.4), transparent 50%),
-          radial-gradient(ellipse 35% 30% at 50% 50%, rgba(56, 189, 248, 0.12), transparent 60%);
+        background: radial-gradient(ellipse 50% 45% at 25% 25%, rgba(124, 58, 237, 0.45), transparent 55%),
+          radial-gradient(ellipse 45% 40% at 75% 70%, rgba(167, 139, 250, 0.35), transparent 50%),
+          radial-gradient(ellipse 35% 30% at 50% 50%, rgba(192, 132, 252, 0.15), transparent 60%);
       }
       .form-auth-bg--employee .auth-hero__orb--a {
-        background: rgba(99, 102, 241, 0.38);
+        background: rgba(124, 58, 237, 0.35);
       }
       .form-auth-bg--employee .auth-hero__orb--b {
-        background: rgba(139, 92, 246, 0.32);
+        background: rgba(91, 33, 182, 0.3);
       }
       .form-auth-bg--employee .text-gradient {
-        background: linear-gradient(90deg, #a5b4fc, #818cf8, #c4b5fd, #93c5fd);
+        background: linear-gradient(90deg, #c4b5fd, #a78bfa, #e9d5ff, #c4b5fd);
         background-size: 200% auto;
         -webkit-background-clip: text;
         background-clip: text;
@@ -1087,98 +1311,98 @@
         animation: gradient-x 10s ease infinite;
       }
       .form-auth-bg--employee .form-card-modern::before {
-        background: linear-gradient(90deg, #4338ca, #6366f1, #8b5cf6, #6366f1, #4f46e5);
+        background: linear-gradient(90deg, #6d28d9, #7c3aed, #9333ea, #7c3aed, #5b21b6);
         background-size: 200% 100%;
       }
       .form-auth-bg--employee .btn-modern {
-        background: linear-gradient(135deg, #4338ca 0%, #6366f1 45%, #7c3aed 100%);
-        box-shadow: 0 4px 20px rgba(67, 56, 202, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 45%, #6d28d9 100%);
+        box-shadow: 0 4px 20px rgba(91, 33, 182, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.22);
       }
       .form-auth-bg--employee .btn-modern:hover {
-        box-shadow: 0 8px 32px rgba(67, 56, 202, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px rgba(91, 33, 182, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.28);
       }
       .form-auth-bg--employee .form-input-wrap:focus-within {
-        border-color: rgb(99 102 241);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(99, 102, 241, 0.22),
-          0 12px 28px rgba(99, 102, 241, 0.12);
+        border-color: rgb(124 58 237);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(124, 58, 237, 0.2),
+          0 12px 28px rgba(124, 58, 237, 0.1);
       }
       .form-auth-bg--employee .form-input-wrap:focus-within .form-input-icon {
-        color: rgb(99 102 241);
+        color: rgb(124 58 237);
       }
       .form-auth-bg--employee .form-input-rich:focus {
-        border-color: rgb(99 102 241);
-        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 4px rgba(99, 102, 241, 0.22);
+        border-color: rgb(124 58 237);
+        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 4px rgba(124, 58, 237, 0.2);
       }
       .form-auth-bg--employee .toggle-password:hover {
-        color: rgb(99 102 241);
-        background: rgba(99, 102, 241, 0.1);
+        color: rgb(124 58 237);
+        background: rgba(124, 58, 237, 0.1);
       }
       .form-auth-bg--employee .toggle-password:focus-visible {
-        outline: 2px solid rgb(99 102 241);
+        outline: 2px solid rgb(124 58 237);
         outline-offset: 2px;
       }
       html[data-theme="dark"] .form-auth-bg--employee .form-input-rich:focus {
-        border-color: rgb(129 140 248);
-        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(129, 140, 248, 0.25);
+        border-color: rgb(196 181 253);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(196, 181, 253, 0.22);
       }
       html[data-theme="dark"] .form-auth-bg--employee .form-input-wrap:focus-within {
-        border-color: rgb(129 140 248);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(129, 140, 248, 0.2),
+        border-color: rgb(196 181 253);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(196, 181, 253, 0.18),
           0 12px 28px rgba(0, 0, 0, 0.35);
       }
       .form-auth-bg--employee .auth-switch-card {
-        border-color: rgba(99, 102, 241, 0.38);
+        border-color: rgba(124, 58, 237, 0.35);
       }
       .form-auth-bg--employee .auth-switch-card:hover {
-        border-color: rgba(99, 102, 241, 0.58);
-        box-shadow: 0 18px 34px -18px rgba(15, 23, 42, 0.55), 0 0 20px rgba(99, 102, 241, 0.22);
+        border-color: rgba(124, 58, 237, 0.55);
+        box-shadow: 0 18px 34px -18px rgba(15, 23, 42, 0.55), 0 0 20px rgba(124, 58, 237, 0.18);
       }
       .form-auth-bg--employee .auth-switch-card__link {
-        color: rgb(79 70 229);
+        color: rgb(91 33 182);
       }
       .form-auth-bg--employee .auth-switch-card__link:hover {
-        color: rgb(67 56 202);
+        color: rgb(76 29 149);
       }
       html[data-theme="dark"] .form-auth-bg--employee .auth-switch-card {
-        border-color: rgba(129, 140, 248, 0.32);
+        border-color: rgba(167, 139, 250, 0.3);
       }
       html[data-theme="dark"] .form-auth-bg--employee .auth-switch-card__link {
-        color: rgb(165 180 252);
+        color: rgb(196 181 253);
       }
       html[data-theme="dark"] .form-auth-bg--employee .auth-switch-card__link:hover {
-        color: rgb(199 210 254);
+        color: rgb(221 214 254);
       }
 
-      /* Shop login (/shop-login) — amber / teal retail POS */
+      /* Shop login (/shop-login) — same purple family, cooler hero for “store floor” */
       .form-auth-bg--shop {
-        background-color: #0c1424;
-        background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(245, 158, 11, 0.26), transparent 55%),
-          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(20, 184, 166, 0.2), transparent 52%),
-          radial-gradient(ellipse 55% 45% at 0% 100%, rgba(251, 146, 60, 0.14), transparent 48%),
-          linear-gradient(180deg, #0a1628 0%, #0f172a 100%);
+        background-color: #0c1222;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(124, 58, 237, 0.24), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(45, 212, 191, 0.12), transparent 52%),
+          radial-gradient(ellipse 55% 45% at 0% 100%, rgba(91, 33, 182, 0.14), transparent 48%),
+          linear-gradient(180deg, #0a0f1c 0%, #0f172a 100%);
       }
       html[data-theme="light"] .form-auth-bg--shop {
-        background-color: #fffbeb;
-        background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(245, 158, 11, 0.12), transparent 55%),
-          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(20, 184, 166, 0.08), transparent 52%),
-          linear-gradient(180deg, #fffbeb 0%, #f0fdfa 100%);
+        background-color: #f8fafc;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(124, 58, 237, 0.1), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(45, 212, 191, 0.06), transparent 52%),
+          linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
       }
       .form-auth-bg--shop .auth-hero__mesh {
-        background: linear-gradient(155deg, #1c1410 0%, #422006 35%, #134e4a 68%, #1c1917 100%);
+        background: linear-gradient(155deg, #0f172a 0%, #134e4a 42%, #4c1d95 78%, #0f172a 100%);
       }
       .form-auth-bg--shop .auth-hero__aurora {
-        background: radial-gradient(ellipse 50% 45% at 25% 25%, rgba(245, 158, 11, 0.45), transparent 55%),
-          radial-gradient(ellipse 45% 40% at 75% 70%, rgba(20, 184, 166, 0.38), transparent 50%),
-          radial-gradient(ellipse 35% 30% at 50% 50%, rgba(251, 113, 133, 0.1), transparent 60%);
+        background: radial-gradient(ellipse 50% 45% at 25% 25%, rgba(45, 212, 191, 0.25), transparent 55%),
+          radial-gradient(ellipse 45% 40% at 75% 70%, rgba(124, 58, 237, 0.38), transparent 50%),
+          radial-gradient(ellipse 35% 30% at 50% 50%, rgba(167, 139, 250, 0.12), transparent 60%);
       }
       .form-auth-bg--shop .auth-hero__orb--a {
-        background: rgba(245, 158, 11, 0.38);
+        background: rgba(45, 212, 191, 0.22);
       }
       .form-auth-bg--shop .auth-hero__orb--b {
-        background: rgba(20, 184, 166, 0.32);
+        background: rgba(124, 58, 237, 0.32);
       }
       .form-auth-bg--shop .text-gradient {
-        background: linear-gradient(90deg, #fcd34d, #fb923c, #5eead4, #fbbf24);
+        background: linear-gradient(90deg, #5eead4, #a78bfa, #c4b5fd, #2dd4bf);
         background-size: 200% auto;
         -webkit-background-clip: text;
         background-clip: text;
@@ -1186,66 +1410,449 @@
         animation: gradient-x 10s ease infinite;
       }
       .form-auth-bg--shop .form-card-modern::before {
-        background: linear-gradient(90deg, #b45309, #f59e0b, #14b8a6, #f59e0b, #d97706);
+        background: linear-gradient(90deg, #5b21b6, #7c3aed, #14b8a6, #7c3aed, #5b21b6);
         background-size: 200% 100%;
       }
       .form-auth-bg--shop .btn-modern {
-        background: linear-gradient(135deg, #b45309 0%, #f59e0b 42%, #0d9488 100%);
-        box-shadow: 0 4px 20px rgba(180, 83, 9, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 40%, #0d9488 100%);
+        box-shadow: 0 4px 20px rgba(91, 33, 182, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.22);
       }
       .form-auth-bg--shop .btn-modern:hover {
-        box-shadow: 0 8px 32px rgba(180, 83, 9, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px rgba(91, 33, 182, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.28);
       }
       .form-auth-bg--shop .form-input-wrap:focus-within {
-        border-color: rgb(217 119 6);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(245, 158, 11, 0.22),
-          0 12px 28px rgba(245, 158, 11, 0.1);
+        border-color: rgb(124 58 237);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(124, 58, 237, 0.18),
+          0 12px 28px rgba(124, 58, 237, 0.08);
       }
       .form-auth-bg--shop .form-input-wrap:focus-within .form-input-icon {
-        color: rgb(217 119 6);
+        color: rgb(124 58 237);
       }
       .form-auth-bg--shop .form-input-rich:focus {
-        border-color: rgb(217 119 6);
-        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 4px rgba(245, 158, 11, 0.22);
+        border-color: rgb(124 58 237);
+        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 4px rgba(124, 58, 237, 0.18);
       }
       .form-auth-bg--shop .toggle-password:hover {
-        color: rgb(217 119 6);
-        background: rgba(245, 158, 11, 0.12);
+        color: rgb(124 58 237);
+        background: rgba(124, 58, 237, 0.1);
       }
       .form-auth-bg--shop .toggle-password:focus-visible {
-        outline: 2px solid rgb(245 158 11);
+        outline: 2px solid rgb(124 58 237);
         outline-offset: 2px;
       }
       html[data-theme="dark"] .form-auth-bg--shop .form-input-rich:focus {
-        border-color: rgb(251 191 36);
-        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(251, 191, 36, 0.22);
+        border-color: rgb(196 181 253);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(196, 181, 253, 0.2);
       }
       html[data-theme="dark"] .form-auth-bg--shop .form-input-wrap:focus-within {
-        border-color: rgb(251 191 36);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(251, 191, 36, 0.18),
+        border-color: rgb(196 181 253);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(196, 181, 253, 0.16),
           0 12px 28px rgba(0, 0, 0, 0.35);
       }
       .form-auth-bg--shop .auth-switch-card {
-        border-color: rgba(245, 158, 11, 0.42);
+        border-color: rgba(124, 58, 237, 0.35);
       }
       .form-auth-bg--shop .auth-switch-card:hover {
-        border-color: rgba(245, 158, 11, 0.6);
-        box-shadow: 0 18px 34px -18px rgba(15, 23, 42, 0.55), 0 0 20px rgba(245, 158, 11, 0.18);
+        border-color: rgba(124, 58, 237, 0.52);
+        box-shadow: 0 18px 34px -18px rgba(15, 23, 42, 0.55), 0 0 20px rgba(124, 58, 237, 0.15);
       }
       .form-auth-bg--shop .auth-switch-card__link {
-        color: rgb(180 83 9);
+        color: rgb(91 33 182);
       }
       .form-auth-bg--shop .auth-switch-card__link:hover {
-        color: rgb(146 64 14);
+        color: rgb(76 29 149);
       }
       html[data-theme="dark"] .form-auth-bg--shop .auth-switch-card {
-        border-color: rgba(251, 191, 36, 0.32);
+        border-color: rgba(167, 139, 250, 0.28);
       }
       html[data-theme="dark"] .form-auth-bg--shop .auth-switch-card__link {
-        color: rgb(251 191 36);
+        color: rgb(196 181 253);
       }
       html[data-theme="dark"] .form-auth-bg--shop .auth-switch-card__link:hover {
-        color: rgb(253 230 138);
+        color: rgb(221 214 254);
+      }
+
+      /* Auth — charcoal + purple (matches public marketing) */
+      .form-auth-bg--accent-purple.form-auth-bg--employee,
+      .form-auth-bg--accent-purple.form-auth-bg--shop {
+        background-color: #09090b;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(124, 58, 237, 0.14), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(124, 58, 237, 0.08), transparent 52%),
+          linear-gradient(180deg, #09090b 0%, #18181b 100%);
+      }
+      html[data-theme="light"] .form-auth-bg--accent-purple.form-auth-bg--employee,
+      html[data-theme="light"] .form-auth-bg--accent-purple.form-auth-bg--shop {
+        background-color: #fafafa;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(124, 58, 237, 0.09), transparent 55%),
+          linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%);
+      }
+      .form-auth-bg--accent-purple .auth-hero__mesh {
+        background: linear-gradient(155deg, #18181b 0%, #27272a 42%, #4c1d95 78%, #18181b 100%);
+      }
+      .form-auth-bg--accent-purple .auth-hero__aurora {
+        background: radial-gradient(ellipse 50% 45% at 25% 25%, rgba(124, 58, 237, 0.22), transparent 55%),
+          radial-gradient(ellipse 45% 40% at 75% 70%, rgba(167, 139, 250, 0.14), transparent 50%),
+          radial-gradient(ellipse 35% 30% at 50% 50%, rgba(192, 132, 252, 0.08), transparent 60%);
+      }
+      .form-auth-bg--accent-purple .auth-hero__orb--a {
+        background: rgba(124, 58, 237, 0.22);
+      }
+      .form-auth-bg--accent-purple .auth-hero__orb--b {
+        background: rgba(91, 33, 182, 0.2);
+      }
+      .form-auth-bg--accent-purple .text-gradient {
+        background: linear-gradient(90deg, #c4b5fd, #a78bfa, #e9d5ff, #c4b5fd);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: gradient-x 10s ease infinite;
+      }
+      .form-auth-bg--accent-purple .form-card-modern::before {
+        background: linear-gradient(90deg, #6d28d9, #7c3aed, #9333ea, #7c3aed, #5b21b6);
+        background-size: 200% 100%;
+      }
+      .form-auth-bg--accent-purple .btn-modern {
+        background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 52%, #9333ea 100%);
+        color: #faf5ff;
+        box-shadow: 0 4px 24px rgba(91, 33, 182, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      }
+      .form-auth-bg--accent-purple .btn-modern:hover {
+        box-shadow: 0 8px 32px rgba(91, 33, 182, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      }
+      .form-auth-bg--accent-purple .form-input-wrap:focus-within {
+        border-color: rgb(124 58 237);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(124, 58, 237, 0.2),
+          0 12px 28px rgba(124, 58, 237, 0.08);
+      }
+      .form-auth-bg--accent-purple .form-input-wrap:focus-within .form-input-icon {
+        color: rgb(124 58 237);
+      }
+      .form-auth-bg--accent-purple .form-input-rich:focus {
+        border-color: rgb(124 58 237);
+        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 4px rgba(124, 58, 237, 0.18);
+      }
+      .form-auth-bg--accent-purple .toggle-password:hover {
+        color: rgb(124 58 237);
+        background: rgba(124, 58, 237, 0.1);
+      }
+      .form-auth-bg--accent-purple .toggle-password:focus-visible {
+        outline: 2px solid rgb(124 58 237);
+        outline-offset: 2px;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple .form-input-rich:focus {
+        border-color: rgb(196 181 253);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(196, 181, 253, 0.14);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple .form-input-wrap:focus-within {
+        border-color: rgb(196 181 253);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(196, 181, 253, 0.12),
+          0 12px 28px rgba(0, 0, 0, 0.35);
+      }
+      .form-auth-bg--accent-purple .auth-switch-card {
+        border-color: rgba(124, 58, 237, 0.28);
+      }
+      .form-auth-bg--accent-purple .auth-switch-card:hover {
+        border-color: rgba(124, 58, 237, 0.45);
+      }
+      .form-auth-bg--accent-purple .auth-switch-card__link {
+        color: rgb(91 33 182);
+      }
+      .form-auth-bg--accent-purple .auth-switch-card__link:hover {
+        color: rgb(76 29 149);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple .auth-switch-card__link {
+        color: rgb(196 181 253);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple .auth-switch-card__link:hover {
+        color: rgb(221 214 254);
+      }
+
+      /* Shop login card — business-friendly copy hierarchy & calmer type */
+      .form-auth-bg--accent-purple.form-auth-bg--shop .form-card-modern--shop-login .form-label {
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.8125rem;
+        font-weight: 600;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .form-card-modern--shop-login .form-label {
+        color: rgb(226 232 240);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .btn-modern--till {
+        text-transform: none;
+        letter-spacing: 0.03em;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        padding-top: 0.95rem;
+        padding-bottom: 0.95rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .auth-switch-card--shop-portal .auth-switch-card__label {
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .auth-switch-card__hint {
+        margin: 0.35rem 0 0;
+        font-size: 0.75rem;
+        line-height: 1.45;
+        font-weight: 500;
+        color: rgb(100 116 139);
+        text-transform: none;
+        letter-spacing: 0.01em;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .auth-switch-card__hint {
+        color: rgb(148 163 184);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .auth-switch-card--shop-portal .auth-switch-card__link {
+        margin-top: 0.65rem;
+      }
+      /* Employee portal CTA — below “Forgot password?” on branch login */
+      .form-auth-bg--accent-purple.form-auth-bg--shop .auth-switch-card--after-forgot {
+        margin-top: 2rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .auth-switch-card--after-forgot:hover {
+        transform: none;
+      }
+
+      /* Branch login — single combined panel (brand + branch-access copy + one icon) */
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel {
+        padding: 0.85rem 1rem 1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(124, 58, 237, 0.35);
+        background: linear-gradient(135deg, rgba(245, 243, 255, 0.95) 0%, rgba(237, 233, 254, 0.88) 50%, rgba(250, 245, 255, 0.92) 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 28px -16px rgba(91, 33, 182, 0.35);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel {
+        border-color: rgba(167, 139, 250, 0.35);
+        background: linear-gradient(135deg, rgba(46, 16, 101, 0.45) 0%, rgba(30, 27, 75, 0.55) 45%, rgba(39, 39, 42, 0.5) 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 12px 32px -18px rgba(0, 0, 0, 0.65);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__kicker {
+        margin: 0 0 0.65rem;
+        font-size: 0.65rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(91 33 182);
+        text-align: center;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__kicker {
+        color: rgb(196 181 253);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__body {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.85rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__icon {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.75rem;
+        background: linear-gradient(145deg, rgb(124 58 237) 0%, rgb(91 33 182) 100%);
+        color: rgb(245 243 255);
+        box-shadow: 0 4px 14px rgba(91, 33, 182, 0.4);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__copy {
+        min-width: 0;
+        flex: 1;
+        text-align: left;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__brand {
+        margin: 0;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgb(100 116 139);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__brand {
+        color: rgb(148 163 184);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__title {
+        margin: 0.15rem 0 0;
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        color: rgb(91 33 182);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__title {
+        color: rgb(196 181 253);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__lead {
+        margin: 0.5rem 0 0;
+        font-size: 0.875rem;
+        line-height: 1.45;
+        font-weight: 500;
+        color: rgb(51 65 85);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__lead {
+        color: rgb(203 213 225);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__note {
+        margin: 0.5rem 0 0;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        font-weight: 500;
+        color: rgb(71 85 105);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__note {
+        color: rgb(163 174 190);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__note strong {
+        font-weight: 700;
+        color: rgb(51 65 85);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .shop-login-branch-panel__note strong {
+        color: rgb(226 232 240);
+      }
+
+      /* Employee login (/login) — match branch login card polish */
+      .form-auth-bg--accent-purple.form-auth-bg--employee .form-card-modern--employee-login .form-label {
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.8125rem;
+        font-weight: 600;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .form-card-modern--employee-login .form-label {
+        color: rgb(226 232 240);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .btn-modern--employee-signin {
+        text-transform: none;
+        letter-spacing: 0.03em;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        padding-top: 0.95rem;
+        padding-bottom: 0.95rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .auth-switch-card--employee-portal .auth-switch-card__label {
+        text-transform: none;
+        letter-spacing: 0.02em;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .auth-switch-card__hint {
+        margin: 0.35rem 0 0;
+        font-size: 0.75rem;
+        line-height: 1.45;
+        font-weight: 500;
+        color: rgb(100 116 139);
+        text-transform: none;
+        letter-spacing: 0.01em;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .auth-switch-card__hint {
+        color: rgb(148 163 184);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .auth-switch-card--employee-portal .auth-switch-card__link {
+        margin-top: 0.65rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .auth-switch-card--after-forgot {
+        margin-top: 2rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .auth-switch-card--after-forgot:hover {
+        transform: none;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro {
+        padding: 0.85rem 1rem 1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(124, 58, 237, 0.35);
+        background: linear-gradient(135deg, rgba(245, 243, 255, 0.95) 0%, rgba(237, 233, 254, 0.88) 50%, rgba(250, 245, 255, 0.92) 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 28px -16px rgba(91, 33, 182, 0.35);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro {
+        border-color: rgba(167, 139, 250, 0.35);
+        background: linear-gradient(135deg, rgba(46, 16, 101, 0.45) 0%, rgba(30, 27, 75, 0.55) 45%, rgba(39, 39, 42, 0.5) 100%);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 12px 32px -18px rgba(0, 0, 0, 0.65);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__kicker {
+        margin: 0 0 0.65rem;
+        font-size: 0.65rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(91 33 182);
+        text-align: center;
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__kicker {
+        color: rgb(196 181 253);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__body {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.85rem;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__icon {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.75rem;
+        background: linear-gradient(145deg, rgb(124 58 237) 0%, rgb(91 33 182) 100%);
+        color: rgb(245 243 255);
+        box-shadow: 0 4px 14px rgba(91, 33, 182, 0.4);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__copy {
+        min-width: 0;
+        flex: 1;
+        text-align: left;
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__brand {
+        margin: 0;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgb(100 116 139);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__brand {
+        color: rgb(148 163 184);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__title {
+        margin: 0.15rem 0 0;
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        color: rgb(91 33 182);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__title {
+        color: rgb(196 181 253);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__lead {
+        margin: 0.5rem 0 0;
+        font-size: 0.875rem;
+        line-height: 1.45;
+        font-weight: 500;
+        color: rgb(51 65 85);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__lead {
+        color: rgb(203 213 225);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__note {
+        margin: 0.5rem 0 0;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        font-weight: 500;
+        color: rgb(71 85 105);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__note {
+        color: rgb(163 174 190);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__note strong {
+        font-weight: 700;
+        color: rgb(51 65 85);
+      }
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--employee .employee-login-intro__note strong {
+        color: rgb(226 232 240);
       }
 
       @keyframes auth-switch-rotate {

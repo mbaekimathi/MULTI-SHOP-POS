@@ -7,6 +7,7 @@
   <a href="{{ url_for('it_support_stock_reports', view='valuation') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'valuation' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Valuation</a>
   <a href="{{ url_for('it_support_stock_reports', view='highest_value') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'highest_value' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Top value</a>
   <a href="{{ url_for('it_support_stock_reports', view='stagnant') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if selected_view == 'stagnant' %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]">Stagnant</a>
+  <a href="{{ url_for('it_support_stock_requests_audit') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Request audit</a>
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}

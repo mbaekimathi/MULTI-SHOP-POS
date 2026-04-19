@@ -44,10 +44,6 @@
           id="mobile-menu"
           class="order-3 flex w-full max-md:hidden basis-full flex-col gap-0.5 pt-1 md:order-2 md:flex md:w-auto md:max-w-none md:basis-auto md:flex-1 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-x-0.5 md:gap-y-1 md:pt-0 lg:gap-x-1"
         >
-          <a class="nav-pill" href="{{ url_for('services') }}">Services</a>
-          <a class="nav-pill" href="{{ url_for('solutions') }}">Solutions</a>
-          <a class="nav-pill" href="{{ url_for('equipment') }}">Equipment</a>
-          <a class="nav-pill" href="{{ url_for('contact') }}">Contact</a>
           <details class="group relative">
             <summary
               class="nav-pill cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden"
@@ -61,11 +57,6 @@
               <a href="{{ url_for('public_shop_login') }}" class="nav-pill block w-full">Shop login</a>
             </div>
           </details>
-          <a
-            href="{{ url_for('quote') }}"
-            class="nav-quote-cta ml-0.5 inline-flex shrink-0 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-lg transition md:ml-1"
-            >Get a quote</a
-          >
         </div>
       </div>
     </nav>

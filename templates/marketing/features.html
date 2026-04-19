@@ -1,0 +1,90 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Solutions{% endblock %}
+{% block meta_description %}Faster checkout, trusted stock across branches, clear roles, and reporting finance can use — one operational picture.{% endblock %}
+{% block content %}
+  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+    <h1 class="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">What you can run</h1>
+    <p class="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+      <strong class="font-medium text-slate-800 dark:text-slate-200">Sales</strong> happen on the floor;
+      <strong class="font-medium text-slate-800 dark:text-slate-200">control</strong> (stock, people, numbers) draws from the same facts — no reconciling between systems every Friday.
+    </p>
+
+    <div class="mt-10 grid gap-6 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 sm:items-center dark:border-slate-700 dark:bg-slate-900/40">
+      <div class="text-sm text-slate-600 dark:text-slate-400">
+        <p class="font-medium text-slate-900 dark:text-white">Sale → payment → receipt</p>
+        <p class="mt-2">Line items use your central catalogue. Permissions control discounts, voids, and who sees company‑wide reports.</p>
+      </div>
+      <img
+        src="{{ url_for('static', filename='marketing/svg/illu-pos-flow.svg') }}"
+        alt="Steps: add items, pay, receipt"
+        class="w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700"
+        width="560"
+        height="200"
+        loading="lazy"
+      />
+    </div>
+
+    <div class="mt-8 grid gap-6 sm:grid-cols-2">
+      {% set blocks = [
+        {
+          'title': 'Inventory & products',
+          'body': 'One catalogue, stock per branch. Transfers and adjustments when a shop runs low.',
+          'img': 'marketing/svg/illu-inventory.svg',
+        },
+        {
+          'title': 'Shops & sync',
+          'body': 'Add branches without duplicating setup. Shared pricing with optional local rules.',
+          'img': 'marketing/svg/illu-sync.svg',
+        },
+        {
+          'title': 'Staff & access',
+          'body': 'Roles for cashiers, managers, and IT — who can discount, refund, or see all stores.',
+          'img': 'marketing/svg/illu-staff.svg',
+        },
+        {
+          'title': 'Sales reporting',
+          'body': 'Slice by store, item, and time. Export for accounting from the same figures the branch rings up.',
+          'img': 'marketing/svg/illu-analytics.svg',
+        },
+      ] %}
+      {% for b in blocks %}
+        <div class="flex gap-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/50">
+          <img
+            src="{{ url_for('static', filename=b.img) }}"
+            alt=""
+            class="h-20 w-24 shrink-0 rounded-md border border-slate-100 object-cover object-top dark:border-slate-700"
+            width="160"
+            height="128"
+            loading="lazy"
+          />
+          <div class="min-w-0">
+            <h2 class="font-display text-sm font-semibold text-slate-900 dark:text-white">{{ b.title }}</h2>
+            <p class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{{ b.body }}</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-10 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">
+      <img
+        src="{{ url_for('static', filename='marketing/svg/illu-company-management.svg') }}"
+        alt="Head office connected to branches"
+        class="mx-auto w-full max-w-lg"
+        width="520"
+        height="300"
+        loading="lazy"
+      />
+      <p class="mx-auto mt-3 max-w-xl text-center text-xs text-slate-500 dark:text-slate-500">Company rules and reporting sit above every shop; each shop runs its own POS.</p>
+    </div>
+  </div>
+
+  <section class="border-t border-slate-100 bg-slate-50 py-12 dark:border-slate-800 dark:bg-slate-900/30">
+    <div class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 sm:flex-row sm:items-center sm:px-6">
+      <div>
+        <p class="font-display text-sm font-semibold text-slate-900 dark:text-white">Want a walkthrough?</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">We’ll walk through branch checkout and head‑office for your store count.</p>
+      </div>
+      <a href="{{ url_for('marketing_contact') }}" class="shrink-0 rounded-md bg-violet-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-600">Contact</a>
+    </div>
+  </section>
+{% endblock %}

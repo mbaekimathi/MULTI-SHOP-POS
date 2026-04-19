@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200" fill="none" aria-hidden="true">
+  <text x="280" y="22" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="11" font-weight="600">At the till: one sale flow</text>
+  <!-- Step 1 -->
+  <rect x="24" y="44" width="120" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <rect x="40" y="58" width="56" height="40" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <rect x="102" y="68" width="26" height="28" rx="2" fill="#ede9fe" stroke="#a855f7"/>
+  <text x="84" y="128" text-anchor="middle" fill="#334155" font-family="system-ui,sans-serif" font-size="10" font-weight="600">1. Add items</text>
+  <text x="84" y="144" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="8">Scan or search</text>
+  <!-- Arrow -->
+  <path d="M156 104 H192" stroke="#94a3b8" stroke-width="2"/>
+  <path d="M192 100 L200 104 L192 108 Z" fill="#94a3b8"/>
+  <!-- Step 2 -->
+  <rect x="200" y="44" width="120" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <rect x="228" y="72" width="64" height="40" rx="6" fill="#7e22ce"/>
+  <text x="260" y="96" text-anchor="middle" fill="#ffffff" font-family="system-ui,sans-serif" font-size="9" font-weight="700">Pay</text>
+  <text x="260" y="128" text-anchor="middle" fill="#334155" font-family="system-ui,sans-serif" font-size="10" font-weight="600">2. Take payment</text>
+  <text x="260" y="144" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="8">Cash, card, split</text>
+  <!-- Arrow -->
+  <path d="M328 104 H364" stroke="#94a3b8" stroke-width="2"/>
+  <path d="M364 100 L372 104 L364 108 Z" fill="#94a3b8"/>
+  <!-- Step 3 -->
+  <rect x="376" y="44" width="160" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <path d="M396 68 L496 68 L496 108 L396 108 Z" fill="#fafafa" stroke="#cbd5e1"/>
+  <line x1="404" y1="78" x2="472" y2="78" stroke="#e2e8f0"/>
+  <line x1="404" y1="88" x2="452" y2="88" stroke="#e2e8f0"/>
+  <line x1="404" y1="98" x2="468" y2="98" stroke="#e2e8f0"/>
+  <text x="456" y="128" text-anchor="middle" fill="#334155" font-family="system-ui,sans-serif" font-size="10" font-weight="600">3. Receipt &amp; stock</text>
+  <text x="456" y="144" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="8">Print / email ù inventory updates</text>
+</svg>

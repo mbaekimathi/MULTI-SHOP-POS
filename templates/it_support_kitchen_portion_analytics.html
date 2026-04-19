@@ -1,0 +1,203 @@
+{% extends "it_support_kitchen_layout.html" %}
+{% block title %}Portion analytics — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Portion analytics{% endblock %}
+{% block employee_content %}
+  {% set a = analytics %}
+  <div class="space-y-6">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portion sales</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Counts are <strong class="font-medium text-[rgb(var(--rc-page-fg))]">portions sold</strong> on POS checkouts while the shop was in
+        <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen mode</strong>. Older sales (before this tracking) won’t appear.
+      </p>
+
+      <form method="get" class="mt-5 space-y-4">
+        <input type="hidden" name="tab" value="{{ a.tab }}" />
+        <div class="flex flex-wrap items-end gap-3">
+          <div>
+            <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">View</label>
+            <select
+              name="filter"
+              class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              onchange="this.form.querySelector('[name=tab]').value='{{ a.tab }}'; this.form.submit();"
+            >
+              <option value="day" {% if a.filter_type == "day" %}selected{% endif %}>Single day</option>
+              <option value="period" {% if a.filter_type == "period" %}selected{% endif %}>Date period</option>
+              <option value="month" {% if a.filter_type == "month" %}selected{% endif %}>Calendar month</option>
+            </select>
+          </div>
+
+          {% if a.filter_type == "day" %}
+            <div>
+              <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date</label>
+              <input type="date" name="on" value="{{ a.date_from.isoformat() }}" class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+            </div>
+          {% elif a.filter_type == "month" %}
+            <div>
+              <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Month</label>
+              <input
+                type="month"
+                name="month"
+                value="{{ '%04d-%02d'|format(a.date_from.year, a.date_from.month) }}"
+                class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              />
+            </div>
+          {% else %}
+            <div>
+              <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">From</label>
+              <input type="date" name="date_from" value="{{ a.date_from.isoformat() }}" class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">To</label>
+              <input type="date" name="date_to" value="{{ a.date_to.isoformat() }}" class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+            </div>
+          {% endif %}
+
+          <div class="min-w-[10rem]">
+            <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Shop</label>
+            <select name="shop_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="0" {% if not a.shop_id %}selected{% endif %}>All shops</option>
+              {% for s in shops %}
+                <option value="{{ s.id }}" {% if a.shop_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button type="submit" class="btn-rc btn-rc-primary px-5 py-2 text-sm font-semibold">Apply</button>
+        </div>
+      </form>
+
+      <div class="mt-6 flex justify-center gap-2 border-b border-[rgb(var(--rc-border))] pb-px">
+        <a
+          href="{{ tab_raw_url }}"
+          class="rounded-t-lg px-4 py-2 text-sm font-semibold transition {% if a.tab == 'raw' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-border))] ring-b-0{% else %}text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}"
+        >Raw data</a>
+        <a
+          href="{{ tab_visuals_url }}"
+          class="rounded-t-lg px-4 py-2 text-sm font-semibold transition {% if a.tab == 'visuals' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-border))] ring-b-0{% else %}text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}"
+        >Visuals</a>
+      </div>
+    </div>
+
+    {% if a.tab == 'raw' %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Line items</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ raw_lines|length }} row(s)</p>
+        <div class="mt-4 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+          <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-left text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-2">Sold at</th>
+                <th class="px-3 py-2">Shop</th>
+                <th class="px-3 py-2">Item</th>
+                <th class="px-3 py-2 text-right">Portions</th>
+                <th class="px-3 py-2">Sale</th>
+                <th class="px-3 py-2">Sale #</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for row in raw_lines %}
+                <tr>
+                  <td class="whitespace-nowrap px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ row.sold_at }}</td>
+                  <td class="px-3 py-2.5 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name or "—" }}{% if row.shop_code %} <span class="text-xs text-[rgb(var(--rc-muted))]">({{ row.shop_code }})</span>{% endif %}</td>
+                  <td class="px-3 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
+                  <td class="px-3 py-2.5 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.portions_qty }}</td>
+                  <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ row.sale_type }}</td>
+                  <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ row.sale_id }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="6" class="px-3 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No kitchen-mode sales in this range.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% else %}
+      <div class="grid gap-6 lg:grid-cols-1">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Portions by item (top {{ chart_by_item|length }})</h3>
+          <div class="mt-4 h-72 w-full">
+            <canvas id="ka-chart-item" aria-label="Portions by item"></canvas>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Portions by day</h3>
+          <div class="mt-4 h-64 w-full">
+            <canvas id="ka-chart-day" aria-label="Portions by day"></canvas>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if a.tab == 'visuals' %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+      (function () {
+        var byItem = {{ chart_by_item|tojson }};
+        var byDay = {{ chart_by_day|tojson }};
+        var fg = "rgb(148, 163, 184)";
+        var grid = "rgba(148, 163, 184, 0.2)";
+        var bar = "rgba(16, 185, 129, 0.75)";
+        var line = "rgba(20, 184, 166, 0.9)";
+
+        var el1 = document.getElementById("ka-chart-item");
+        if (el1 && Chart && byItem && byItem.length) {
+          new Chart(el1, {
+            type: "bar",
+            data: {
+              labels: byItem.map(function (r) { return (r.item_name || "").slice(0, 28); }),
+              datasets: [
+                {
+                  label: "Portions",
+                  data: byItem.map(function (r) { return r.total_portions; }),
+                  backgroundColor: bar,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: fg, maxRotation: 45, minRotation: 0 }, grid: { color: grid } },
+                y: { ticks: { color: fg }, grid: { color: grid }, beginAtZero: true },
+              },
+            },
+          });
+        }
+
+        var el2 = document.getElementById("ka-chart-day");
+        if (el2 && Chart && byDay && byDay.length) {
+          new Chart(el2, {
+            type: "line",
+            data: {
+              labels: byDay.map(function (r) { return r.day; }),
+              datasets: [
+                {
+                  label: "Portions",
+                  data: byDay.map(function (r) { return r.total_portions; }),
+                  borderColor: line,
+                  backgroundColor: "rgba(20, 184, 166, 0.15)",
+                  fill: true,
+                  tension: 0.2,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: fg }, grid: { color: grid } },
+                y: { ticks: { color: fg }, grid: { color: grid }, beginAtZero: true },
+              },
+            },
+          });
+        }
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

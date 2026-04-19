@@ -1,4 +1,5 @@
 {# Expects: shop, shop_settings_nav_active — one of: appearance | pos_printing | receipt #}
+{% set _pos_settings_it = session.get('employee_role') in ('it_support', 'super_admin') %}
 <p class="mt-2 shrink-0 px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop settings</p>
 <a
   href="{{ url_for('shop_settings_appearance', shop_id=shop.id) }}"
@@ -11,14 +12,20 @@
   Appearance
 </a>
 <a
-  href="{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}"
+  href="{% if _pos_settings_it %}{{ url_for('it_support_system_settings', tab='pos') }}{% else %}{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}{% endif %}"
   class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if shop_settings_nav_active == 'pos_printing' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
   {% if shop_settings_nav_active == 'pos_printing' %}aria-current="page"{% endif %}
 >
-  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4M15 9h6M4 6h16M4 10h16M4 14h10M4 18h10" />
-  </svg>
-  POS printing
+  {% if _pos_settings_it %}
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
+    </svg>
+  {% else %}
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4M15 9h6M4 6h16M4 10h16M4 14h10M4 18h10" />
+    </svg>
+  {% endif %}
+  {% if _pos_settings_it %}Point of sale settings{% else %}POS printing{% endif %}
 </a>
 <a
   href="{{ url_for('shop_settings_receipt', shop_id=shop.id) }}"

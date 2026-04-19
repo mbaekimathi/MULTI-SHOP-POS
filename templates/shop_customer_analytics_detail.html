@@ -6,7 +6,7 @@
   <a href="{{ url_for('shop_item_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">Item analytics</a>
   <a href="{{ url_for('shop_period_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">Period analytics</a>
   <a href="{{ url_for('shop_sales_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">Sales analytics</a>
-  <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">Credit analytics</a>
+  {% if pos_allow_credit_sale %}<a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">Credit analytics</a>{% endif %}
   <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]">Customer analytics</a>
 {% endblock %}
 {% block shop_content %}

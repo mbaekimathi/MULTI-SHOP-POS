@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Shop login — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block title %}Branch login — {{ pub_brand_name }}{% endblock %}
 {% block body %}
-  <div class="form-auth-bg form-auth-bg--shop">
-    <div class="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-end p-3 sm:p-4">
-      <div class="pointer-events-auto">{% include "partials/theme_toggle.html" %}</div>
-    </div>
+  {% set purpose_visual_src = "marketing/svg/illu-branch-shop.svg" %}
+  {% set purpose_visual_alt = "Illustration of a retail branch storefront with a location pin" %}
+  {% set purpose_visual_label = "Branch store" %}
+  {% set purpose_theme = "shop" %}
+  {% include "partials/auth_top_bar.html" %}
+  <div class="form-auth-bg form-auth-bg--shop form-auth-bg--accent-purple form-auth-bg--has-topbar">
     <div class="form-auth-grid" aria-hidden="true"></div>
 
     <div class="auth-layout auth-layout--reverse">
@@ -14,95 +16,94 @@
         <div class="auth-hero__orb auth-hero__orb--a" aria-hidden="true"></div>
         <div class="auth-hero__orb auth-hero__orb--b" aria-hidden="true"></div>
         <div class="auth-hero__content">
-          <p class="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-amber-100 backdrop-blur-sm">
-            <span class="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.85)]"></span>
-            Shop access
+          <p class="inline-flex items-center gap-2 rounded-full border border-violet-400/35 bg-violet-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-violet-100 backdrop-blur-sm">
+            <span class="h-1.5 w-1.5 rounded-full bg-violet-300 shadow-[0_0_8px_rgba(167,139,250,0.85)]"></span>
+            Branch checkout
           </p>
           <h2 class="mt-8 max-w-md text-3xl font-extrabold leading-tight tracking-tight text-white lg:text-4xl">
-            Open your <span class="text-gradient">shop POS</span> securely
+            Log in at the <span class="text-gradient">till</span>
           </h2>
           <p class="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
-            Use your 6-digit shop code and password set for that shop. Suspended shops cannot log in.
+            This login is for <strong class="text-slate-200">checkout</strong> — ring up sales, take payment, and print receipts. Head office tasks use the employee portal instead.
           </p>
-          <ul class="mt-10 space-y-4 text-sm text-slate-300">
+          <ul class="mt-8 space-y-3 text-sm text-slate-300">
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-100 ring-1 ring-amber-400/35">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 text-violet-100 ring-1 ring-violet-400/35">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
-              <span>6-digit shop code selects the correct shop session</span>
+              <span>6‑digit branch code + password for this store only</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-500/20 text-teal-100 ring-1 ring-teal-400/35">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 text-violet-100 ring-1 ring-violet-400/30">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
-              <span>Redirects directly to the shop POS page after login</span>
+              <span>Opens the till — same figures leadership sees in reports</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-100 ring-1 ring-amber-400/30">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-100 ring-1 ring-violet-400/28">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
-              <span>Theme-aware UI (dark/light)</span>
+              <span>Suspended shops cannot sign in</span>
             </li>
           </ul>
+          {% with purpose_visual_compact=false %}
+            {% include "partials/auth_purpose_visual.html" %}
+          {% endwith %}
         </div>
         <p class="auth-hero__footer">
-          © {{ site_settings.company_name if site_settings else "Point of Sale" }} · Shop login
+          © {{ pub_builder_name }} · {{ pub_brand_name }} · Branch till access
         </p>
       </aside>
 
       <div class="auth-main w-full lg:w-auto">
-        <div class="mb-6 w-full max-w-md lg:hidden">
-          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-amber-500">
-            <span aria-hidden="true">←</span> Back to website
+        <div class="mb-4 w-full max-w-md lg:hidden">
+          <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-violet-500">
+            <span aria-hidden="true">←</span> Home
           </a>
-          <div class="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/90 to-slate-800/80 p-4 backdrop-blur-md ring-1 ring-white/5">
-            <p class="text-xs font-bold uppercase tracking-widest text-amber-300">Shop portal</p>
-            <p class="mt-1 text-lg font-bold text-white">Shop sign-in</p>
-          </div>
+          {% with purpose_visual_compact=true %}
+            {% include "partials/auth_purpose_visual.html" %}
+          {% endwith %}
         </div>
 
-        <div class="form-card-modern w-full">
+        <div class="form-card-modern form-card-modern--shop-login w-full">
           <div class="form-card-inner">
-            <div class="mb-2 hidden text-center lg:block">
-              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-amber-700 dark:hover:text-amber-400">← Back to website</a>
+            <div class="mb-3 hidden text-center lg:block">
+              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-violet-600 dark:hover:text-violet-400">← Home</a>
             </div>
-            <div class="text-center">
-              <a href="{{ url_for('public_shop_login') }}" class="inline-flex items-center justify-center gap-3">
-                <span
-                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-teal-600 text-white shadow-lg shadow-amber-500/35 ring-2 ring-amber-300/45"
-                  aria-hidden="true"
-                >
-                  <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+
+            <div class="shop-login-branch-panel" role="region" aria-labelledby="branch-login-form-heading">
+              <div class="shop-login-branch-panel__kicker">Form · Branch access</div>
+              <div class="shop-login-branch-panel__body">
+                <span class="shop-login-branch-panel__icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-7 w-7">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2M4.5 3h15a1.5 1.5 0 011.5 1.5v13.5a1.5 1.5 0 01-1.5 1.5h-6a1.5 1.5 0 01-1.5-1.5V19.5A1.5 1.5 0 009 18H4.5a1.5 1.5 0 01-1.5-1.5V4.5A1.5 1.5 0 014.5 3z" />
                   </svg>
                 </span>
-                <span class="text-left">
-                  <span class="block text-lg font-extrabold tracking-tight text-slate-900">
-                    {{ site_settings.company_name if site_settings else "Point of Sale" }}
-                  </span>
-                  <span class="mt-0.5 block text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Shop login</span>
-                </span>
-              </a>
+                <div class="shop-login-branch-panel__copy">
+                  <p class="shop-login-branch-panel__brand">{{ pub_brand_name }}</p>
+                  <h2 id="branch-login-form-heading" class="shop-login-branch-panel__title">Branch login</h2>
+                  <p class="shop-login-branch-panel__lead">
+                    Sign in to serve customers and take payment at <strong class="font-semibold text-slate-800 dark:text-slate-100">this</strong> store.
+                  </p>
+                  <p class="shop-login-branch-panel__note">
+                    Use this form for your <strong>store / branch</strong> till only — not head office.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {% include "partials/flashes.html" %}
 
-            <div class="auth-switch-card">
-              <p class="auth-switch-card__label">Employee portal access</p>
-              <a
-                href="{{ url_for('employee_login') }}"
-                class="auth-switch-card__link js-auth-switch-link"
-                data-auth-switch="to-employee"
-              >
-                Go to employee login
-                <span aria-hidden="true">→</span>
-              </a>
-            </div>
-
-            <form method="post" action="{{ url_for('public_shop_login') }}" class="mt-8 space-y-6" id="public-shop-login-form">
+            <form
+              method="post"
+              action="{{ url_for('public_shop_login') }}"
+              class="shop-login-form mt-8 space-y-6"
+              id="public-shop-login-form"
+              aria-labelledby="branch-login-form-heading"
+            >
               <div>
-                <label for="shop_code" class="form-label">Shop code</label>
-                <p id="shop_code_hint" class="mb-2 text-xs text-slate-500 dark:text-slate-400">Enter exactly 6 digits (numbers only).</p>
+                <label for="shop_code" class="form-label">Branch code</label>
+                <p id="shop_code_hint" class="mb-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">The 6-digit code for this branch (numbers only).</p>
                 <div class="form-input-wrap form-input-wrap--code">
                   <input
                     id="shop_code"
@@ -124,7 +125,7 @@
               </div>
 
               <div>
-                <label for="shop_password" class="form-label">Shop password</label>
+                <label for="shop_password" class="form-label">Till password</label>
                 <div class="form-input-wrap form-input-wrap--password">
                   <svg class="form-input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -139,7 +140,7 @@
                     spellcheck="false"
                     inputmode="text"
                     class="form-input-rich"
-                    placeholder="Enter shop password"
+                    placeholder="Password for this branch"
                   />
                   <button
                     type="button"
@@ -160,15 +161,32 @@
                 </div>
               </div>
 
-              <button type="submit" class="btn-modern w-full">Open shop POS</button>
-              <p class="text-center text-sm text-slate-600 dark:text-slate-400">
-                Forgot password?
+              <button type="submit" class="btn-modern btn-modern--till w-full">Sign in to till</button>
+              <p class="text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                Forgot your password?
+                {% if site_settings and site_settings.company_email %}
                 <a
-                  href="{{ url_for('contact') }}"
-                  class="font-bold text-amber-800 underline decoration-amber-300 decoration-2 underline-offset-2 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-200"
-                  >Contact IT support</a
+                  href="mailto:{{ site_settings.company_email }}"
+                  class="font-semibold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
+                  >Email your support team</a
                 >
+                {% else %}
+                <span class="text-slate-700 dark:text-slate-300">Ask your store manager, or call <a href="tel:{{ pub_phone_tel }}" class="font-semibold text-violet-700 hover:underline dark:text-violet-300">{{ pub_phone_display }}</a> ({{ pub_builder_name }}).</span>
+                {% endif %}
               </p>
+
+              <div class="auth-switch-card auth-switch-card--shop-portal auth-switch-card--after-forgot">
+                <p class="auth-switch-card__label">Need head office, reports, or IT tools?</p>
+                <p class="auth-switch-card__hint">Use the employee portal — not this screen.</p>
+                <a
+                  href="{{ url_for('employee_login') }}"
+                  class="auth-switch-card__link js-auth-switch-link"
+                  data-auth-switch="to-employee"
+                >
+                  Open employee sign-in
+                  <span aria-hidden="true">→</span>
+                </a>
+              </div>
             </form>
           </div>
         </div>

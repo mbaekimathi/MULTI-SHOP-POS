@@ -27,12 +27,14 @@
     </svg>
     Sales analytics
   </a>
+  {% if pos_allow_credit_sale %}
   <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'credit' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
     </svg>
     Credit analytics
   </a>
+  {% endif %}
   <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'customer' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -117,7 +119,7 @@
           <a href="{{ url_for('shop_item_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'item' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Items</a>
           <a href="{{ url_for('shop_period_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'period' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Period</a>
           <a href="{{ url_for('shop_sales_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'sales' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Sales</a>
-          <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'credit' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Credit</a>
+          {% if pos_allow_credit_sale %}<a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'credit' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Credit</a>{% endif %}
           <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'customer' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Customers</a>
           <a href="{{ url_for('shop_stock_analytics', shop_id=shop.id) }}{{ analytics_qs }}" class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition {% if av == 'stock' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">Stock</a>
         </div>

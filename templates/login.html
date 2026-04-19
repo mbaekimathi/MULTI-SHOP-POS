@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Employee login — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block title %}Employee login — {{ pub_brand_name }}{% endblock %}
 {% block body %}
-  <div class="form-auth-bg form-auth-bg--employee">
-    <div class="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-end p-3 sm:p-4">
-      <div class="pointer-events-auto">{% include "partials/theme_toggle.html" %}</div>
-    </div>
+  {% set purpose_visual_src = "marketing/svg/illu-head-office-hub.svg" %}
+  {% set purpose_visual_alt = "Illustration of head office connected to branch locations" %}
+  {% set purpose_visual_label = "Head office & branches" %}
+  {% set purpose_theme = "employee" %}
+  {% include "partials/auth_top_bar.html" %}
+  <div class="form-auth-bg form-auth-bg--employee form-auth-bg--accent-purple form-auth-bg--has-topbar">
     <div class="form-auth-grid" aria-hidden="true"></div>
     <div class="auth-layout">
       <aside class="auth-hero">
@@ -14,101 +16,92 @@
         <div class="auth-hero__orb auth-hero__orb--b" aria-hidden="true"></div>
         <div class="auth-hero__content">
           <p
-            class="inline-flex items-center gap-2 rounded-full border border-indigo-400/25 bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-indigo-200 backdrop-blur-sm"
+            class="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-violet-100 backdrop-blur-sm"
           >
-            <span class="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.9)]"></span>
-            Internal portal
+            <span class="h-1.5 w-1.5 rounded-full bg-violet-300 shadow-[0_0_8px_rgba(167,139,250,0.85)]"></span>
+            Employee portal
           </p>
           <h2 class="mt-8 max-w-md text-3xl font-extrabold leading-tight tracking-tight text-white lg:text-4xl">
-            Secure access for <span class="text-gradient">your team</span>
+            Company <span class="text-gradient">management</span> access
           </h2>
           <p class="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
-            Use your 6-digit employee code and password. Only active accounts can enter the company dashboard.
+            Sign in to run reporting, IT tools, and multi‑shop settings — separate from the till login used in stores.
           </p>
-          <ul class="mt-10 space-y-4 text-sm text-slate-300">
+          <ul class="mt-8 space-y-3 text-sm text-slate-300">
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-200 ring-1 ring-indigo-400/35">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/25 text-violet-100 ring-1 ring-violet-400/35">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
-              <span>Encrypted session and role-based access</span>
+              <span>6‑digit code + password; roles decide what you see</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-200 ring-1 ring-indigo-400/35">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/25 text-violet-100 ring-1 ring-violet-400/35">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
-              <span>Same branding and standards as our public site</span>
+              <span>Same platform as the public site — your company’s control layer</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-200 ring-1 ring-indigo-400/35">
+              <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/25 text-violet-100 ring-1 ring-violet-400/35">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
               </span>
-              <span>New hires register first — admins activate accounts</span>
+              <span>New accounts stay pending until an admin activates them</span>
             </li>
           </ul>
+          {% with purpose_visual_compact=false %}
+            {% include "partials/auth_purpose_visual.html" %}
+          {% endwith %}
         </div>
         <p class="auth-hero__footer">
-          © {{ site_settings.company_name if site_settings else "Point of Sale" }} · Employee access
+          © {{ pub_builder_name }} · {{ pub_brand_name }} · Head office &amp; reporting
         </p>
       </aside>
 
       <div class="auth-main w-full lg:w-auto">
-        <div class="mb-6 w-full max-w-md lg:hidden">
-          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-indigo-400">
-            <span aria-hidden="true">←</span> Back to website
+        <div class="mb-4 w-full max-w-md lg:hidden">
+          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-violet-500">
+            <span aria-hidden="true">←</span> Home
           </a>
-          <div
-            class="rounded-2xl border border-white/10 bg-gradient-to-r from-slate-900/90 to-slate-800/80 p-4 backdrop-blur-md ring-1 ring-white/5"
-          >
-            <p class="text-xs font-bold uppercase tracking-widest text-indigo-300">Company portal</p>
-            <p class="mt-1 text-lg font-bold text-white">Employee sign-in</p>
-          </div>
+          {% with purpose_visual_compact=true %}
+            {% include "partials/auth_purpose_visual.html" %}
+          {% endwith %}
         </div>
 
-        <div class="form-card-modern w-full">
+        <div class="form-card-modern form-card-modern--employee-login w-full">
           <div class="form-card-inner">
-            <div class="mb-2 hidden text-center lg:block">
-              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-indigo-600 dark:hover:text-indigo-400">← Back to website</a>
+            <div class="mb-3 hidden text-center lg:block">
+              <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-violet-600 dark:hover:text-violet-400">← Home</a>
             </div>
-            <div class="text-center">
-              <a href="{{ url_for('employee_login') }}" class="inline-flex items-center justify-center gap-3">
-                <span
-                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/40 ring-2 ring-indigo-300/40"
-                  aria-hidden="true"
-                >
-                  <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+
+            <div class="employee-login-intro" role="region" aria-labelledby="employee-login-form-heading">
+              <div class="employee-login-intro__kicker">Form · Employee access</div>
+              <div class="employee-login-intro__body">
+                <span class="employee-login-intro__icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-7 w-7">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                   </svg>
-                </span
-                >
-                <span class="text-left">
-                  <span class="block text-lg font-extrabold tracking-tight text-slate-900">
-                    {{ site_settings.company_name if site_settings else "Point of Sale" }}
-                  </span>
-                  <span class="mt-0.5 block text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Sign in</span>
                 </span>
-              </a>
+                <div class="employee-login-intro__copy">
+                  <p class="employee-login-intro__brand">{{ pub_brand_name }}</p>
+                  <h2 id="employee-login-form-heading" class="employee-login-intro__title">Employee login</h2>
+                  <p class="employee-login-intro__lead">
+                    Sign in for reporting, IT tools, and multi‑branch settings — matched to <strong class="font-semibold text-slate-800 dark:text-slate-100">your</strong> role.
+                  </p>
+                  <p class="employee-login-intro__note">
+                    <strong>Not</strong> for branch tills — use <strong>branch login</strong> on checkout devices.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {% include "partials/flashes.html" %}
 
-            <div class="auth-switch-card">
-              <p class="auth-switch-card__label">Shop device access</p>
-              <a
-                href="{{ url_for('public_shop_login') }}"
-                class="auth-switch-card__link js-auth-switch-link"
-                data-auth-switch="to-shop"
-              >
-                Go to shop login
-                <span aria-hidden="true">→</span>
-              </a>
-            </div>
-
-            <form method="post" action="{{ url_for('employee_login') }}" class="mt-8 space-y-6">
+            <form method="post" action="{{ url_for('employee_login') }}" class="employee-login-form mt-8 space-y-6" aria-labelledby="employee-login-form-heading">
               {% if request.args.get('next') %}
                 <input type="hidden" name="next" value="{{ request.args.get('next') }}" />
               {% endif %}
               <div>
-                <label for="employee_code" class="form-label">6-digit employee code</label>
+                <label for="employee_code" class="form-label">Employee code</label>
+                <p id="employee_code_hint" class="mb-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">Exactly 6 digits (numbers only).</p>
                 <div class="form-input-wrap form-input-wrap--code">
                   <input
                     id="employee_code"
@@ -120,8 +113,9 @@
                     maxlength="6"
                     autocomplete="one-time-code"
                     required
-                    class="form-input-rich form-input-code"
+                    class="form-input-rich form-input-code text-center font-mono tracking-[0.2em]"
                     placeholder="000000"
+                    aria-describedby="employee_code_hint"
                   />
                 </div>
               </div>
@@ -162,22 +156,39 @@
                   </button>
                 </div>
               </div>
-              <button type="submit" class="btn-modern w-full">Sign in</button>
-              <p class="text-center text-sm text-slate-600 dark:text-slate-400">
-                Forgot password?
+              <button type="submit" class="btn-modern btn-modern--employee-signin w-full">Sign in</button>
+              <p class="text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                Forgot your password?
+                {% if site_settings and site_settings.company_email %}
                 <a
-                  href="{{ url_for('contact') }}"
-                  class="font-bold text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-2 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200"
-                  >Contact IT support</a
+                  href="mailto:{{ site_settings.company_email }}"
+                  class="font-semibold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
+                  >Email your support team</a
                 >
+                {% else %}
+                <span class="text-slate-700 dark:text-slate-300">Ask your manager, or call <a href="tel:{{ pub_phone_tel }}" class="font-semibold text-violet-700 hover:underline dark:text-violet-300">{{ pub_phone_display }}</a> ({{ pub_builder_name }}).</span>
+                {% endif %}
               </p>
+
+              <div class="auth-switch-card auth-switch-card--employee-portal auth-switch-card--after-forgot">
+                <p class="auth-switch-card__label">Need to sign in at a branch till?</p>
+                <p class="auth-switch-card__hint">Use branch login — not this screen.</p>
+                <a
+                  href="{{ url_for('public_shop_login') }}"
+                  class="auth-switch-card__link js-auth-switch-link"
+                  data-auth-switch="to-shop"
+                >
+                  Open branch login
+                  <span aria-hidden="true">→</span>
+                </a>
+              </div>
             </form>
 
             <p class="mt-10 border-t border-slate-200/90 pt-8 text-center text-sm text-slate-600 dark:text-slate-300">
               No account yet?
               <a
                 href="{{ url_for('employee_signup') }}"
-                class="font-bold text-indigo-700 underline decoration-indigo-300 decoration-2 underline-offset-2 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200"
+                class="font-bold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
                 >Create an employee account</a
               >
             </p>

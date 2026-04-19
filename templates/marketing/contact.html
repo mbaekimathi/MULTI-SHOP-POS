@@ -1,0 +1,74 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Contact{% endblock %}
+{% block meta_description %}Tell us about your stores and priorities — we usually reply within one business day.{% endblock %}
+{% block content %}
+  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+    <h1 class="font-display text-display-sm text-slate-900 dark:text-white">Let’s talk</h1>
+    <p class="mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
+      Share your name, email, and what you’re trying to solve — we’ll reply by email.
+    </p>
+  </div>
+
+  <div class="mx-auto grid max-w-6xl gap-10 px-4 pb-16 lg:grid-cols-2 sm:px-6">
+    <div class="mk-reveal" x-data="{ sending: false, ok: false, err: null }">
+      {% include "partials/flashes.html" %}
+      <form
+        method="post"
+        action="{{ url_for('marketing_contact') }}"
+        class="space-y-4 rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900/50"
+        @submit.prevent="
+          sending = true; err = null; ok = false;
+          const form = $event.target;
+          const fd = new FormData(form);
+          fetch(form.action, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(({ ok: good, j }) => { if (good && j.ok) { ok = true; form.reset(); } else err = (j && j.error) || 'Something went wrong.'; })
+            .catch(() => { err = 'Network error.'; })
+            .finally(() => { sending = false; });
+        "
+      >
+        <div>
+          <label for="mk-name" class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Name</label>
+          <input id="mk-name" name="name" required class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-violet-500 focus:ring-2 dark:border-slate-600 dark:bg-slate-950 dark:text-white" />
+        </div>
+        <div>
+          <label for="mk-email" class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Email</label>
+          <input id="mk-email" name="email" type="email" required class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-violet-500 dark:border-slate-600 dark:bg-slate-950 dark:text-white" />
+        </div>
+        <div>
+          <label for="mk-company" class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Company <span class="text-slate-400">(optional)</span></label>
+          <input id="mk-company" name="company" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-violet-500 dark:border-slate-600 dark:bg-slate-950 dark:text-white" />
+        </div>
+        <div>
+          <label for="mk-msg" class="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Message</label>
+          <textarea id="mk-msg" name="message" rows="5" required class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-violet-500 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
+        </div>
+        <p x-show="ok" x-cloak class="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">Thanks — we’ll get back to you shortly.</p>
+        <p x-show="err" x-text="err" x-cloak class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-900 dark:bg-red-950/40 dark:text-red-200"></p>
+        <button
+          type="submit"
+          :disabled="sending"
+          class="w-full rounded-md bg-violet-500 py-2.5 text-sm font-semibold text-white hover:bg-violet-600 disabled:opacity-60"
+        >
+          <span x-show="!sending">Send</span>
+          <span x-show="sending" x-cloak>Sending…</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="mk-reveal space-y-6">
+      <img src="{{ url_for('static', filename='marketing/svg/illu-map.svg') }}" alt="" class="w-full rounded-lg border border-slate-200 dark:border-slate-700" width="400" height="320" loading="lazy" />
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/50">
+        <p class="font-medium text-slate-900 dark:text-white">Business enquiries</p>
+        <a href="tel:{{ pub_phone_tel }}" class="text-lg font-semibold text-violet-700 hover:underline dark:text-violet-400">{{ pub_phone_display }}</a>
+        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ pub_builder_name }} · {{ pub_brand_name }} for retail operations</p>
+      </div>
+      {% if site_settings and site_settings.company_email %}
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/50">
+          <p class="font-medium text-slate-900 dark:text-white">Email (deployment)</p>
+          <a href="mailto:{{ site_settings.company_email }}" class="text-violet-700 hover:underline dark:text-violet-400">{{ site_settings.company_email }}</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

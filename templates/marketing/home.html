@@ -1,0 +1,356 @@
+{% extends "marketing/base_marketing.html" %}
+{% block title %}Home{% endblock %}
+{% block meta_description %}Give your business one view of sales, stock, and people across every branch — from checkout to head office decisions, without the Friday spreadsheet chase.{% endblock %}
+{% block content %}
+  <section class="relative overflow-hidden bg-zinc-950 text-white">
+    <div
+      class="pointer-events-none absolute inset-0 opacity-[0.35]"
+      style="background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(ellipse 75% 70% at 50% 40%, black 15%, transparent 72%);"
+      aria-hidden="true"
+    ></div>
+    <div
+      class="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-violet-500/15 blur-3xl"
+      aria-hidden="true"
+    ></div>
+    <div
+      class="pointer-events-none absolute -bottom-20 left-1/4 h-64 w-64 rounded-full bg-zinc-500/10 blur-3xl"
+      aria-hidden="true"
+    ></div>
+
+    <div class="relative mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6 sm:pb-20 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-10 lg:pb-24 lg:pt-10">
+      <div>
+        <p class="text-sm font-semibold tracking-wide text-violet-400/95">For owners &amp; operations teams</p>
+        <h1 class="mt-4 font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-[2.85rem]">
+          Run every store with clarity.<br />
+          <span class="text-violet-400">Lead with numbers you trust.</span>
+        </h1>
+        <p class="mt-5 max-w-lg text-base leading-relaxed text-zinc-400">
+          Give your business a single picture of sales, stock, and activity across locations — so managers act on facts, and frontline staff stay focused on customers.
+          <span class="mt-3 block text-sm text-zinc-500">
+            Head office and IT use one sign‑in for users, pricing, and reporting; each shop uses a simple till login suited to the sales floor.
+          </span>
+        </p>
+        <div class="mt-9 flex flex-wrap items-center gap-3">
+          <a
+            href="{{ url_for('marketing_contact') }}"
+            class="inline-flex items-center justify-center rounded-full bg-violet-600 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/30 transition hover:bg-violet-500"
+            >Talk about your stores</a
+          >
+          <a
+            href="{{ url_for('marketing_features') }}"
+            class="inline-flex items-center justify-center rounded-full border border-white/20 px-7 py-3 text-sm font-semibold text-white transition hover:border-white/35 hover:bg-white/5"
+            >What you can achieve</a
+          >
+        </div>
+        <a
+          href="{{ url_for('marketing_features') }}"
+          class="group mt-8 inline-flex items-center gap-3 text-sm font-medium text-zinc-400 transition hover:text-violet-300"
+        >
+          <span
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-400/40 text-violet-400 transition group-hover:border-violet-300 group-hover:bg-violet-400/10"
+            aria-hidden="true"
+          >
+            <svg class="ml-0.5 h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+          How it works for your teams
+        </a>
+      </div>
+
+      <div class="relative mx-auto mt-14 w-full max-w-lg lg:mx-0 lg:mt-0 lg:max-w-none">
+        <div class="mk-product-stack">
+          <div class="mk-product-stack__card mk-product-stack__card--a">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-dashboard.svg') }}"
+              alt="Dashboard preview"
+              width="480"
+              height="340"
+              loading="eager"
+            />
+          </div>
+          <div class="mk-product-stack__card mk-product-stack__card--b">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-pos-flow.svg') }}"
+              alt="POS checkout flow"
+              width="560"
+              height="200"
+              loading="eager"
+            />
+          </div>
+          <div class="mk-product-stack__card mk-product-stack__card--c">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-inventory.svg') }}"
+              alt="Inventory overview"
+              width="400"
+              height="320"
+              loading="eager"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="relative z-10 h-12 w-full sm:h-16" aria-hidden="true">
+      <svg class="absolute bottom-0 left-0 h-full w-full text-white dark:text-zinc-950" preserveAspectRatio="none" viewBox="0 0 1440 64" aria-hidden="true">
+        <path fill="currentColor" d="M0,32 C240,8 480,48 720,28 C960,8 1200,40 1440,20 L1440,64 L0,64 Z" />
+      </svg>
+    </div>
+  </section>
+
+  <section class="relative bg-white pb-16 pt-4 dark:bg-zinc-950">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Why teams switch</p>
+          <h2 class="mt-3 font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-3xl">
+            Built for shops that outgrow disconnected tools
+          </h2>
+          <ul class="mt-8 space-y-5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <li class="flex gap-4">
+              <span class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-400/15 text-sm font-bold text-violet-600 dark:text-violet-400">1</span>
+              <span><strong class="text-zinc-900 dark:text-zinc-100">Fast checkout</strong> — scan, pay, receipt. Stock updates with every sale.</span>
+            </li>
+            <li class="flex gap-4">
+              <span class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-400/15 text-sm font-bold text-violet-600 dark:text-violet-400">2</span>
+              <span><strong class="text-zinc-900 dark:text-zinc-100">One catalogue</strong> — every branch sees the same products and pricing rules.</span>
+            </li>
+            <li class="flex gap-4">
+              <span class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-400/15 text-sm font-bold text-violet-600 dark:text-violet-400">3</span>
+              <span><strong class="text-zinc-900 dark:text-zinc-100">Clear reporting</strong> — sales and activity without merging files from each store.</span>
+            </li>
+          </ul>
+        </div>
+        <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-2 shadow-xl shadow-zinc-900/5 dark:border-zinc-800 dark:bg-zinc-900/50">
+          <img
+            src="{{ url_for('static', filename='marketing/svg/illu-company-management.svg') }}"
+            alt="Head office connected to multiple shops"
+            class="w-full rounded-xl"
+            width="520"
+            height="300"
+            loading="lazy"
+          />
+        </div>
+      </div>
+
+      <section class="mt-20 border-t border-zinc-200 pt-16 dark:border-zinc-800">
+        <div class="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+          <div class="order-2 lg:order-1">
+            <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+              <img
+                src="{{ url_for('static', filename='marketing/svg/illu-pos-flow.svg') }}"
+                alt="Diagram: line items, payment, receipt and stock update"
+                class="w-full rounded-lg"
+                width="560"
+                height="200"
+                loading="lazy"
+              />
+            </div>
+          </div>
+          <div class="order-1 lg:order-2">
+            <p class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">On the sales floor</p>
+            <h2 class="mt-2 font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-3xl">Checkout that matches how you actually sell</h2>
+            <p class="mt-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Cashiers add items by barcode or search, apply allowed discounts, split or merge lines when needed, then take payment. Each completed sale updates stock and sales history in real time — so the back office is never a day behind.
+            </p>
+            <ul class="mt-6 space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
+              <li class="flex gap-2">
+                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500"></span>
+                <span>Supports voids and supervisor approvals based on <strong class="text-zinc-800 dark:text-zinc-200">role permissions</strong>.</span>
+              </li>
+              <li class="flex gap-2">
+                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500"></span>
+                <span>Receipts for print or email — same transaction record for audits.</span>
+              </li>
+              <li class="flex gap-2">
+                <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500"></span>
+                <span>Shop login is <strong class="text-zinc-800 dark:text-zinc-200">6‑digit code + password</strong> per branch — separate from employee portal access.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-20 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-12 sm:px-8 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <div class="mx-auto max-w-3xl text-center">
+          <h2 class="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-3xl">Reporting you can use on Monday morning</h2>
+          <p class="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            Slice revenue by store, register, line item, or time range. Compare branches, watch margin, and spot slow movers — from the same live figures your branches ring up. Export when finance asks; no copy‑paste from each store.
+          </p>
+        </div>
+        <div class="mx-auto mt-10 max-w-4xl overflow-hidden rounded-xl border border-zinc-200 bg-zinc-900 p-3 dark:border-zinc-700">
+          <img
+            src="{{ url_for('static', filename='marketing/svg/illu-analytics.svg') }}"
+            alt="Illustration of sales charts and KPIs"
+            class="w-full rounded-lg"
+            width="400"
+            height="320"
+            loading="lazy"
+          />
+        </div>
+      </section>
+
+      <section class="mt-20 grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-14">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Network</p>
+          <h2 class="mt-2 font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-3xl">One catalogue, many doors</h2>
+          <p class="mt-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            New products and price changes flow from head office; each branch keeps local stock counts and can transfer when one store runs low. Everyone sells from the same item master — fewer pricing mistakes and fewer “which file is true?” moments.
+          </p>
+          <ul class="mt-6 space-y-2.5 text-sm text-zinc-600 dark:text-zinc-400">
+            <li class="flex gap-2"><span class="text-violet-600 dark:text-violet-400">✓</span> Transfers and adjustments tracked per location</li>
+            <li class="flex gap-2"><span class="text-violet-600 dark:text-violet-400">✓</span> Shared rules with room for local exceptions where you allow them</li>
+          </ul>
+        </div>
+        <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900/60">
+          <img
+            src="{{ url_for('static', filename='marketing/svg/illu-sync.svg') }}"
+            alt="Diagram: shops synchronised with head office"
+            class="w-full rounded-lg"
+            width="400"
+            height="320"
+            loading="lazy"
+          />
+        </div>
+      </section>
+
+      <section class="mt-20 grid gap-10 border-t border-zinc-200 pt-16 lg:grid-cols-2 lg:items-center lg:gap-14 dark:border-zinc-800">
+        <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+          <img
+            src="{{ url_for('static', filename='marketing/svg/illu-staff.svg') }}"
+            alt="Illustration: team roles and access"
+            class="w-full rounded-lg"
+            width="400"
+            height="320"
+            loading="lazy"
+          />
+        </div>
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">People</p>
+          <h2 class="mt-2 font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-3xl">Roles for the floor, the office, and IT</h2>
+          <p class="mt-4 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            Cashiers, supervisors, managers, and head‑office staff each sign in with permissions that match their job — who can discount, refund, see company‑wide figures, or manage devices. New employee accounts can start <strong class="text-zinc-800 dark:text-zinc-200">pending</strong> until an admin activates them.
+          </p>
+        </div>
+      </section>
+
+      <section class="mt-20">
+        <div class="text-center">
+          <h2 class="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-3xl">What your operation gets</h2>
+          <p class="mx-auto mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">A quick look at the main capabilities — one catalogue and stock picture, shared across every branch.</p>
+        </div>
+        <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <figure class="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-dashboard.svg') }}"
+              alt="Dashboard with revenue and charts"
+              class="h-44 w-full object-cover object-top"
+              width="480"
+              height="200"
+              loading="lazy"
+            />
+            <figcaption class="border-t border-zinc-200 px-4 py-3 text-left text-sm font-semibold text-zinc-800 dark:border-zinc-700 dark:text-zinc-200">Leadership dashboard</figcaption>
+            <p class="px-4 pb-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">KPIs and trends across stores in one view.</p>
+          </figure>
+          <figure class="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-inventory.svg') }}"
+              alt="Inventory and products illustration"
+              class="h-44 w-full object-cover object-top"
+              width="400"
+              height="200"
+              loading="lazy"
+            />
+            <figcaption class="border-t border-zinc-200 px-4 py-3 text-left text-sm font-semibold text-zinc-800 dark:border-zinc-700 dark:text-zinc-200">Stock &amp; products</figcaption>
+            <p class="px-4 pb-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">Central catalogue with quantities per branch.</p>
+          </figure>
+          <figure class="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-map.svg') }}"
+              alt="Map of connected shop locations"
+              class="h-44 w-full object-cover object-center"
+              width="400"
+              height="200"
+              loading="lazy"
+            />
+            <figcaption class="border-t border-zinc-200 px-4 py-3 text-left text-sm font-semibold text-zinc-800 dark:border-zinc-700 dark:text-zinc-200">Multi‑location</figcaption>
+            <p class="px-4 pb-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">Add branches without a new stack each time.</p>
+          </figure>
+          <figure class="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/illu-team.svg') }}"
+              alt="Team onboarding illustration"
+              class="h-44 w-full object-cover object-top"
+              width="400"
+              height="320"
+              loading="lazy"
+            />
+            <figcaption class="border-t border-zinc-200 px-4 py-3 text-left text-sm font-semibold text-zinc-800 dark:border-zinc-700 dark:text-zinc-200">People &amp; onboarding</figcaption>
+            <p class="px-4 pb-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">Employee accounts and roles under company control.</p>
+          </figure>
+        </div>
+      </section>
+
+      <section class="mt-16 overflow-hidden rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50/80 to-white dark:border-violet-900/40 dark:from-violet-950/30 dark:to-zinc-950">
+        <div class="grid gap-8 lg:grid-cols-2 lg:items-center">
+          <div class="p-6 sm:p-8">
+            <p class="text-xs font-bold uppercase tracking-[0.2em] text-violet-700 dark:text-violet-300">Overview</p>
+            <h2 class="mt-2 font-display text-xl font-bold text-zinc-900 dark:text-white sm:text-2xl">Checkout, stock, and leadership views — without the tool sprawl</h2>
+            <p class="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+              Whether you’re opening a second site or standardising reporting across ten, you stop juggling a separate till stack and a separate stock file — one platform from the sales floor to head office.
+            </p>
+            <a href="{{ url_for('marketing_features') }}" class="mt-5 inline-flex text-sm font-semibold text-violet-700 hover:text-violet-800 dark:text-violet-300 dark:hover:text-violet-200">See the full capability list →</a>
+          </div>
+          <div class="relative min-h-[200px] bg-zinc-900/5 dark:bg-zinc-900/40 lg:min-h-[260px]">
+            <img
+              src="{{ url_for('static', filename='marketing/svg/hero-cluster.svg') }}"
+              alt="Collage: POS terminal, charts, and retail storefront"
+              class="h-full w-full object-cover object-center"
+              width="900"
+              height="560"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </section>
+
+      <div
+        class="mt-14 flex flex-col items-stretch justify-between gap-6 rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-50 to-white p-6 sm:flex-row sm:items-center dark:border-zinc-800 dark:from-zinc-900/80 dark:to-zinc-950"
+      >
+        <div>
+          <p class="font-display text-lg font-bold text-zinc-900 dark:text-white">Multi‑location ready</p>
+          <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Add branches without duplicating your stack of apps.</p>
+        </div>
+        <div class="flex flex-wrap gap-3 sm:justify-end">
+          <a
+            href="{{ url_for('marketing_pricing') }}"
+            class="inline-flex justify-center rounded-full border border-zinc-300 px-6 py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >Pricing</a
+          >
+          <a
+            href="{{ url_for('marketing_contact') }}"
+            class="inline-flex justify-center rounded-full bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-violet-600 dark:text-white dark:hover:bg-violet-500"
+            >Talk to us</a
+          >
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="border-t border-zinc-200 bg-zinc-950 py-14 text-white dark:border-zinc-800">
+    <div class="mx-auto max-w-2xl px-4 text-center sm:px-6">
+      <h2 class="font-display text-xl font-bold sm:text-2xl">Ready to see it for your stores?</h2>
+      <p class="mt-2 text-sm text-zinc-400">Share how many locations you run — we’ll reply with next steps.</p>
+      <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <a
+          href="{{ url_for('marketing_contact') }}"
+          class="inline-flex rounded-full bg-violet-600 px-7 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/25 hover:bg-violet-500"
+          >Contact</a
+        >
+        <a
+          href="{{ url_for('marketing_pricing') }}"
+          class="inline-flex rounded-full border border-white/20 px-7 py-3 text-sm font-semibold text-white hover:bg-white/10"
+          >View pricing</a
+        >
+      </div>
+    </div>
+  </section>
+{% endblock %}

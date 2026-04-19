@@ -14,12 +14,14 @@
     </svg>
     Shop analytics
   </a>
+  {% if pos_allow_credit_sale %}
   <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
     </svg>
     Credit payments
   </a>
+  {% endif %}
 {% endblock %}
 {% block shop_content %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
@@ -28,7 +30,7 @@
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Quotations &amp; leads</h2>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
           <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> quotes come from POS when <strong class="text-[rgb(var(--rc-page-fg))]">Quotation</strong> is checked.
-          <strong class="text-[rgb(var(--rc-page-fg))]">Online</strong> quotes are saved when customers submit the public <a href="{{ url_for('quote') }}" class="font-medium text-brand-600 underline hover:no-underline dark:text-brand-400">quote page</a>.
+          <strong class="text-[rgb(var(--rc-page-fg))]">Online</strong> quotes use the online channel (historical rows may exist from when a public form was available).
         </p>
       </div>
       <a href="{{ url_for('shop_pos', shop_id=shop.id) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500">Open POS</a>
@@ -130,7 +132,7 @@
         </table>
       </div>
     {% else %}
-      <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No quotations in this range. Try another filter or create one from POS / the website quote page.</p>
+      <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No quotations in this range. Try another filter or create one from POS.</p>
     {% endif %}
   </div>
 

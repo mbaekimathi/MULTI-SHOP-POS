@@ -44,7 +44,7 @@
                     <button type="submit" class="btn-rc btn-rc-danger px-3 py-1.5 text-xs font-bold uppercase tracking-wider">Decline</button>
                   </form>
                 {% else %}
-                  <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if r.status == 'approved' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}">{{ r.status }}</span>
+                  <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if r.status == 'approved' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% elif r.status == 'expired' %}bg-amber-500/12 text-amber-300 ring-amber-400/20{% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}">{{ r.status }}</span>
                 {% endif %}
               </div>
               {% if r.status == 'pending' and not r.can_review %}

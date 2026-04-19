@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" data-marketing-theme="light">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("marketing-theme");
+        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-marketing-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+  <head>
+    {% include "partials/system_public_brand.html" %}
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {% set _icon = site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg' %}
+    <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
+    <title>{% block title %}{{ pub_brand_name }}{% endblock %} — {{ pub_title_suffix }}</title>
+    <meta name="description" content="{% block meta_description %}Run every store with clear sales, stock, and reporting — one view of your retail business, from the till to head office.{% endblock %}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: ["selector", '[data-marketing-theme="dark"]'],
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+              display: ["Inter", "system-ui", "sans-serif"],
+            },
+            colors: {
+              pos: {
+                50: "#faf5ff",
+                100: "#f3e8ff",
+                200: "#e9d5ff",
+                300: "#d8b4fe",
+                400: "#c084fc",
+                500: "#a855f7",
+                600: "#9333ea",
+                700: "#7e22ce",
+                800: "#6b21a8",
+                900: "#581c87",
+                950: "#3b0764",
+              },
+            },
+            fontSize: {
+              "display": ["2.75rem", { lineHeight: "1.1", letterSpacing: "-0.03em", fontWeight: "700" }],
+              "display-sm": ["2rem", { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "700" }],
+            },
+            boxShadow: {
+              soft: "0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04)",
+              card: "0 4px 24px rgba(15, 23, 42, 0.06)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      html[data-marketing-theme="light"] body {
+        color: #18181b;
+        background: #ffffff;
+      }
+      html[data-marketing-theme="dark"] body {
+        color: #f4f4f5;
+        background: #09090b;
+      }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing.css') }}" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body class="font-sans antialiased overflow-x-hidden text-zinc-900 dark:text-zinc-100">
+    {% include "marketing/partials/header.html" %}
+    <main class="pt-14">{% block content %}{% endblock %}</main>
+    {% include "marketing/partials/footer.html" %}
+    <script src="{{ url_for('static', filename='marketing/js/marketing.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

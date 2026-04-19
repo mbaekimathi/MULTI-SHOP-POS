@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 340" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="dg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#581c87"/><stop offset="1" stop-color="#3b0764"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="340" rx="20" fill="#0f172a"/>
+  <rect x="16" y="16" width="140" height="308" rx="12" fill="#1e293b" stroke="#334155"/>
+  <rect x="32" y="36" width="88" height="8" rx="2" fill="#64748b"/>
+  <rect x="32" y="56" width="108" height="10" rx="2" fill="#a855f7" opacity="0.5"/>
+  <rect x="32" y="80" width="108" height="36" rx="6" fill="#334155"/>
+  <rect x="32" y="128" width="108" height="36" rx="6" fill="#334155"/>
+  <rect x="32" y="176" width="108" height="36" rx="6" fill="#334155"/>
+  <rect x="168" y="16" width="296" height="140" rx="12" fill="url(#dg)" stroke="#7c3aed" stroke-opacity="0.5"/>
+  <text x="188" y="44" fill="#e9d5ff" font-family="system-ui" font-size="11" font-weight="600">Revenue (24h)</text>
+  <rect x="188" y="56" width="120" height="28" rx="6" fill="white" opacity="0.12"/>
+  <path d="M200 108 L230 88 L260 96 L290 72 L320 80 L350 64" stroke="#c4b5fd" stroke-width="2" fill="none"/>
+  <rect x="168" y="168" width="140" height="156" rx="12" fill="#1e293b" stroke="#334155"/>
+  <rect x="184" y="188" width="100" height="8" rx="2" fill="#64748b"/>
+  <rect x="184" y="208" width="24" height="40" rx="2" fill="#8b5cf6"/>
+  <rect x="216" y="220" width="24" height="28" rx="2" fill="#a78bfa"/>
+  <rect x="248" y="200" width="24" height="48" rx="2" fill="#c4b5fd"/>
+  <rect x="318" y="168" width="146" height="156" rx="12" fill="#1e293b" stroke="#334155"/>
+  <circle cx="390" cy="230" r="44" stroke="#a855f7" stroke-width="12" fill="none" opacity="0.4"/>
+  <circle cx="390" cy="230" r="44" stroke="#c4b5fd" stroke-width="12" fill="none" stroke-dasharray="80 120" stroke-linecap="round"/>
+</svg>

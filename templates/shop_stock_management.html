@@ -15,14 +15,14 @@
         <div>
           <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Stock operations</h2>
           <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-            Choose auto stock (request from company) or manual stock-in, enter details per item row, then submit once.
+            Choose approved stock requests (company or another shop) or manual stock-in, enter details per item row, then submit once.
           </p>
         </div>
         <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <a
             href="{{ url_for('shop_stock_management', shop_id=shop.id, view='auto') }}"
             class="btn-rc flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider sm:flex-none {% if view == 'auto' %}btn-rc-primary{% else %}btn-rc-ghost{% endif %}"
-          >Auto stock from company</a>
+          >Request stock</a>
           <a
             href="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}"
             class="btn-rc flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider sm:flex-none {% if view == 'manual' %}btn-rc-primary{% else %}btn-rc-ghost{% endif %}"
@@ -39,14 +39,37 @@
       {% if view == 'auto' %}
         <section class="rounded-2xl border border-emerald-400/30 bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
           <div class="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-500/5 px-4 py-3">
-            <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Auto stock from company</h3>
+            <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Request stock (approval required)</h3>
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-              Enter requested quantities for any items. Each line creates a stock-in request from company for approval (same as before).
+              Choose whether stock should come from the <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">company warehouse</strong> or
+              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">another shop</strong>, then enter quantities. Each line creates one pending request; the
+              company or the other shop must approve before stock moves.
             </p>
           </div>
-          <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view='auto') }}" class="space-y-4">
+          <form
+            id="js-batch-request-stock-form"
+            method="post"
+            action="{{ url_for('shop_stock_management', shop_id=shop.id, view='auto') }}"
+            class="space-y-4"
+          >
             <input type="hidden" name="action" value="batch_request_stock" />
             <input type="hidden" name="view" value="auto" />
+            <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+              <label class="block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="batch-request-source">Request stock from</label>
+              <select
+                id="batch-request-source"
+                name="batch_request_source"
+                class="mt-2 w-full max-w-xl rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none"
+              >
+                <option value="company">Company warehouse</option>
+                {% for s in other_shops or [] %}
+                  <option value="shop:{{ s.id }}">{{ s.shop_name }}</option>
+                {% endfor %}
+              </select>
+              {% if not other_shops %}
+                <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">There are no other shops yet — requests can only go to the company.</p>
+              {% endif %}
+            </div>
             <div>
               <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Optional note (applies to lines without their own note)</label>
               <input name="batch_note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. WEEKLY RESTOCK" />
@@ -73,8 +96,10 @@
                 <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
                   <tr>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop stock</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Company stock</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Your shop stock</th>
+                    <th id="js-source-stock-heading" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                      Stock at source
+                    </th>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty to request</th>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Note</th>
                   </tr>
@@ -87,7 +112,10 @@
                     >
                       <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</td>
                       <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-page-fg))]">{{ it.shop_stock_qty }}</td>
-                      <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-page-fg))]">{{ it.company_stock_qty }}</td>
+                      <td
+                        class="js-source-stock-cell px-3 py-2 whitespace-nowrap tabular-nums text-[rgb(var(--rc-page-fg))]"
+                        data-item-id="{{ it.id }}"
+                      >{{ it.company_stock_qty }}</td>
                       <td class="px-3 py-2 whitespace-nowrap">
                         <input
                           name="qty_{{ it.id }}"
@@ -95,7 +123,7 @@
                           min="0"
                           step="1"
                           value=""
-                          class="js-stock-qty-input w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm"
+                          class="js-stock-qty-input js-request-stock-qty w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm"
                           placeholder="0"
                         />
                       </td>
@@ -111,6 +139,9 @@
                 </tbody>
               </table>
             </div>
+            <p id="js-source-stock-hint" class="text-xs text-[rgb(var(--rc-muted))]">
+              You can only request up to the amount shown under &quot;Stock — …&quot; for each item.
+            </p>
             <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-3 text-sm font-semibold">Submit stock requests</button>
           </form>
         </section>
@@ -416,6 +447,111 @@
 
     })();
   </script>
+  {% if view == 'auto' %}
+  <script>
+    (function () {
+      var sel = document.getElementById("batch-request-source");
+      var th = document.getElementById("js-source-stock-heading");
+      var form = document.getElementById("js-batch-request-stock-form");
+      var api = {{ url_for('shop_stock_management_source_stock_json', shop_id=shop.id)|tojson }};
+      if (!sel || !th) return;
+
+      function parseAvailFromCell(cell) {
+        var t = (cell && (cell.textContent || "").trim()) || "0";
+        var n = parseInt(t, 10);
+        return isNaN(n) ? 0 : Math.max(0, n);
+      }
+
+      function syncRequestQtyInputsFromSource() {
+        document.querySelectorAll(".js-request-stock-qty").forEach(function (qtyInput) {
+          var row = qtyInput.closest("tr");
+          var cell = row && row.querySelector(".js-source-stock-cell");
+          var avail = parseAvailFromCell(cell);
+          qtyInput.setAttribute("max", String(avail));
+          qtyInput.title = avail
+            ? "Request up to " + avail + " (available at source)."
+            : "No stock at this source — you cannot request this item.";
+          if (avail < 1) {
+            qtyInput.disabled = true;
+            qtyInput.value = "";
+            qtyInput.classList.add("opacity-60");
+          } else {
+            qtyInput.disabled = false;
+            qtyInput.classList.remove("opacity-60");
+            var v = parseInt(String(qtyInput.value || "0"), 10);
+            if (!isNaN(v) && v > avail) qtyInput.value = String(avail);
+          }
+        });
+      }
+
+      function refreshSourceStock() {
+        var q = "batch_request_source=" + encodeURIComponent(sel.value || "company");
+        var u = api + (api.indexOf("?") >= 0 ? "&" : "?") + q;
+        fetch(u, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
+            if (!data || !data.ok) return;
+            var map = data.stock_by_item_id || {};
+            var label = (data.label || "Source").trim();
+            th.textContent = "Stock — " + label;
+            document.querySelectorAll(".js-source-stock-cell").forEach(function (cell) {
+              var id = cell.getAttribute("data-item-id");
+              var v = map[String(id)];
+              if (typeof v === "number" && !isNaN(v)) {
+                cell.textContent = String(v);
+              } else {
+                cell.textContent = "0";
+              }
+            });
+            syncRequestQtyInputsFromSource();
+          })
+          .catch(function () {
+            th.textContent = "Stock at source";
+          });
+      }
+
+      document.querySelectorAll(".js-request-stock-qty").forEach(function (qtyInput) {
+        qtyInput.addEventListener("input", function () {
+          var row = qtyInput.closest("tr");
+          var cell = row && row.querySelector(".js-source-stock-cell");
+          var avail = parseAvailFromCell(cell);
+          if (avail < 1) return;
+          var v = parseInt(String(qtyInput.value || "0"), 10);
+          if (!isNaN(v) && v > avail) qtyInput.value = String(avail);
+        });
+      });
+
+      if (form) {
+        form.addEventListener("submit", function (ev) {
+          var firstBad = null;
+          document.querySelectorAll(".js-request-stock-qty").forEach(function (qtyInput) {
+            if (qtyInput.disabled) return;
+            var q = parseInt(String(qtyInput.value || "0"), 10) || 0;
+            if (q < 1) return;
+            var row = qtyInput.closest("tr");
+            var cell = row && row.querySelector(".js-source-stock-cell");
+            var avail = parseAvailFromCell(cell);
+            if (q > avail) firstBad = firstBad || row;
+          });
+          if (firstBad) {
+            ev.preventDefault();
+            try {
+              firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+            } catch (e) {}
+            window.alert(
+              "One or more quantities are higher than stock at the selected source. Reduce the quantity or choose another source."
+            );
+          }
+        });
+      }
+
+      sel.addEventListener("change", refreshSourceStock);
+      refreshSourceStock();
+    })();
+  </script>
+  {% endif %}
   <script>
     (function () {
       var lookupUrl = {{ url_for('seller_lookup')|tojson }};

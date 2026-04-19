@@ -1,0 +1,97 @@
+{# Kitchen portion table: kitchen_portion_rows required #}
+{# Optional: form_action, submit_label, hidden_shop_id — when set with readonly=false, renders editable form #}
+{# readonly|default(false) — when true, read-only cells (no POST) #}
+{% set readonly = readonly|default(false) %}
+{% if readonly %}
+  <div class="mt-4 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+    <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+      <thead class="bg-[rgb(var(--rc-surface-2))] text-left text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        <tr>
+          <th class="px-4 py-3">Item</th>
+          <th class="px-4 py-3 text-right">Kitchen portions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+        {% for row in kitchen_portion_rows %}
+          <tr>
+            <td class="px-4 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</td>
+            <td class="px-4 py-2.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ row.portions_remaining }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <form method="post" action="{{ form_action }}" class="kitchen-portion-form mt-4 space-y-4">
+    {% if hidden_shop_id is defined and hidden_shop_id %}
+      <input type="hidden" name="shop_id" value="{{ hidden_shop_id }}" />
+    {% endif %}
+    <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+      <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+        <thead class="bg-[rgb(var(--rc-surface-2))] text-left text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+          <tr>
+            <th class="px-4 py-3">Item</th>
+            <th class="px-4 py-3 text-right">Portions (add / reduce)</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+          {% for row in kitchen_portion_rows %}
+            <tr>
+              <td class="px-4 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</td>
+              <td class="px-4 py-2.5">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    class="js-portion-dec inline-flex h-9 min-w-[2.25rem] shrink-0 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-lg font-semibold leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]"
+                    aria-label="Reduce by 1 portion"
+                  >−</button>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputmode="numeric"
+                    name="portion_{{ row.id }}"
+                    value="{{ row.portions_remaining }}"
+                    class="js-portion-input w-[5.5rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-center tabular-nums text-[rgb(var(--rc-page-fg))] outline-none"
+                  />
+                  <button
+                    type="button"
+                    class="js-portion-inc inline-flex h-9 min-w-[2.25rem] shrink-0 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-lg font-semibold leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]"
+                    aria-label="Add 1 portion"
+                  >+</button>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <button type="submit" class="btn-rc btn-rc-primary px-5 py-2 text-sm font-semibold">{{ submit_label or "Save portions" }}</button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      function step(inp, delta) {
+        var v = parseInt(String(inp.value || "").trim(), 10);
+        if (isNaN(v)) v = 0;
+        v += delta;
+        if (v < 0) v = 0;
+        if (v > 99999999) v = 99999999;
+        inp.value = v;
+      }
+      document.querySelectorAll(".kitchen-portion-form .js-portion-dec").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var inp = btn.closest("td").querySelector(".js-portion-input");
+          if (inp) step(inp, -1);
+        });
+      });
+      document.querySelectorAll(".kitchen-portion-form .js-portion-inc").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var inp = btn.closest("td").querySelector(".js-portion-input");
+          if (inp) step(inp, 1);
+        });
+      });
+    })();
+  </script>
+{% endif %}

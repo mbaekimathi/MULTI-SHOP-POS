@@ -1,0 +1,85 @@
+{% set nav = [
+  ('index', 'Home', url_for('index')),
+  ('marketing_features', 'Solutions', url_for('marketing_features')),
+  ('marketing_pricing', 'Pricing', url_for('marketing_pricing')),
+  ('marketing_contact', 'Contact', url_for('marketing_contact')),
+] %}
+{% set ep = request.endpoint %}
+<header
+  class="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-zinc-950/95 backdrop-blur-md"
+  x-data="{ mobileOpen: false }"
+>
+  <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+    <a href="{{ url_for('index') }}" class="flex min-w-0 items-center gap-2.5">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white ring-2 ring-violet-400/35">
+        {% if site_settings and site_settings.app_icon %}
+          <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full rounded-md object-cover" />
+        {% else %}
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4V6zm2 2v8h12V8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>
+        {% endif %}
+      </span>
+      <span class="truncate font-display text-[15px] font-semibold tracking-tight text-white">{{ pub_brand_name }}</span>
+    </a>
+
+    <nav class="hidden items-center gap-0.5 lg:flex" aria-label="Primary">
+      {% for key, label, href in nav %}
+        <a
+          href="{{ href }}"
+          class="rounded-md px-3 py-2 text-[13px] font-medium transition {% if ep == key %}text-violet-400{% else %}text-zinc-400 hover:text-white{% endif %}"
+        >
+          {{ label }}
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <button
+        type="button"
+        data-mk-theme-toggle
+        class="rounded-md p-2 text-zinc-500 transition hover:bg-white/10 hover:text-white"
+        aria-label="Toggle theme"
+      >
+        <span class="dark:hidden"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg></span>
+        <span class="hidden dark:inline"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></span>
+      </button>
+      <a
+        href="{{ url_for('public_shop_login') }}"
+        class="hidden rounded-md px-3 py-1.5 text-[13px] font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white sm:inline-block"
+        >Shop</a
+      >
+      <a
+        href="{{ url_for('employee_login') }}"
+        class="hidden rounded-full bg-violet-600 px-4 py-1.5 text-[13px] font-bold text-white shadow-sm transition hover:bg-violet-500 sm:inline-block"
+        >Log in</a
+      >
+      <button
+        type="button"
+        class="inline-flex rounded-md p-2 text-zinc-300 lg:hidden"
+        @click="mobileOpen = !mobileOpen"
+        :aria-expanded="mobileOpen"
+        aria-controls="mk-mobile-nav"
+      >
+        <span class="sr-only">Menu</span>
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div
+    id="mk-mobile-nav"
+    class="border-t border-white/10 bg-zinc-950 px-4 py-3 lg:hidden"
+    x-show="mobileOpen"
+    x-transition
+    x-cloak
+    style="display: none"
+  >
+    <div class="flex flex-col">
+      {% for key, label, href in nav %}
+        <a href="{{ href }}" class="py-2.5 text-sm font-medium text-zinc-200" @click="mobileOpen = false">{{ label }}</a>
+      {% endfor %}
+      <hr class="my-2 border-white/10" />
+      <a href="{{ url_for('public_shop_login') }}" class="py-2 text-sm font-medium text-zinc-400">Shop login</a>
+      <a href="{{ url_for('employee_login') }}" class="mt-1 rounded-full bg-violet-600 py-2.5 text-center text-sm font-bold text-white hover:bg-violet-500">Employee login</a>
+    </div>
+  </div>
+</header>
+<style>[x-cloak]{display:none!important}</style>

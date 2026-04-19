@@ -1,0 +1,117 @@
+/* Marketing — scroll reveals + product stack (hero) */
+
+.mk-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.mk-reveal.mk-reveal--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mk-stagger > .mk-reveal:nth-child(1) {
+  transition-delay: 0ms;
+}
+.mk-stagger > .mk-reveal:nth-child(2) {
+  transition-delay: 50ms;
+}
+.mk-stagger > .mk-reveal:nth-child(3) {
+  transition-delay: 100ms;
+}
+.mk-stagger > .mk-reveal:nth-child(4) {
+  transition-delay: 150ms;
+}
+.mk-stagger > .mk-reveal:nth-child(5) {
+  transition-delay: 200ms;
+}
+.mk-stagger > .mk-reveal:nth-child(6) {
+  transition-delay: 250ms;
+}
+
+/* Fanned “screens” — reference-style product showcase */
+.mk-product-stack {
+  position: relative;
+  width: 100%;
+  min-height: 260px;
+  isolation: isolate;
+}
+@media (min-width: 640px) {
+  .mk-product-stack {
+    min-height: 300px;
+  }
+}
+@media (min-width: 1024px) {
+  .mk-product-stack {
+    min-height: 340px;
+  }
+}
+
+.mk-product-stack__card {
+  position: absolute;
+  width: min(92%, 400px);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(165deg, rgba(39, 39, 42, 0.95) 0%, rgba(24, 24, 27, 0.98) 100%);
+  padding: 0.5rem;
+  box-shadow:
+    0 28px 56px -16px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.mk-product-stack__card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.mk-product-stack__card--a {
+  right: 8%;
+  top: 6%;
+  z-index: 1;
+  transform: rotate(-11deg) translateZ(0);
+  opacity: 0.92;
+}
+
+.mk-product-stack__card--b {
+  right: 2%;
+  top: 22%;
+  z-index: 2;
+  transform: rotate(4deg) translateZ(0);
+}
+
+.mk-product-stack__card--c {
+  right: -2%;
+  top: 42%;
+  z-index: 3;
+  transform: rotate(10deg) translateZ(0);
+}
+
+@media (max-width: 639px) {
+  .mk-product-stack__card--a {
+    right: 4%;
+    top: 4%;
+    width: min(94%, 360px);
+  }
+  .mk-product-stack__card--b {
+    right: 0;
+    top: 26%;
+    width: min(94%, 360px);
+  }
+  .mk-product-stack__card--c {
+    right: -4%;
+    top: 50%;
+    width: min(94%, 360px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

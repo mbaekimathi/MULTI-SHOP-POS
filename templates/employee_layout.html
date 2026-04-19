@@ -49,8 +49,8 @@
             {% if portal_employee.role_key in ('it_support', 'super_admin') %}
               <a
                 href="{{ url_for('it_support_system_settings') }}"
-                class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
-                {% if request.endpoint == 'it_support_system_settings' %}aria-current="page"{% endif %}
+                class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() in ('', 'system') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+                {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() in ('', 'system') %}aria-current="page"{% endif %}
               >
                 <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -62,6 +62,16 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 System settings
+              </a>
+              <a
+                href="{{ url_for('it_support_system_settings', tab='pos') }}"
+                class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() == 'pos' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+                {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() == 'pos' %}aria-current="page"{% endif %}
+              >
+                <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
+                </svg>
+                Point of sale settings
               </a>
             {% endif %}
             {% if portal_employee.role_key not in ('it_support', 'super_admin') %}

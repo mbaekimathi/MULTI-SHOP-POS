@@ -1,5 +1,7 @@
 import calendar
+import csv
 import hmac
+import io
 import json
 import logging
 import os
@@ -526,7 +528,72 @@ def _save_branding_upload(file_storage):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    """Public marketing landing page."""
+    return render_template("marketing/home.html")
+
+
+@app.route("/features")
+def marketing_features():
+    return render_template("marketing/features.html")
+
+
+@app.route("/pricing")
+def marketing_pricing():
+    return render_template("marketing/pricing.html")
+
+
+@app.route("/about")
+def marketing_about():
+    return render_template("marketing/about.html")
+
+
+@app.route("/contact", methods=["GET", "POST"])
+def marketing_contact():
+    if request.method == "POST":
+        return _handle_marketing_contact_post()
+    return render_template("marketing/contact.html")
+
+
+@app.route("/dashboard-preview")
+def marketing_dashboard_preview():
+    return render_template("marketing/dashboard_preview.html")
+
+
+def _handle_marketing_contact_post():
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    company = (request.form.get("company") or "").strip()
+    message = (request.form.get("message") or "").strip()
+
+    if not name or not email or not message:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "error": "Please fill name, email, and message."}), 400
+        flash("Please fill name, email, and message.", "error")
+        return redirect(url_for("marketing_contact"))
+
+    try:
+        from database import save_contact_message
+
+        save_contact_message(name, email, company, message)
+    except Exception:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "Could not save your message. Please try again later.",
+                    }
+                ),
+                503,
+            )
+        flash("Could not save your message. Please try again later.", "error")
+        return redirect(url_for("marketing_contact"))
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": "Thanks — we will get back to you shortly."})
+
+    flash("Thanks — we will get back to you shortly.", "success")
+    return redirect(url_for("marketing_contact"))
 
 
 @app.route("/shop-login", methods=["GET", "POST"])
@@ -568,121 +635,6 @@ def public_shop_login():
         return redirect(url_for("shop_pos", shop_id=int(shop["id"])))
 
     return render_template("public_shop_login.html")
-
-
-@app.route("/services")
-def services():
-    return render_template("services.html")
-
-
-@app.route("/solutions")
-def solutions():
-    return render_template("solutions.html")
-
-
-@app.route("/equipment")
-def equipment():
-    from collections import OrderedDict
-
-    try:
-        from database import list_public_equipment_catalog
-
-        catalog_rows = list_public_equipment_catalog(limit_items=500)
-    except Exception:
-        catalog_rows = []
-
-    by_category: OrderedDict = OrderedDict()
-    for row in catalog_rows:
-        cat = (row.get("category") or "Other").strip() or "Other"
-        if cat not in by_category:
-            by_category[cat] = []
-        by_category[cat].append(row)
-    for cat in list(by_category.keys()):
-        by_category[cat].sort(key=lambda r: (-int(r.get("qty_sold") or 0), (r.get("name") or "").upper()))
-
-    sorted_categories = sorted(by_category.keys(), key=lambda c: c.upper())
-    catalog_by_category = OrderedDict((c, by_category[c]) for c in sorted_categories)
-
-    featured_items = catalog_rows[:8] if catalog_rows else []
-
-    return render_template(
-        "equipment.html",
-        catalog_by_category=catalog_by_category,
-        featured_items=featured_items,
-        catalog_count=len(catalog_rows),
-    )
-
-
-@app.route("/quote")
-def quote():
-    try:
-        from database import list_public_equipment_catalog
-
-        quote_items = list_public_equipment_catalog(limit_items=1000)
-    except Exception:
-        quote_items = []
-    quote_categories = sorted(
-        {((r.get("category") or "Other").strip() or "Other") for r in quote_items},
-        key=lambda x: x.upper(),
-    )
-    try:
-        from database import get_site_settings
-
-        raw_phone = (get_site_settings(["company_phone"]) or {}).get("company_phone") or ""
-    except Exception:
-        raw_phone = ""
-    quote_whatsapp_digits = re.sub(r"\D", "", str(raw_phone))
-    return render_template(
-        "quote.html",
-        quote_items=quote_items,
-        quote_categories=quote_categories,
-        quote_whatsapp_digits=quote_whatsapp_digits,
-    )
-
-
-@app.route("/contact", methods=["GET", "POST"])
-def contact():
-    if request.method == "POST":
-        return _handle_contact_post()
-
-    return render_template("contact.html")
-
-
-def _handle_contact_post():
-    name = (request.form.get("name") or "").strip()
-    email = (request.form.get("email") or "").strip()
-    company = (request.form.get("company") or "").strip()
-    message = (request.form.get("message") or "").strip()
-
-    if not name or not email or not message:
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"ok": False, "error": "Please fill name, email, and message."}), 400
-        flash("Please fill name, email, and message.", "error")
-        return redirect(url_for("contact"))
-
-    try:
-        from database import save_contact_message
-
-        save_contact_message(name, email, company, message)
-    except Exception:
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return (
-                jsonify(
-                    {
-                        "ok": False,
-                        "error": "Could not save your message. Check database settings or try again later.",
-                    }
-                ),
-                503,
-            )
-        flash("Could not save your message. Please try again later.", "error")
-        return redirect(url_for("contact"))
-
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify({"ok": True, "message": "Thanks — we will get back to you shortly."})
-
-    flash("Thanks — we will get back to you shortly.", "success")
-    return redirect(url_for("contact"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1081,6 +1033,12 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
+        "pos_allow_credit_sale",
+        "pos_allow_quotations",
+        "pos_show_customer_details_sale",
+        "pos_include_tax",
+        "pos_kitchen_portions",
+        "pos_shop_stock_sale",
         "printer_allow_bluetooth",
         "printer_allow_network",
         "printer_allow_usb",
@@ -1091,6 +1049,21 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
         rc = "1"
     merged["receipt_copies"] = rc
     return merged
+
+
+def _shop_pos_allow_credit_sale(shop: dict) -> bool:
+    """POS credit checkout and shop credit navigation (when False, hide links and block credit routes)."""
+    return bool(_effective_printing_settings_for_shop(shop).get("pos_allow_credit_sale"))
+
+
+def _pos_inventory_mode(shop: dict) -> str:
+    """How POS deducts inventory: shop stock, kitchen portions, or none."""
+    ps = _effective_printing_settings_for_shop(shop)
+    if ps.get("pos_kitchen_portions"):
+        return "kitchen"
+    if ps.get("pos_shop_stock_sale"):
+        return "shop"
+    return "none"
 
 
 def _effective_receipt_settings_for_shop(shop: dict) -> dict:
@@ -1171,6 +1144,12 @@ def _default_printing_settings() -> dict:
     return {
         "print_compulsory_sale": False,
         "allow_line_price_edit": False,
+        "pos_allow_credit_sale": True,
+        "pos_allow_quotations": True,
+        "pos_show_customer_details_sale": True,
+        "pos_include_tax": True,
+        "pos_kitchen_portions": False,
+        "pos_shop_stock_sale": True,
         "receipt_copies": "1",
         "printer_allow_bluetooth": True,
         "printer_allow_network": True,
@@ -1193,6 +1172,12 @@ def _load_printing_settings() -> dict:
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
+        "pos_allow_credit_sale",
+        "pos_allow_quotations",
+        "pos_show_customer_details_sale",
+        "pos_include_tax",
+        "pos_kitchen_portions",
+        "pos_shop_stock_sale",
         "printer_allow_bluetooth",
         "printer_allow_network",
         "printer_allow_usb",
@@ -1212,9 +1197,22 @@ def _printing_settings_from_form() -> dict:
     rc = (request.form.get("printing_receipt_copies") or "1").strip()
     if rc not in ("1", "2", "3"):
         rc = "1"
+    allow_price = _b("printing_allow_line_price_edit") or _b("pos_allow_line_price_edit")
+    kitchen = _b("pos_kitchen_portions")
+    store_sale = _b("pos_shop_stock_sale")
+    if kitchen:
+        store_sale = False
+    elif store_sale:
+        kitchen = False
     return {
         "print_compulsory_sale": _b("printing_compulsory_sale"),
-        "allow_line_price_edit": _b("printing_allow_line_price_edit"),
+        "allow_line_price_edit": allow_price,
+        "pos_allow_credit_sale": _b("pos_allow_credit_sale"),
+        "pos_allow_quotations": _b("pos_allow_quotations"),
+        "pos_show_customer_details_sale": _b("pos_show_customer_details_sale"),
+        "pos_include_tax": _b("pos_include_tax"),
+        "pos_kitchen_portions": kitchen,
+        "pos_shop_stock_sale": store_sale,
         "receipt_copies": rc,
         "printer_allow_bluetooth": _b("printing_allow_bluetooth"),
         "printer_allow_network": _b("printing_allow_network"),
@@ -1290,10 +1288,285 @@ def it_support_system_settings():
         else:
             flash("Could not update settings. Check database connection.", "error")
         return redirect(url_for("it_support_system_settings") + (request.form.get("return_hash") or ""))
+    _tab_q = (request.args.get("tab") or "").strip().lower()
+    _valid_tabs = ("system", "company", "website", "pos", "printing", "receipt")
+    initial_settings_tab = _tab_q if _tab_q in _valid_tabs else None
     return render_template(
         "it_support_system_settings.html",
         receipt_settings=_load_receipt_settings(),
         printing_settings=_load_printing_settings(),
+        initial_settings_tab=initial_settings_tab,
+    )
+
+
+def _it_support_kitchen_portion_matrix(shops: list) -> dict:
+    """Items as rows, shops as columns; cell = portions or None if item not on that shop POS."""
+    from database import list_shop_kitchen_portion_editor_rows
+
+    shop_list = []
+    shop_ids: list = []
+    for s in shops or []:
+        try:
+            sid = int(s.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if sid <= 0:
+            continue
+        shop_list.append(s)
+        shop_ids.append(sid)
+
+    item_map: Dict[int, dict] = {}
+    for s in shop_list:
+        sid = int(s["id"])
+        try:
+            rows = list_shop_kitchen_portion_editor_rows(shop_id=sid, limit=5000)
+        except Exception:
+            rows = []
+        for r in rows:
+            try:
+                iid = int(r.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            if iid <= 0:
+                continue
+            name = (r.get("name") or "").strip()
+            cat = (r.get("category") or "").strip().upper()
+            if iid not in item_map:
+                item_map[iid] = {
+                    "item_id": iid,
+                    "name": name,
+                    "sort_key": (cat, name.upper()),
+                    "portions": {},
+                }
+            item_map[iid]["portions"][sid] = int(r.get("portions_remaining") or 0)
+
+    for data in item_map.values():
+        for sid in shop_ids:
+            if sid not in data["portions"]:
+                data["portions"][sid] = None
+
+    matrix_rows = sorted(item_map.values(), key=lambda x: x["sort_key"])
+
+    shop_modes: Dict[int, str] = {}
+    shop_editable: Dict[int, bool] = {}
+    for s in shop_list:
+        sid = int(s["id"])
+        m = _pos_inventory_mode(s)
+        shop_modes[sid] = m
+        shop_editable[sid] = m == "kitchen"
+
+    return {
+        "shops": shop_list,
+        "shop_ids": shop_ids,
+        "matrix_rows": matrix_rows,
+        "shop_modes": shop_modes,
+        "shop_editable": shop_editable,
+        "any_editable": any(shop_editable.values()) if shop_editable else False,
+    }
+
+
+@app.route("/it_support/kitchen-portions", methods=["GET"])
+@login_required
+def it_support_dashboard():
+    """IT hub: matrix of items × shops with kitchen portion counts."""
+    _it_support_or_super_admin_only()
+    from database import list_shops
+
+    shops = list_shops(limit=5000) or []
+    km = _it_support_kitchen_portion_matrix(shops)
+    return render_template(
+        "it_support_dashboard.html",
+        kitchen_matrix=km,
+    )
+
+
+@app.route("/it_support/kitchen-portions", methods=["POST"])
+@login_required
+def it_support_kitchen_portions_save():
+    _it_support_or_super_admin_only()
+    from database import upsert_shop_kitchen_portion_qty
+
+    saved = 0
+    try:
+        for key, raw in request.form.items():
+            m = re.match(r"^p_(\d+)_(\d+)$", key)
+            if not m:
+                continue
+            shop_id = int(m.group(1))
+            item_id = int(m.group(2))
+            shop = _get_shop_or_404(shop_id)
+            if _pos_inventory_mode(shop) != "kitchen":
+                continue
+            try:
+                q = int(str(raw or "").strip() or "0")
+            except (TypeError, ValueError):
+                q = 0
+            if upsert_shop_kitchen_portion_qty(shop_id, item_id, q):
+                saved += 1
+        if saved:
+            flash("Kitchen portions updated.", "success")
+        else:
+            flash(
+                "Nothing was saved. Turn on kitchen mode for a shop and edit its cells, then save.",
+                "error",
+            )
+    except Exception:
+        flash("Could not save kitchen portions.", "error")
+    return redirect(url_for("it_support_dashboard"))
+
+
+def _it_support_kitchen_analytics_params() -> dict:
+    """Parse filter, date range, shop, and tab for kitchen portion analytics."""
+    filter_type = (request.args.get("filter") or "period").strip().lower()
+    if filter_type not in ("day", "period", "month"):
+        filter_type = "period"
+    today = date.today()
+    shop_id = request.args.get("shop_id", type=int) or 0
+    tab = (request.args.get("tab") or "raw").strip().lower()
+    if tab not in ("raw", "visuals"):
+        tab = "raw"
+
+    date_from = today - timedelta(days=6)
+    date_to = today
+
+    if filter_type == "day":
+        ds = (request.args.get("on") or "").strip()[:10]
+        if ds and re.match(r"^\d{4}-\d{2}-\d{2}$", ds):
+            try:
+                y, m, d = (int(x) for x in ds.split("-", 2))
+                date_from = date(y, m, d)
+                date_to = date_from
+            except Exception:
+                date_from = today
+                date_to = today
+        else:
+            date_from = today
+            date_to = today
+    elif filter_type == "month":
+        ms = (request.args.get("month") or "").strip()[:7]
+        if ms and re.match(r"^\d{4}-\d{2}$", ms):
+            try:
+                y, mo = (int(x) for x in ms.split("-", 1))
+                date_from = date(y, mo, 1)
+                ld = calendar.monthrange(y, mo)[1]
+                date_to = date(y, mo, ld)
+            except Exception:
+                date_from = date(today.year, today.month, 1)
+                date_to = date(
+                    today.year,
+                    today.month,
+                    calendar.monthrange(today.year, today.month)[1],
+                )
+        else:
+            date_from = date(today.year, today.month, 1)
+            date_to = date(
+                today.year,
+                today.month,
+                calendar.monthrange(today.year, today.month)[1],
+            )
+    else:
+        df = (request.args.get("date_from") or "").strip()[:10]
+        dt = (request.args.get("date_to") or "").strip()[:10]
+        if df and re.match(r"^\d{4}-\d{2}-\d{2}$", df):
+            try:
+                y, m, d = (int(x) for x in df.split("-", 2))
+                date_from = date(y, m, d)
+            except Exception:
+                pass
+        if dt and re.match(r"^\d{4}-\d{2}-\d{2}$", dt):
+            try:
+                y, m, d = (int(x) for x in dt.split("-", 2))
+                date_to = date(y, m, d)
+            except Exception:
+                pass
+        if date_to < date_from:
+            date_to = date_from
+
+    return {
+        "filter_type": filter_type,
+        "date_from": date_from,
+        "date_to": date_to,
+        "shop_id": shop_id,
+        "tab": tab,
+    }
+
+
+def _kitchen_analytics_url_kwargs(p: dict, tab: str) -> dict:
+    """Build query kwargs for kitchen analytics URLs (preserve filter + dates + shop)."""
+    kw: dict = {"filter": p["filter_type"], "tab": tab}
+    if p["filter_type"] == "day":
+        kw["on"] = p["date_from"].isoformat()
+    elif p["filter_type"] == "month":
+        kw["month"] = f"{p['date_from'].year:04d}-{p['date_from'].month:02d}"
+    else:
+        kw["date_from"] = p["date_from"].isoformat()
+        kw["date_to"] = p["date_to"].isoformat()
+    if p.get("shop_id"):
+        kw["shop_id"] = int(p["shop_id"])
+    return kw
+
+
+def _shop_kitchen_analytics_tab_url(shop_id: int, p: dict, tab: str) -> str:
+    """Tab URL for shop-scoped kitchen analytics (shop_id is in the path, not the query string)."""
+    kw = _kitchen_analytics_url_kwargs({**p, "shop_id": shop_id}, tab)
+    kw.pop("shop_id", None)
+    return url_for("shop_kitchen_portion_analytics", shop_id=shop_id, **kw)
+
+
+@app.route("/it_support/kitchen-portions/analytics")
+@login_required
+def it_support_kitchen_portion_analytics():
+    """Kitchen portions sold (POS checkouts in kitchen mode) — raw lines and charts."""
+    _it_support_or_super_admin_only()
+    from database import (
+        kitchen_portion_analytics_by_day,
+        kitchen_portion_analytics_by_item,
+        list_kitchen_portion_analytics_lines,
+        list_shops,
+    )
+
+    params = _it_support_kitchen_analytics_params()
+    df = params["date_from"]
+    dt = params["date_to"]
+    shop_filter = params["shop_id"] if params["shop_id"] > 0 else None
+
+    shops = list_shops(limit=5000) or []
+    raw_lines = list_kitchen_portion_analytics_lines(
+        date_from=df,
+        date_to=dt,
+        shop_id=shop_filter,
+        limit=50000,
+    )
+    by_item = kitchen_portion_analytics_by_item(
+        date_from=df,
+        date_to=dt,
+        shop_id=shop_filter,
+        limit=40,
+    )
+    by_day = kitchen_portion_analytics_by_day(
+        date_from=df,
+        date_to=dt,
+        shop_id=shop_filter,
+    )
+
+    tab_raw_url = url_for(
+        "it_support_kitchen_portion_analytics",
+        **_kitchen_analytics_url_kwargs(params, "raw"),
+    )
+    tab_visuals_url = url_for(
+        "it_support_kitchen_portion_analytics",
+        **_kitchen_analytics_url_kwargs(params, "visuals"),
+    )
+
+    return render_template(
+        "it_support_kitchen_portion_analytics.html",
+        analytics=params,
+        shops=shops,
+        raw_lines=raw_lines,
+        chart_by_item=by_item,
+        chart_by_day=by_day,
+        tab_raw_url=tab_raw_url,
+        tab_visuals_url=tab_visuals_url,
     )
 
 
@@ -2259,6 +2532,158 @@ def it_support_stock_reports():
         valuation_rows=valuation_rows[:300],
         highest_value_rows=highest_value_rows[:120],
         stagnant_rows=stagnant_rows[:120],
+    )
+
+
+@app.route("/it_support/stock-requests-audit")
+@login_required
+def it_support_stock_requests_audit():
+    _it_support_or_super_admin_only()
+    from database import STOCK_REQUEST_PENDING_EXPIRY_DAYS
+
+    try:
+        from database import expire_old_pending_stock_requests, list_stock_requests_audit_rows, list_shops
+
+        expired_n = expire_old_pending_stock_requests()
+        status = (request.args.get("status") or "").strip().lower() or None
+        if status not in (None, "pending", "approved", "rejected", "expired"):
+            status = None
+        shop_id = request.args.get("shop_id", type=int)
+        rows = list_stock_requests_audit_rows(
+            status=status,
+            shop_id=shop_id if shop_id and shop_id > 0 else None,
+            limit=500,
+            offset=0,
+        )
+        shops = list_shops(limit=500) or []
+    except Exception:
+        expired_n = 0
+        rows = []
+        shops = []
+        status = None
+        shop_id = None
+    return render_template(
+        "it_support_stock_requests_audit.html",
+        stock_request_rows=rows,
+        filter_status=status or "",
+        filter_shop_id=shop_id,
+        shops=shops,
+        expired_n=expired_n,
+        expiry_days=STOCK_REQUEST_PENDING_EXPIRY_DAYS,
+    )
+
+
+@app.route("/it_support/stock-requests-audit/export-requests")
+@login_required
+def it_support_stock_requests_audit_export_requests():
+    _it_support_or_super_admin_only()
+    try:
+        from database import list_stock_requests_audit_rows
+
+        status = (request.args.get("status") or "").strip().lower() or None
+        if status not in (None, "pending", "approved", "rejected", "expired"):
+            status = None
+        shop_id = request.args.get("shop_id", type=int)
+        rows = list_stock_requests_audit_rows(
+            status=status,
+            shop_id=shop_id if shop_id and shop_id > 0 else None,
+            limit=5000,
+            offset=0,
+        )
+    except Exception:
+        rows = []
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(
+        [
+            "id",
+            "request_type",
+            "status",
+            "requesting_shop_id",
+            "requesting_shop_name",
+            "source_type",
+            "source_shop_id",
+            "source_shop_name",
+            "item_id",
+            "item_name",
+            "qty",
+            "note",
+            "requested_by_employee_id",
+            "reviewed_by_employee_id",
+            "review_note",
+            "created_at",
+            "reviewed_at",
+            "event_count",
+        ]
+    )
+    for r in rows or []:
+        w.writerow(
+            [
+                r.get("id"),
+                r.get("request_type"),
+                r.get("status"),
+                r.get("requesting_shop_id"),
+                r.get("requesting_shop_name"),
+                r.get("source_type"),
+                r.get("source_shop_id"),
+                r.get("source_shop_name"),
+                r.get("item_id"),
+                r.get("item_name"),
+                r.get("qty"),
+                r.get("note"),
+                r.get("requested_by_employee_id"),
+                r.get("reviewed_by_employee_id"),
+                r.get("review_note"),
+                r.get("created_at"),
+                r.get("reviewed_at"),
+                r.get("event_count"),
+            ]
+        )
+    out = buf.getvalue()
+    return Response(
+        out,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=stock_requests_audit.csv"},
+    )
+
+
+@app.route("/it_support/stock-requests-audit/export-events")
+@login_required
+def it_support_stock_requests_audit_export_events():
+    _it_support_or_super_admin_only()
+    try:
+        from database import list_stock_request_events_export
+
+        rid = request.args.get("request_id", type=int)
+        rows = list_stock_request_events_export(request_id=rid if rid and rid > 0 else None, limit=10000)
+    except Exception:
+        rows = []
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "request_id", "event_type", "actor_employee_id", "actor_shop_id", "payload_json", "created_at"])
+    for e in rows or []:
+        pj = e.get("payload_json")
+        if pj is not None and not isinstance(pj, str):
+            try:
+                pj = json.dumps(pj, ensure_ascii=False, default=str)
+            except Exception:
+                pj = str(pj)
+        w.writerow(
+            [
+                e.get("id"),
+                e.get("request_id"),
+                e.get("event_type"),
+                e.get("actor_employee_id"),
+                e.get("actor_shop_id"),
+                pj,
+                e.get("created_at"),
+            ]
+        )
+    out = buf.getvalue()
+    return Response(
+        out,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=stock_request_events.csv"},
     )
 
 
@@ -3336,6 +3761,10 @@ def company_credit_payments_customer():
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
     back_shop_id = request.args.get("back_shop_id", type=int)
+    if back_shop_id:
+        bshop = _get_shop_or_404(back_shop_id)
+        if not _shop_pos_allow_credit_sale(bshop):
+            return redirect(url_for("shop_dashboard", shop_id=back_shop_id))
     should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
     try:
         from database import (
@@ -3390,6 +3819,11 @@ def company_credit_payments_pay():
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
     back_shop_id = request.form.get("back_shop_id", type=int)
+    if back_shop_id:
+        bshop = _get_shop_or_404(back_shop_id)
+        if not _shop_pos_allow_credit_sale(bshop):
+            flash("Credit sales are disabled for this shop.", "error")
+            return redirect(url_for("shop_dashboard", shop_id=back_shop_id))
     amount_raw = (request.form.get("amount") or "").strip()
     payment_method = (request.form.get("payment_method") or "").strip().lower()
     if payment_method not in ("cash", "mpesa", "bank", "other"):
@@ -3535,6 +3969,10 @@ def company_credit_sale_detail():
     back_shop_id = request.args.get("back_shop_id", type=int)
     if not shop_id or not sale_id:
         abort(404)
+    if back_shop_id:
+        bshop = _get_shop_or_404(back_shop_id)
+        if not _shop_pos_allow_credit_sale(bshop):
+            return redirect(url_for("shop_dashboard", shop_id=back_shop_id))
     try:
         from database import get_shop_credit_sale_detail
 
@@ -3769,6 +4207,7 @@ def shop_pos(shop_id: int):
         shop=shop,
         items=items,
         pos_printing_settings=_effective_printing_settings_for_shop(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
         pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -3939,11 +4378,110 @@ def shop_pos_catalog_json(shop_id: int):
             {
                 "id": int(it.get("id") or 0),
                 "shop_stock_qty": int(it.get("shop_stock_qty") or 0),
+                "kitchen_portions": int(it.get("kitchen_portions") or 0),
                 "price": round(price, 2),
                 "original_selling_price": round(orig, 2),
             }
         )
-    return jsonify({"ok": True, "items": items})
+    return jsonify(
+        {
+            "ok": True,
+            "inventory_mode": _pos_inventory_mode(shop),
+            "items": items,
+        }
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/incoming-stock-requests.json")
+def shop_pos_incoming_stock_requests_json(shop_id: int):
+    """Pending shop-to-shop stock requests where this shop is the source (for POS popup)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    try:
+        from database import list_incoming_pending_stock_requests_for_shop
+
+        rows = list_incoming_pending_stock_requests_for_shop(source_shop_id=shop_id, limit=30)
+    except Exception:
+        rows = []
+    out = []
+    for r in rows or []:
+        ca = r.get("created_at")
+        if hasattr(ca, "isoformat"):
+            ca = ca.isoformat(sep=" ", timespec="seconds")
+        else:
+            ca = str(ca) if ca is not None else None
+        rq = int(r.get("qty") or 0)
+        src_avail = int(r.get("source_shop_stock_qty") or 0)
+        max_ap = max(0, min(rq, src_avail))
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "requesting_shop_name": (r.get("requesting_shop_name") or "").strip(),
+                "item_name": (r.get("item_name") or "").strip(),
+                "qty": rq,
+                "requested_qty": rq,
+                "source_shop_stock_qty": src_avail,
+                "max_approve_qty": max_ap,
+                "note": (r.get("note") or "").strip() or None,
+                "created_at": ca,
+            }
+        )
+    return jsonify({"ok": True, "requests": out})
+
+
+@app.route(
+    "/shops/<int:shop_id>/shop-pos/incoming-stock-requests/<int:request_id>/review",
+    methods=["POST"],
+)
+def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
+    """Approve or decline an incoming shop-to-shop stock request from POS (6-digit employee code)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    data = request.get_json(force=True, silent=True) or {}
+    action = (data.get("action") or "").strip().lower()
+    code = (data.get("employee_code") or "").strip()
+    emp, err, st = _shop_pos_validate_employee_code(shop_id, code)
+    if err:
+        return jsonify({"ok": False, "error": err}), st
+    if action not in ("approve", "reject"):
+        return jsonify({"ok": False, "error": "Use action approve or reject."}), 400
+
+    fulfill_qty = data.get("qty")
+    if fulfill_qty is not None and str(fulfill_qty).strip() != "":
+        try:
+            fulfill_qty = int(fulfill_qty)
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "Quantity must be a whole number."}), 400
+    else:
+        fulfill_qty = None
+
+    review_note = (data.get("review_note") or "").strip() or None
+    role_key = (emp.get("role") or "employee").strip().lower()
+
+    try:
+        from database import review_stock_request
+
+        ok, err_msg = review_stock_request(
+            request_id=request_id,
+            approve=(action == "approve"),
+            approver_employee_id=int(emp["id"]),
+            approver_role=role_key,
+            approver_shop_id=int(shop_id),
+            review_note=review_note,
+            fulfill_qty=fulfill_qty if action == "approve" else None,
+        )
+    except Exception as e:
+        logger.exception("shop_pos_incoming_stock_request_review: %s", e)
+        ok, err_msg = False, "Something went wrong. Please try again."
+
+    if not ok:
+        return jsonify({"ok": False, "error": err_msg or "Could not update this request."}), 400
+
+    return jsonify({"ok": True, "action": action})
 
 
 def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[dict], Optional[str], int]:
@@ -4186,6 +4724,7 @@ def shop_pos_record_sale(shop_id: int):
             employee_name=(emp.get("full_name") or "").strip() or None,
             credit_due_date=credit_due_raw,
             lines=data.get("lines") if isinstance(data.get("lines"), list) else [],
+            inventory_mode=_pos_inventory_mode(shop),
         )
     except Exception:
         ok, sale_err = False, None
@@ -4347,6 +4886,7 @@ def shop_leads(shop_id: int):
     return render_template(
         "shop_leads.html",
         shop=shop,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         quotes=quotes,
         quote_lines_by_id=quote_lines_by_id,
         leads_filter=filt,
@@ -4375,118 +4915,6 @@ def it_support_leads():
         quotes=quotes,
         quote_lines_by_id=quote_lines_by_id,
         leads_filter=filt,
-    )
-
-
-@app.route("/quote/submit", methods=["POST"])
-def public_quote_submit():
-    """Persist website /quote cart as an online lead (no shop branch, no stock change)."""
-    data = request.get_json(force=True, silent=True) or {}
-    lines_in = data.get("lines") if isinstance(data.get("lines"), list) else []
-    if not lines_in:
-        return jsonify({"ok": False, "error": "No items selected."}), 400
-    if len(lines_in) > 80:
-        return jsonify({"ok": False, "error": "Too many items."}), 400
-    lines = []
-    total_qty = 0
-    total_amount = 0.0
-    for ln in lines_in[:80]:
-        if not isinstance(ln, dict):
-            continue
-        nm = (ln.get("name") or "").strip()
-        if not nm:
-            continue
-        try:
-            qty = int(ln.get("qty") or 1)
-        except (TypeError, ValueError):
-            qty = 1
-        if qty < 1:
-            qty = 1
-        if qty > 999:
-            qty = 999
-        try:
-            unit = float(ln.get("price") or 0)
-        except (TypeError, ValueError):
-            unit = 0.0
-        lt = ln.get("total")
-        try:
-            lt = float(lt) if lt is not None else unit * qty
-        except (TypeError, ValueError):
-            lt = unit * qty
-        iid = ln.get("id")
-        try:
-            iid = int(iid) if iid is not None else None
-        except (TypeError, ValueError):
-            iid = None
-        lines.append({"id": iid, "name": nm[:200], "qty": qty, "price": unit, "total": lt})
-        total_qty += qty
-        total_amount += lt
-    if not lines:
-        return jsonify({"ok": False, "error": "No valid line items."}), 400
-
-    raw_phone = (data.get("customer_phone") or "").strip()
-    digits = re.sub(r"\D", "", raw_phone)
-    customer_phone = raw_phone.strip()[:40] if raw_phone else None
-    customer_name = (data.get("customer_name") or "").strip()[:190] if data.get("customer_name") else ""
-    # Phone-first registration: if user provided at least 10 digits, require a name and upsert customer.
-    if digits and len(digits) >= 10:
-        if len(customer_name) < 2:
-            return jsonify({"ok": False, "error": "Enter your name to register this phone number."}), 400
-        try:
-            from database import upsert_public_customer
-
-            upsert_public_customer(customer_name, customer_phone or digits)
-        except Exception:
-            pass
-    try:
-        from database import create_shop_pos_quotation
-
-        qid, err = create_shop_pos_quotation(
-            shop_id=None,
-            quote_basis="sale",
-            quote_channel="online",
-            total_amount=total_amount,
-            item_count=total_qty,
-            customer_name=customer_name or None,
-            customer_phone=customer_phone or None,
-            employee_id=None,
-            employee_code=None,
-            employee_name=None,
-            lines=lines,
-        )
-    except Exception:
-        qid, err = None, None
-    if not qid:
-        msg = err or "Could not save quotation."
-        status = 400 if err else 500
-        return jsonify({"ok": False, "error": msg}), status
-    return jsonify({"ok": True, "quote_id": qid})
-
-
-@app.route("/quote/customer-lookup", methods=["POST"])
-def public_quote_customer_lookup():
-    data = request.get_json(force=True, silent=True) or {}
-    phone = (data.get("phone") or "").strip()
-    digits = re.sub(r"\D", "", phone)
-    if len(digits) < 10:
-        return jsonify({"ok": False, "error": "Enter a valid phone number."}), 400
-    try:
-        from database import get_public_customer_by_phone
-
-        row = get_public_customer_by_phone(phone)
-    except Exception:
-        row = None
-    if not row:
-        return jsonify({"ok": True, "customer": None})
-    return jsonify(
-        {
-            "ok": True,
-            "customer": {
-                "id": row["id"],
-                "customer_name": row["customer_name"],
-                "phone": row["phone"],
-            },
-        }
     )
 
 
@@ -5396,6 +5824,120 @@ def shop_dashboard(shop_id: int):
     return render_template(
         "shop_dashboard.html",
         shop=shop,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/kitchen-portion-analytics")
+def shop_kitchen_portion_analytics(shop_id: int):
+    """Kitchen portion sales for this shop only (same data as IT analytics, shop session access)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    from database import (
+        kitchen_portion_analytics_by_day,
+        kitchen_portion_analytics_by_item,
+        list_kitchen_portion_analytics_lines,
+    )
+
+    params = _it_support_kitchen_analytics_params()
+    params["shop_id"] = shop_id
+    df = params["date_from"]
+    dt = params["date_to"]
+
+    raw_lines = list_kitchen_portion_analytics_lines(
+        date_from=df,
+        date_to=dt,
+        shop_id=shop_id,
+        limit=50000,
+    )
+    by_item = kitchen_portion_analytics_by_item(
+        date_from=df,
+        date_to=dt,
+        shop_id=shop_id,
+        limit=40,
+    )
+    by_day = kitchen_portion_analytics_by_day(
+        date_from=df,
+        date_to=dt,
+        shop_id=shop_id,
+    )
+
+    tab_raw_url = _shop_kitchen_analytics_tab_url(shop_id, params, "raw")
+    tab_visuals_url = _shop_kitchen_analytics_tab_url(shop_id, params, "visuals")
+
+    return render_template(
+        "shop_kitchen_portion_analytics.html",
+        shop=shop,
+        analytics=params,
+        raw_lines=raw_lines,
+        chart_by_item=by_item,
+        chart_by_day=by_day,
+        tab_raw_url=tab_raw_url,
+        tab_visuals_url=tab_visuals_url,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-kitchen-portions", methods=["GET", "POST"])
+def shop_kitchen_portions(shop_id: int):
+    """Kitchen portion quantities for this shop (POS kitchen mode)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    if request.method == "POST":
+        try:
+            from database import upsert_shop_kitchen_portion_qty
+
+            for key, raw in request.form.items():
+                if not key.startswith("portion_"):
+                    continue
+                try:
+                    iid = int(key.replace("portion_", "", 1))
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    q = int(str(raw or "").strip() or "0")
+                except (TypeError, ValueError):
+                    q = 0
+                upsert_shop_kitchen_portion_qty(shop_id, iid, q)
+            flash("Kitchen portions updated.", "success")
+        except Exception:
+            flash("Could not save kitchen portions.", "error")
+        return redirect(url_for("shop_kitchen_portions", shop_id=shop_id))
+
+    kitchen_rows = []
+    try:
+        from database import ensure_shop_items_for_shop, list_shop_kitchen_portion_editor_rows
+
+        ensure_shop_items_for_shop(shop_id)
+        kitchen_rows = list_shop_kitchen_portion_editor_rows(
+            shop_id=shop_id, limit=5000, only_displayed_on_pos=False
+        )
+    except Exception:
+        kitchen_rows = []
+
+    return render_template(
+        "shop_kitchen_portions.html",
+        shop=shop,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
+        kitchen_portion_rows=kitchen_rows,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -5410,6 +5952,8 @@ def shop_credit_payments(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not _shop_pos_allow_credit_sale(shop):
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
     role_key = (session.get("employee_role") or "").strip().lower()
     company_credit_mode = role_key == "admin"
     try:
@@ -5453,6 +5997,8 @@ def shop_credit_payments_customer(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not _shop_pos_allow_credit_sale(shop):
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
     try:
@@ -5489,6 +6035,9 @@ def shop_credit_payments_pay(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not _shop_pos_allow_credit_sale(shop):
+        flash("Credit sales are disabled for this shop.", "error")
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
     amount_raw = (request.form.get("amount") or "").strip()
@@ -5541,6 +6090,8 @@ def shop_credit_sale_detail(shop_id: int, sale_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not _shop_pos_allow_credit_sale(shop):
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
     try:
         from database import get_shop_credit_sale_detail
 
@@ -5559,6 +6110,32 @@ def shop_credit_sale_detail(shop_id: int, sale_id: int):
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
         primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
         accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-stock-management/source-stock.json")
+def shop_stock_management_source_stock_json(shop_id: int):
+    """Stock quantities at the selected request source (company or another shop) for the request-stock table."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    raw = (request.args.get("batch_request_source") or "company").strip().lower()
+    try:
+        from database import get_request_source_stock_snapshot
+
+        label, stock_map = get_request_source_stock_snapshot(
+            requesting_shop_id=shop_id,
+            batch_request_source=raw,
+        )
+    except Exception:
+        label, stock_map = "Company", {}
+    return jsonify(
+        {
+            "ok": True,
+            "label": label,
+            "stock_by_item_id": {str(k): int(v) for k, v in (stock_map or {}).items()},
+        }
     )
 
 
@@ -5616,9 +6193,28 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 from database import ensure_shop_items_for_shop, create_shop_stock_request
 
                 ensure_shop_items_for_shop(shop_id)
+                source_target = (request.form.get("batch_request_source") or "company").strip().lower()
                 source_type = "company"
                 source_shop_id = None
+                if source_target.startswith("shop:"):
+                    source_type = "shop"
+                    try:
+                        source_shop_id = int(source_target.split(":", 1)[1])
+                    except Exception:
+                        source_shop_id = None
+                    if not source_shop_id or int(source_shop_id) == int(shop_id):
+                        flash("Choose a valid other shop to request stock from.", "error")
+                        return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
                 batch_note = (request.form.get("batch_note") or "").strip().upper() or None
+                try:
+                    from database import get_request_source_stock_snapshot
+
+                    _, stock_map = get_request_source_stock_snapshot(
+                        requesting_shop_id=shop_id,
+                        batch_request_source=source_target,
+                    )
+                except Exception:
+                    stock_map = {}
                 ok_count = 0
                 fail_count = 0
                 for key in request.form:
@@ -5635,6 +6231,10 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         fail_count += 1
                         continue
                     if q <= 0:
+                        continue
+                    avail = int((stock_map or {}).get(iid) or 0)
+                    if q > avail:
+                        fail_count += 1
                         continue
                     per_note = (request.form.get(f"note_{iid}") or "").strip().upper() or None
                     line_note = per_note or batch_note
@@ -5665,13 +6265,14 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     flash(f"Submitted {ok_count} stock request(s) for approval.", "success")
                 elif ok_count:
                     flash(
-                        f"Submitted {ok_count} request(s). {fail_count} line(s) could not be submitted "
-                        "(check company stock and shop stock update).",
+                        f"Submitted {ok_count} request(s). {fail_count} line(s) were skipped "
+                        "(quantity over available stock at source, invalid numbers, or could not be saved).",
                         "warning",
                     )
                 else:
                     flash(
-                        "No requests submitted. Enter at least one quantity, or check company stock availability.",
+                        "No requests submitted. Enter at least one quantity that does not exceed "
+                        "stock at the selected source (company warehouse or other shop).",
                         "error",
                     )
             except Exception as e:
@@ -5810,7 +6411,11 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     requested_by_employee_id=session.get("employee_id"),
                 )
                 if not req_id:
-                    flash("Could not create stock request. Check source and stock availability.", "error")
+                    flash(
+                        "Could not create stock request. Quantity must not exceed available stock "
+                        "at the selected source, and stock updates must be enabled where required.",
+                        "error",
+                    )
                 else:
                     _notify_new_shop_stock_request(
                         req_id=int(req_id),
@@ -5929,6 +6534,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             ensure_shop_items_for_shop,
             list_shop_stock_manage_items,
             list_shop_stock_transactions,
+            list_shops,
             list_stock_requests_for_session,
         )
 
@@ -5940,13 +6546,16 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             viewer_shop_id=shop_id,
             limit=200,
         )
+        all_shops = list_shops(limit=500) or []
+        other_shops = [s for s in all_shops if int(s.get("id") or 0) != int(shop_id)]
     except Exception:
-        items, txs, request_rows = [], [], []
+        items, txs, request_rows, other_shops = [], [], [], []
 
     return render_template(
         "shop_stock_management.html",
         shop=shop,
         items=items,
+        other_shops=other_shops,
         view=view_arg,
         stock_requests=request_rows,
         item_stock_requests=request_rows,
@@ -6100,7 +6709,7 @@ def approve_stock_request(request_id: int):
     try:
         from database import review_stock_request
 
-        ok = review_stock_request(
+        ok, err_msg = review_stock_request(
             request_id=request_id,
             approve=True,
             approver_employee_id=session.get("employee_id"),
@@ -6109,8 +6718,11 @@ def approve_stock_request(request_id: int):
             review_note=(request.form.get("review_note") or "").strip() or None,
         )
     except Exception:
-        ok = False
-    flash("Stock request approved." if ok else "Could not approve stock request.", "success" if ok else "error")
+        ok, err_msg = False, "Could not approve stock request."
+    flash(
+        "Stock request approved." if ok else (err_msg or "Could not approve stock request."),
+        "success" if ok else "error",
+    )
     if shop_id:
         return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
     return redirect(url_for("notifications"))
@@ -6124,7 +6736,7 @@ def reject_stock_request(request_id: int):
     try:
         from database import review_stock_request
 
-        ok = review_stock_request(
+        ok, err_msg = review_stock_request(
             request_id=request_id,
             approve=False,
             approver_employee_id=session.get("employee_id"),
@@ -6133,8 +6745,11 @@ def reject_stock_request(request_id: int):
             review_note=(request.form.get("review_note") or "").strip() or None,
         )
     except Exception:
-        ok = False
-    flash("Stock request rejected." if ok else "Could not reject stock request.", "success" if ok else "error")
+        ok, err_msg = False, "Could not reject stock request."
+    flash(
+        "Stock request rejected." if ok else (err_msg or "Could not reject stock request."),
+        "success" if ok else "error",
+    )
     if shop_id:
         return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
     return redirect(url_for("notifications"))
@@ -6669,6 +7284,8 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if analytics_view == "credit" and not _shop_pos_allow_credit_sale(shop):
+        return redirect(url_for("shop_analytics", shop_id=shop_id))
     analytics_filter = _build_analytics_filter()
     revenue_data = None
     if analytics_view == "revenue":
@@ -6781,6 +7398,7 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         sales_data=sales_data,
         credit_data=credit_data,
         customer_data=customer_data,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -6878,6 +7496,7 @@ def shop_customer_analytics_detail(shop_id: int):
         analytics_filter=analytics_filter,
         customer_analytics=customer_analytics,
         transactions=transactions,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -6927,6 +7546,7 @@ def _shop_settings_template_extra(shop: dict) -> dict:
         "receipt_settings": _effective_receipt_settings_for_shop(shop),
         "shop_printing_custom": _shop_has_printing_override(shop),
         "shop_receipt_custom": _shop_has_receipt_override(shop),
+        "pos_allow_credit_sale": _shop_pos_allow_credit_sale(shop),
         "theme_key": f"richcom-theme-shop-{sid}",
         "theme_default": shop.get("default_theme") or "dark",
         "font_family": shop.get("font_family") or "Plus Jakarta Sans",
@@ -7053,7 +7673,10 @@ def shop_settings_pos_printing(shop_id: int):
         return gate
     if request.method == "POST":
         use_custom_printing = (request.form.get("shop_printing_custom") or "").strip() == "1"
-        printing_json = json.dumps(_printing_settings_from_form(), separators=(",", ":")) if use_custom_printing else None
+        # Full replace from form (unchecked checkboxes are absent → false), same as IT system settings.
+        printing_json = (
+            json.dumps(_printing_settings_from_form(), separators=(",", ":")) if use_custom_printing else None
+        )
         try:
             from database import update_shop_settings
 
@@ -7569,4 +8192,5 @@ def it_support_website_management():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # Listen on all interfaces so LAN devices (e.g. phone) can use http://<this-PC-LAN-IP>:5000
+    app.run(debug=True, host="0.0.0.0", port=5000)

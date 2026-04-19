@@ -1,0 +1,90 @@
+{% extends "employee_layout.html" %}
+{% block title %}Stock request audit — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Stock request audit{% endblock %}
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_stock_reports', view='low_stock') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Stock reports</a>
+  <a href="{{ url_for('it_support_stock_requests_audit') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]">Request audit</a>
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-7xl space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Stock requests &amp; audit trail</h2>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+        Pending requests older than {{ expiry_days | default(30) }} days are marked expired when you open this page.
+        {% if expired_n and expired_n > 0 %}
+          <span class="font-semibold text-amber-600 dark:text-amber-300">{{ expired_n }} request(s) expired just now.</span>
+        {% endif %}
+      </p>
+      <form method="get" action="{{ url_for('it_support_stock_requests_audit') }}" class="mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Status</label>
+          <select name="status" class="mt-1 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <option value="" {% if not filter_status %}selected{% endif %}>All</option>
+            <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>Rejected</option>
+            <option value="expired" {% if filter_status == 'expired' %}selected{% endif %}>Expired</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop (requesting or source)</label>
+          <select name="shop_id" class="mt-1 min-w-[200px] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <option value="">All shops</option>
+            {% for s in shops or [] %}
+              <option value="{{ s.id }}" {% if filter_shop_id and filter_shop_id == s.id %}selected{% endif %}>{{ s.shop_name or ('Shop #' ~ s.id) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-rc btn-rc-primary rounded-xl px-4 py-2 text-sm font-semibold">Apply</button>
+        <a href="{{ url_for('it_support_stock_requests_audit_export_requests') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" class="btn-rc btn-rc-ghost rounded-xl px-4 py-2 text-sm font-semibold">Export requests CSV</a>
+        <a href="{{ url_for('it_support_stock_requests_audit_export_events') }}" class="btn-rc btn-rc-ghost rounded-xl px-4 py-2 text-sm font-semibold">Export events CSV</a>
+      </form>
+    </div>
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Requests</h3>
+      <div class="mt-3 overflow-x-auto">
+        <table class="min-w-[1100px] w-full text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">ID</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Requesting</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Source</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
+              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Events</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for r in stock_request_rows or [] %}
+              <tr>
+                <td class="px-3 py-2 font-mono text-[rgb(var(--rc-muted))]">{{ r.id }}</td>
+                <td class="px-3 py-2">{% if r.request_type == 'return_to_company' %}Return{% else %}Stock in{% endif %}</td>
+                <td class="px-3 py-2">
+                  <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wider ring-1
+                    {% if r.status == 'approved' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
+                    {% elif r.status == 'pending' %}bg-sky-500/12 text-sky-300 ring-sky-400/20
+                    {% elif r.status == 'expired' %}bg-amber-500/12 text-amber-300 ring-amber-400/20
+                    {% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}">{{ r.status }}</span>
+                </td>
+                <td class="px-3 py-2">{{ r.requesting_shop_name or '—' }}</td>
+                <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">
+                  {% if r.source_type == 'company' %}Company{% elif r.source_shop_name %}{{ r.source_shop_name }}{% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2 font-medium text-[rgb(var(--rc-page-fg))]">{{ r.item_name or '—' }}</td>
+                <td class="px-3 py-2 text-right">{{ r.qty or 0 }}</td>
+                <td class="px-3 py-2 text-right">{{ r.event_count or 0 }}</td>
+                <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="9" class="px-3 py-6 text-center text-[rgb(var(--rc-muted))]">No requests match the filters.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{# Sub-nav for IT kitchen portion tools (update matrix + analytics). #}
+<p class="mb-1 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Kitchen portions</p>
+<a
+  href="{{ url_for('it_support_dashboard') }}#kitchen-matrix"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_dashboard' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if request.endpoint == 'it_support_dashboard' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16v12H4V6zm2 2h12v8H6V8zm2 2h4v4H8v-4z" />
+  </svg>
+  Update portions
+</a>
+<a
+  href="{{ url_for('it_support_kitchen_portion_analytics') }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_kitchen_portion_analytics' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if request.endpoint == 'it_support_kitchen_portion_analytics' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+  Portion analytics
+</a>

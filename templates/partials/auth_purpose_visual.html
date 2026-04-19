@@ -1,0 +1,23 @@
+{# Requires: purpose_visual_src, purpose_visual_alt, purpose_theme (employee|shop|signup).
+   Optional: purpose_visual_label (short caption under the image).
+   Scope with purpose_visual_compact true = mobile strip only; false = desktop hero only. #}
+{% set compact = purpose_visual_compact | default(false) %}
+<div
+  class="auth-purpose-strip auth-purpose-strip--{{ purpose_theme }} {% if compact %}auth-purpose-strip--compact{% else %}auth-purpose-strip--hero{% endif %}"
+>
+  <div class="auth-purpose-strip__glow" aria-hidden="true"></div>
+  <div class="auth-purpose-strip__frame">
+    <img
+      src="{{ url_for('static', filename=purpose_visual_src) }}"
+      alt="{{ purpose_visual_alt }}"
+      class="auth-purpose-strip__img"
+      width="520"
+      height="300"
+      loading="{{ 'eager' if not compact else 'lazy' }}"
+      decoding="async"
+    />
+  </div>
+  {% if purpose_visual_label %}
+    <p class="auth-purpose-strip__caption">{{ purpose_visual_label }}</p>
+  {% endif %}
+</div>

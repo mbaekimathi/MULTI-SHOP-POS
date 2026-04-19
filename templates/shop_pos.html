@@ -29,6 +29,13 @@
       outline: 2px solid rgb(var(--rc-primary));
       outline-offset: 2px;
     }
+    /* POS live search: item cards use Tailwind flex; .hidden can lose to .flex in cascade */
+    #pos-catalog .pos-item-card.pos-live-search-hidden {
+      display: none !important;
+    }
+    #pos-catalog section.pos-cat-section.pos-live-search-hidden {
+      display: none !important;
+    }
     /* ── POS page atmosphere: layered mesh + live orbs (theme-aware) ── */
     .pos-page-atmosphere {
       z-index: 0;
@@ -2197,7 +2204,7 @@
                 id="pos-search"
                 type="search"
                 autocomplete="off"
-                placeholder="Search name, category, or description…"
+                placeholder="Search item name…"
                 class="w-full min-w-0 py-2.5 pl-10 pr-4 text-base text-[rgb(var(--rc-page-fg))] placeholder:text-[rgb(var(--rc-muted))] outline-none transition sm:py-3 sm:pl-11 sm:text-sm"
               />
             </div>
@@ -2214,6 +2221,7 @@
             </div>
           </div>
 
+          {% set inv_mode = pos_inventory_mode %}
           <div id="pos-catalog" class="space-y-8 sm:space-y-10 md:space-y-12">
             {% for cat, rows in (items|groupby('category')) %}
               <section
@@ -2226,7 +2234,9 @@
                     <h2>{{ cat }}</h2>
                     <p class="pos-cat-section__hint">
                       <span class="sm:hidden">Swipe to browse · tap to add</span>
-                      <span class="hidden sm:inline">Scroll or use arrows · tap to add · live stock</span>
+                      <span class="hidden sm:inline">
+                        {% if inv_mode == "kitchen" %}Scroll or use arrows · tap to add · kitchen portions{% elif inv_mode == "shop" %}Scroll or use arrows · tap to add · live stock{% else %}Scroll or use arrows · tap to add{% endif %}
+                      </span>
                     </p>
                   </div>
                   <span class="pos-cat-section__count shrink-0">{{ rows|length }} items</span>
@@ -2237,6 +2247,13 @@
                     class="pos-item-scroll pos-item-scroll--bleed touch-pan-x overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 md:pl-12 md:pr-12 lg:-mx-8 lg:px-8 lg:pl-14 lg:pr-14"
                   >
                   {% for it in rows %}
+                    {% if inv_mode == "kitchen" %}
+                      {% set eff_stock = it.kitchen_portions %}
+                    {% elif inv_mode == "none" %}
+                      {% set eff_stock = 999999999 %}
+                    {% else %}
+                      {% set eff_stock = it.shop_stock_qty %}
+                    {% endif %}
                     <button
                       type="button"
                       class="pos-item-card pos-item-card--media group relative flex w-[7.25rem] shrink-0 snap-start snap-always flex-col overflow-hidden rounded-2xl text-left sm:w-[7.85rem] md:w-[8.5rem]"
@@ -2244,8 +2261,10 @@
                       data-name="{{ it.name|e }}"
                       data-price="{{ '%.2f'|format(it.price) if it.price is not none else '0.00' }}"
                       data-original-selling-price="{{ '%.2f'|format(it.original_selling_price) if it.original_selling_price is not none else '%.2f'|format(it.price) }}"
-                      data-stock="{{ it.shop_stock_qty }}"
-                      data-search="{{ (it.category ~ ' ' ~ it.name ~ ' ' ~ (it.description or ''))|lower|e }}"
+                      data-stock="{{ eff_stock }}"
+                      data-kitchen-portions="{{ it.kitchen_portions or 0 }}"
+                      data-shop-stock="{{ it.shop_stock_qty }}"
+                      data-search="{{ (it.name or '')|lower|e }}"
                       aria-label="Add {{ it.name|e }} to cart"
                     >
                       <div class="pos-item-card-media">
@@ -2267,13 +2286,20 @@
                       <div class="pos-item-card__panel flex w-full shrink-0 flex-col gap-1.5">
                         <p class="pos-item-name line-clamp-2 min-h-0 text-[10px] font-extrabold leading-snug tracking-tight sm:text-[11px]">{{ it.name }}</p>
                         <div class="pos-item-card__meta flex items-center justify-between gap-1">
-                          <span class="pos-item-card__stock-label shrink-0 text-[8px] font-semibold uppercase tracking-[0.14em]">Stock</span>
-                          {% if it.shop_stock_qty > 0 %}
+                          <span class="pos-item-card__stock-label shrink-0 text-[8px] font-semibold uppercase tracking-[0.14em]">{% if inv_mode == "kitchen" %}Kitchen{% elif inv_mode == "shop" %}Stock{% else %}—{% endif %}</span>
+                          {% if inv_mode == "none" %}
                             <span
                               class="pos-item-stock pos-item-stock--detail is-in-stock tabular-nums text-[10px] sm:text-[11px]"
                               data-pos-stock
-                              data-pos-stock-qty="{{ it.shop_stock_qty }}"
-                              >{{ it.shop_stock_qty }}</span
+                              data-pos-stock-qty="999999999"
+                              >—</span
+                            >
+                          {% elif eff_stock > 0 %}
+                            <span
+                              class="pos-item-stock pos-item-stock--detail is-in-stock tabular-nums text-[10px] sm:text-[11px]"
+                              data-pos-stock
+                              data-pos-stock-qty="{{ eff_stock }}"
+                              >{{ eff_stock }}</span
                             >
                           {% else %}
                             <span
@@ -2439,12 +2465,15 @@
       <div id="pos-cart-lines-section" class="flex min-h-0 flex-1 flex-col">
         <div class="pos-cart-lines-toolbar flex shrink-0 flex-wrap items-end justify-between gap-x-2 gap-y-1.5 px-4 py-2 sm:px-5">
           <p id="pos-cart-section-label" class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Items in cart</p>
-          <div class="flex flex-col items-end gap-0.5 sm:flex-row sm:items-baseline sm:gap-4">
+            <div class="flex flex-col items-end gap-0.5 sm:flex-row sm:items-baseline sm:gap-4">
             <p id="pos-cart-line-count" class="text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]"></p>
+            <div class="flex flex-col items-end gap-0.5">
             <div class="flex items-baseline gap-1.5 sm:gap-2">
-              <span class="text-[9px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Subtotal</span>
+              <span id="pos-cart-total-label" class="text-[9px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Subtotal</span>
               <span id="pos-cart-subtotal" class="text-lg font-black tabular-nums leading-none tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">0.00</span>
               <span class="pos-cart-currency-pill shrink-0 px-1.5 py-0.5 text-[9px] uppercase tracking-wide">Local</span>
+            </div>
+            <p id="pos-cart-tax-note" class="hidden max-w-[14rem] text-right text-[9px] font-semibold tabular-nums leading-tight text-[rgb(var(--rc-muted))]"></p>
             </div>
           </div>
         </div>
@@ -2467,8 +2496,10 @@
               Quote
             </button>
           </div>
-          <input type="checkbox" id="pos-quote-only" class="hidden" />
-          <p class="text-[10px] text-[rgb(var(--rc-muted))]">Quote only (no stock change).</p>
+          <div id="pos-quotation-row" class="space-y-1">
+            <input type="checkbox" id="pos-quote-only" class="hidden" />
+            <p class="text-[10px] text-[rgb(var(--rc-muted))]">Quote only (no stock change).</p>
+          </div>
           <div id="pos-sale-payment-section" class="space-y-2 border-t border-[rgb(var(--rc-border))]/70 pt-3 mt-3">
             <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Payment</p>
             <div class="grid grid-cols-3 gap-2">
@@ -2512,7 +2543,7 @@
           </div>
         </div>
 
-        <div class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
+        <div id="pos-customer-details-card" class="pos-cart-checkout-card space-y-2 rounded-2xl p-3">
           <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Customer details</p>
           <div>
             <label id="pos-customer-phone-label" for="pos-customer-phone" class="mb-1 block text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Customer phone (optional)</label>
@@ -2903,6 +2934,100 @@
     </div>
   </div>
 
+  {# Incoming stock request (another shop asked to transfer from this shop) — polled on POS #}
+  <div
+    id="pos-incoming-sr-modal"
+    class="fixed inset-0 z-[96] hidden"
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="pos-incoming-sr-title"
+  >
+    <div id="pos-incoming-sr-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+      <div
+        class="w-full max-w-md rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl ring-1 ring-[rgb(var(--rc-primary))]/20"
+      >
+        <div class="flex items-start gap-3">
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-primary))]"
+            aria-hidden="true"
+          >
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 id="pos-incoming-sr-title" class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Incoming stock request</h3>
+            <p id="pos-incoming-sr-queue-hint" class="mt-1 text-xs text-[rgb(var(--rc-muted))]"></p>
+          </div>
+        </div>
+        <div
+          id="pos-incoming-sr-detail"
+          class="mt-4 space-y-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3 text-sm text-[rgb(var(--rc-page-fg))]"
+        ></div>
+        <div class="mt-4 space-y-2">
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-qty">Quantity to transfer (if approving)</label>
+          <input
+            id="pos-incoming-sr-qty"
+            type="number"
+            min="1"
+            step="1"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm font-semibold tabular-nums text-[rgb(var(--rc-page-fg))] outline-none"
+          />
+          <p id="pos-incoming-sr-qty-hint" class="text-[11px] text-[rgb(var(--rc-muted))]"></p>
+        </div>
+        <div class="mt-3 space-y-2">
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-code"
+              >Employee code (6 digits) — validates on the 6th digit; if valid, the action runs automatically</label>
+          <input
+            id="pos-incoming-sr-code"
+            type="password"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            placeholder="••••••"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5 text-sm tracking-[0.2em] text-[rgb(var(--rc-page-fg))] outline-none"
+          />
+        </div>
+        <p id="pos-incoming-sr-err" class="mt-2 hidden text-xs font-semibold text-rose-500"></p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            id="pos-incoming-sr-approve"
+            class="btn-rc btn-rc-success inline-flex flex-1 items-center justify-center px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            id="pos-incoming-sr-decline"
+            class="btn-rc btn-rc-danger inline-flex flex-1 items-center justify-center px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
+          >
+            Decline
+          </button>
+          <button
+            type="button"
+            id="pos-incoming-sr-dismiss"
+            class="btn-rc btn-rc-ghost w-full px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
+          >
+            Dismiss reminder
+          </button>
+          <a
+            href="{{ url_for('shop_notifications', shop_id=shop.id) }}"
+            class="block w-full text-center text-[11px] font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline"
+            >Open notifications list</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var SHOP_ID = {{ shop.id|int }};
@@ -2914,6 +3039,8 @@
       var RECORD_QUOTE_API = {{ url_for('shop_pos_record_quote', shop_id=shop.id)|tojson }};
       var SELLER_LOOKUP_API = {{ url_for('seller_lookup')|tojson }};
       var CATALOG_STOCK_API = {{ url_for('shop_pos_catalog_json', shop_id=shop.id)|tojson }};
+      var POS_INVENTORY_MODE = {{ pos_inventory_mode|tojson }};
+      window.POS_INVENTORY_MODE = POS_INVENTORY_MODE;
       var PRINTER_API = {{ url_for('shop_pos_printer', shop_id=shop.id)|tojson }};
       var QR_ESC_POS_API = {{ url_for('shop_pos_printer_qr_escpos', shop_id=shop.id)|tojson }};
       var NETWORK_ESC_POS_API = {{ url_for('shop_pos_printer_send_escpos', shop_id=shop.id)|tojson }};
@@ -2947,7 +3074,6 @@
       var customerLookupInFlight = false;
       var customerRegisterInFlight = false;
       var lastSplitEdited = "cash";
-
       var stockInModal = document.getElementById("pos-stockin-modal");
       var stockInOpenBtn = document.getElementById("pos-buy-open");
       var stockInCloseBtn = document.getElementById("pos-stockin-close");
@@ -3385,9 +3511,23 @@
           el.classList.toggle("pos-cart-lines-list", lines.length > 0);
         }
 
-        var subS = fmt(sub);
+        var taxInfo = computePosTax(sub);
+        var displayNum = taxInfo.includeTax ? taxInfo.grand : sub;
+        var subS = fmt(displayNum);
         var st = document.getElementById("pos-cart-subtotal");
         if (st) st.textContent = subS;
+        var lbl = document.getElementById("pos-cart-total-label");
+        if (lbl) lbl.textContent = taxInfo.includeTax ? "Total" : "Subtotal";
+        var taxNote = document.getElementById("pos-cart-tax-note");
+        if (taxNote) {
+          if (taxInfo.includeTax && taxInfo.taxAmt > 0.001) {
+            taxNote.textContent = "Incl. tax " + taxInfo.taxPct + "%: " + fmt(taxInfo.taxAmt);
+            taxNote.classList.remove("hidden");
+          } else {
+            taxNote.textContent = "";
+            taxNote.classList.add("hidden");
+          }
+        }
 
         var lineCountEl = document.getElementById("pos-cart-line-count");
         if (lineCountEl) {
@@ -3439,7 +3579,9 @@
         var originalSellingPrice = parseFloat(origRaw != null && origRaw !== "" ? origRaw : price);
         if (isNaN(originalSellingPrice)) originalSellingPrice = price;
         if (originalSellingPrice < 0) originalSellingPrice = 0;
-        var stock = parseInt(btn.getAttribute("data-stock") || "0", 10);
+        var mode = window.POS_INVENTORY_MODE || "shop";
+        var stock =
+          mode === "none" ? 999999999 : parseInt(btn.getAttribute("data-stock") || "0", 10);
         var lines = load();
         var i = lines.findIndex(function (l) {
           return l.id === id;
@@ -3463,6 +3605,20 @@
         save(lines);
         render();
         showToast(name);
+
+        // After a live search pick: clear the input so the full catalog is visible again.
+        var posSearchEl = document.getElementById("pos-search");
+        var hadQuery = posSearchEl && String(posSearchEl.value || "").trim() !== "";
+        if (hadQuery && posSearchEl) {
+          posSearchEl.value = "";
+          runSearch();
+          requestAnimationFrame(function () {
+            try {
+              btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              posSearchEl.focus();
+            } catch (e) {}
+          });
+        }
       }
 
       function showToast(name) {
@@ -3637,6 +3793,45 @@
         updatePaymentMethodState();
       }
 
+      function posCartFeatureFlags() {
+        var p = window.POS_PRINTING || {};
+        return {
+          credit: p.pos_allow_credit_sale !== false && p.pos_allow_credit_sale !== "false" && p.pos_allow_credit_sale !== 0,
+          quotations: p.pos_allow_quotations !== false && p.pos_allow_quotations !== "false" && p.pos_allow_quotations !== 0,
+          customerOnSale:
+            p.pos_show_customer_details_sale !== false &&
+            p.pos_show_customer_details_sale !== "false" &&
+            p.pos_show_customer_details_sale !== 0,
+        };
+      }
+
+      function applyPosCartUiSettings() {
+        var f = posCartFeatureFlags();
+        var quoteEl = document.getElementById("pos-quote-only");
+        if (!f.credit && saleType === "credit") {
+          saleType = "sale";
+        }
+        if (!f.quotations && quoteEl) {
+          quoteEl.checked = false;
+        }
+        var creditBtn = document.getElementById("pos-sale-type-credit");
+        var quoteBtn = document.getElementById("pos-sale-type-quote");
+        var quoteRow = document.getElementById("pos-quotation-row");
+        if (creditBtn) creditBtn.classList.toggle("hidden", !f.credit);
+        if (quoteBtn) quoteBtn.classList.toggle("hidden", !f.quotations);
+        if (quoteRow) quoteRow.classList.toggle("hidden", !f.quotations);
+        setSaleType(saleType === "credit" ? "credit" : "sale");
+        var detailsCard = document.getElementById("pos-customer-details-card");
+        var qOnly = quoteEl && quoteEl.checked;
+        if (detailsCard) {
+          var showCustomer =
+            saleType === "credit" ||
+            qOnly ||
+            (saleType === "sale" && !qOnly && f.customerOnSale);
+          detailsCard.classList.toggle("hidden", !showCustomer);
+        }
+      }
+
       function round2(n) {
         return Math.round((parseFloat(n) || 0) * 100) / 100;
       }
@@ -3663,7 +3858,7 @@
         var cartDrawer = document.getElementById("pos-cart-drawer");
         var cashIn = document.getElementById("pos-payment-cash-amount");
         var mpesaIn = document.getElementById("pos-payment-mpesa-amount");
-        var total = cartSubtotalAmount();
+        var total = cartPosPayableTotal();
         if (cashBtn) cashBtn.classList.toggle("is-active", salePaymentMethod === "cash");
         if (mpesaBtn) mpesaBtn.classList.toggle("is-active", salePaymentMethod === "mpesa");
         if (bothBtn) bothBtn.classList.toggle("is-active", salePaymentMethod === "both");
@@ -3714,7 +3909,7 @@
         var cashIn = document.getElementById("pos-payment-cash-amount");
         var mpesaIn = document.getElementById("pos-payment-mpesa-amount");
         if (!cashIn || !mpesaIn) return;
-        var total = cartSubtotalAmount();
+        var total = cartPosPayableTotal();
         var cashRaw = String(cashIn.value || "").trim();
         var mpesaRaw = String(mpesaIn.value || "").trim();
         if (!cashRaw && !mpesaRaw) {
@@ -3754,10 +3949,10 @@
         var c = round2(cashRaw);
         var m = round2(mpesaRaw);
         if (lastSplitEdited === "mpesa") {
-          c = round2(cartSubtotalAmount() - m);
+          c = round2(cartPosPayableTotal() - m);
           if (c < 0) c = 0;
         } else {
-          m = round2(cartSubtotalAmount() - c);
+          m = round2(cartPosPayableTotal() - c);
           if (m < 0) m = 0;
         }
         cashIn.value = c.toFixed(2);
@@ -3926,6 +4121,15 @@
         var mode = saleType;
         var quoteEl = document.getElementById("pos-quote-only");
         var quoteOnly = !!(quoteEl && quoteEl.checked);
+        var pf = posCartFeatureFlags();
+        if (mode === "credit" && !pf.credit) {
+          setAuthStatus("Credit sales are disabled for this shop.", "error");
+          return;
+        }
+        if (quoteOnly && !pf.quotations) {
+          setAuthStatus("Quotations are disabled for this shop.", "error");
+          return;
+        }
         if (!lines.length) {
           setAuthStatus("Cart is empty. Add items first.", "error");
           return;
@@ -3938,9 +4142,7 @@
           var splitCash = round2((document.getElementById("pos-payment-cash-amount") || {}).value || 0);
           var splitMpesa = round2((document.getElementById("pos-payment-mpesa-amount") || {}).value || 0);
           var splitTotal = round2(splitCash + splitMpesa);
-          var saleTotal = round2(lines.reduce(function (sum, l) {
-            return sum + (parseFloat((l && l.price) || 0) || 0) * (parseInt((l && l.qty) || 0, 10) || 0);
-          }, 0));
+          var saleTotal = cartPosPayableTotal();
           if (Math.abs(splitTotal - saleTotal) > 0.01) {
             setAuthStatus("Cash + M-Pesa must match total.", "error");
             return;
@@ -4031,10 +4233,11 @@
       function buildQuoteRequestBody(lines, mode) {
         var b = gatherReceiptBase(lines, mode);
         var rawLines = lines || [];
+        var tx = computePosTax(b.subtotal);
         return {
           quote_basis: mode === "credit" ? "credit" : "sale",
           quote_channel: "walkin",
-          total_amount: b.subtotal,
+          total_amount: tx.grand,
           item_count: rawLines.reduce(function (sum, l) {
             return sum + (parseInt((l && l.qty) || 0, 10) || 0);
           }, 0),
@@ -4070,7 +4273,7 @@
             payment_method: (payload && payload.paymentMethod) || "cash",
             cash_amount: parseFloat(payload && payload.cashAmount != null ? payload.cashAmount : 0) || 0,
             mpesa_amount: parseFloat(payload && payload.mpesaAmount != null ? payload.mpesaAmount : 0) || 0,
-            total_amount: parseFloat(payload && payload.subtotal ? payload.subtotal : 0) || 0,
+            total_amount: computePosTax(parseFloat(payload && payload.subtotal ? payload.subtotal : 0) || 0).grand,
             item_count: lines.reduce(function (sum, l) {
               return sum + (parseInt((l && l.qty) || 0, 10) || 0);
             }, 0),
@@ -4108,6 +4311,24 @@
 
       function receiptSettings() {
         return window.POS_RECEIPT_SETTINGS || {};
+      }
+
+      function posIncludeTaxInTotals() {
+        var pp = window.POS_PRINTING || {};
+        return pp.pos_include_tax !== false && pp.pos_include_tax !== "false" && pp.pos_include_tax !== 0;
+      }
+
+      function computePosTax(subtotal) {
+        var rs = receiptSettings();
+        var taxPct = parseFloat(String(rs.tax_percent || "0").replace(",", ".")) || 0;
+        var includeTax = !!rs.include_tax && posIncludeTaxInTotals();
+        var taxAmt = includeTax ? Math.round(subtotal * (taxPct / 100) * 100) / 100 : 0;
+        var grand = round2(subtotal + taxAmt);
+        return { taxPct: taxPct, taxAmt: taxAmt, grand: grand, includeTax: includeTax };
+      }
+
+      function cartPosPayableTotal() {
+        return computePosTax(cartSubtotalAmount()).grand;
       }
 
       /**
@@ -4238,6 +4459,7 @@
 
       function buildAnalyticsPayload(lines, mode) {
         var b = gatherReceiptBase(lines, mode);
+        var pay = computePosTax(b.subtotal).grand;
         var cashIn = document.getElementById("pos-payment-cash-amount");
         var mpesaIn = document.getElementById("pos-payment-mpesa-amount");
         var cashAmt = round2((cashIn && cashIn.value) || 0);
@@ -4246,13 +4468,13 @@
           cashAmt = 0;
           mpesaAmt = 0;
         } else if (salePaymentMethod === "cash") {
-          cashAmt = round2(b.subtotal);
+          cashAmt = round2(pay);
           mpesaAmt = 0;
         } else if (salePaymentMethod === "mpesa") {
           cashAmt = 0;
-          mpesaAmt = round2(b.subtotal);
+          mpesaAmt = round2(pay);
         } else {
-          mpesaAmt = round2(b.subtotal - cashAmt);
+          mpesaAmt = round2(pay - cashAmt);
         }
         return {
           mode: mode === "credit" ? "credit" : "sale",
@@ -4273,10 +4495,11 @@
         opts = opts || {};
         var b = gatherReceiptBase(lines, mode, { isQuote: !!opts.isQuotation });
         var rs = receiptSettings();
-        var taxPct = parseFloat(String(rs.tax_percent || "0").replace(",", ".")) || 0;
-        var includeTax = !!rs.include_tax;
-        var taxAmt = includeTax ? Math.round(b.subtotal * (taxPct / 100) * 100) / 100 : 0;
-        var grand = b.subtotal + taxAmt;
+        var tx = computePosTax(b.subtotal);
+        var taxPct = tx.taxPct;
+        var includeTax = tx.includeTax;
+        var taxAmt = tx.taxAmt;
+        var grand = tx.grand;
         var payLabels = { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" };
         var pt = rs.payment_detail_type || "buy_goods";
         var paymentTypeLabel = payLabels[pt] || pt;
@@ -4287,18 +4510,18 @@
           var rcCash = round2((rcCashEl && rcCashEl.value) || 0);
           var rcMpesa = round2((rcMpesaEl && rcMpesaEl.value) || 0);
           if (salePaymentMethod === "cash") {
-            rcCash = round2(b.subtotal);
+            rcCash = round2(grand);
             rcMpesa = 0;
             paymentTypeLabel = "Payment: Cash";
             paymentDetailText = "Cash: " + fmt(rcCash);
           } else if (salePaymentMethod === "mpesa") {
             rcCash = 0;
-            rcMpesa = round2(b.subtotal);
+            rcMpesa = round2(grand);
             paymentTypeLabel = "Payment: M-Pesa";
             paymentDetailText = "M-Pesa: " + fmt(rcMpesa);
           } else if (salePaymentMethod === "both") {
             rcCash = Math.max(0, rcCash);
-            rcMpesa = Math.max(0, round2(b.subtotal - rcCash));
+            rcMpesa = Math.max(0, round2(grand - rcCash));
             paymentTypeLabel = "Payment: Cash + M-Pesa";
             paymentDetailText = "Cash: " + fmt(rcCash) + " | M-Pesa: " + fmt(rcMpesa);
           }
@@ -6276,18 +6499,29 @@
 
       var searchEl = document.getElementById("pos-search");
       var noRes = document.getElementById("pos-no-results");
+      /** Match item name (data-search); every whitespace-separated token must appear in the name. */
+      function posItemNameMatches(card, q) {
+        if (!q) return true;
+        var name = (card.getAttribute("data-search") || "").toLowerCase();
+        var tokens = q.split(/\s+/).filter(Boolean);
+        if (!tokens.length) return true;
+        return tokens.every(function (t) {
+          return name.indexOf(t) !== -1;
+        });
+      }
       function runSearch() {
         var q = (searchEl && searchEl.value ? searchEl.value : "").toLowerCase().trim();
+
         var any = false;
+
         document.querySelectorAll(".pos-cat-section").forEach(function (sec) {
           var showSec = false;
           sec.querySelectorAll(".pos-item-card").forEach(function (card) {
-            var hay = (card.getAttribute("data-search") || "").toLowerCase();
-            var ok = !q || hay.indexOf(q) !== -1;
-            card.classList.toggle("hidden", !ok);
+            var ok = posItemNameMatches(card, q);
+            card.classList.toggle("pos-live-search-hidden", !ok);
             if (ok) showSec = true;
           });
-          sec.classList.toggle("hidden", !showSec);
+          sec.classList.toggle("pos-live-search-hidden", !showSec);
           if (showSec) any = true;
         });
         if (noRes) {
@@ -6396,6 +6630,7 @@
       }
       if (creditBtn) {
         creditBtn.addEventListener("click", function () {
+          if (!posCartFeatureFlags().credit) return;
           var qOnly = document.getElementById("pos-quote-only");
           if (qOnly) qOnly.checked = false;
           setSaleType("credit");
@@ -6403,6 +6638,7 @@
       }
       if (quoteModeBtn) {
         quoteModeBtn.addEventListener("click", function () {
+          if (!posCartFeatureFlags().quotations) return;
           var qOnly = document.getElementById("pos-quote-only");
           if (!qOnly) return;
           qOnly.checked = !qOnly.checked;
@@ -6618,8 +6854,20 @@
 
       (function scheduleCatalogStockPoll() {
         var stockPollTimer = null;
+        function posEffectiveQtyFromCatalogRow(row, mode) {
+          mode = mode || window.POS_INVENTORY_MODE || "shop";
+          if (!row) return 0;
+          if (mode === "kitchen") {
+            var kk = parseInt(row.kitchen_portions, 10);
+            return isNaN(kk) ? 0 : kk;
+          }
+          if (mode === "none") return 999999999;
+          var ss = parseInt(row.shop_stock_qty, 10);
+          return isNaN(ss) ? 0 : ss;
+        }
         function applyCatalogStockRows(list) {
           if (!list || !list.length) return;
+          var mode = window.POS_INVENTORY_MODE || "shop";
           var map = {};
           list.forEach(function (row) {
             if (row && row.id != null) map[Number(row.id)] = row;
@@ -6628,11 +6876,16 @@
             var id = parseInt(btn.getAttribute("data-item-id"), 10);
             var row = map[id];
             if (!row) return;
-            var q = parseInt(row.shop_stock_qty, 10);
-            if (isNaN(q)) q = 0;
+            var q = posEffectiveQtyFromCatalogRow(row, mode);
             var prev = parseInt(btn.getAttribute("data-stock"), 10);
             if (isNaN(prev)) prev = 0;
             btn.setAttribute("data-stock", String(q));
+            var kp = parseInt(row.kitchen_portions, 10);
+            var sq = parseInt(row.shop_stock_qty, 10);
+            if (isNaN(kp)) kp = 0;
+            if (isNaN(sq)) sq = 0;
+            btn.setAttribute("data-kitchen-portions", String(kp));
+            btn.setAttribute("data-shop-stock", String(sq));
             if (row.price != null && !isNaN(parseFloat(row.price))) {
               btn.setAttribute("data-price", parseFloat(row.price).toFixed(2));
             }
@@ -6645,24 +6898,32 @@
                 btn.classList.remove("pos-stock-updated");
               }, 700);
             }
+            var lbl = btn.querySelector(".pos-item-card__stock-label");
+            if (lbl) {
+              lbl.textContent = mode === "kitchen" ? "Kitchen" : mode === "shop" ? "Stock" : "—";
+            }
             var badge = btn.querySelector("[data-pos-stock]");
             if (badge) {
-              badge.setAttribute("data-pos-stock-qty", String(q));
+              badge.setAttribute("data-pos-stock-qty", mode === "none" ? "999999999" : String(q));
               badge.classList.remove("is-in-stock", "is-out");
-              badge.classList.add(q > 0 ? "is-in-stock" : "is-out");
-              badge.textContent = q > 0 ? String(q) : "0";
+              if (mode === "none") {
+                badge.classList.add("is-in-stock");
+                badge.textContent = "—";
+              } else {
+                badge.classList.add(q > 0 ? "is-in-stock" : "is-out");
+                badge.textContent = q > 0 ? String(q) : "0";
+              }
             }
           });
           var lines = load();
           var changed = false;
           lines.forEach(function (l) {
             var r = map[l.id];
-            if (r && r.shop_stock_qty != null) {
-              var ns = parseInt(r.shop_stock_qty, 10);
-              if (!isNaN(ns) && l.stock !== ns) {
-                l.stock = ns;
-                changed = true;
-              }
+            if (!r) return;
+            var ns = posEffectiveQtyFromCatalogRow(r, mode);
+            if (l.stock !== ns) {
+              l.stock = ns;
+              changed = true;
             }
           });
           if (changed) {
@@ -6677,7 +6938,12 @@
               return r.json();
             })
             .then(function (j) {
-              if (j && j.ok && j.items) applyCatalogStockRows(j.items);
+              if (j && j.ok) {
+                if (j.inventory_mode) {
+                  window.POS_INVENTORY_MODE = j.inventory_mode;
+                }
+                if (j.items) applyCatalogStockRows(j.items);
+              }
             })
             .catch(function () {});
         }
@@ -6738,6 +7004,7 @@
       clearAuthorization();
       setCustomerLookupStatus("Enter phone to lookup.", "muted");
       render();
+      applyPosCartUiSettings();
 
       window.richcomPosPrinterRunTestPrint = function () {
         return runConfiguredPrinterAction(makePrinterTestReceiptPayload());
@@ -7842,6 +8109,270 @@
       });
 
       refreshSaved();
+    })();
+  </script>
+  <script>
+    (function () {
+      var POS_SID = {{ shop.id|int }};
+      var API = {{ url_for('shop_pos_incoming_stock_requests_json', shop_id=shop.id)|tojson }};
+      var LS_KEY = "pos_incoming_sr_sig_shop_" + POS_SID;
+      var modal = document.getElementById("pos-incoming-sr-modal");
+      var detailEl = document.getElementById("pos-incoming-sr-detail");
+      var queueHint = document.getElementById("pos-incoming-sr-queue-hint");
+      var qtyEl = document.getElementById("pos-incoming-sr-qty");
+      var qtyHint = document.getElementById("pos-incoming-sr-qty-hint");
+      var codeEl = document.getElementById("pos-incoming-sr-code");
+      var errEl = document.getElementById("pos-incoming-sr-err");
+      var approveBtn = document.getElementById("pos-incoming-sr-approve");
+      var declineBtn = document.getElementById("pos-incoming-sr-decline");
+      var dismissBtn = document.getElementById("pos-incoming-sr-dismiss");
+      var backdrop = document.getElementById("pos-incoming-sr-backdrop");
+      if (!modal || !detailEl || !qtyEl || !codeEl) return;
+
+      /** null = auto-submit approve on 6 digits; "reject" = auto-submit decline on 6 digits (after Decline click). */
+      var incomingSrIntent = null;
+
+      function reviewUrl(requestId) {
+        return "/shops/" + POS_SID + "/shop-pos/incoming-stock-requests/" + requestId + "/review";
+      }
+
+      function signatureFor(ids) {
+        return ids
+          .slice()
+          .sort(function (a, b) {
+            return a - b;
+          })
+          .join(",");
+      }
+
+      function setOpen(on) {
+        if (on) {
+          modal.classList.remove("hidden");
+          modal.setAttribute("aria-hidden", "false");
+        } else {
+          modal.classList.add("hidden");
+          modal.setAttribute("aria-hidden", "true");
+        }
+      }
+
+      function showErr(msg) {
+        if (!errEl) return;
+        errEl.textContent = msg || "";
+        errEl.classList.toggle("hidden", !msg);
+      }
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+      }
+
+      function applyDetail(r, total) {
+        incomingSrIntent = null;
+        window.__posIncomingSrCurrent = r;
+        detailEl.innerHTML = "";
+        var p1 = document.createElement("p");
+        p1.className = "leading-snug";
+        p1.innerHTML =
+          '<span class="font-semibold">#' +
+          esc(r.id) +
+          "</span> · " +
+          esc(r.requesting_shop_name || "Shop") +
+          ' requests <span class="font-semibold">' +
+          esc(r.item_name || "Item") +
+          '</span> <span class="tabular-nums">× ' +
+          esc(r.qty || 0) +
+          "</span>";
+        detailEl.appendChild(p1);
+        if (r.note) {
+          var pn = document.createElement("p");
+          pn.className = "mt-2 text-[11px] text-[rgb(var(--rc-muted))]";
+          pn.textContent = r.note;
+          detailEl.appendChild(pn);
+        }
+        var rq = parseInt(String(r.qty || 0), 10) || 0;
+        var mx = typeof r.max_approve_qty === "number" ? r.max_approve_qty : 0;
+        var src = typeof r.source_shop_stock_qty === "number" ? r.source_shop_stock_qty : 0;
+        if (queueHint) {
+          queueHint.textContent =
+            total > 1
+              ? total + " pending — oldest first. Handle one at a time."
+              : "Enter your employee code to approve or decline.";
+        }
+        if (qtyHint) {
+          qtyHint.textContent =
+            "Stock at this shop for this item: " +
+            src +
+            ". You may approve up to " +
+            (mx > 0 ? Math.min(rq, mx) : 0) +
+            " (requested " +
+            rq +
+            ").";
+        }
+        var cap = mx > 0 ? Math.min(rq, mx) : 0;
+        if (cap < 1) {
+          qtyEl.disabled = true;
+          qtyEl.value = "";
+          if (approveBtn) approveBtn.disabled = true;
+          if (qtyHint) {
+            qtyHint.textContent =
+              "No stock available here to transfer. Decline the request or restock first.";
+          }
+        } else {
+          qtyEl.disabled = false;
+          qtyEl.min = 1;
+          qtyEl.max = cap;
+          qtyEl.value = String(cap);
+          if (approveBtn) approveBtn.disabled = false;
+        }
+      }
+
+      function setBusy(on) {
+        window.__posIncomingSrSubmitting = !!on;
+        [approveBtn, declineBtn, dismissBtn].forEach(function (b) {
+          if (b) b.disabled = !!on;
+        });
+        if (qtyEl && !qtyEl.disabled) qtyEl.disabled = !!on;
+        if (codeEl) codeEl.disabled = !!on;
+      }
+
+      function poll(force) {
+        fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data || !data.ok) return;
+            var reqs = data.requests || [];
+            if (!reqs.length) {
+              setOpen(false);
+              showErr("");
+              return;
+            }
+            var ids = reqs.map(function (x) {
+              return x.id;
+            });
+            var sig = signatureFor(ids);
+            var last = "";
+            try {
+              last = localStorage.getItem(LS_KEY) || "";
+            } catch (e) {}
+            if (!force && sig === last) return;
+            window.__posIncomingSrLastSig = sig;
+            applyDetail(reqs[0], reqs.length);
+            showErr("");
+            if (codeEl) codeEl.value = "";
+            setOpen(true);
+          })
+          .catch(function () {});
+      }
+
+      function submitReview(action) {
+        if (window.__posIncomingSrSubmitting) return;
+        showErr("");
+        var r = window.__posIncomingSrCurrent;
+        if (!r) return;
+        var code = (codeEl && codeEl.value ? codeEl.value : "").trim();
+        if (!/^\d{6}$/.test(code)) {
+          showErr("Enter your 6-digit employee code.");
+          return;
+        }
+        var body = { action: action, employee_code: code };
+        if (action === "approve") {
+          var q = parseInt(String(qtyEl.value || "0"), 10);
+          var cap = typeof r.max_approve_qty === "number" ? r.max_approve_qty : 0;
+          var rq = parseInt(String(r.qty || 0), 10) || 0;
+          if (!(q >= 1) || q > rq) {
+            showErr("Enter a valid quantity (1–" + rq + ").");
+            return;
+          }
+          if (cap >= 1 && q > cap) {
+            showErr("Quantity cannot exceed available stock here (" + cap + ").");
+            return;
+          }
+          body.qty = q;
+        }
+        setBusy(true);
+        fetch(reviewUrl(r.id), {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (res) {
+            return res.json().then(function (j) {
+              return { ok: res.ok, j: j };
+            });
+          })
+          .then(function (x) {
+            setBusy(false);
+            if (!x.ok || !x.j || !x.j.ok) {
+              showErr((x.j && x.j.error) || "Could not update this request.");
+              return;
+            }
+            try {
+              localStorage.removeItem(LS_KEY);
+            } catch (e) {}
+            window.__posIncomingSrLastSig = "";
+            showErr("");
+            poll(true);
+          })
+          .catch(function () {
+            setBusy(false);
+            showErr("Network error. Try again.");
+          });
+      }
+
+      approveBtn &&
+        approveBtn.addEventListener("click", function () {
+          incomingSrIntent = "approve";
+          submitReview("approve");
+        });
+      declineBtn &&
+        declineBtn.addEventListener("click", function () {
+          incomingSrIntent = "reject";
+          submitReview("reject");
+        });
+
+      codeEl &&
+        codeEl.addEventListener("input", function () {
+          var raw = (codeEl.value || "").replace(/\D/g, "").slice(0, 6);
+          if (codeEl.value !== raw) codeEl.value = raw;
+          showErr("");
+          if (raw.length !== 6 || !/^\d{6}$/.test(raw)) return;
+          if (window.__posIncomingSrSubmitting) return;
+          var useReject = incomingSrIntent === "reject";
+          if (!useReject) {
+            if (approveBtn && approveBtn.disabled) return;
+            if (qtyEl && qtyEl.disabled) return;
+          }
+          var action = useReject ? "reject" : "approve";
+          incomingSrIntent = null;
+          /* One POST to /review — it validates the 6-digit code (no separate auth round trip). */
+          submitReview(action);
+        });
+
+      dismissBtn &&
+        dismissBtn.addEventListener("click", function () {
+          try {
+            if (window.__posIncomingSrLastSig) localStorage.setItem(LS_KEY, window.__posIncomingSrLastSig);
+          } catch (e) {}
+          setOpen(false);
+        });
+
+      backdrop &&
+        backdrop.addEventListener("click", function () {
+          if (dismissBtn) dismissBtn.click();
+        });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (!modal || modal.classList.contains("hidden")) return;
+        if (dismissBtn) dismissBtn.click();
+      });
+
+      setTimeout(function () { poll(false); }, 1200);
+      setInterval(function () { poll(false); }, 25000);
     })();
   </script>
 {% endblock %}

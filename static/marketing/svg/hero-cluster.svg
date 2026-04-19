@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="hg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#6b21a8"/>
+    </linearGradient>
+    <linearGradient id="hg2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+    <filter id="blur1" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+  <ellipse cx="450" cy="480" rx="380" ry="60" fill="#7e22ce" opacity="0.12"/>
+  <circle cx="720" cy="120" r="90" fill="url(#hg1)" opacity="0.35" filter="url(#blur1)"/>
+  <circle cx="160" cy="180" r="70" fill="url(#hg2)" opacity="0.28" filter="url(#blur1)"/>
+  <!-- POS terminal -->
+  <g transform="translate(280 140)">
+    <rect x="0" y="0" width="220" height="300" rx="20" fill="#1e1b4b" stroke="#a855f7" stroke-width="2"/>
+    <rect x="16" y="24" width="188" height="200" rx="8" fill="#312e81"/>
+    <rect x="28" y="40" width="40" height="6" rx="2" fill="#a855f7" opacity="0.9"/>
+    <rect x="28" y="56" width="120" height="4" rx="1" fill="#6366f1" opacity="0.5"/>
+    <rect x="28" y="72" width="160" height="60" rx="4" fill="#1e1b4b"/>
+    <path d="M40 118 L88 92 L120 110 L168 78" stroke="#34d399" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="88" cy="92" r="4" fill="#34d399"/>
+    <circle cx="120" cy="110" r="4" fill="#34d399"/>
+    <rect x="28" y="148" width="50" height="8" rx="2" fill="#a855f7" opacity="0.6"/>
+    <rect x="28" y="164" width="90" height="6" rx="2" fill="#64748b"/>
+    <rect x="28" y="178" width="70" height="6" rx="2" fill="#64748b"/>
+    <rect x="48" y="240" width="124" height="36" rx="10" fill="#7c3aed"/>
+    <text x="110" y="263" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="13" font-weight="700">PAY</text>
+  </g>
+  <!-- Floating receipt -->
+  <g transform="translate(560 80)" opacity="0.95">
+    <rect x="0" y="0" width="140" height="180" rx="8" fill="white" stroke="#e9d5ff" stroke-width="2"/>
+    <path d="M16 28 H124" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="4 4"/>
+    <path d="M16 44 H100" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round"/>
+    <path d="M16 60 H110" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round"/>
+    <rect x="16" y="88" width="108" height="36" rx="4" fill="#f5f3ff"/>
+    <rect x="16" y="136" width="72" height="8" rx="2" fill="#9333ea"/>
+  </g>
+  <!-- Mini dashboard card -->
+  <g transform="translate(620 300)">
+    <rect x="0" y="0" width="200" height="140" rx="16" fill="rgba(255,255,255,0.9)" stroke="#ddd6fe" stroke-width="2"/>
+    <text x="16" y="28" fill="#581c87" font-family="system-ui,sans-serif" font-size="12" font-weight="700">Live sales</text>
+    <rect x="16" y="44" width="24" height="48" rx="4" fill="#c4b5fd"/>
+    <rect x="48" y="32" width="24" height="60" rx="4" fill="#a78bfa"/>
+    <rect x="80" y="24" width="24" height="68" rx="4" fill="#8b5cf6"/>
+    <rect x="112" y="40" width="24" height="52" rx="4" fill="#7c3aed"/>
+    <rect x="144" y="52" width="24" height="40" rx="4" fill="#6d28d9"/>
+  </g>
+  <!-- Shop icon -->
+  <g transform="translate(80 320)">
+    <rect x="0" y="40" width="160" height="100" rx="12" fill="#ede9fe" stroke="#a855f7" stroke-width="2"/>
+    <path d="M0 52 L80 12 L160 52" fill="#c4b5fd" stroke="#a855f7" stroke-width="2"/>
+    <rect x="56" y="88" width="48" height="52" rx="4" fill="#7e22ce" opacity="0.85"/>
+    <rect x="24" y="100" width="28" height="20" rx="2" fill="white" opacity="0.9"/>
+    <rect x="108" y="100" width="28" height="20" rx="2" fill="white" opacity="0.9"/>
+  </g>
+</svg>

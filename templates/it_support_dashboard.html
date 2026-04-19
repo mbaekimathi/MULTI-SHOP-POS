@@ -1,0 +1,104 @@
+{% extends "it_support_kitchen_layout.html" %}
+{% block title %}Kitchen portions — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Kitchen portions{% endblock %}
+{% block employee_content %}
+  {% set km = kitchen_matrix %}
+  <div id="kitchen-matrix" class="space-y-6">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portions by shop</h2>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Each <strong class="font-medium text-[rgb(var(--rc-page-fg))]">column</strong> is a shop; each <strong class="font-medium text-[rgb(var(--rc-page-fg))]">row</strong> is an item on at least one POS.
+        Cells show portions for that shop (— if the item is not on that shop’s POS). Editable cells apply when that shop’s POS is in
+        <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen mode</strong>.
+        <a href="{{ url_for('it_support_system_settings', tab='pos') }}#pos" class="font-medium text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">POS settings</a>.
+      </p>
+      {% if not km.shops or km.shops|length == 0 %}
+        <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">No shops registered yet.</p>
+      {% elif not km.matrix_rows or km.matrix_rows|length == 0 %}
+        <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">No POS items yet. Add items in shop item management.</p>
+      {% endif %}
+    </div>
+
+    {% if km.shops and km.shops|length > 0 and km.matrix_rows and km.matrix_rows|length > 0 %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+        {% if km.any_editable %}
+          <form method="post" action="{{ url_for('it_support_kitchen_portions_save') }}" class="space-y-4">
+        {% endif %}
+        <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))] -mx-1 px-1">
+          <table class="min-w-max divide-y divide-[rgb(var(--rc-border))] text-sm">
+            <thead>
+              <tr class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                <th
+                  scope="col"
+                  class="sticky left-0 z-20 min-w-[10rem] border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-left shadow-[2px_0_0_0_rgb(var(--rc-border))]"
+                >
+                  Item
+                </th>
+                {% for s in km.shops %}
+                  {% set sid = s.id|int %}
+                  <th scope="col" class="min-w-[6.5rem] border-b border-[rgb(var(--rc-border))] px-2 py-3 text-center align-bottom">
+                    <div class="mx-auto max-w-[8rem] text-[11px] font-semibold leading-tight text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</div>
+                    <div class="mt-1 text-[9px] font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">{{ s.shop_code }}</div>
+                    <div class="mt-1 text-[9px] font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">
+                      {% if km.shop_modes[sid] == "kitchen" %}Kitchen{% elif km.shop_modes[sid] == "shop" %}Stock{% else %}Off{% endif %}
+                    </div>
+                  </th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in km.matrix_rows %}
+                <tr>
+                  <th
+                    scope="row"
+                    class="sticky left-0 z-10 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5 text-left text-sm font-medium text-[rgb(var(--rc-page-fg))] shadow-[2px_0_0_0_rgb(var(--rc-border))]"
+                  >
+                    {{ row.name }}
+                  </th>
+                  {% for s in km.shops %}
+                    {% set sid = s.id|int %}
+                    {% set pv = row.portions[sid] %}
+                    <td class="border-b border-[rgb(var(--rc-border))] px-1 py-1.5 text-center align-middle">
+                      {% if pv is none %}
+                        <span class="text-[rgb(var(--rc-muted))]">—</span>
+                      {% elif km.shop_editable[sid] %}
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          name="p_{{ sid }}_{{ row.item_id }}"
+                          value="{{ pv }}"
+                          class="mx-auto w-full max-w-[5.5rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1 py-1.5 text-center text-sm tabular-nums text-[rgb(var(--rc-page-fg))] outline-none"
+                        />
+                      {% else %}
+                        <span class="tabular-nums text-[rgb(var(--rc-page-fg))]">{{ pv }}</span>
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if km.any_editable %}
+            <div class="flex flex-wrap items-center gap-3">
+              <button type="submit" class="btn-rc btn-rc-primary px-5 py-2 text-sm font-semibold">Save kitchen portions</button>
+              <span class="text-xs text-[rgb(var(--rc-muted))]">Only shops in kitchen mode submit changes.</span>
+            </div>
+          </form>
+        {% else %}
+          <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">
+            Turn on <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Kitchen portions</strong> for at least one shop to edit from this page.
+          </p>
+        {% endif %}
+
+        <div class="mt-6 flex flex-wrap gap-2 border-t border-[rgb(var(--rc-border))] pt-4">
+          {% for s in km.shops %}
+            <a href="{{ url_for('shop_dashboard', shop_id=s.id) }}" class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-medium">{{ s.shop_name }} · dashboard</a>
+            <a href="{{ url_for('shop_pos', shop_id=s.id) }}" class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-medium">{{ s.shop_name }} · POS</a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
