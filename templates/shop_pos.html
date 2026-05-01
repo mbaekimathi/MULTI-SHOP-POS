@@ -2250,6 +2250,31 @@
               <span class="hidden sm:inline">Receipts</span>
               <span class="sm:hidden">R</span>
             </button>
+            <span
+              id="pos-network-state-indicator"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 sm:h-8 sm:w-8"
+              title="Online"
+              aria-label="Online"
+            >
+              <span class="h-2.5 w-2.5 rounded-full bg-current"></span>
+            </span>
+            <span
+              id="pos-offline-sync-badge"
+              class="hidden shrink-0 rounded-xl border border-amber-500/35 bg-amber-500/15 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200 sm:px-2.5 sm:text-[10px]"
+              title="Offline sales waiting to sync"
+            >Pending sync: 0</span>
+            <button
+              type="button"
+              id="pos-offline-sync-now"
+              class="hidden shrink-0 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] sm:px-2.5 sm:text-[10px]"
+              title="Manually sync pending offline sales"
+            >Sync now</button>
+            <button
+              type="button"
+              id="pos-offline-sync-diagnostics"
+              class="hidden shrink-0 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] sm:px-2.5 sm:text-[10px]"
+              title="Open sync diagnostics"
+            >Diagnostics</button>
             </div>
             <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <div class="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -2281,6 +2306,10 @@
           class="relative z-0 border-t border-[rgb(var(--rc-primary))]/20 bg-[rgb(var(--rc-surface))]/82 px-[max(0.65rem,env(safe-area-inset-left))] py-2.5 pr-[max(0.65rem,env(safe-area-inset-right))] backdrop-blur-md sm:px-5 md:px-6 lg:px-8 dark:bg-[rgb(var(--rc-surface))]/75"
         >
           {% include "partials/flashes.html" %}
+          <div
+            id="pos-catalog-stale-banner"
+            class="mt-2 hidden rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-900 dark:text-amber-200"
+          ></div>
         </div>
       </div>
     </header>
@@ -3234,6 +3263,13 @@
     (function () {
       var SHOP_ID = {{ shop.id|int }};
       var KEY = "richcom-shop-pos-cart-" + SHOP_ID;
+      var OFFLINE_SALES_KEY = "richcom-shop-pos-offline-sales-" + SHOP_ID;
+      var OFFLINE_CATALOG_KEY = "richcom-shop-pos-catalog-snapshot-" + SHOP_ID;
+      var OFFLINE_DB_NAME = "richcom-pos-offline-db-v2";
+      var OFFLINE_DB_STORE = "offline_sales";
+      var OFFLINE_DB_CATALOG_STORE = "catalog_snapshot";
+      var OFFLINE_CATALOG_DOC_ID = "shop-" + SHOP_ID;
+      var OFFLINE_CATALOG_STALE_MS = 6 * 60 * 60 * 1000;
       var AUTH_API = {{ url_for('shop_pos_authorize_employee', shop_id=shop.id)|tojson }};
       var CUSTOMER_LOOKUP_API = {{ url_for('shop_pos_customer_lookup', shop_id=shop.id)|tojson }};
       var CUSTOMER_UPSERT_API = {{ url_for('shop_pos_customer_upsert', shop_id=shop.id)|tojson }};
@@ -3293,6 +3329,18 @@
       var receiptsReturnBtn = document.getElementById("pos-receipts-return");
       var selectedReceiptId = 0;
       var receiptsRowsCache = [];
+      var networkStateIndicatorEl = document.getElementById("pos-network-state-indicator");
+      var offlineSyncBadgeEl = document.getElementById("pos-offline-sync-badge");
+      var offlineSyncNowBtn = document.getElementById("pos-offline-sync-now");
+      var offlineSyncDiagBtn = document.getElementById("pos-offline-sync-diagnostics");
+      var catalogStaleBannerEl = document.getElementById("pos-catalog-stale-banner");
+      var offlineSyncBusy = false;
+      var offlineSyncTimer = null;
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/pos-sw.js").catch(function () {});
+        });
+      }
       function todayIso() {
         var d = new Date();
         var y = d.getFullYear();
@@ -4165,6 +4213,395 @@
         localStorage.setItem(KEY, JSON.stringify(lines));
       }
 
+      function idbSupported() {
+        return typeof window !== "undefined" && !!window.indexedDB;
+      }
+
+      function openOfflineDb() {
+        return new Promise(function (resolve, reject) {
+          if (!idbSupported()) {
+            reject(new Error("IndexedDB not supported"));
+            return;
+          }
+          var req = window.indexedDB.open(OFFLINE_DB_NAME, 2);
+          req.onupgradeneeded = function (ev) {
+            var db = ev.target.result;
+            if (!db.objectStoreNames.contains(OFFLINE_DB_STORE)) {
+              db.createObjectStore(OFFLINE_DB_STORE, { keyPath: "client_txn_id" });
+            }
+            if (!db.objectStoreNames.contains(OFFLINE_DB_CATALOG_STORE)) {
+              db.createObjectStore(OFFLINE_DB_CATALOG_STORE, { keyPath: "id" });
+            }
+          };
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { reject(req.error || new Error("Could not open offline DB")); };
+        });
+      }
+
+      function listOfflineSales() {
+        if (!idbSupported()) {
+          try {
+            var raw = localStorage.getItem(OFFLINE_SALES_KEY);
+            var arr = raw ? JSON.parse(raw) : [];
+            return Promise.resolve(Array.isArray(arr) ? arr : []);
+          } catch (e) {
+            return Promise.resolve([]);
+          }
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_STORE, "readonly");
+            var req = tx.objectStore(OFFLINE_DB_STORE).getAll();
+            req.onsuccess = function () {
+              var rows = Array.isArray(req.result) ? req.result : [];
+              rows.sort(function (a, b) {
+                return String((a && a.queued_at) || "").localeCompare(String((b && b.queued_at) || ""));
+              });
+              resolve(rows);
+            };
+            req.onerror = function () { reject(req.error || new Error("Could not read queue")); };
+          }).finally(function () {
+            try { db.close(); } catch (e) {}
+          });
+        }).catch(function () {
+          try {
+            var raw = localStorage.getItem(OFFLINE_SALES_KEY);
+            var arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+          } catch (e) {
+            return [];
+          }
+        });
+      }
+
+      function putOfflineSale(entry) {
+        if (!idbSupported()) {
+          return listOfflineSales().then(function (rows) {
+            rows.push(entry);
+            localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(rows));
+            return entry;
+          });
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(entry); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not store offline sale")); };
+            tx.objectStore(OFFLINE_DB_STORE).put(entry);
+          }).finally(function () {
+            try { db.close(); } catch (e) {}
+          });
+        }).catch(function () {
+          return listOfflineSales().then(function (rows) {
+            rows.push(entry);
+            localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(rows));
+            return entry;
+          });
+        });
+      }
+
+      function deleteOfflineSale(clientTxnId) {
+        var txid = String(clientTxnId || "");
+        if (!txid) return Promise.resolve();
+        if (!idbSupported()) {
+          return listOfflineSales().then(function (rows) {
+            var next = rows.filter(function (r) { return String(r.client_txn_id || "") !== txid; });
+            localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(next));
+          });
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not delete offline sale")); };
+            tx.objectStore(OFFLINE_DB_STORE).delete(txid);
+          }).finally(function () {
+            try { db.close(); } catch (e) {}
+          });
+        }).catch(function () {
+          return listOfflineSales().then(function (rows) {
+            var next = rows.filter(function (r) { return String(r.client_txn_id || "") !== txid; });
+            localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(next));
+          });
+        });
+      }
+
+      function getPendingOfflineSalesCount() {
+        return listOfflineSales().then(function (rows) { return rows.length; }).catch(function () { return 0; });
+      }
+
+      function updateNetworkStateIndicator() {
+        if (!networkStateIndicatorEl) return;
+        var online = navigator.onLine;
+        networkStateIndicatorEl.classList.remove(
+          "border-emerald-500/40",
+          "bg-emerald-500/15",
+          "text-emerald-700",
+          "dark:text-emerald-300",
+          "border-rose-500/40",
+          "bg-rose-500/15",
+          "text-rose-700",
+          "dark:text-rose-300"
+        );
+        if (online) {
+          networkStateIndicatorEl.classList.add("border-emerald-500/40", "bg-emerald-500/15", "text-emerald-700", "dark:text-emerald-300");
+          networkStateIndicatorEl.setAttribute("title", "Online");
+          networkStateIndicatorEl.setAttribute("aria-label", "Online");
+        } else {
+          networkStateIndicatorEl.classList.add("border-rose-500/40", "bg-rose-500/15", "text-rose-700", "dark:text-rose-300");
+          networkStateIndicatorEl.setAttribute("title", "Offline");
+          networkStateIndicatorEl.setAttribute("aria-label", "Offline");
+        }
+      }
+
+      function updateOfflineSyncBadge() {
+        updateNetworkStateIndicator();
+        if (!offlineSyncBadgeEl) return Promise.resolve();
+        return getPendingOfflineSalesCount().then(function (count) {
+          var online = navigator.onLine;
+          if (offlineSyncNowBtn) offlineSyncNowBtn.classList.toggle("hidden", count === 0);
+          if (offlineSyncDiagBtn) offlineSyncDiagBtn.classList.toggle("hidden", count === 0);
+          if (offlineSyncNowBtn) offlineSyncNowBtn.disabled = offlineSyncBusy || !online || count === 0;
+          if (offlineSyncDiagBtn) offlineSyncDiagBtn.disabled = count === 0;
+          if (!count && online) {
+            offlineSyncBadgeEl.classList.add("hidden");
+            offlineSyncBadgeEl.textContent = "Pending sync: 0";
+            return;
+          }
+          offlineSyncBadgeEl.classList.remove("hidden");
+          if (count > 0) {
+            offlineSyncBadgeEl.textContent = "Pending sync: " + String(count) + (online ? "" : " · offline");
+          } else {
+            offlineSyncBadgeEl.textContent = "Offline";
+          }
+        }).catch(function () {});
+      }
+
+      function fmtDiagDate(iso) {
+        var s = String(iso || "").trim();
+        if (!s) return "-";
+        var t = Date.parse(s);
+        if (!isFinite(t)) return s;
+        return new Date(t).toLocaleString();
+      }
+
+      function ensureOfflineSyncDiagnosticsModal() {
+        var existing = document.getElementById("pos-offline-diag-modal");
+        if (existing) return existing;
+        var wrap = document.createElement("div");
+        wrap.id = "pos-offline-diag-modal";
+        wrap.className = "fixed inset-0 z-[145] hidden items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4";
+        wrap.innerHTML =
+          '<div class="w-full max-w-4xl overflow-hidden rounded-t-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl sm:rounded-2xl">' +
+          '<div class="flex items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))]/70 px-4 py-3">' +
+          '<div class="min-w-0"><h3 class="truncate text-sm font-black uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))]">Offline sync diagnostics</h3>' +
+          '<p id="pos-offline-diag-sub" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Loading...</p></div>' +
+          '<button type="button" id="pos-offline-diag-close" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>' +
+          "</div>" +
+          '<div class="max-h-[68vh] overflow-auto p-4">' +
+          '<div id="pos-offline-diag-list" class="space-y-2 text-xs text-[rgb(var(--rc-page-fg))]"></div>' +
+          "</div>" +
+          '<div class="flex flex-wrap items-center justify-end gap-2 border-t border-[rgb(var(--rc-border))]/70 px-4 py-3">' +
+          '<button type="button" id="pos-offline-diag-refresh" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Refresh</button>' +
+          '<button type="button" id="pos-offline-diag-sync" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Sync now</button>' +
+          "</div>" +
+          "</div>";
+        document.body.appendChild(wrap);
+        wrap.addEventListener("click", function (e) {
+          if (e.target === wrap) wrap.classList.add("hidden");
+        });
+        var closeBtn = document.getElementById("pos-offline-diag-close");
+        if (closeBtn) closeBtn.addEventListener("click", function () { wrap.classList.add("hidden"); });
+        return wrap;
+      }
+
+      function renderOfflineDiagnosticsRows(rows) {
+        var listEl = document.getElementById("pos-offline-diag-list");
+        var subEl = document.getElementById("pos-offline-diag-sub");
+        if (!listEl) return;
+        var arr = Array.isArray(rows) ? rows : [];
+        if (subEl) {
+          subEl.textContent =
+            String(arr.length) + " pending item(s)." + (navigator.onLine ? " Online." : " Offline.");
+        }
+        if (!arr.length) {
+          listEl.innerHTML = '<div class="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 font-semibold text-emerald-800 dark:text-emerald-200">No pending offline sales.</div>';
+          return;
+        }
+        listEl.innerHTML = arr.map(function (row, idx) {
+          var dueAt = fmtDiagDate(row && row.next_retry_at);
+          var queuedAt = fmtDiagDate(row && row.queued_at);
+          var err = String((row && row.last_error) || "").trim() || "-";
+          var attempts = parseInt((row && row.attempts) || 0, 10) || 0;
+          var total = Number((row && row.total_amount) || 0).toFixed(2);
+          return (
+            '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-3">' +
+            '<div class="flex flex-wrap items-center justify-between gap-2">' +
+            '<p class="font-bold text-[rgb(var(--rc-page-fg))]">#' + String(idx + 1) + " · " + String((row && row.local_receipt_number) || (row && row.client_txn_id) || "txn") + "</p>" +
+            '<p class="tabular-nums font-semibold text-[rgb(var(--rc-muted))]">' + total + "</p></div>" +
+            '<p class="mt-1 text-[rgb(var(--rc-muted))]">Queued: ' + queuedAt + " · Attempts: " + String(attempts) + "</p>" +
+            '<p class="mt-1 text-[rgb(var(--rc-muted))]">Next retry: ' + dueAt + "</p>" +
+            '<p class="mt-1 text-[rgb(var(--rc-muted))]">Last error: ' + err.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>" +
+            "</div>"
+          );
+        }).join("");
+      }
+
+      function refreshOfflineDiagnostics() {
+        return listOfflineSales().then(function (rows) {
+          renderOfflineDiagnosticsRows(rows || []);
+          updateOfflineSyncBadge();
+        });
+      }
+
+      function formatCatalogAge(ms) {
+        var mins = Math.max(1, Math.round(ms / 60000));
+        if (mins < 60) return String(mins) + "m ago";
+        var hrs = Math.round(mins / 60);
+        if (hrs < 48) return String(hrs) + "h ago";
+        return String(Math.round(hrs / 24)) + "d ago";
+      }
+
+      function setCatalogStaleBanner(text, tone) {
+        if (!catalogStaleBannerEl) return;
+        var msg = String(text || "").trim();
+        if (!msg) {
+          catalogStaleBannerEl.classList.add("hidden");
+          catalogStaleBannerEl.textContent = "";
+          return;
+        }
+        catalogStaleBannerEl.classList.remove("hidden");
+        catalogStaleBannerEl.textContent = msg;
+        catalogStaleBannerEl.classList.remove("border-amber-500/35", "bg-amber-500/10", "text-amber-900", "dark:text-amber-200");
+        catalogStaleBannerEl.classList.remove("border-rose-500/35", "bg-rose-500/10", "text-rose-900", "dark:text-rose-200");
+        if (tone === "error") {
+          catalogStaleBannerEl.classList.add("border-rose-500/35", "bg-rose-500/10", "text-rose-900", "dark:text-rose-200");
+        } else {
+          catalogStaleBannerEl.classList.add("border-amber-500/35", "bg-amber-500/10", "text-amber-900", "dark:text-amber-200");
+        }
+      }
+
+      function saveCatalogSnapshot(snapshot) {
+        var doc = Object.assign({}, snapshot || {});
+        doc.id = OFFLINE_CATALOG_DOC_ID;
+        doc.saved_at = doc.saved_at || new Date().toISOString();
+        if (!idbSupported()) {
+          localStorage.setItem(OFFLINE_CATALOG_KEY, JSON.stringify(doc));
+          return Promise.resolve(doc);
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_CATALOG_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(doc); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not save catalog snapshot")); };
+            tx.objectStore(OFFLINE_DB_CATALOG_STORE).put(doc);
+          }).finally(function () {
+            try { db.close(); } catch (e) {}
+          });
+        }).catch(function () {
+          localStorage.setItem(OFFLINE_CATALOG_KEY, JSON.stringify(doc));
+          return doc;
+        });
+      }
+
+      function loadCatalogSnapshot() {
+        if (!idbSupported()) {
+          try {
+            var raw = localStorage.getItem(OFFLINE_CATALOG_KEY);
+            return Promise.resolve(raw ? JSON.parse(raw) : null);
+          } catch (e) {
+            return Promise.resolve(null);
+          }
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_CATALOG_STORE, "readonly");
+            var req = tx.objectStore(OFFLINE_DB_CATALOG_STORE).get(OFFLINE_CATALOG_DOC_ID);
+            req.onsuccess = function () { resolve(req.result || null); };
+            req.onerror = function () { reject(req.error || new Error("Could not load catalog snapshot")); };
+          }).finally(function () {
+            try { db.close(); } catch (e) {}
+          });
+        }).catch(function () {
+          try {
+            var raw = localStorage.getItem(OFFLINE_CATALOG_KEY);
+            return raw ? JSON.parse(raw) : null;
+          } catch (e) {
+            return null;
+          }
+        });
+      }
+
+      function randomTxnId() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+          return window.crypto.randomUUID();
+        }
+        return "txn-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+      }
+
+      function enqueueOfflineSale(body) {
+        var payload = Object.assign({}, body || {});
+        payload.client_txn_id = String(payload.client_txn_id || randomTxnId());
+        payload.local_receipt_number = payload.local_receipt_number || nextReceiptNumber();
+        payload.queued_at = new Date().toISOString();
+        payload.attempts = parseInt(payload.attempts || 0, 10) || 0;
+        payload.last_error = String(payload.last_error || "");
+        payload.next_retry_at = payload.next_retry_at || "";
+        return putOfflineSale(payload).then(function (saved) {
+          updateOfflineSyncBadge();
+          return saved;
+        });
+      }
+
+      function syncOfflineSalesQueue() {
+        if (offlineSyncBusy || !navigator.onLine) return Promise.resolve();
+        offlineSyncBusy = true;
+        return listOfflineSales()
+          .then(function (queue) {
+            if (!queue.length) return;
+            var nowMs = Date.now();
+            queue = queue.filter(function (entry) {
+              var nr = String((entry && entry.next_retry_at) || "");
+              if (!nr) return true;
+              var t = Date.parse(nr);
+              return !isFinite(t) || t <= nowMs;
+            });
+            if (!queue.length) return;
+            var cursor = Promise.resolve();
+            queue.forEach(function (entry) {
+              cursor = cursor.then(function () {
+                return fetch(RECORD_SALE_API, {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "Content-Type": "application/json", Accept: "application/json" },
+                  body: JSON.stringify(entry),
+                })
+                  .then(function (r) { return r.json().catch(function () { return {}; }); })
+                  .then(function (j) {
+                    if (!j || !j.ok) throw new Error((j && j.error) || "Sync failed");
+                    return deleteOfflineSale(entry.client_txn_id);
+                  })
+                  .catch(function (err) {
+                    var attempts = (parseInt(entry.attempts || 0, 10) || 0) + 1;
+                    var capped = Math.min(attempts, 8);
+                    var baseMs = Math.min(30 * 60 * 1000, Math.pow(2, capped) * 1000);
+                    var jitterMs = Math.floor(Math.random() * 1200);
+                    entry.attempts = attempts;
+                    entry.last_error = String((err && err.message) || "Sync failed");
+                    entry.next_retry_at = new Date(Date.now() + baseMs + jitterMs).toISOString();
+                    return putOfflineSale(entry);
+                  });
+              });
+            });
+            return cursor;
+          })
+          .catch(function () {})
+          .finally(function () {
+            offlineSyncBusy = false;
+            updateOfflineSyncBadge();
+          });
+      }
+
       function fmt(n) {
         var x = parseFloat(n);
         if (isNaN(x)) x = 0;
@@ -5024,18 +5461,18 @@
               ).catch(function () {});
             });
           }
-          return recordSaleForAnalytics(buildAnalyticsPayload(lines, mode)).then(function (res) {
+          return commitSaleWithOfflineFallback(lines, mode).then(function (res) {
             var persistedReceiptNo = (res && res.receipt_number) ? String(res.receipt_number) : "";
             return runConfiguredPrinterAction(
               makeReceiptPayload(lines, mode, { persistedReceiptNo: persistedReceiptNo })
-            ).catch(function () {});
+            ).catch(function () {}).then(function () { return res; });
           });
         }
         maybeRegisterCustomerAfterAuth()
           .then(function () {
             return doCheckoutAfterSave();
           })
-          .then(function () {
+          .then(function (checkoutResult) {
             save([]);
             render();
             setPaymentMethod("");
@@ -5051,7 +5488,16 @@
             if (dueEl) dueEl.value = "";
             var qEl = document.getElementById("pos-quote-only");
             var wasQuote = qEl && qEl.checked;
-            showToast(wasQuote ? "Quotation saved and printed" : (mode === "credit" ? "Credit" : "Sale") + " completed");
+            var queuedNow = !!(checkoutResult && checkoutResult.queued);
+            if (!wasQuote && queuedNow) {
+              getPendingOfflineSalesCount().then(function (queueSize) {
+                showToast("Saved offline. Pending sync: " + String(queueSize));
+                setAuthStatus("Sale saved offline. It will sync automatically when internet returns.", "muted");
+                updateOfflineSyncBadge();
+              });
+            } else {
+              showToast(wasQuote ? "Quotation saved and printed" : (mode === "credit" ? "Credit" : "Sale") + " completed");
+            }
             if (qEl) qEl.checked = false;
             if (!wasQuote && typeof window.refreshPosCatalogStock === "function") {
               setTimeout(function () {
@@ -5151,6 +5597,7 @@
               employee_code: authorizedEmployee && authorizedEmployee.employee_code,
               full_name: authorizedEmployee && authorizedEmployee.full_name,
             },
+            client_txn_id: (payload && payload.clientTxnId) || "",
             credit_due_date:
               payload &&
               payload.mode === "credit" &&
@@ -5165,6 +5612,63 @@
             if (!j || !j.ok) throw new Error((j && j.error) || "Could not record sale.");
             return j;
           });
+      }
+
+      function commitSaleWithOfflineFallback(lines, mode) {
+        var payload = buildAnalyticsPayload(lines, mode);
+        payload.clientTxnId = randomTxnId();
+        return recordSaleForAnalytics(payload).then(function (res) {
+          return {
+            queued: false,
+            receipt_number: (res && res.receipt_number) ? String(res.receipt_number) : "",
+          };
+        }).catch(function (err) {
+          var msg = String((err && err.message) || "");
+          var offlineish =
+            !navigator.onLine ||
+            msg.toLowerCase().indexOf("failed to fetch") !== -1 ||
+            msg.toLowerCase().indexOf("network") !== -1 ||
+            msg.toLowerCase().indexOf("timeout") !== -1;
+          if (!offlineish) throw err;
+          return enqueueOfflineSale({
+            sale_type: payload.mode === "credit" ? "credit" : "sale",
+            payment_method: payload.paymentMethod || "cash",
+            cash_amount: parseFloat(payload.cashAmount != null ? payload.cashAmount : 0) || 0,
+            mpesa_amount: parseFloat(payload.mpesaAmount != null ? payload.mpesaAmount : 0) || 0,
+            total_amount: computePosTax(parseFloat(payload.subtotal || 0) || 0).grand,
+            item_count: (payload.lines || []).reduce(function (sum, l) {
+              return sum + (parseInt((l && l.qty) || 0, 10) || 0);
+            }, 0),
+            customer_name: payload.customerName || "",
+            customer_phone: payload.customerPhone || "",
+            lines: (payload.lines || []).map(function (l) {
+              return {
+                id: l && l.id,
+                name: (l && l.name) || "Item",
+                qty: parseInt((l && l.qty) || 0, 10) || 0,
+                price: parseFloat((l && l.price) || 0) || 0,
+                total: parseFloat((l && l.total) || 0) || 0,
+              };
+            }),
+            employee: {
+              id: authorizedEmployee && authorizedEmployee.id,
+              employee_code: authorizedEmployee && authorizedEmployee.employee_code,
+              full_name: authorizedEmployee && authorizedEmployee.full_name,
+            },
+            credit_due_date:
+              payload.mode === "credit" &&
+              payload.creditDueIso &&
+              /^\d{4}-\d{2}-\d{2}$/.test(payload.creditDueIso)
+                ? payload.creditDueIso
+                : "",
+            client_txn_id: payload.clientTxnId,
+          }).then(function (queued) {
+            return {
+              queued: true,
+              receipt_number: String(queued.local_receipt_number || ""),
+            };
+          });
+        });
       }
 
       function receiptSettings() {
@@ -8134,10 +8638,32 @@
                 if (j.inventory_mode) {
                   window.POS_INVENTORY_MODE = j.inventory_mode;
                 }
-                if (j.items) applyCatalogStockRows(j.items);
+                if (j.items) {
+                  applyCatalogStockRows(j.items);
+                  saveCatalogSnapshot({
+                    inventory_mode: window.POS_INVENTORY_MODE || "shop",
+                    items: Array.isArray(j.items) ? j.items : [],
+                    source: "network",
+                    saved_at: new Date().toISOString(),
+                  }).catch(function () {});
+                  setCatalogStaleBanner("", "warn");
+                }
               }
             })
-            .catch(function () {});
+            .catch(function () {
+              loadCatalogSnapshot().then(function (snap) {
+                if (!snap || !Array.isArray(snap.items) || !snap.items.length) return;
+                if (snap.inventory_mode) window.POS_INVENTORY_MODE = snap.inventory_mode;
+                applyCatalogStockRows(snap.items);
+                var savedAtMs = Date.parse(String(snap.saved_at || ""));
+                var ageMs = isFinite(savedAtMs) ? Math.max(0, Date.now() - savedAtMs) : 0;
+                var tone = ageMs > OFFLINE_CATALOG_STALE_MS ? "error" : "warn";
+                setCatalogStaleBanner(
+                  "Using offline catalog snapshot (" + formatCatalogAge(ageMs) + "). Reconnect internet to refresh stock and prices.",
+                  tone
+                );
+              });
+            });
         }
         function startStockPoll() {
           clearInterval(stockPollTimer);
@@ -8152,6 +8678,20 @@
           }
         });
         setTimeout(function () {
+          loadCatalogSnapshot().then(function (snap) {
+            if (!snap || !Array.isArray(snap.items) || !snap.items.length) return;
+            if (snap.inventory_mode) window.POS_INVENTORY_MODE = snap.inventory_mode;
+            applyCatalogStockRows(snap.items);
+            var savedAtMs = Date.parse(String(snap.saved_at || ""));
+            var ageMs = isFinite(savedAtMs) ? Math.max(0, Date.now() - savedAtMs) : 0;
+            if (!navigator.onLine) {
+              var tone = ageMs > OFFLINE_CATALOG_STALE_MS ? "error" : "warn";
+              setCatalogStaleBanner(
+                "Offline mode: catalog snapshot loaded (" + formatCatalogAge(ageMs) + ").",
+                tone
+              );
+            }
+          });
           fetchCatalogStock();
           startStockPoll();
         }, 4000);
@@ -9766,6 +10306,74 @@
         if (!modal || modal.classList.contains("hidden")) return;
         if (dismissBtn) dismissBtn.click();
       });
+
+      window.addEventListener("online", function () {
+        syncOfflineSalesQueue().then(function () {
+          return getPendingOfflineSalesCount();
+        }).then(function (pending) {
+          if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
+          updateOfflineSyncBadge();
+        });
+      });
+      window.addEventListener("offline", function () {
+        updateNetworkStateIndicator();
+        updateOfflineSyncBadge();
+      });
+      if (offlineSyncTimer) clearInterval(offlineSyncTimer);
+      offlineSyncTimer = setInterval(function () {
+        syncOfflineSalesQueue();
+      }, 20000);
+      if (offlineSyncNowBtn) {
+        offlineSyncNowBtn.addEventListener("click", function () {
+          if (offlineSyncBusy) return;
+          if (!navigator.onLine) {
+            setAuthStatus("You are offline. Connect to internet, then tap Sync now.", "error");
+            return;
+          }
+          setAuthStatus("Syncing offline sales...", "muted");
+          syncOfflineSalesQueue().then(function () {
+            return getPendingOfflineSalesCount();
+          }).then(function (pending) {
+            if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
+            else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
+            updateOfflineSyncBadge();
+          });
+        });
+      }
+      if (offlineSyncDiagBtn) {
+        offlineSyncDiagBtn.addEventListener("click", function () {
+          var modal = ensureOfflineSyncDiagnosticsModal();
+          modal.classList.remove("hidden");
+          refreshOfflineDiagnostics();
+          var refreshBtn = document.getElementById("pos-offline-diag-refresh");
+          var syncBtn = document.getElementById("pos-offline-diag-sync");
+          if (refreshBtn) {
+            refreshBtn.onclick = function () {
+              refreshOfflineDiagnostics();
+            };
+          }
+          if (syncBtn) {
+            syncBtn.onclick = function () {
+              if (!navigator.onLine) {
+                setAuthStatus("You are offline. Connect to internet, then sync.", "error");
+                return;
+              }
+              setAuthStatus("Syncing offline sales...", "muted");
+              syncOfflineSalesQueue().then(function () {
+                return refreshOfflineDiagnostics();
+              }).then(function () {
+                return getPendingOfflineSalesCount();
+              }).then(function (pending) {
+                if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
+                else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
+              });
+            };
+          }
+        });
+      }
+      updateNetworkStateIndicator();
+      updateOfflineSyncBadge();
+      syncOfflineSalesQueue();
 
       setTimeout(function () { poll(false); }, 1200);
       setInterval(function () { poll(false); }, 25000);

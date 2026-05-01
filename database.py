@@ -2003,6 +2003,34 @@ def ensure_shop_pos_sales_receipt_columns() -> bool:
         return False
 
 
+def ensure_shop_pos_sales_client_txn_column() -> bool:
+    """Adds client transaction ID for idempotent offline sync retries."""
+    init_shop_pos_sales_table()
+    try:
+        with get_cursor(commit=True) as cur:
+            if not column_exists("shop_pos_sales", "client_txn_id"):
+                cur.execute(
+                    """
+                    ALTER TABLE shop_pos_sales
+                    ADD COLUMN client_txn_id VARCHAR(64) NULL DEFAULT NULL
+                    AFTER receipt_sequence
+                    """
+                )
+            try:
+                cur.execute(
+                    """
+                    CREATE UNIQUE INDEX uq_shop_pos_sales_client_txn
+                    ON shop_pos_sales (shop_id, client_txn_id)
+                    """
+                )
+            except pymysql.Error:
+                pass
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not add shop_pos_sales.client_txn_id: %s", e)
+        return False
+
+
 def _safe_receipt_settings_dict(raw: Any) -> dict:
     if isinstance(raw, dict):
         return raw
@@ -3617,6 +3645,7 @@ def create_shop_pos_sale(
     mpesa_amount: Optional[float] = None,
     lines: Optional[list] = None,
     inventory_mode: str = "shop",
+    client_txn_id: Optional[str] = None,
 ) -> Tuple[bool, Optional[str], Optional[int], Optional[str]]:
     ensure_shop_credit_payments_schema()
     mode = (inventory_mode or "shop").strip().lower()
@@ -3681,10 +3710,12 @@ def create_shop_pos_sale(
 
     ensure_shop_pos_sales_inventory_mode_column()
     ensure_shop_pos_sales_receipt_columns()
+    ensure_shop_pos_sales_client_txn_column()
+    client_txn = (client_txn_id or "").strip()[:64] or None
     sale_sql = """
     INSERT INTO shop_pos_sales
-        (shop_id, sale_type, payment_method, cash_amount, mpesa_amount, total_amount, item_count, customer_name, customer_phone, employee_id, employee_code, employee_name, receipt_number, receipt_scope_key, receipt_sequence, credit_due_date, inventory_mode)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (shop_id, sale_type, payment_method, cash_amount, mpesa_amount, total_amount, item_count, customer_name, customer_phone, employee_id, employee_code, employee_name, receipt_number, receipt_scope_key, receipt_sequence, client_txn_id, credit_due_date, inventory_mode)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     line_sql = """
     INSERT INTO shop_pos_sale_items
@@ -3709,6 +3740,19 @@ def create_shop_pos_sale(
                 return False, "Shop not found.", None, None
             fmt, prefix, start = _effective_receipt_number_settings(shop_row.get("receipt_settings_json"))
             scope_key = _receipt_scope_key(fmt, datetime.now())
+            if client_txn:
+                cur.execute(
+                    """
+                    SELECT id, receipt_number
+                    FROM shop_pos_sales
+                    WHERE shop_id=%s AND client_txn_id=%s
+                    LIMIT 1
+                    """,
+                    (int(shop_id), client_txn),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    return True, None, int(existing.get("id") or 0), (existing.get("receipt_number") or "")
             cur.execute(
                 """
                 SELECT COALESCE(MAX(receipt_sequence), 0) AS mx
@@ -3838,6 +3882,7 @@ def create_shop_pos_sale(
                     receipt_number,
                     scope_key,
                     next_seq,
+                    client_txn,
                     due_sql_val,
                     mode,
                 ),
@@ -3930,6 +3975,28 @@ def create_shop_pos_sale(
         return False, str(e) or "Could not complete sale.", None, None
     except pymysql.Error:
         return False, None, None, None
+
+
+def get_shop_pos_sale_by_client_txn(shop_id: int, client_txn_id: str) -> Optional[dict]:
+    """Returns existing sale row for idempotent replay lookups."""
+    txid = (client_txn_id or "").strip()[:64]
+    if not txid:
+        return None
+    ensure_shop_pos_sales_client_txn_column()
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, receipt_number, sale_type, payment_method, total_amount, item_count
+                FROM shop_pos_sales
+                WHERE shop_id=%s AND client_txn_id=%s
+                LIMIT 1
+                """,
+                (int(shop_id), txid),
+            )
+            return cur.fetchone()
+    except pymysql.Error:
+        return None
 
 
 def get_shop_revenue_analytics(

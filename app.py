@@ -29,6 +29,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     stream_with_context,
     url_for,
@@ -4774,6 +4775,12 @@ def shop_pos(shop_id: int):
     )
 
 
+@app.route("/pos-sw.js")
+def pos_service_worker():
+    """Serve POS service worker from app root for broad scope."""
+    return send_from_directory(app.static_folder, "pos-sw.js")
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/stock-in", methods=["POST"])
 def shop_pos_stock_in(shop_id: int):
     """Quick manual stock-in from the POS page."""
@@ -5220,6 +5227,7 @@ def shop_pos_record_sale(shop_id: int):
         return gate
 
     data = request.get_json(force=True, silent=True) or {}
+    client_txn_id = (data.get("client_txn_id") or "").strip()[:64] or None
     sale_type = (data.get("sale_type") or "sale").strip().lower()
     if sale_type not in ("sale", "credit"):
         return jsonify({"ok": False, "error": "Invalid sale type."}), 400
@@ -5306,6 +5314,7 @@ def shop_pos_record_sale(shop_id: int):
             credit_due_date=credit_due_raw,
             lines=data.get("lines") if isinstance(data.get("lines"), list) else [],
             inventory_mode=_pos_inventory_mode(shop),
+            client_txn_id=client_txn_id,
         )
     except Exception:
         ok, sale_err = False, None
