@@ -6034,6 +6034,16 @@
         "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
         "000018f0-0000-1000-8000-00805f9b34fb",
       ];
+      var BLE_PICKER_NAME_PREFIX_FILTERS = [
+        "POS",
+        "PRINTER",
+        "THERMAL",
+        "BT",
+        "MTP",
+        "RPP",
+        "XP-",
+        "TM-",
+      ];
 
       /**
        * @param {Uint8Array} [qrRasterEscPos] — server-rendered QR bitmap (ESC/POS). When set, used instead of GS (k) native QR.
@@ -6637,8 +6647,24 @@
         if (!cfg || !cfg.bluetoothId) {
           return Promise.reject(new Error("No Bluetooth printer id"));
         }
-        if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== "function") {
-          return Promise.reject(new Error("Web Bluetooth getDevices unavailable"));
+        if (!navigator.bluetooth) {
+          return Promise.reject(new Error("Web Bluetooth unavailable"));
+        }
+        if (typeof navigator.bluetooth.getDevices !== "function") {
+          if (
+            posBtPinnedDevice &&
+            posBtPinnedDevice.id &&
+            String(posBtPinnedDevice.id) === String(cfg.bluetoothId) &&
+            posBtPinnedDevice.gatt
+          ) {
+            if (posBtPinnedDevice.gatt.connected) return Promise.resolve(posBtPinnedDevice);
+            return posBtPinnedDevice.gatt.connect().then(function () {
+              return posBtPinnedDevice;
+            });
+          }
+          return Promise.reject(
+            new Error("This browser cannot auto-restore Bluetooth pairing. Tap Choose printer to pair again.")
+          );
         }
         return navigator.bluetooth.getDevices().then(function (devices) {
           var d = devices.filter(function (x) {
@@ -6714,8 +6740,14 @@
         var chunkSize = 20;
         var offset = 0;
         function writeChunk(slice) {
+          if (typeof char.writeValueWithoutResponse === "function") {
+            return char.writeValueWithoutResponse(slice);
+          }
           if (char.properties.writeWithoutResponse && typeof char.writeValueWithoutResponse === "function") {
             return char.writeValueWithoutResponse(slice);
+          }
+          if (typeof char.writeValue === "function") {
+            return char.writeValue(slice);
           }
           if (char.properties.write && typeof char.writeValue === "function") {
             return char.writeValue(slice);
@@ -8325,32 +8357,43 @@
 
       function pickBluetoothAndSave() {
         var pickedEl = document.getElementById("pos-printer-bt-picked");
+        function requestBluetoothPrinterDeviceCompat() {
+          if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== "function") {
+            return Promise.reject(new Error("Web Bluetooth picker unavailable"));
+          }
+          var knownSvcFilters = KNOWN_BLE_PRINT_SERVICE_UUIDS.map(function (svc) {
+            return { services: [svc] };
+          });
+          var nameFilters = BLE_PICKER_NAME_PREFIX_FILTERS.map(function (prefix) {
+            return { namePrefix: prefix };
+          });
+          var strictOptions = {
+            filters: knownSvcFilters.concat(nameFilters),
+            optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
+          };
+          var broadOptions = {
+            acceptAllDevices: true,
+            optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
+          };
+          return navigator.bluetooth.requestDevice(strictOptions).catch(function (err) {
+            // Some browser/app variants reject strict filter manifests; retry broad picker.
+            if (err && (err.name === "NotFoundError" || err.name === "TypeError" || err.name === "SecurityError")) {
+              return navigator.bluetooth.requestDevice(broadOptions);
+            }
+            throw err;
+          });
+        }
         msg("");
         if (!window.isSecureContext) {
           msg("Open this POS with HTTPS or localhost to use Bluetooth.");
           return;
         }
-        if (!navigator.bluetooth) {
-          msg("Use Chrome or Edge for Bluetooth printers.");
+        if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== "function") {
+          msg("Use the latest Chrome or Edge for Bluetooth printers.");
           return;
         }
-        msg("Pick your printer in the window that opens.");
-        navigator.bluetooth
-          .requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [
-              "generic_access",
-              "device_information",
-              "0000ffe0-0000-1000-8000-00805f9b34fb",
-              "0000fff0-0000-1000-8000-00805f9b34fb",
-              "0000ff00-0000-1000-8000-00805f9b34fb",
-              "49535343-fe7d-4ae5-8fa9-9fafd205e455",
-              "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
-              "000018f0-0000-1000-8000-00805f9b34fb",
-              "0000ae00-0000-1000-8000-00805f9b34fb",
-              "0000ffb0-0000-1000-8000-00805f9b34fb",
-            ],
-          })
+        msg("Scanning Bluetooth printers… pick your printer in the browser dialog.");
+        requestBluetoothPrinterDeviceCompat()
           .then(function (device) {
             btPending = device;
             if (pickedEl) {
@@ -8406,8 +8449,13 @@
             msg("Use HTTPS or localhost first.");
             return;
           }
-          if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
-            msg("Use Chrome or Edge on this PC.");
+          if (!navigator.bluetooth) {
+            msg("Use the latest Chrome or Edge on this PC.");
+            return;
+          }
+          if (!navigator.bluetooth.getDevices) {
+            // App-webview builds may support requestDevice but not getDevices. Re-pair directly.
+            pickBluetoothAndSave();
             return;
           }
           msg("Connecting…");
