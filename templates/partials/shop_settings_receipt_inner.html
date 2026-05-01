@@ -129,12 +129,12 @@
             </select>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (till / paybill / phone etc.)</label>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (shop / paybill / phone etc.)</label>
             <textarea
               name="receipt_payment_detail_text"
               rows="3"
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
-              placeholder="e.g. Till: 123456 Â· Business: Your Shop Ltd"
+              placeholder="e.g. Shop: 123456 Â· Business: Your Shop Ltd"
             >{{ rs.payment_detail_text or '' }}</textarea>
           </div>
         </div>

@@ -8,6 +8,8 @@ import os
 import re
 import secrets
 import socket
+import threading
+import time
 import uuid
 from datetime import date, datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -114,16 +116,49 @@ def _is_legacy_employee_role_dashboard_path(path: str) -> bool:
     )
 
 
-# Ensure MySQL database exists, tables are created, and column migrations are applied.
-try:
-    from database import init_schema
+def _bootstrap_database_schema() -> bool:
+    """Ensure MySQL database exists, create missing tables, apply migrations (idempotent)."""
+    try:
+        from database import init_schema
 
-    if not init_schema():
-        logger.warning(
-            "Database schema initialization did not complete successfully; check MySQL credentials and server logs."
-        )
-except Exception:
-    logger.exception("Database schema initialization failed.")
+        ok = init_schema()
+        if not ok:
+            logger.warning(
+                "Database schema initialization did not complete successfully; check MySQL credentials and server logs."
+            )
+        return ok
+    except Exception:
+        logger.exception("Database schema initialization failed.")
+        return False
+
+
+_db_schema_ready = _bootstrap_database_schema()
+_db_schema_lock = threading.Lock()
+_db_schema_next_retry_mono = 0.0
+_DB_SCHEMA_RETRY_AFTER_FAILURE_SEC = 3.0
+
+
+@app.before_request
+def _ensure_database_schema_on_request():
+    """On each request, ensure schema is ready if import-time init failed (e.g. MySQL still starting)."""
+    global _db_schema_ready, _db_schema_next_retry_mono
+    if _db_schema_ready:
+        return
+    if request.endpoint == "static":
+        return
+    now = time.monotonic()
+    if now < _db_schema_next_retry_mono:
+        return
+    with _db_schema_lock:
+        if _db_schema_ready:
+            return
+        now = time.monotonic()
+        if now < _db_schema_next_retry_mono:
+            return
+        ok = _bootstrap_database_schema()
+        _db_schema_ready = ok
+        if not ok:
+            _db_schema_next_retry_mono = time.monotonic() + _DB_SCHEMA_RETRY_AFTER_FAILURE_SEC
 
 
 @app.context_processor
@@ -1033,8 +1068,13 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
+        "pos_allow_cash_sale",
         "pos_allow_credit_sale",
         "pos_allow_quotations",
+        "pos_payment_cash",
+        "pos_payment_mpesa",
+        "pos_payment_both",
+        "pos_show_buy_items_link",
         "pos_show_customer_details_sale",
         "pos_include_tax",
         "pos_kitchen_portions",
@@ -1048,6 +1088,9 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     if rc not in ("1", "2", "3"):
         rc = "1"
     merged["receipt_copies"] = rc
+    _ensure_at_least_one_pos_transactional_type(merged)
+    _ensure_at_least_one_pos_payment_method(merged)
+    _sync_print_compulsory_with_printer_allow_list(merged)
     return merged
 
 
@@ -1056,14 +1099,29 @@ def _shop_pos_allow_credit_sale(shop: dict) -> bool:
     return bool(_effective_printing_settings_for_shop(shop).get("pos_allow_credit_sale"))
 
 
-def _pos_inventory_mode(shop: dict) -> str:
-    """How POS deducts inventory: shop stock, kitchen portions, or none."""
-    ps = _effective_printing_settings_for_shop(shop)
+def _shop_pos_allow_cash_sale(shop: dict) -> bool:
+    """Standard cash/M-Pesa sale checkout from POS (when False, only credit / quotation flows may exist)."""
+    return bool(_effective_printing_settings_for_shop(shop).get("pos_allow_cash_sale"))
+
+
+def _shop_pos_allow_quotations(shop: dict) -> bool:
+    return bool(_effective_printing_settings_for_shop(shop).get("pos_allow_quotations"))
+
+
+def _pos_inventory_mode_from_ps(ps: dict | None) -> str:
+    """How POS deducts inventory given merged printing settings dict (global or per-shop)."""
+    if not ps:
+        return "none"
     if ps.get("pos_kitchen_portions"):
         return "kitchen"
     if ps.get("pos_shop_stock_sale"):
         return "shop"
     return "none"
+
+
+def _pos_inventory_mode(shop: dict) -> str:
+    """How POS deducts inventory: shop stock, kitchen portions, or none."""
+    return _pos_inventory_mode_from_ps(_effective_printing_settings_for_shop(shop))
 
 
 def _effective_receipt_settings_for_shop(shop: dict) -> dict:
@@ -1140,12 +1198,72 @@ def _receipt_settings_from_form() -> dict:
     }
 
 
+def _ensure_at_least_one_pos_transactional_type(merged: dict) -> None:
+    """Checkout requires at least one of sale / credit / quotation to be enabled."""
+    if merged.get("pos_allow_cash_sale") or merged.get("pos_allow_credit_sale") or merged.get("pos_allow_quotations"):
+        return
+    merged["pos_allow_cash_sale"] = True
+
+
+def _ensure_at_least_one_pos_payment_method(merged: dict) -> None:
+    """Standard sale checkout needs at least one of cash / mpesa / both split."""
+    if merged.get("pos_payment_cash") or merged.get("pos_payment_mpesa") or merged.get("pos_payment_both"):
+        return
+    merged["pos_payment_cash"] = True
+
+
+def _sync_print_compulsory_with_printer_allow_list(merged: dict) -> None:
+    """No allowed printer types → cannot enforce compulsory printing; any type allowed → compulsory on."""
+    bt = bool(merged.get("printer_allow_bluetooth"))
+    net = bool(merged.get("printer_allow_network"))
+    usb = bool(merged.get("printer_allow_usb"))
+    if bt or net or usb:
+        merged["print_compulsory_sale"] = True
+    else:
+        merged["print_compulsory_sale"] = False
+
+
+def _shop_pos_payment_method_allowed(shop: dict, method: str) -> bool:
+    m = (method or "").strip().lower()
+    ps = _effective_printing_settings_for_shop(shop)
+    if m == "cash":
+        return bool(ps.get("pos_payment_cash"))
+    if m == "mpesa":
+        return bool(ps.get("pos_payment_mpesa"))
+    if m == "both":
+        return bool(ps.get("pos_payment_both"))
+    return False
+
+
+def _shop_print_compulsory_on_sale_enabled(shop: dict) -> bool:
+    """IT setting: finalized cash sales must go through receipt printing workflow."""
+    return bool(_effective_printing_settings_for_shop(shop).get("print_compulsory_sale"))
+
+
+def _shop_has_saved_pos_printer(shop_id: int) -> bool:
+    """True if shop has POS receipt printer metadata saved (printer setup completed)."""
+    try:
+        from database import get_shop_printer_settings
+
+        row = get_shop_printer_settings(shop_id)
+    except Exception:
+        row = None
+    if not row:
+        return False
+    return bool((row.get("printer_type") or "").strip())
+
+
 def _default_printing_settings() -> dict:
     return {
         "print_compulsory_sale": False,
         "allow_line_price_edit": False,
+        "pos_allow_cash_sale": True,
         "pos_allow_credit_sale": True,
         "pos_allow_quotations": True,
+        "pos_payment_cash": True,
+        "pos_payment_mpesa": False,
+        "pos_payment_both": False,
+        "pos_show_buy_items_link": True,
         "pos_show_customer_details_sale": True,
         "pos_include_tax": True,
         "pos_kitchen_portions": False,
@@ -1172,8 +1290,13 @@ def _load_printing_settings() -> dict:
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
+        "pos_allow_cash_sale",
         "pos_allow_credit_sale",
         "pos_allow_quotations",
+        "pos_payment_cash",
+        "pos_payment_mpesa",
+        "pos_payment_both",
+        "pos_show_buy_items_link",
         "pos_show_customer_details_sale",
         "pos_include_tax",
         "pos_kitchen_portions",
@@ -1187,6 +1310,9 @@ def _load_printing_settings() -> dict:
     if rc not in ("1", "2", "3"):
         rc = "1"
     merged["receipt_copies"] = rc
+    _ensure_at_least_one_pos_transactional_type(merged)
+    _ensure_at_least_one_pos_payment_method(merged)
+    _sync_print_compulsory_with_printer_allow_list(merged)
     return merged
 
 
@@ -1204,11 +1330,16 @@ def _printing_settings_from_form() -> dict:
         store_sale = False
     elif store_sale:
         kitchen = False
-    return {
+    merged = {
         "print_compulsory_sale": _b("printing_compulsory_sale"),
         "allow_line_price_edit": allow_price,
+        "pos_allow_cash_sale": _b("pos_allow_cash_sale"),
         "pos_allow_credit_sale": _b("pos_allow_credit_sale"),
         "pos_allow_quotations": _b("pos_allow_quotations"),
+        "pos_payment_cash": _b("pos_payment_cash"),
+        "pos_payment_mpesa": _b("pos_payment_mpesa"),
+        "pos_payment_both": _b("pos_payment_both"),
+        "pos_show_buy_items_link": _b("pos_show_buy_items_link"),
         "pos_show_customer_details_sale": _b("pos_show_customer_details_sale"),
         "pos_include_tax": _b("pos_include_tax"),
         "pos_kitchen_portions": kitchen,
@@ -1218,6 +1349,104 @@ def _printing_settings_from_form() -> dict:
         "printer_allow_network": _b("printing_allow_network"),
         "printer_allow_usb": _b("printing_allow_usb"),
     }
+    _ensure_at_least_one_pos_transactional_type(merged)
+    _ensure_at_least_one_pos_payment_method(merged)
+    _sync_print_compulsory_with_printer_allow_list(merged)
+    return merged
+
+
+# Form field name (POS settings tab checkboxes) -> key in merged printing_settings dict
+_POS_PANEL_PRINTING_PATCH_FIELDS: Tuple[Tuple[str, str], ...] = (
+    ("pos_allow_cash_sale", "pos_allow_cash_sale"),
+    ("pos_allow_credit_sale", "pos_allow_credit_sale"),
+    ("pos_allow_quotations", "pos_allow_quotations"),
+    ("pos_payment_cash", "pos_payment_cash"),
+    ("pos_payment_mpesa", "pos_payment_mpesa"),
+    ("pos_payment_both", "pos_payment_both"),
+    ("pos_show_buy_items_link", "pos_show_buy_items_link"),
+    ("pos_show_customer_details_sale", "pos_show_customer_details_sale"),
+    ("pos_include_tax", "pos_include_tax"),
+    ("pos_kitchen_portions", "pos_kitchen_portions"),
+    ("pos_shop_stock_sale", "pos_shop_stock_sale"),
+    ("pos_allow_line_price_edit", "allow_line_price_edit"),
+    ("printing_compulsory_sale", "print_compulsory_sale"),
+)
+
+
+def _pos_patch_bool(raw: object) -> Optional[bool]:
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return bool(int(raw))
+    if isinstance(raw, str):
+        t = raw.strip().lower()
+        if t in ("true", "1", "yes", "on"):
+            return True
+        if t in ("false", "0", "no", "off", ""):
+            return False
+    return None
+
+
+def _printing_settings_apply_pos_panel_patch_dict(merged: dict, patch: dict) -> None:
+    """Apply JSON patch (form field names → bool); mutates merged. Mirrors _printing_settings_from_form inventory rules."""
+    if not isinstance(patch, dict):
+        return
+    for form_name, mkey in _POS_PANEL_PRINTING_PATCH_FIELDS:
+        if form_name not in patch:
+            continue
+        b = _pos_patch_bool(patch.get(form_name))
+        if b is None:
+            continue
+        merged[mkey] = b
+    kitchen = bool(merged.get("pos_kitchen_portions"))
+    store_sale = bool(merged.get("pos_shop_stock_sale"))
+    if kitchen:
+        merged["pos_shop_stock_sale"] = False
+        store_sale = False
+    elif store_sale:
+        merged["pos_kitchen_portions"] = False
+        kitchen = False
+    merged["pos_kitchen_portions"] = kitchen
+    merged["pos_shop_stock_sale"] = store_sale
+    _ensure_at_least_one_pos_transactional_type(merged)
+    _ensure_at_least_one_pos_payment_method(merged)
+    _sync_print_compulsory_with_printer_allow_list(merged)
+
+
+def _printing_settings_pos_panel_client_payload(merged: dict) -> Dict[str, bool]:
+    """Field names matching POS tab checkbox `name=` attributes."""
+    out: Dict[str, bool] = {}
+    for form_name, mkey in _POS_PANEL_PRINTING_PATCH_FIELDS:
+        out[form_name] = bool(merged.get(mkey))
+    return out
+
+
+@app.route("/it_support/system-settings/printing-pos-patch", methods=["POST"])
+@login_required
+def it_support_printing_pos_patch():
+    """Merge POS-tab printing toggles without posting the whole system-settings form."""
+    role_key = session.get("employee_role") or "employee"
+    if role_key not in ("it_support", "super_admin"):
+        return jsonify({"ok": False, "error": "Forbidden."}), 403
+    payload = request.get_json(silent=True)
+    patch = payload.get("patch") if isinstance(payload, dict) else None
+    if not isinstance(patch, dict):
+        return jsonify({"ok": False, "error": "Expected JSON body { \"patch\": { ... } }."}), 400
+    merged = dict(_load_printing_settings())
+    _printing_settings_apply_pos_panel_patch_dict(merged, patch)
+    try:
+        from database import set_site_settings
+
+        ok = set_site_settings(
+            {"printing_settings_json": json.dumps(merged, separators=(",", ":"))}
+        )
+    except Exception:
+        ok = False
+    if not ok:
+        return jsonify({"ok": False, "error": "Could not save settings."}), 500
+    return jsonify(
+        {"ok": True, "patch": _printing_settings_pos_panel_client_payload(merged)}
+    )
 
 
 @app.route("/it_support/system-settings", methods=["GET", "POST"])
@@ -1227,6 +1456,11 @@ def it_support_system_settings():
     if role_key not in ("it_support", "super_admin"):
         abort(403)
     if request.method == "POST":
+        wants_json = (
+            request.headers.get("X-Requested-With") == "XMLHttpRequest"
+            or "application/json" in (request.headers.get("Accept") or "").lower()
+        )
+
         company_name = (request.form.get("company_name") or "").strip() or "Point of Sale"
         company_email = (request.form.get("company_email") or "").strip()
         company_phone = (request.form.get("company_phone") or "").strip()
@@ -1256,7 +1490,10 @@ def it_support_system_settings():
         elif app_icon_file and getattr(app_icon_file, "filename", ""):
             app_icon_path = _save_branding_upload(app_icon_file)
             if app_icon_path is None:
-                flash("App icon must be PNG, JPG, GIF, WebP, ICO, or SVG.", "error")
+                _icon_err = "App icon must be PNG, JPG, GIF, WebP, ICO, or SVG."
+                if wants_json:
+                    return jsonify({"ok": False, "error": _icon_err}), 400
+                flash(_icon_err, "error")
                 return redirect(
                     url_for("it_support_system_settings") + (request.form.get("return_hash") or "")
                 )
@@ -1284,12 +1521,26 @@ def it_support_system_settings():
             ok = False
 
         if ok:
+            if wants_json:
+                ps_after = _load_printing_settings()
+                return jsonify(
+                    {
+                        "ok": True,
+                        "printing_pos_patch": _printing_settings_pos_panel_client_payload(ps_after),
+                        "printing_compulsory_sale": bool(ps_after.get("print_compulsory_sale")),
+                    }
+                )
             flash("Settings updated.", "success")
         else:
+            if wants_json:
+                return jsonify(
+                    {"ok": False, "error": "Could not update settings. Check database connection."}
+                ), 500
             flash("Could not update settings. Check database connection.", "error")
         return redirect(url_for("it_support_system_settings") + (request.form.get("return_hash") or ""))
-    _tab_q = (request.args.get("tab") or "").strip().lower()
-    _valid_tabs = ("system", "company", "website", "pos", "printing", "receipt")
+    _tab_raw = (request.args.get("tab") or "").strip().lower()
+    _tab_q = {"printing": "receipt"}.get(_tab_raw, _tab_raw)
+    _valid_tabs = ("system", "company", "website", "pos", "receipt")
     initial_settings_tab = _tab_q if _tab_q in _valid_tabs else None
     return render_template(
         "it_support_system_settings.html",
@@ -1622,7 +1873,11 @@ def it_support_item_management():
         items = list_items(limit=200)
     except Exception:
         items = []
-    return render_template("it_support_item_management.html", items=items)
+    return render_template(
+        "it_support_item_management.html",
+        items=items,
+        pos_inventory_mode=_pos_inventory_mode_from_ps(_load_printing_settings()),
+    )
 
 
 @app.route("/it_support/item-management/register-item", methods=["GET", "POST"])
@@ -3212,10 +3467,16 @@ def it_support_item_toggle_stock_update(item_id: int):
         ok = toggle_stock_update(item_id)
     except Exception:
         ok = False
-    flash(
-        "Stock update setting updated." if ok else "Could not update stock setting.",
-        "success" if ok else "error",
-    )
+    m = _pos_inventory_mode_from_ps(_load_printing_settings())
+    if ok:
+        if m == "kitchen":
+            flash("Kitchen portion update setting updated.", "success")
+        elif m == "shop":
+            flash("Shop stock update setting updated.", "success")
+        else:
+            flash("Company POS inventory toggle updated.", "success")
+    else:
+        flash("Could not update company setting.", "error")
     return redirect(url_for("it_support_item_management"))
 
 
@@ -4228,6 +4489,12 @@ def shop_pos_stock_in(shop_id: int):
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("Accept") or "")
     )
+    if not _effective_printing_settings_for_shop(shop).get("pos_show_buy_items_link"):
+        msg = "Buy items / stock-in from POS is disabled for this shop."
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), 403
+        flash(msg, "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
 
     item_id_raw = (request.form.get("item_id") or "").strip()
     qty_raw = (request.form.get("qty") or "").strip()
@@ -4379,6 +4646,7 @@ def shop_pos_catalog_json(shop_id: int):
                 "id": int(it.get("id") or 0),
                 "shop_stock_qty": int(it.get("shop_stock_qty") or 0),
                 "kitchen_portions": int(it.get("kitchen_portions") or 0),
+                "stock_update_enabled": int(it.get("stock_update_enabled") or 0),
                 "price": round(price, 2),
                 "original_selling_price": round(orig, 2),
             }
@@ -4493,7 +4761,7 @@ def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[
     if not re.fullmatch(r"\d{6}", code):
         return None, "Enter a valid 6-digit employee code.", 400
 
-    from database import get_employee_by_code
+    from database import employee_may_use_shop_branch, get_employee_by_code
 
     row = get_employee_by_code(code)
     if not row:
@@ -4503,11 +4771,10 @@ def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[
         return None, "Employee is not active. Enter another active employee code.", 403
 
     role_key = (row.get("role") or "employee").lower()
-    try:
-        emp_shop_id = int(row.get("shop_id")) if row.get("shop_id") is not None else None
-    except (TypeError, ValueError):
-        emp_shop_id = None
-    if role_key not in ("super_admin", "it_support") and emp_shop_id != int(shop_id):
+    if role_key not in ("super_admin", "it_support") and not employee_may_use_shop_branch(
+        dict(row),
+        int(shop_id),
+    ):
         return None, "Employee is not assigned to this shop. Enter another code.", 403
 
     return row, None, 200
@@ -4661,6 +4928,11 @@ def shop_pos_record_sale(shop_id: int):
     if sale_type not in ("sale", "credit"):
         return jsonify({"ok": False, "error": "Invalid sale type."}), 400
 
+    if sale_type == "sale" and not _shop_pos_allow_cash_sale(shop):
+        return jsonify({"ok": False, "error": "Standard sales are disabled for this POS."}), 403
+    if sale_type == "credit" and not _shop_pos_allow_credit_sale(shop):
+        return jsonify({"ok": False, "error": "Credit sales are disabled for this POS."}), 403
+
     try:
         total_amount = float(data.get("total_amount") or 0)
     except Exception:
@@ -4684,6 +4956,19 @@ def shop_pos_record_sale(shop_id: int):
         payment_method = "credit"
     elif payment_method not in ("cash", "mpesa", "both"):
         return jsonify({"ok": False, "error": "Select a valid payment method."}), 400
+    if sale_type == "sale" and not _shop_pos_payment_method_allowed(shop, payment_method):
+        return jsonify({"ok": False, "error": "This payment option is not enabled for this POS."}), 403
+    if (
+        sale_type == "sale"
+        and _shop_print_compulsory_on_sale_enabled(shop)
+        and not _shop_has_saved_pos_printer(shop_id)
+    ):
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Printing is compulsory on sale: configure a receipt printer for this shop before checkout.",
+            }
+        ), 403
     try:
         cash_amount = float(data.get("cash_amount") or 0)
     except Exception:
@@ -4744,9 +5029,14 @@ def shop_pos_record_quote(shop_id: int):
         return gate
 
     data = request.get_json(force=True, silent=True) or {}
+    if not _shop_pos_allow_quotations(shop):
+        return jsonify({"ok": False, "error": "Quotations are disabled for this POS."}), 403
+
     quote_basis = (data.get("quote_basis") or "sale").strip().lower()
     if quote_basis not in ("sale", "credit"):
         return jsonify({"ok": False, "error": "Invalid quotation type."}), 400
+    if quote_basis == "credit" and not _shop_pos_allow_credit_sale(shop):
+        return jsonify({"ok": False, "error": "Credit-based quotations require credit to be enabled for this POS."}), 403
 
     try:
         total_amount = float(data.get("total_amount") or 0)
@@ -6157,6 +6447,7 @@ def shop_item_management(shop_id: int):
         "shop_item_management.html",
         shop=shop,
         items=items,
+        pos_inventory_mode=_pos_inventory_mode(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -7228,7 +7519,13 @@ def shop_item_toggle_displayed(shop_id: int, item_id: int):
     except Exception:
         ok = False
 
-    flash("Shop item display updated." if ok else "Could not update shop item display.", "success" if ok else "error")
+    if ok:
+        flash("Shop item display updated.", "success")
+    else:
+        flash(
+            "Could not update shop display — to turn it on, the company item must be active under IT item management.",
+            "error",
+        )
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 
@@ -7247,7 +7544,32 @@ def shop_item_toggle_stock_update_enabled(shop_id: int, item_id: int):
     except Exception:
         ok = False
 
-    flash("Shop stock update setting updated." if ok else "Could not update shop stock setting.", "success" if ok else "error")
+    mode = _pos_inventory_mode(shop)
+    if ok:
+        if mode == "kitchen":
+            flash("Kitchen portion update setting updated.", "success")
+        elif mode == "shop":
+            flash("Shop stock update setting updated.", "success")
+        else:
+            flash("Branch POS inventory toggle updated.", "success")
+    elif mode == "shop":
+        flash(
+            "Stock update toggle was not saved. To turn ON, the company item must be active and company-wide "
+            "stock updates must be enabled under IT catalog.",
+            "error",
+        )
+    elif mode == "kitchen":
+        flash(
+            "Kitchen portion toggle was not saved. To turn ON, the company item must be active and IT must enable "
+            "the same master toggle under item management (kitchen mode uses this for portion deductions).",
+            "error",
+        )
+    else:
+        flash(
+            "Toggle was not saved. To turn ON, the company item must be active and IT must enable the master POS "
+            "inventory toggle under item management.",
+            "error",
+        )
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 
@@ -7755,13 +8077,537 @@ def shop_settings_legacy(shop_id: int):
 def it_support_hr_management():
     _it_support_only()
     try:
-        from database import list_employees, list_shops
+        from database import get_hr_employee_shop_link_mode, list_employees, list_shops
 
         employees = list_employees(limit=2000)
         shops = list_shops(limit=500)
+        hr_employee_shop_link_mode = get_hr_employee_shop_link_mode()
     except Exception:
         employees, shops = [], []
-    return render_template("it_support_hr_management.html", employees=employees, shops=shops)
+        hr_employee_shop_link_mode = "single"
+    return render_template(
+        "it_support_hr_management.html",
+        employees=employees,
+        shops=shops,
+        hr_employee_shop_link_mode=hr_employee_shop_link_mode,
+    )
+
+
+HR_AUTH_ROLE_ORDER = (
+    ("super_admin", "Super admin"),
+    ("it_support", "IT support"),
+    ("admin", "Admin"),
+    ("manager", "Manager"),
+    ("sales", "Sales"),
+    ("finance", "Finance"),
+    ("employee", "Employee"),
+    ("rider", "Rider"),
+)
+
+# Template-only: HR employee module authorization matrix (checkbox names / UI). Not persisted or enforced.
+MODULE_PERMISSION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("view", "View"),
+    ("edit", "Edit"),
+    ("delete", "Delete"),
+    ("suspend", "Suspend"),
+    ("approve", "Approve"),
+    ("generate", "Generate"),
+)
+
+# Item management card only — matches IT item management workflows (UI draft).
+MODULE_ITEM_MANAGEMENT_PERMISSION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("view_items", "View items"),
+    ("register_items", "Register items"),
+    ("edit_items", "Edit items"),
+    ("suspend_items", "Suspend items"),
+    ("delete_items", "Delete items"),
+    ("approve_items", "Approve items"),
+    ("view_item_analytics", "View analytics of the items"),
+)
+
+# Shop / POS surfaces — same checklist on every HR auth playbook role (preview UI only until enforced).
+# Labels stress: options only matter for the shop the user has open in session, and shop-level toggles (credit, discounts, buys, etc.) must allow them.
+MODULE_SHOP_PERMISSION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("access_shop", "Access shop (while in branch session)"),
+    ("make_sale", "Make sale (at shop in session)"),
+    ("make_credit_sale", "Make credit sale (only if enabled for shop in session)"),
+    ("give_discount", "Give discount (only if enabled for shop in session)"),
+    ("buy_items", "Buy items (only if enabled for shop in session)"),
+)
+
+_SHOP_MODULE_ACTIVITIES_GENERAL: tuple[str, ...] = (
+    "Everything below applies only while the user is signed into a branch session—the shop context is whatever they have open, not global.",
+    "Credit sales, discounts, stock buys, and similar actions appear only when that shop's settings enable them on top of the user's permissions.",
+)
+
+
+def _enrich_modules_with_auth_slug(modules: list) -> list:
+    import re
+
+    enriched: list = []
+    for i, m in enumerate(modules or [], start=1):
+        row = dict(m)
+        title = str(row.get("title") or "module")
+        slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "module"
+        row["auth_slug"] = f"{i}-{slug}"
+        enriched.append(row)
+    return enriched
+
+
+_PORTAL_MODULES_COMPANY_IT: tuple[dict, ...] = (
+    {
+        "title": "Item management",
+        "subtitle": "Company-wide product catalog",
+        "permission_columns": MODULE_ITEM_MANAGEMENT_PERMISSION_COLUMNS,
+        "activities": (
+            "Register new items and attach images, categories, and pricing fields seen across branches.",
+            "Edit item listings, labels, and POS-facing details anytime from the master catalog grid.",
+            "Suspend items to block new sales, then activate them again when stock or compliance allows.",
+            "Operate the company stock update and kitchen portion update master toggles that branches inherit.",
+            "Deactivate or reactivate branch autonomy for stock and kitchen toggles depending on inventory mode.",
+            "Open company stock management for stock-in/out, transfers, and reconciliation views.",
+            "Use item analytics and item audit to trace who changed what.",
+        ),
+    },
+    {
+        "title": "Store management",
+        "subtitle": "Branches and shop access",
+        "activities": (
+            "Register shops and keep branch names, codes, and device login details current.",
+            "Review which menus, stock buckets, or POS sessions belong to each store.",
+            "Coordinate rollout of catalogue or pricing updates per branch.",
+        ),
+    },
+    {
+        "title": "Shop module",
+        "subtitle": "Scoped to whichever branch session is open—tenders and buys follow that shop's enabled settings",
+        "permission_columns": MODULE_SHOP_PERMISSION_COLUMNS,
+        "activities": _SHOP_MODULE_ACTIVITIES_GENERAL
+        + (
+            "IT and super admins verify branch POS behaviour matches policy across shops.",
+        ),
+    },
+    {
+        "title": "Kitchen management",
+        "subtitle": "Portions & production",
+        "activities": (
+            "Use the kitchen portions dashboard as the launch point for recipes and deductions.",
+            "Adjust portion mappings per branch so POS kitchen mode stays accurate.",
+            "Open portion analytics to compare throughput and deductions across branches.",
+            "Maintain kitchen layouts or planning views linked from the dashboard where configured.",
+        ),
+    },
+    {
+        "title": "HR management",
+        "subtitle": "People, payroll, and access",
+        "activities": (
+            "Approve new employees, edit profiles, assign roles, and link branches (single or multi-shop mode).",
+            "Suspend, reactivate, or remove accounts.",
+            "Open HR authorization to review staff grouped by role with status and allocations.",
+            "Configure HR settings for how employees tie to branches for POS authorization.",
+            "Register salaries and advances from the salaries hub; oversee payroll summaries.",
+        ),
+    },
+    {
+        "title": "Analytics management",
+        "subtitle": "Company performance",
+        "activities": (
+            "Open the main analytics workspace for revenue, items, periods, shops, employees, credits, customers, etc.",
+            "Compare trends and export insight for leadership.",
+            "Use company stock analytics and stock status summaries when diagnosing inventory posture.",
+            "Combine with portion analytics where kitchen throughput matters.",
+        ),
+    },
+    {
+        "title": "Leads and quotations",
+        "subtitle": "Pipeline & quoting",
+        "activities": (
+            "Capture inbound leads from marketing or storefront traffic.",
+            "Prepare and track quotations until they convert (or lapse).",
+            "Share statuses with managers so follow-up stays coordinated.",
+        ),
+    },
+    {
+        "title": "Website management",
+        "subtitle": "Public storefront & content",
+        "activities": (
+            "Update headlines, visuals, contact blocks, or marketing copy shown on public pages.",
+            "Keep brochureware aligned with promotions running in-branch.",
+        ),
+    },
+    {
+        "title": "Credit payments",
+        "subtitle": "Accounts receivable (all branches)",
+        "activities": (
+            "Monitor credit sales and settlement progress across branches from the consolidated credit workspace.",
+            "Drill into customer timelines when reconciliation is needed.",
+        ),
+    },
+)
+
+
+_PORTAL_MODULES_BRANCH_LEADERSHIP: tuple[dict, ...] = (
+    {
+        "title": "Item management",
+        "subtitle": "At your assigned branch(es)",
+        "permission_columns": MODULE_ITEM_MANAGEMENT_PERMISSION_COLUMNS,
+        "activities": (
+            "Coordinate with IT to register master items company-wide when new stock lines are approved.",
+            "Use shop item management to edit branch listings, imagery, and how items appear on menus and POS.",
+            "Suspend or re-activate branch-facing items when stock runs out or returns (subject to IT master rules).",
+            "Manage stock updates and kitchen portion deductions at branch level when masters allow toggles.",
+            "Turn branch display or fulfilment switches on/off so cashiers only see items you want live.",
+            "Escalate catalogue-wide suspensions or pricing policy changes back to IT / super admin.",
+        ),
+    },
+    {
+        "title": "Store management",
+        "subtitle": "Branch operations",
+        "activities": (
+            "Open the shop dashboard for your branch to review quick links and status.",
+            "Ensure shop codes and device sign-in practices stay secure for cashiers.",
+            "Coordinate with IT for new devices or shop setting changes.",
+        ),
+    },
+    {
+        "title": "Shop module",
+        "subtitle": "Only for the shop open in your session; credit, discount, and buy options if that shop enables them",
+        "permission_columns": MODULE_SHOP_PERMISSION_COLUMNS,
+        "activities": _SHOP_MODULE_ACTIVITIES_GENERAL,
+    },
+    {
+        "title": "Kitchen management",
+        "subtitle": "Portions & production",
+        "activities": (
+            "Maintain kitchen portion counts and deduction rules for your branch.",
+            "Review portion analytics for your location to catch waste or mis-posting early.",
+            "Align production plans with what POS is selling in real time.",
+        ),
+    },
+    {
+        "title": "HR management",
+        "subtitle": "Team on the floor",
+        "activities": (
+            "Use shop HR management for branch-level staff notes or visibility your deployment enables.",
+            "Escalate hiring, suspensions, or payroll changes to IT / super admin as required.",
+        ),
+    },
+    {
+        "title": "Analytics management",
+        "subtitle": "Branch insight",
+        "activities": (
+            "Open shop analytics for sales, stock, and customer behaviour tied to your branch.",
+            "Compare current period performance with prior weeks to brief leadership.",
+        ),
+    },
+    {
+        "title": "Leads and quotations",
+        "subtitle": "Sales follow-up",
+        "activities": (
+            "Work leads and quotations assigned to your branch or territory.",
+            "Keep pipeline hygiene so finance and fulfilment see accurate expectations.",
+        ),
+    },
+    {
+        "title": "Website management",
+        "subtitle": "Usually IT-owned",
+        "activities": (
+            "Most teams route public website edits through IT or marketing super users.",
+            "When you have access, mirror in-branch promotions on the public site after approval.",
+        ),
+    },
+)
+
+
+_PORTAL_MODULES_FINANCE: tuple[dict, ...] = (
+    {
+        "title": "Finance & payroll visibility",
+        "subtitle": "Numbers and compliance",
+        "activities": (
+            "Review payroll registers, advances, and loans when IT grants access to the salaries workspace.",
+            "Track company credit exposure using credit payment summaries and customer ledgers.",
+            "Pair analytics revenue views with cash / M-Pesa settlement reports from operations.",
+        ),
+    },
+    {
+        "title": "Analytics management",
+        "subtitle": "Financial lenses",
+        "activities": (
+            "Use analytics filters focused on revenue, credit, and customer concentration.",
+            "Export or snapshot figures for leadership packs.",
+        ),
+    },
+    {
+        "title": "Shop module",
+        "subtitle": "When POS access applies—still scoped to the shop in session and that shop's enabled features",
+        "permission_columns": MODULE_SHOP_PERMISSION_COLUMNS,
+        "activities": _SHOP_MODULE_ACTIVITIES_GENERAL
+        + (
+            "Use read-only or limited POS access when finance validates settlements on the floor.",
+        ),
+    },
+    {
+        "title": "Leads and quotations",
+        "subtitle": "Commercial pipeline",
+        "activities": (
+            "Monitor large quotes that affect margin or payment terms before approval.",
+        ),
+    },
+)
+
+
+_PORTAL_MODULES_SALES: tuple[dict, ...] = (
+    {
+        "title": "Leads and quotations",
+        "subtitle": "Pipeline",
+        "activities": (
+            "Create and nurture leads; convert them to quotations and sales orders.",
+            "Share updates with managers so stock and kitchen plans stay realistic.",
+        ),
+    },
+    {
+        "title": "Shop module",
+        "subtitle": "Linked branch + active shop session; credit/discount/buy only if that shop allows",
+        "permission_columns": MODULE_SHOP_PERMISSION_COLUMNS,
+        "activities": _SHOP_MODULE_ACTIVITIES_GENERAL
+        + (
+            "Use POS and shop dashboards for day-to-day selling when your login is branch-scoped.",
+            "Reference shop analytics for personal or team targets.",
+        ),
+    },
+)
+
+
+_PORTAL_MODULES_STAFF: tuple[dict, ...] = (
+    {
+        "title": "Shop module",
+        "subtitle": "Cashier/session shop only—credit, discounts, and buys appear if that shop has them enabled",
+        "permission_columns": MODULE_SHOP_PERMISSION_COLUMNS,
+        "activities": _SHOP_MODULE_ACTIVITIES_GENERAL
+        + (
+            "Cashiers often use cash and M-Pesa tenders; rider flows may emphasize fulfilment when that shop enables it.",
+        ),
+    },
+    {
+        "title": "Branch operations",
+        "subtitle": "Day-to-day",
+        "activities": (
+            "Sign in to the assigned shop session or POS with your six-digit employee code.",
+            "Process sales, stock movements, or kitchen tasks your manager enables.",
+            "Use notifications and profile settings to keep contact details current.",
+        ),
+    },
+)
+
+
+def _portal_module_playbook(*, role_key: str, is_pending: bool) -> tuple[list, str]:
+    """Return (modules_list, scope_note) describing typical portal areas for a role."""
+    rk = (role_key or "employee").strip().lower()
+    if rk in ("super_admin", "it_support"):
+        modules = [dict(m) for m in _PORTAL_MODULES_COMPANY_IT]
+        note = (
+            "Full company management portal: IT support and super admin accounts use the same "
+            "employee dashboard shortcuts (items, stores, kitchen, HR, analytics, leads, website, credit)."
+        )
+    elif rk == "admin":
+        modules = [dict(m) for m in _PORTAL_MODULES_BRANCH_LEADERSHIP]
+        note = (
+            "Admin playbook emphasises branch leadership. Deep company-catalog changes still flow through IT "
+            "unless your deployment grants additional routes."
+        )
+    elif rk == "manager":
+        modules = [dict(m) for m in _PORTAL_MODULES_BRANCH_LEADERSHIP]
+        note = (
+            "Manager playbook mirrors operational leadership: focus on execution at assigned branches, with "
+            "escalation paths to IT for master data."
+        )
+    elif rk == "finance":
+        modules = [dict(m) for m in _PORTAL_MODULES_FINANCE]
+        note = "Finance roles centre on payroll visibility, credit exposure, and analytics cuts your session can open."
+    elif rk == "sales":
+        modules = [dict(m) for m in _PORTAL_MODULES_SALES]
+        note = "Sales roles stress leads, quotations, and branch selling tools when a shop is linked to the account."
+    elif rk in ("employee", "rider"):
+        modules = [dict(m) for m in _PORTAL_MODULES_STAFF]
+        note = (
+            "Standard staff and rider accounts typically work from branch POS and limited portal pages; "
+            "rider-specific dispatch screens appear here when the product enables them."
+        )
+    else:
+        modules = [dict(m) for m in _PORTAL_MODULES_STAFF]
+        note = "Generic staff playbook — confirm with IT which routes are enabled for this custom role label."
+
+    modules = _enrich_modules_with_auth_slug(modules)
+    if is_pending:
+        note = "This account is still pending approval. The modules below preview what applies once activated. " + note
+    return modules, note
+
+
+@app.route("/it-support/hr-authorization")
+@app.route("/it_support/hr-authorization")
+@login_required
+def it_support_hr_authorization():
+    _it_support_only()
+    from collections import defaultdict, OrderedDict
+
+    ordered_role_keys = [k for k, _ in HR_AUTH_ROLE_ORDER]
+    role_title = dict(HR_AUTH_ROLE_ORDER)
+    try:
+        from database import get_hr_employee_shop_link_mode, list_employees
+
+        employees = list_employees(limit=3500)
+        hr_employee_shop_link_mode = get_hr_employee_shop_link_mode()
+    except Exception:
+        employees = []
+        hr_employee_shop_link_mode = "single"
+
+    buckets = OrderedDict((rk, []) for rk in ordered_role_keys)
+    other = defaultdict(list)
+    for row in employees or []:
+        rk = str(row.get("role") or "employee").strip().lower()
+        if rk in buckets:
+            buckets[rk].append(row)
+        else:
+            other[rk].append(row)
+
+    role_sections = []
+    for rk in ordered_role_keys:
+        lst = buckets.get(rk) or []
+        if lst:
+            role_sections.append({"key": rk, "title": role_title[rk], "employees": lst})
+    for rk in sorted(other.keys()):
+        lst = other[rk]
+        if not lst:
+            continue
+        label = rk.replace("_", " ").strip().title() or "Other role"
+        role_sections.append({"key": rk, "title": label, "employees": lst})
+
+    return render_template(
+        "it_support_hr_authorization.html",
+        role_sections=role_sections,
+        hr_employee_shop_link_mode=hr_employee_shop_link_mode,
+    )
+
+
+def _hr_employee_allocated_label(
+    *,
+    emp: dict,
+    emp_id: int,
+    hr_mode: str,
+    get_shop_by_id,
+    get_employee_accessible_shop_ids,
+) -> Optional[str]:
+    """Human-readable branch list matching HR authorization semantics."""
+    if hr_mode == "multi":
+        parts: list = []
+        for sid in get_employee_accessible_shop_ids(int(emp_id)):
+            shop = get_shop_by_id(int(sid))
+            if not shop:
+                continue
+            name = (shop.get("shop_name") or "").strip()
+            code = (shop.get("shop_code") or "").strip()
+            if name and code:
+                parts.append(f"{name} ({code})")
+            elif name:
+                parts.append(name)
+            elif code:
+                parts.append(code)
+            else:
+                parts.append(f"Branch #{sid}")
+        if parts:
+            return ", ".join(parts)
+    sid = emp.get("shop_id")
+    if sid is None:
+        return None
+    try:
+        sh = get_shop_by_id(int(sid))
+    except (TypeError, ValueError):
+        sh = None
+    if not sh:
+        return None
+    name = (sh.get("shop_name") or "").strip()
+    code = (sh.get("shop_code") or "").strip()
+    if name and code:
+        return f"{name} ({code})"
+    return name or code or None
+
+
+@app.route("/it_support/employees/<int:emp_id>")
+@login_required
+def it_support_hr_employee_detail(emp_id: int):
+    _it_support_only()
+    from database import (
+        get_employee_accessible_shop_ids,
+        get_employee_by_id,
+        get_hr_employee_shop_link_mode,
+        get_shop_by_id,
+    )
+
+    try:
+        emp = get_employee_by_id(int(emp_id))
+    except Exception:
+        emp = None
+    if not emp:
+        flash("Employee not found.", "error")
+        return redirect(url_for("it_support_hr_authorization"))
+
+    rank = dict(HR_AUTH_ROLE_ORDER)
+    role_key = str(emp.get("role") or "employee").strip().lower()
+    role_label = rank.get(role_key) or role_key.replace("_", " ").strip().title() or "Other role"
+
+    try:
+        hr_employee_shop_link_mode = get_hr_employee_shop_link_mode()
+    except Exception:
+        hr_employee_shop_link_mode = "single"
+
+    try:
+        allocated_display = _hr_employee_allocated_label(
+            emp=emp,
+            emp_id=int(emp_id),
+            hr_mode=str(hr_employee_shop_link_mode or "single"),
+            get_shop_by_id=get_shop_by_id,
+            get_employee_accessible_shop_ids=get_employee_accessible_shop_ids,
+        )
+    except Exception:
+        allocated_display = None
+
+    is_pending = (emp.get("status") or "") == "pending_approval"
+
+    module_playbook, playbook_note = _portal_module_playbook(
+        role_key=role_key,
+        is_pending=is_pending,
+    )
+
+    return render_template(
+        "it_support_hr_employee_detail.html",
+        employee=emp,
+        role_label=role_label,
+        allocated_display=allocated_display,
+        hr_employee_shop_link_mode=hr_employee_shop_link_mode,
+        is_pending=is_pending,
+        module_playbook=module_playbook,
+        playbook_note=playbook_note,
+        module_permission_columns=MODULE_PERMISSION_COLUMNS,
+    )
+
+
+@app.route("/it_support/hr-settings", methods=["GET", "POST"])
+@login_required
+def it_support_hr_settings():
+    _it_support_only()
+    from database import get_hr_employee_shop_link_mode, set_hr_employee_shop_link_mode
+
+    if request.method == "POST":
+        mode = (request.form.get("employee_shop_link_mode") or "").strip().lower()
+        ok = set_hr_employee_shop_link_mode(mode)
+        flash(
+            "HR branch link setting saved." if ok else "Could not save HR setting. Try again.",
+            "success" if ok else "error",
+        )
+        return redirect(url_for("it_support_hr_settings"))
+
+    mode = get_hr_employee_shop_link_mode()
+    return render_template("it_support_hr_settings.html", hr_employee_shop_link_mode=mode)
 
 
 @app.route("/it_support/salaries")
@@ -8046,10 +8892,21 @@ def it_support_employee_approve(emp_id: int):
             shop_id = int(shop_id_raw)
         except Exception:
             shop_id = None
+    linked_shop_ids = []
+    for x in request.form.getlist("shop_ids"):
+        try:
+            linked_shop_ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
     try:
-        from database import approve_employee
+        from database import approve_employee, get_hr_employee_shop_link_mode
 
-        ok = approve_employee(emp_id, role=role, shop_id=shop_id)
+        ok = approve_employee(
+            emp_id,
+            role=role,
+            shop_id=shop_id,
+            linked_shop_ids=linked_shop_ids if get_hr_employee_shop_link_mode() == "multi" else None,
+        )
     except Exception:
         ok = False
     flash("Employee approved." if ok else "Could not approve employee. Check role/shop selection.", "success" if ok else "error")
@@ -8074,6 +8931,12 @@ def it_support_employee_edit(emp_id: int):
             shop_id = int(shop_id_raw)
         except (TypeError, ValueError):
             shop_id = None
+    linked_shop_ids = []
+    for x in request.form.getlist("shop_ids"):
+        try:
+            linked_shop_ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
 
     preferred_payment_method = (request.form.get("preferred_payment_method") or "").strip()
     payment_account_holder = (request.form.get("payment_account_holder") or "").strip()
@@ -8099,8 +8962,9 @@ def it_support_employee_edit(emp_id: int):
         password_hash = generate_password_hash(pwd)
 
     try:
-        from database import update_employee_by_it_hr
+        from database import get_hr_employee_shop_link_mode, update_employee_by_it_hr
 
+        hm = get_hr_employee_shop_link_mode()
         ok = update_employee_by_it_hr(
             emp_id,
             full_name=full_name,
@@ -8109,6 +8973,7 @@ def it_support_employee_edit(emp_id: int):
             role=role,
             shop_id=shop_id,
             employee_code=employee_code,
+            linked_shop_ids=(linked_shop_ids if hm == "multi" else None),
             password_hash=password_hash,
             preferred_payment_method=preferred_payment_method or None,
             payment_account_holder=payment_account_holder or None,

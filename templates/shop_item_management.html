@@ -10,11 +10,24 @@
   </a>
 {% endblock %}
 {% block shop_content %}
+  {% set pos_inv = pos_inventory_mode|default('shop') %}
+  {% set pos_is_kitchen = (pos_inv == 'kitchen') %}
+  {% set pos_is_shop = (pos_inv == 'shop') %}
+  {% set inv_toggle_col = 'Kitchen portion update' if pos_is_kitchen else ('Shop stock update' if pos_is_shop else 'POS inventory update') %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Items</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Original and selling prices; shops can update selling price for POS.</p>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          Original and selling prices; shops can update selling price for POS. Display follows IT listing rules.
+          {% if pos_is_kitchen %}
+            When this branch uses <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portions</strong> at checkout, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portion updates</strong> here control whether POS deducts portions per item — IT’s master toggle on the catalog item applies first.
+          {% elif pos_is_shop %}
+            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Shop stock updates</strong> follow IT catalog rules: suspended or company‑wide stock‑off items cannot be turned on here until IT enables them.
+          {% else %}
+            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">POS inventory updates</strong> follow IT catalog rules until IT enables the master toggle per item (used when POS stock or kitchen deductions are enabled).
+          {% endif %}
+        </p>
       </div>
       {# Removed shop-level Display/Hide pills to match requested UI #}
     </div>
@@ -36,7 +49,7 @@
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Selling price</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Shop stock</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Display</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Shop stock update</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{{ inv_toggle_col }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -55,6 +68,10 @@
                 </tr>
 
                 {% for item in grp.list %}
+                  {% set company_active = (item.status == 'active') %}
+                  {% set company_stock_on = (item.company_stock_update_enabled|default(0)|int == 1) %}
+                  {% set display_switch_locked_on = (not company_active) and (item.displayed|int != 1) %}
+                  {% set stock_switch_locked_on = ((not company_active) or (not company_stock_on)) and (item.stock_update_enabled|int != 1) %}
                   <tr class="align-top">
                     <td class="px-4 py-3">
                       {% set _item_img = static_upload_url(item.image_path) %}
@@ -79,7 +96,7 @@
                     </td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ "%.2f"|format(item.price) }}</td>
                     <td class="px-4 py-3 align-top">
-                      {% if (session.get('shop_id') == shop.id) or (session.get('employee_role') or '') in ['super_admin', 'it_support'] %}
+                      {% if (session.get('shop_id')|default(-1)|int == shop.id|int) or ((session.get('employee_role') or '') in ['super_admin', 'it_support']) %}
                         <form
                           method="post"
                           action="{{ url_for('shop_item_update_selling_price', shop_id=shop.id, item_id=item.id) }}"
@@ -103,7 +120,7 @@
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.shop_stock_qty }}</td>
 
                     <td class="px-4 py-3">
-                      {% if (session.get('shop_id') == shop.id) or (session.get('employee_role') or '') in ['super_admin', 'it_support'] %}
+                      {% if (session.get('shop_id')|default(-1)|int == shop.id|int) or ((session.get('employee_role') or '') in ['super_admin', 'it_support']) %}
                         <form method="post" action="{{ url_for('shop_item_toggle_displayed', shop_id=shop.id, item_id=item.id) }}">
                           <div class="flex items-center justify-start gap-3">
                             <button
@@ -113,10 +130,16 @@
                                 bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
                               {% else %}
                                 bg-rose-600 ring-rose-700 hover:bg-rose-700
-                              {% endif %}"
+                              {% endif %}
+                              {% if display_switch_locked_on %}cursor-not-allowed opacity-55{% endif %}"
                               role="switch"
                               aria-checked="{% if item.displayed == 1 %}true{% else %}false{% endif %}"
-                              title="Toggle display"
+                              {% if display_switch_locked_on %}
+                                disabled
+                                title="Company item suspended — IT must activate before this shop can show it on POS."
+                              {% else %}
+                                title="Toggle display for this shop"
+                              {% endif %}
                             >
                               <span class="sr-only">
                                 {% if item.displayed == 1 %}Display{% else %}Hidden{% endif %}
@@ -149,47 +172,59 @@
                     </td>
 
                     <td class="px-4 py-3">
-                      {% if (session.get('shop_id') == shop.id) or (session.get('employee_role') or '') in ['super_admin', 'it_support'] %}
+                      {% if (session.get('shop_id')|default(-1)|int == shop.id|int) or ((session.get('employee_role') or '') in ['super_admin', 'it_support']) %}
                         <form method="post" action="{{ url_for('shop_item_toggle_stock_update_enabled', shop_id=shop.id, item_id=item.id) }}">
                           <div class="flex items-center justify-start gap-3">
                             <button
                               type="submit"
                               class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
-                              {% if item.stock_update_enabled %}
+                              {% if (item.stock_update_enabled|default(0)|int) == 1 %}
                                 bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
                               {% else %}
                                 bg-rose-600 ring-rose-700 hover:bg-rose-700
-                              {% endif %}"
+                              {% endif %}
+                              {% if stock_switch_locked_on %}cursor-not-allowed opacity-55{% endif %}"
                               role="switch"
-                              aria-checked="{% if item.stock_update_enabled %}true{% else %}false{% endif %}"
-                              title="{% if item.stock_update_enabled %}Turn shop stock update OFF{% else %}Turn shop stock update ON{% endif %}"
+                              aria-checked="{% if (item.stock_update_enabled|default(0)|int) == 1 %}true{% else %}false{% endif %}"
+                              {% if stock_switch_locked_on %}
+                                disabled
+                                title="{% if pos_is_kitchen %}Company POS inventory master is off for this item or it is suspended — IT must enable the catalog toggle before portions can deduct at checkout.{% elif pos_is_shop %}Company stock updates are off or the item is suspended — IT must enable before this shop can turn stock updates on.{% else %}Company POS inventory master is off or the item is suspended — IT must enable the catalog toggle first.{% endif %}"
+                              {% else %}
+                                title="{% if pos_is_kitchen %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen portion deduction at POS for this item{% else %}Turn ON kitchen portion deduction at POS for this item{% endif %}{% elif pos_is_shop %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn shop stock update OFF for this shop{% else %}Turn shop stock update ON for this shop{% endif %}{% else %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF POS inventory tracking for this item{% else %}Turn ON POS inventory tracking for this item{% endif %}{% endif %}"
+                              {% endif %}
                             >
                               <span class="sr-only">
-                                {% if item.stock_update_enabled %}SHOP STOCK UPDATE ON{% else %}SHOP STOCK UPDATE OFF{% endif %}
+                                {% if pos_is_kitchen %}
+                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN PORTION UPDATE ON{% else %}KITCHEN PORTION UPDATE OFF{% endif %}
+                                {% elif pos_is_shop %}
+                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}SHOP STOCK UPDATE ON{% else %}SHOP STOCK UPDATE OFF{% endif %}
+                                {% else %}
+                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}POS INVENTORY TRACKING ON{% else %}POS INVENTORY TRACKING OFF{% endif %}
+                                {% endif %}
                               </span>
                               <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
                                 <span
                                   class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
-                                  {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"
+                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}translate-x-5{% else %}translate-x-0{% endif %}"
                                 ></span>
                               </span>
                             </button>
                             <span class="text-[11px] font-extrabold uppercase tracking-wider">
-                              {% if item.stock_update_enabled %}On{% else %}Off{% endif %}
+                              {% if (item.stock_update_enabled|default(0)|int) == 1 %}On{% else %}Off{% endif %}
                             </span>
                           </div>
                         </form>
                       {% else %}
                         <span
                           class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
-                          {% if item.stock_update_enabled %}
+                          {% if (item.stock_update_enabled|default(0)|int) == 1 %}
                             bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
                           {% else %}
                             bg-rose-500/10 text-rose-300 ring-rose-400/20
                           {% endif %}"
                         >
-                          <span class="h-1.5 w-1.5 rounded-full {% if item.stock_update_enabled %}bg-emerald-400{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
-                          {% if item.stock_update_enabled %}On{% else %}Off{% endif %}
+                          <span class="h-1.5 w-1.5 rounded-full {% if (item.stock_update_enabled|default(0)|int) == 1 %}bg-emerald-400{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
+                          {% if (item.stock_update_enabled|default(0)|int) == 1 %}On{% else %}Off{% endif %}
                         </span>
                       {% endif %}
                     </td>

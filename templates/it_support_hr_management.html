@@ -2,25 +2,8 @@
 {% block title %}HR management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}HR management{% endblock %}
 {% block sidebar_links %}
-  <a
-    href="{{ url_for('it_support_hr_management') }}"
-    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]"
-    aria-current="page"
-  >
-    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-    </svg>
-    HR management
-  </a>
-  <a
-    href="{{ url_for('it_support_company_salaries') }}"
-    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
-  >
-    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-    Salaries
-  </a>
+  {% set hr_nav_active = 'management' %}
+  {% include "partials/it_support_hr_sidebar_nav.html" %}
 {% endblock %}
 {% block head %}
   {{ super() }}
@@ -129,6 +112,7 @@
                     data-phone="{{ e.phone or '' }}"
                     data-role="{{ e.role or 'employee' }}"
                     data-shop-id="{{ e.shop_id or '' }}"
+                    data-shop-ids="{{ e.shop_access_ids_csv if e.shop_access_ids_csv else (e.shop_id if e.shop_id else '') }}"
                     data-preferred-payment="{{ e.preferred_payment_method or '' }}"
                     data-payment-holder="{{ e.payment_account_holder or '' }}"
                     data-payment-bank="{{ e.payment_bank_or_provider or '' }}"
@@ -162,7 +146,12 @@
                 ROLE: {{ (e.role or '')|upper }}
               </span>
               <span class="rounded-full bg-[rgb(var(--rc-surface-2))] px-3 py-1 text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
-                SHOP: {{ (e.shop_name or '-') }}
+                SHOP{% if hr_employee_shop_link_mode == 'multi' and e.shops_access_concat %}S{% endif %}:
+                {% if hr_employee_shop_link_mode == 'multi' and e.shops_access_concat %}
+                  {{ e.shops_access_concat }}
+                {% else %}
+                  {{ e.shop_name or '-' }}
+                {% endif %}
               </span>
             </div>
           </div>
@@ -180,7 +169,7 @@
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Phone</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Role</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">{% if hr_employee_shop_link_mode == 'multi' %}Shops{% else %}Shop{% endif %}</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -203,7 +192,13 @@
                     </span>
                   </td>
                   <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ (e.role or '')|upper }}</td>
-                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ e.shop_name or '-' }}</td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">
+                    {% if hr_employee_shop_link_mode == 'multi' and e.shops_access_concat %}
+                      {{ e.shops_access_concat }}
+                    {% else %}
+                      {{ e.shop_name or '-' }}
+                    {% endif %}
+                  </td>
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap items-center gap-1.5">
                       {% if is_pending %}
@@ -230,6 +225,7 @@
                           data-phone="{{ e.phone or '' }}"
                           data-role="{{ e.role or 'employee' }}"
                           data-shop-id="{{ e.shop_id or '' }}"
+                          data-shop-ids="{{ e.shop_access_ids_csv if e.shop_access_ids_csv else (e.shop_id if e.shop_id else '') }}"
                           data-preferred-payment="{{ e.preferred_payment_method or '' }}"
                           data-payment-holder="{{ e.payment_account_holder or '' }}"
                           data-payment-bank="{{ e.payment_bank_or_provider or '' }}"
@@ -352,7 +348,7 @@
               </select>
             </div>
 
-            <div id="approve-shop-wrap" class="md:col-span-2 hidden">
+            <div id="approve-shop-single-wrap" class="md:col-span-2 hidden">
               <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Allocate to shop</label>
               <select
                 name="shop_id"
@@ -365,7 +361,28 @@
                 {% endfor %}
               </select>
               <p class="mt-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
-                Shop is required for roles other than SUPER ADMIN / IT SUPPORT.
+                Branch is required for roles other than SUPER ADMIN / IT SUPPORT.
+              </p>
+            </div>
+            <div id="approve-shop-multi-wrap" class="md:col-span-2 hidden">
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Branches this employee can access (POS)</label>
+              <div
+                class="max-h-44 space-y-2 overflow-y-auto overscroll-contain rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3 text-sm shadow-inner shadow-black/5"
+              >
+                {% for s in (shops or []) %}
+                  <label class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[rgb(var(--rc-surface))]">
+                    <input
+                      type="checkbox"
+                      name="shop_ids"
+                      value="{{ s.id }}"
+                      class="js-approve-shop-cb h-4 w-4 rounded border-[rgb(var(--rc-border))] text-cyan-600 focus:ring-cyan-500/40"
+                    />
+                    <span class="font-medium uppercase tracking-wide text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}{% if s.shop_code %} ({{ s.shop_code }}){% endif %}</span>
+                  </label>
+                {% endfor %}
+              </div>
+              <p class="mt-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+                Select one or more branches. POS will accept this login code at those branches only (not SUPER ADMIN / IT SUPPORT).
               </p>
             </div>
 
@@ -529,7 +546,7 @@
                 <option value="rider">RIDER</option>
               </select>
             </div>
-            <div id="edit-shop-wrap" class="hidden">
+            <div id="edit-shop-single-wrap" class="hidden">
               <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop</label>
               <select
                 name="shop_id"
@@ -542,6 +559,25 @@
                 {% endfor %}
               </select>
               <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Required for roles other than SUPER ADMIN / IT SUPPORT.</p>
+            </div>
+            <div id="edit-shop-multi-wrap" class="hidden space-y-2">
+              <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Branches (POS access)</label>
+              <div
+                class="max-h-44 space-y-2 overflow-y-auto overscroll-contain rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3 text-sm"
+              >
+                {% for s in (shops or []) %}
+                  <label class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[rgb(var(--rc-surface))]">
+                    <input
+                      type="checkbox"
+                      name="shop_ids"
+                      value="{{ s.id }}"
+                      class="js-edit-shop-cb h-4 w-4 rounded border-[rgb(var(--rc-border))] text-sky-600 focus:ring-sky-500/40"
+                    />
+                    <span class="font-medium uppercase tracking-wide text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}{% if s.shop_code %} ({{ s.shop_code }}){% endif %}</span>
+                  </label>
+                {% endfor %}
+              </div>
+              <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Select one or more branches for POS sign-in.</p>
             </div>
             <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-4">
               <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Preferred payroll payout</p>
@@ -621,6 +657,8 @@
 {% block scripts %}
   {{ super() }}
   <script>
+    window.__HR_SHOP_MULTI = {{ ((hr_employee_shop_link_mode or 'single') == 'multi') | tojson }};
+
     (function () {
       var modal = document.getElementById("approve-modal");
       var closeBtn = document.getElementById("approve-close");
@@ -628,10 +666,17 @@
       var nameEl = document.getElementById("approve-emp-name");
       var form = document.getElementById("approve-form");
       var roleSel = document.getElementById("approve-role");
-      var shopWrap = document.getElementById("approve-shop-wrap");
+      var shopSingleWrap = document.getElementById("approve-shop-single-wrap");
+      var shopMultiWrap = document.getElementById("approve-shop-multi-wrap");
       var shopSel = document.getElementById("approve-shop");
 
-      if (!modal || !form || !roleSel || !shopWrap) return;
+      if (!modal || !form || !roleSel || !shopSingleWrap) return;
+
+      function clearApproveMultiChecks() {
+        document.querySelectorAll(".js-approve-shop-cb").forEach(function (cb) {
+          cb.checked = false;
+        });
+      }
 
       function openModal(empId, empName) {
         var tpl = form.getAttribute("data-action-template") || "";
@@ -639,8 +684,13 @@
         nameEl.textContent = empName || ("#" + String(empId));
         roleSel.value = "";
         if (shopSel) shopSel.value = "";
-        shopWrap.classList.add("hidden");
-        if (shopSel) shopSel.required = false;
+        clearApproveMultiChecks();
+        shopSingleWrap.classList.add("hidden");
+        if (shopMultiWrap) shopMultiWrap.classList.add("hidden");
+        if (shopSel) {
+          shopSel.required = false;
+          shopSel.disabled = false;
+        }
         modal.classList.remove("hidden");
         document.body.style.overflow = "hidden";
         window.requestAnimationFrame(function () {
@@ -654,12 +704,59 @@
         document.body.style.overflow = "";
       }
 
+      function approveRoleNeedsBranch(r) {
+        return !!(r && r !== "super_admin" && r !== "it_support");
+      }
+
       function syncShop() {
         var r = (roleSel.value || "").toLowerCase();
-        var needsShop = r && r !== "super_admin" && r !== "it_support";
-        shopWrap.classList.toggle("hidden", !needsShop);
-        if (shopSel) shopSel.required = needsShop;
-        if (!needsShop && shopSel) shopSel.value = "";
+        var needs = approveRoleNeedsBranch(r);
+        var multiMode = window.__HR_SHOP_MULTI === true;
+        if (!needs) {
+          shopSingleWrap.classList.add("hidden");
+          if (shopMultiWrap) shopMultiWrap.classList.add("hidden");
+          if (shopSel) {
+            shopSel.required = false;
+            shopSel.disabled = false;
+            shopSel.value = "";
+          }
+          clearApproveMultiChecks();
+          return;
+        }
+        if (multiMode && shopMultiWrap) {
+          shopSingleWrap.classList.add("hidden");
+          shopMultiWrap.classList.remove("hidden");
+          if (shopSel) {
+            shopSel.required = false;
+            shopSel.disabled = true;
+            shopSel.value = "";
+          }
+        } else {
+          shopSingleWrap.classList.remove("hidden");
+          if (shopMultiWrap) shopMultiWrap.classList.add("hidden");
+          if (shopSel) {
+            shopSel.disabled = false;
+            shopSel.required = true;
+          }
+          clearApproveMultiChecks();
+        }
+      }
+
+      if (form) {
+        form.addEventListener("submit", function (e) {
+          var r = (roleSel.value || "").toLowerCase();
+          if (!approveRoleNeedsBranch(r)) return;
+          if (window.__HR_SHOP_MULTI === true) {
+            var n = 0;
+            document.querySelectorAll(".js-approve-shop-cb").forEach(function (cb) {
+              if (cb.checked) n += 1;
+            });
+            if (n === 0) {
+              e.preventDefault();
+              alert("Select at least one branch.");
+            }
+          }
+        });
       }
 
       document.querySelectorAll(".js-approve").forEach(function (btn) {
@@ -691,10 +788,33 @@
       var editPwd = document.getElementById("edit-password");
       var editPwdC = document.getElementById("edit-password-confirm");
       var editRole = document.getElementById("edit-role");
-      var editShopWrap = document.getElementById("edit-shop-wrap");
+      var editShopSingleWrap = document.getElementById("edit-shop-single-wrap");
+      var editShopMultiWrap = document.getElementById("edit-shop-multi-wrap");
       var editShop = document.getElementById("edit-shop");
       var paySel = document.getElementById("edit-preferred-payment");
-      if (!editModal || !editForm) return;
+      if (!editModal || !editForm || !editShopSingleWrap) return;
+
+      function editRoleNeedsBranch(rv) {
+        var r = (rv || "").toLowerCase();
+        return !!(r && r !== "super_admin" && r !== "it_support");
+      }
+
+      function clearEditMultiChecks() {
+        document.querySelectorAll(".js-edit-shop-cb").forEach(function (cb) {
+          cb.checked = false;
+        });
+      }
+
+      function setEditMultiFromAttr(rawCsv) {
+        clearEditMultiChecks();
+        var set = {};
+        (String(rawCsv || "").match(/\d+/g) || []).forEach(function (d) {
+          set[d] = true;
+        });
+        document.querySelectorAll(".js-edit-shop-cb").forEach(function (cb) {
+          if (set[String(cb.value)]) cb.checked = true;
+        });
+      }
 
       function syncEditPayment() {
         var m = (paySel && paySel.value ? paySel.value : "").toLowerCase();
@@ -733,11 +853,37 @@
       }
 
       function syncEditShop() {
-        var r = (editRole && editRole.value ? editRole.value : "").toLowerCase();
-        var needsShop = r && r !== "super_admin" && r !== "it_support";
-        if (editShopWrap) editShopWrap.classList.toggle("hidden", !needsShop);
-        if (editShop) editShop.required = !!needsShop;
-        if (!needsShop && editShop) editShop.value = "";
+        var rv = editRole && editRole.value ? editRole.value : "";
+        var needs = editRoleNeedsBranch(rv);
+        var multiMode = window.__HR_SHOP_MULTI === true;
+        if (!needs) {
+          editShopSingleWrap.classList.add("hidden");
+          if (editShopMultiWrap) editShopMultiWrap.classList.add("hidden");
+          if (editShop) {
+            editShop.required = false;
+            editShop.disabled = false;
+            editShop.value = "";
+          }
+          clearEditMultiChecks();
+          return;
+        }
+        if (multiMode && editShopMultiWrap) {
+          editShopSingleWrap.classList.add("hidden");
+          editShopMultiWrap.classList.remove("hidden");
+          if (editShop) {
+            editShop.required = false;
+            editShop.disabled = true;
+            editShop.value = "";
+          }
+        } else {
+          editShopSingleWrap.classList.remove("hidden");
+          if (editShopMultiWrap) editShopMultiWrap.classList.add("hidden");
+          if (editShop) {
+            editShop.disabled = false;
+            editShop.required = true;
+          }
+          clearEditMultiChecks();
+        }
       }
 
       function openEdit(btn) {
@@ -754,7 +900,10 @@
         if (editRole) editRole.value = role;
         var sid = btn.getAttribute("data-shop-id") || "";
         syncEditShop();
-        if (editShop && needsShop(editRole.value) && sid) {
+        if (window.__HR_SHOP_MULTI === true) {
+          var idsCsv = btn.getAttribute("data-shop-ids") || sid || "";
+          setEditMultiFromAttr(idsCsv);
+        } else if (editShop && editRoleNeedsBranch(editRole.value) && sid) {
           editShop.value = sid;
         }
         var pmRaw = (btn.getAttribute("data-preferred-payment") || "").trim().toLowerCase();
@@ -776,9 +925,21 @@
         });
       }
 
-      function needsShop(roleVal) {
-        var r = (roleVal || "").toLowerCase();
-        return r && r !== "super_admin" && r !== "it_support";
+      if (editForm) {
+        editForm.addEventListener("submit", function (e) {
+          var rv = editRole ? editRole.value : "";
+          if (!editRoleNeedsBranch(rv)) return;
+          if (window.__HR_SHOP_MULTI === true) {
+            var n = 0;
+            document.querySelectorAll(".js-edit-shop-cb").forEach(function (cb) {
+              if (cb.checked) n += 1;
+            });
+            if (n === 0) {
+              e.preventDefault();
+              alert("Select at least one branch.");
+            }
+          }
+        });
       }
 
       document.querySelectorAll(".js-edit").forEach(function (btn) {
@@ -800,6 +961,35 @@
           closeEdit();
         }
       });
+    })();
+
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      function stripParams(keys) {
+        var u = new URL(window.location.href);
+        keys.forEach(function (k) {
+          u.searchParams.delete(k);
+        });
+        window.history.replaceState({}, "", u.pathname + (u.search ? u.search : ""));
+      }
+      function findActionBtn(klass, raw) {
+        if (!raw || !/^[0-9]+$/.test(String(raw).trim())) return null;
+        var id = String(raw).trim();
+        return document.querySelector(klass + '[data-emp-id="' + id + '"]');
+      }
+      var oe = params.get("open_edit");
+      if (oe !== null && oe !== "") {
+        var editBtn = findActionBtn(".js-edit", oe);
+        if (editBtn) editBtn.click();
+        stripParams(["open_edit"]);
+        return;
+      }
+      var oa = params.get("open_approve");
+      if (oa !== null && oa !== "") {
+        var apBtn = findActionBtn(".js-approve", oa);
+        if (apBtn) apBtn.click();
+        stripParams(["open_approve"]);
+      }
     })();
   </script>
 {% endblock %}

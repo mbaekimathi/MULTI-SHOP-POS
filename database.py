@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 _MYSQL_1045_LOGGED = False
 
 # Set RICHCOM_HOSTED=1 (or true/yes) on the production server so MySQL uses hosted defaults below.
-# Local/dev: omit it and keep root / richcom-style settings unless MYSQL_* env vars are set.
+# Local/dev: omit it and keep root defaults unless MYSQL_* env vars are set.
 
 
 def is_hosted_deployment() -> bool:
@@ -37,11 +37,14 @@ def is_hosted_deployment() -> bool:
     return v in ("1", "true", "yes")
 
 
+DEFAULT_MYSQL_DATABASE = "MERUPORK-HOTEL"
+
+
 def _safe_database_name(raw: Optional[str]) -> str:
-    """Allow only safe MySQL identifier characters; default richcom."""
-    name = (raw or "richcom").strip()
+    """Allow only safe MySQL identifier characters; default MERUPORK-HOTEL."""
+    name = (raw or DEFAULT_MYSQL_DATABASE).strip()
     if not name or not re.match(r"^[a-zA-Z0-9_-]+$", name):
-        return "richcom"
+        return DEFAULT_MYSQL_DATABASE
     return name[:64]
 
 
@@ -50,7 +53,7 @@ def get_database_name() -> str:
     if raw:
         return _safe_database_name(raw)
     if is_hosted_deployment():
-        return _safe_database_name("twigabea_pos")
+        return _safe_database_name(DEFAULT_MYSQL_DATABASE)
     return _safe_database_name(None)
 
 
@@ -302,6 +305,30 @@ def init_employees_table():
         return True
     except pymysql.Error as e:
         logger.warning("Could not init employees: %s", e)
+        return False
+
+
+def init_employee_shop_access_table():
+    """Many-to-many: which branches an employee may use POS for (HR multi-shop mode)."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS employee_shop_access (
+        employee_id INT NOT NULL,
+        shop_id INT NOT NULL,
+        PRIMARY KEY (employee_id, shop_id),
+        KEY idx_esa_shop (shop_id),
+        CONSTRAINT fk_esa_employee FOREIGN KEY (employee_id)
+            REFERENCES employees(id) ON DELETE CASCADE,
+        CONSTRAINT fk_esa_shop FOREIGN KEY (shop_id)
+            REFERENCES shops(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table employee_shop_access is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init employee_shop_access: %s", e)
         return False
 
 
@@ -706,6 +733,39 @@ def update_item_selling_price_for_shop(shop_id: int, item_id: int, selling_price
         return cur.rowcount > 0
 
 
+def sync_shop_items_from_company_item(item_id: int) -> None:
+    """
+    Apply company item master flags to all shop_items rows for this item.
+    - Suspended at company: force shop display off and shop stock updates off.
+    - Active but company stock updates off: force shop stock updates off (display unchanged).
+    - Active and company stock on: turn display and shop stock updates on for every shop.
+    """
+    sql_item = "SELECT status, stock_update_enabled FROM items WHERE id=%s LIMIT 1"
+    with get_cursor() as cur:
+        cur.execute(sql_item, (int(item_id),))
+        row = cur.fetchone()
+    if not row:
+        return
+    active = (row.get("status") or "") == "active"
+    comp_stock = int(row.get("stock_update_enabled") or 0) == 1
+    with get_cursor(commit=True) as cur:
+        if not active:
+            cur.execute(
+                "UPDATE shop_items SET displayed=0, stock_update_enabled=0 WHERE item_id=%s",
+                (int(item_id),),
+            )
+        elif not comp_stock:
+            cur.execute(
+                "UPDATE shop_items SET stock_update_enabled=0 WHERE item_id=%s",
+                (int(item_id),),
+            )
+        else:
+            cur.execute(
+                "UPDATE shop_items SET displayed=1, stock_update_enabled=1 WHERE item_id=%s",
+                (int(item_id),),
+            )
+
+
 def toggle_item_status(item_id: int) -> bool:
     sql = """
     UPDATE items
@@ -714,7 +774,10 @@ def toggle_item_status(item_id: int) -> bool:
     """
     with get_cursor(commit=True) as cur:
         cur.execute(sql, (int(item_id),))
-        return cur.rowcount > 0
+        ok = cur.rowcount > 0
+    if ok:
+        sync_shop_items_from_company_item(item_id)
+    return ok
 
 
 def toggle_stock_update(item_id: int) -> bool:
@@ -725,7 +788,10 @@ def toggle_stock_update(item_id: int) -> bool:
     """
     with get_cursor(commit=True) as cur:
         cur.execute(sql, (int(item_id),))
-        return cur.rowcount > 0
+        ok = cur.rowcount > 0
+    if ok:
+        sync_shop_items_from_company_item(item_id)
+    return ok
 
 
 def delete_item(item_id: int) -> bool:
@@ -3144,6 +3210,20 @@ def create_shop_pos_sale(
                 for iid in sorted(need.keys()):
                     cur.execute(
                         """
+                        SELECT stock_update_enabled
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), int(iid)),
+                    )
+                    si = cur.fetchone()
+                    if not si:
+                        raise ValueError("POS item is not linked to this shop.")
+                    if int(si.get("stock_update_enabled") or 0) != 1:
+                        continue
+                    cur.execute(
+                        """
                         SELECT portions_remaining
                         FROM shop_kitchen_portions
                         WHERE shop_id=%s AND item_id=%s
@@ -3235,6 +3315,18 @@ def create_shop_pos_sale(
                         ),
                     )
                 elif mode == "kitchen":
+                    cur.execute(
+                        """
+                        SELECT COALESCE(stock_update_enabled,0) AS sue
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), int(iid)),
+                    )
+                    ks = cur.fetchone() or {}
+                    if int(ks.get("sue") or 0) != 1:
+                        continue
                     cur.execute(
                         """
                         UPDATE shop_kitchen_portions
@@ -5850,18 +5942,17 @@ def init_shop_stock_transactions_table():
 
 
 def ensure_shop_items_for_shop(shop_id: int):
-    """Seed shop_items rows for all active items (displayed=1, stock_update_enabled=1)."""
+    """Seed shop_items for every catalog item; defaults follow company active + stock flags."""
     sql = """
     INSERT INTO shop_items (shop_id, item_id, shop_stock_qty, stock_update_enabled, displayed)
     SELECT
         %s AS shop_id,
         i.id AS item_id,
         0 AS shop_stock_qty,
-        1 AS stock_update_enabled,
-        1 AS displayed
+        CASE WHEN i.status='active' AND i.stock_update_enabled=1 THEN 1 ELSE 0 END,
+        CASE WHEN i.status='active' THEN 1 ELSE 0 END
     FROM items i
-    WHERE i.status='active'
-      AND NOT EXISTS (
+    WHERE NOT EXISTS (
         SELECT 1 FROM shop_items si
         WHERE si.shop_id=%s AND si.item_id=i.id
       )
@@ -5885,15 +5976,15 @@ def list_shop_items(shop_id: int, limit: int = 500):
         i.selling_price,
         i.image_path,
         si.shop_stock_qty,
-        si.stock_update_enabled,
+        si.stock_update_enabled AS shop_item_stock_updates,
         si.displayed,
         i.status,
+        i.stock_update_enabled AS company_stock_update_enabled,
         i.created_at
         {company_cols}
         {shop_cols}
     FROM items i
     JOIN shop_items si ON si.item_id = i.id AND si.shop_id=%s
-    WHERE i.status='active'
     ORDER BY i.category ASC, i.name ASC
     LIMIT %s
     """.format(company_cols=company_cols, shop_cols=shop_cols)
@@ -5903,8 +5994,13 @@ def list_shop_items(shop_id: int, limit: int = 500):
     # Normalize fields used by templates.
     for r in rows:
         r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
-        r["stock_update_enabled"] = int(r.get("stock_update_enabled") or 0)
+        # Explicit aliased cols avoid DictCursor overriding duplicate logical column names from JOINs.
+        shop_s = r.get("shop_item_stock_updates")
+        if shop_s is None:
+            shop_s = r.get("stock_update_enabled")
+        r["stock_update_enabled"] = int(shop_s or 0)
         r["displayed"] = int(r.get("displayed") or 0)
+        r["company_stock_update_enabled"] = int(r.get("company_stock_update_enabled") or 0)
         r["low_stock_threshold"] = int(r.get("low_stock_threshold") or 0) if has_company_levels else 0
         r["reorder_level"] = int(r.get("reorder_level") or 0) if has_company_levels else 0
         r["shop_low_stock_threshold"] = int(r.get("shop_low_stock_threshold") or 0) if has_shop_levels else 0
@@ -5927,6 +6023,7 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
         i.selling_price,
         i.image_path,
         si.shop_stock_qty,
+        si.stock_update_enabled AS shop_pos_inventory_toggle,
         si.displayed,
         COALESCE(skp.portions_remaining, 0) AS kitchen_portions
     FROM items i
@@ -5942,6 +6039,7 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
         rows = cur.fetchall() or []
     for r in rows:
         r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
+        r["stock_update_enabled"] = int(r.get("shop_pos_inventory_toggle") or r.get("stock_update_enabled") or 0)
         r["kitchen_portions"] = int(r.get("kitchen_portions") or 0)
         r["displayed"] = int(r.get("displayed") or 0)
         try:
@@ -5958,25 +6056,64 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
 
 
 def toggle_shop_item_displayed(shop_id: int, item_id: int) -> bool:
-    sql = """
-    UPDATE shop_items
-    SET displayed = IF(displayed=1,0,1)
-    WHERE shop_id=%s AND item_id=%s
+    """Shop may hide/show on POS only while the company item is active; turning on is blocked if suspended."""
+    sel = """
+    SELECT si.displayed, i.status
+    FROM shop_items si
+    INNER JOIN items i ON i.id = si.item_id
+    WHERE si.shop_id=%s AND si.item_id=%s
+    LIMIT 1
     """
+    with get_cursor() as cur:
+        cur.execute(sel, (int(shop_id), int(item_id)))
+        row = cur.fetchone()
+    if not row:
+        return False
+    cur_d = int(row.get("displayed") or 0)
+    new_d = 1 - cur_d
+    if new_d == 1 and (row.get("status") or "") != "active":
+        return False
+    upd = "UPDATE shop_items SET displayed=%s WHERE shop_id=%s AND item_id=%s"
+    ver = "SELECT displayed FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1"
     with get_cursor(commit=True) as cur:
-        cur.execute(sql, (int(shop_id), int(item_id)))
-        return cur.rowcount > 0
+        cur.execute(upd, (new_d, int(shop_id), int(item_id)))
+        cur.execute(ver, (int(shop_id), int(item_id)))
+        vr = cur.fetchone() or {}
+    return int(vr.get("displayed") or 0) == new_d
 
 
 def toggle_shop_item_stock_update_enabled(shop_id: int, item_id: int) -> bool:
-    sql = """
-    UPDATE shop_items
-    SET stock_update_enabled = IF(stock_update_enabled=1,0,1)
-    WHERE shop_id=%s AND item_id=%s
+    """Shop stock updates may be enabled only when the company item is active and company stock updates are on."""
+    sel = """
+    SELECT
+      si.stock_update_enabled AS shop_si_stock_upd,
+      i.status AS company_item_status,
+      i.stock_update_enabled AS company_stock_upd
+    FROM shop_items si
+    INNER JOIN items i ON i.id = si.item_id
+    WHERE si.shop_id=%s AND si.item_id=%s
+    LIMIT 1
     """
+    with get_cursor() as cur:
+        cur.execute(sel, (int(shop_id), int(item_id)))
+        row = cur.fetchone()
+    if not row:
+        return False
+    cur_s = int(row.get("shop_si_stock_upd") or row.get("stock_update_enabled") or 0)
+    new_s = 1 - cur_s
+    if new_s == 1:
+        if (
+            (row.get("company_item_status") or "") != "active"
+            or int(row.get("company_stock_upd") or 0) != 1
+        ):
+            return False
+    upd = "UPDATE shop_items SET stock_update_enabled=%s WHERE shop_id=%s AND item_id=%s"
+    ver = "SELECT COALESCE(stock_update_enabled,0) AS si_stock_save FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1"
     with get_cursor(commit=True) as cur:
-        cur.execute(sql, (int(shop_id), int(item_id)))
-        return cur.rowcount > 0
+        cur.execute(upd, (new_s, int(shop_id), int(item_id)))
+        cur.execute(ver, (int(shop_id), int(item_id)))
+        vr = cur.fetchone() or {}
+    return int(vr.get("si_stock_save") or 0) == new_s
 
 
 def set_shop_item_stock_alert_levels(shop_id: int, item_id: int, low_stock_threshold: int, reorder_level: int) -> bool:
@@ -8071,6 +8208,21 @@ def set_site_settings(values: dict) -> bool:
         return False
 
 
+HR_EMPLOYEE_SHOP_LINK_MODE_KEY = "hr_employee_shop_link_mode"
+
+
+def get_hr_employee_shop_link_mode() -> str:
+    """Returns ``single`` (one branch per employee) or ``multi`` (POS access to selected branches)."""
+    raw = (get_site_settings([HR_EMPLOYEE_SHOP_LINK_MODE_KEY]) or {}).get(HR_EMPLOYEE_SHOP_LINK_MODE_KEY) or ""
+    raw = str(raw).strip().lower()
+    return "multi" if raw == "multi" else "single"
+
+
+def set_hr_employee_shop_link_mode(mode: str) -> bool:
+    m = "multi" if str(mode or "").strip().lower() == "multi" else "single"
+    return set_site_settings({HR_EMPLOYEE_SHOP_LINK_MODE_KEY: m})
+
+
 # Pending requests older than this are eligible for automatic expiry (see expire_old_pending_stock_requests).
 STOCK_REQUEST_PENDING_EXPIRY_DAYS = 30
 
@@ -9038,6 +9190,7 @@ def list_stock_request_events_export(*, request_id: Optional[int] = None, limit:
 _EXPECTED_SCHEMA_TABLES = (
     "contact_messages",
     "employees",
+    "employee_shop_access",
     "employee_payroll",
     "employee_payroll_advances",
     "site_settings",
@@ -9086,6 +9239,7 @@ def init_schema() -> bool:
     ok_items = init_items_table()
     ok_stock = init_stock_transactions_table()
     ok_shops = init_shops_table()
+    ok_employee_shop_access = init_employee_shop_access_table()
     ok_shop_items = init_shop_items_table()
     ok_shop_stock = init_shop_stock_transactions_table()
     ok_shop_printer = init_shop_printer_settings_table()
@@ -9109,6 +9263,7 @@ def init_schema() -> bool:
         and ok_items
         and ok_stock
         and ok_shops
+        and ok_employee_shop_access
         and ok_shop_items
         and ok_shop_stock
         and ok_shop_printer
@@ -9185,6 +9340,68 @@ def get_employee_by_id(emp_id: int):
             return cur.fetchone()
     except pymysql.Error:
         return None
+
+
+def get_employee_accessible_shop_ids(emp_id: int) -> list:
+    sql = """
+    SELECT shop_id FROM employee_shop_access
+    WHERE employee_id = %s
+    ORDER BY shop_id ASC
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(emp_id),))
+            rows = cur.fetchall() or []
+            return [int(r["shop_id"]) for r in rows if r.get("shop_id") is not None]
+    except pymysql.Error:
+        return []
+
+
+def employee_may_use_shop_branch(employee_row: dict, branch_shop_id: int) -> bool:
+    """True if employee may authorize POS at ``branch_shop_id`` (respects HR single/multi shop mode)."""
+    role_key = (employee_row.get("role") or "employee").lower()
+    if role_key in ("super_admin", "it_support"):
+        return True
+    try:
+        sid = int(branch_shop_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        emp_shop_id = (
+            int(employee_row["shop_id"])
+            if employee_row.get("shop_id") is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        emp_shop_id = None
+    if get_hr_employee_shop_link_mode() != "multi":
+        return emp_shop_id == sid
+    try:
+        eid = int(employee_row.get("id"))
+    except (TypeError, ValueError):
+        return False
+    extra = get_employee_accessible_shop_ids(eid)
+    if extra:
+        return sid in extra
+    return emp_shop_id == sid
+
+
+def _normalize_linked_shop_ids(raw_ids) -> list:
+    """Unique positive ints, preserving first-seen order (first = primary branch on employee row)."""
+    out: list = []
+    seen: set = set()
+    if not raw_ids:
+        return out
+    for x in raw_ids:
+        try:
+            i = int(x)
+        except (TypeError, ValueError):
+            continue
+        if i <= 0 or i in seen:
+            continue
+        seen.add(i)
+        out.append(i)
+    return out
 
 
 def email_taken_by_other(email: str, exclude_id: int) -> bool:
@@ -9345,6 +9562,28 @@ def list_employees(limit: int = 1000):
         e.role,
         e.shop_id,
         s.shop_name,
+        (
+            SELECT GROUP_CONCAT(
+                CONCAT(
+                    COALESCE(sn.shop_name, ''),
+                    CASE
+                        WHEN sn.shop_code IS NOT NULL AND CHAR_LENGTH(TRIM(sn.shop_code)) > 0
+                            THEN CONCAT(' (', sn.shop_code, ')')
+                        ELSE ''
+                    END
+                )
+                ORDER BY sn.shop_name
+                SEPARATOR ', '
+            )
+            FROM employee_shop_access esa
+            INNER JOIN shops sn ON sn.id = esa.shop_id
+            WHERE esa.employee_id = e.id
+        ) AS shops_access_concat,
+        (
+            SELECT GROUP_CONCAT(esa.shop_id ORDER BY esa.shop_id SEPARATOR ',')
+            FROM employee_shop_access esa
+            WHERE esa.employee_id = e.id
+        ) AS shop_access_ids_csv,
         e.preferred_payment_method,
         e.payment_account_holder,
         e.payment_bank_or_provider,
@@ -9802,25 +10041,63 @@ def list_payroll_advances_recent(limit: int = 50):
         return []
 
 
-def approve_employee(emp_id: int, *, role: str, shop_id: Optional[int]) -> bool:
+def approve_employee(
+    emp_id: int,
+    *,
+    role: str,
+    shop_id: Optional[int],
+    linked_shop_ids: Optional[list] = None,
+) -> bool:
     role = (role or "").strip().lower()
     allowed = {"super_admin", "it_support", "admin", "manager", "sales", "finance", "employee", "rider"}
     if role not in allowed:
         return False
+    eid = int(emp_id)
+    multi = get_hr_employee_shop_link_mode() == "multi"
+
     if role in {"super_admin", "it_support"}:
-        shop_id = None
+        sql = "UPDATE employees SET status='active', role=%s, shop_id=NULL WHERE id=%s"
+        try:
+            with get_cursor(commit=True) as cur:
+                cur.execute(sql, (role, eid))
+                ok = cur.rowcount > 0
+                cur.execute("DELETE FROM employee_shop_access WHERE employee_id=%s", (eid,))
+            return ok
+        except pymysql.Error:
+            return False
+
+    if multi:
+        access_list = _normalize_linked_shop_ids(
+            linked_shop_ids if linked_shop_ids is not None else ([] if shop_id is None else [shop_id])
+        )
+        if not access_list:
+            return False
+        primary_shop = int(access_list[0])
     else:
         if shop_id is None:
             return False
-        shop_id = int(shop_id)
-        if shop_id <= 0:
+        primary_shop = int(shop_id)
+        if primary_shop <= 0:
             return False
+        access_list = []
 
     sql = "UPDATE employees SET status='active', role=%s, shop_id=%s WHERE id=%s"
     try:
         with get_cursor(commit=True) as cur:
-            cur.execute(sql, (role, shop_id, int(emp_id)))
-            return cur.rowcount > 0
+            cur.execute(sql, (role, primary_shop, eid))
+            if cur.rowcount <= 0:
+                return False
+            cur.execute("DELETE FROM employee_shop_access WHERE employee_id=%s", (eid,))
+            if multi:
+                for sid in access_list:
+                    cur.execute(
+                        """
+                        INSERT INTO employee_shop_access (employee_id, shop_id)
+                        VALUES (%s, %s)
+                        """,
+                        (eid, int(sid)),
+                    )
+        return True
     except pymysql.Error:
         return False
 
@@ -9834,6 +10111,7 @@ def update_employee_by_it_hr(
     role: str,
     shop_id: Optional[int],
     employee_code: str,
+    linked_shop_ids: Optional[list] = None,
     password_hash: Optional[str] = None,
     preferred_payment_method: Optional[str] = None,
     payment_account_holder: Optional[str] = None,
@@ -9853,14 +10131,28 @@ def update_employee_by_it_hr(
     allowed = {"super_admin", "it_support", "admin", "manager", "sales", "finance", "employee", "rider"}
     if role not in allowed:
         return False
+
+    multi = get_hr_employee_shop_link_mode() == "multi"
+    eid_int = int(emp_id)
+    prev_access_sorted = tuple(sorted(get_employee_accessible_shop_ids(eid_int)))
+
+    junction_for_write: list = []
     if role in {"super_admin", "it_support"}:
         shop_id = None
+    elif multi:
+        junction_for_write = _normalize_linked_shop_ids(linked_shop_ids)
+        if not junction_for_write:
+            return False
+        shop_id = int(junction_for_write[0])
     else:
         if shop_id is None:
             return False
         shop_id = int(shop_id)
         if shop_id <= 0:
             return False
+
+    new_access_sorted = tuple(sorted(junction_for_write)) if junction_for_write else tuple()
+    junction_changed = prev_access_sorted != new_access_sorted
 
     if email_taken_by_other(email.strip(), int(emp_id)):
         return False
@@ -9907,9 +10199,20 @@ def update_employee_by_it_hr(
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql, tuple(params))
-            if cur.rowcount > 0:
-                return True
-        row_after = get_employee_by_id(int(emp_id))
+            rows_hit = cur.rowcount > 0
+            cur.execute("DELETE FROM employee_shop_access WHERE employee_id=%s", (eid_int,))
+            if junction_for_write:
+                for sid in junction_for_write:
+                    cur.execute(
+                        """
+                        INSERT INTO employee_shop_access (employee_id, shop_id)
+                        VALUES (%s, %s)
+                        """,
+                        (eid_int, int(sid)),
+                    )
+        if rows_hit or junction_changed:
+            return True
+        row_after = get_employee_by_id(eid_int)
         if not row_after or (row_after.get("status") or "") not in ("active", "suspended"):
             return False
         if (row_after.get("full_name") or "").strip() != fn:
@@ -9924,11 +10227,18 @@ def update_employee_by_it_hr(
             return False
         sid_db = row_after.get("shop_id")
         if shop_id is None:
-            return sid_db is None
-        try:
-            return int(sid_db or 0) == int(shop_id)
-        except (TypeError, ValueError):
+            if sid_db is not None:
+                return False
+        else:
+            try:
+                if int(sid_db or 0) != int(shop_id):
+                    return False
+            except (TypeError, ValueError):
+                return False
+        ja = tuple(sorted(get_employee_accessible_shop_ids(eid_int)))
+        if ja != new_access_sorted:
             return False
+        return True
     except pymysql.Error:
         return False
 

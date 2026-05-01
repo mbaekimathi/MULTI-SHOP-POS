@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Employee login — {{ pub_brand_name }}{% endblock %}
+{% block title %}Employee login page — {{ pub_brand_name }}{% endblock %}
 {% block body %}
   {% set purpose_visual_src = "marketing/svg/illu-head-office-hub.svg" %}
   {% set purpose_visual_alt = "Illustration of head office connected to branch locations" %}
@@ -25,9 +25,9 @@
             Company <span class="text-gradient">management</span> access
           </h2>
           <p class="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
-            Sign in to run reporting, IT tools, and multi‑shop settings — separate from the till login used in stores.
+            Sign in to run reporting, IT tools, and multi‑shop settings — separate from the shop login used in stores.
           </p>
-          <ul class="mt-8 space-y-3 text-sm text-slate-300">
+          <ul class="mt-8 hidden space-y-3 text-sm text-slate-300 md:block">
             <li class="flex items-start gap-3">
               <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/25 text-violet-100 ring-1 ring-violet-400/35">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
@@ -56,9 +56,9 @@
         </p>
       </aside>
 
-      <div class="auth-main w-full lg:w-auto">
-        <div class="mb-4 w-full max-w-md lg:hidden">
-          <a href="{{ url_for('index') }}" class="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-violet-500">
+      <div class="auth-main auth-main--employee-login-simple w-full min-w-0 lg:w-auto">
+        <div class="mb-3 w-full max-w-md px-3 sm:px-0 lg:hidden">
+          <a href="{{ url_for('index') }}" class="inline-flex min-h-[44px] items-center gap-2 text-sm text-slate-400 hover:text-violet-500">
             <span aria-hidden="true">←</span> Home
           </a>
           {% with purpose_visual_compact=true %}
@@ -66,43 +66,42 @@
           {% endwith %}
         </div>
 
-        <div class="form-card-modern form-card-modern--employee-login w-full">
+        <div class="form-card-modern form-card-modern--employee-login w-full max-w-md">
           <div class="form-card-inner">
             <div class="mb-3 hidden text-center lg:block">
               <a href="{{ url_for('index') }}" class="text-sm text-slate-500 transition hover:text-violet-600 dark:hover:text-violet-400">← Home</a>
             </div>
 
-            <div class="employee-login-intro" role="region" aria-labelledby="employee-login-form-heading">
-              <div class="employee-login-intro__kicker">Form · Employee access</div>
-              <div class="employee-login-intro__body">
-                <span class="employee-login-intro__icon" aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-7 w-7">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                  </svg>
-                </span>
-                <div class="employee-login-intro__copy">
-                  <p class="employee-login-intro__brand">{{ pub_brand_name }}</p>
-                  <h2 id="employee-login-form-heading" class="employee-login-intro__title">Employee login</h2>
-                  <p class="employee-login-intro__lead">
-                    Sign in for reporting, IT tools, and multi‑branch settings — matched to <strong class="font-semibold text-slate-800 dark:text-slate-100">your</strong> role.
-                  </p>
-                  <p class="employee-login-intro__note">
-                    <strong>Not</strong> for branch tills — use <strong>branch login</strong> on checkout devices.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <header class="login-employee-simple-header">
+              <p class="login-employee-simple-header__brand">{{ pub_brand_name }}</p>
+              <h1 id="employee-login-form-heading" class="login-employee-simple-header__title">Employee login page</h1>
+              <p class="login-employee-simple-header__sub">Portal access — reporting &amp; company tools</p>
+            </header>
+
+            <section class="employee-login-branch-banner" aria-label="Switch to branch login">
+              <a
+                href="{{ url_for('public_shop_login') }}"
+                class="employee-login-branch-banner__solo js-auth-switch-link"
+                data-auth-switch="to-shop"
+              >
+                Switch to branch login
+              </a>
+            </section>
 
             {% include "partials/flashes.html" %}
 
-            <form method="post" action="{{ url_for('employee_login') }}" class="employee-login-form mt-8 space-y-6" aria-labelledby="employee-login-form-heading">
+            <form
+              method="post"
+              action="{{ url_for('employee_login') }}"
+              class="employee-login-form-simple mt-5 space-y-4 sm:mt-6 sm:space-y-5"
+              aria-labelledby="employee-login-form-heading"
+            >
               {% if request.args.get('next') %}
                 <input type="hidden" name="next" value="{{ request.args.get('next') }}" />
               {% endif %}
               <div>
-                <label for="employee_code" class="form-label">Employee code</label>
-                <p id="employee_code_hint" class="mb-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">Exactly 6 digits (numbers only).</p>
-                <div class="form-input-wrap form-input-wrap--code">
+                <label for="employee_code" class="form-label">6-digit code</label>
+                <div class="form-input-wrap form-input-wrap--code mt-2">
                   <input
                     id="employee_code"
                     name="employee_code"
@@ -113,15 +112,16 @@
                     maxlength="6"
                     autocomplete="one-time-code"
                     required
-                    class="form-input-rich form-input-code text-center font-mono tracking-[0.2em]"
+                    class="form-input-rich form-input-code login-employee-input min-h-[48px] text-center font-mono text-base tracking-[0.2em] sm:min-h-0 sm:text-[0.9375rem]"
                     placeholder="000000"
                     aria-describedby="employee_code_hint"
                   />
                 </div>
+                <p id="employee_code_hint" class="mt-2 text-xs text-slate-500 dark:text-slate-400">Numbers only, exactly six digits.</p>
               </div>
               <div>
                 <label for="password" class="form-label">Password</label>
-                <div class="form-input-wrap form-input-wrap--password">
+                <div class="form-input-wrap form-input-wrap--password mt-2">
                   <svg class="form-input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 00-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                   </svg>
@@ -134,13 +134,12 @@
                     autocapitalize="off"
                     spellcheck="false"
                     inputmode="text"
-                    class="form-input-rich"
-                    placeholder="Enter your password"
-                    title="Min. 6 characters on signup; numbers-only allowed"
+                    class="form-input-rich login-employee-input min-h-[48px] text-base sm:min-h-0 sm:text-[0.875rem]"
+                    placeholder="Your password"
                   />
                   <button
                     type="button"
-                    class="toggle-password js-toggle-password"
+                    class="toggle-password js-toggle-password min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
                     aria-controls="password"
                     aria-label="Show password"
                     aria-pressed="false"
@@ -156,42 +155,34 @@
                   </button>
                 </div>
               </div>
-              <button type="submit" class="btn-modern btn-modern--employee-signin w-full">Sign in</button>
-              <p class="text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                Forgot your password?
-                {% if site_settings and site_settings.company_email %}
-                <a
-                  href="mailto:{{ site_settings.company_email }}"
-                  class="font-semibold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
-                  >Email your support team</a
-                >
-                {% else %}
-                <span class="text-slate-700 dark:text-slate-300">Ask your manager, or call <a href="tel:{{ pub_phone_tel }}" class="font-semibold text-violet-700 hover:underline dark:text-violet-300">{{ pub_phone_display }}</a> ({{ pub_builder_name }}).</span>
-                {% endif %}
-              </p>
-
-              <div class="auth-switch-card auth-switch-card--employee-portal auth-switch-card--after-forgot">
-                <p class="auth-switch-card__label">Need to sign in at a branch till?</p>
-                <p class="auth-switch-card__hint">Use branch login — not this screen.</p>
-                <a
-                  href="{{ url_for('public_shop_login') }}"
-                  class="auth-switch-card__link js-auth-switch-link"
-                  data-auth-switch="to-shop"
-                >
-                  Open branch login
-                  <span aria-hidden="true">→</span>
-                </a>
-              </div>
+              <button type="submit" class="btn-modern btn-modern--employee-signin mt-2 min-h-[48px] w-full text-base sm:text-sm">Sign in to portal</button>
             </form>
 
-            <p class="mt-10 border-t border-slate-200/90 pt-8 text-center text-sm text-slate-600 dark:text-slate-300">
-              No account yet?
-              <a
-                href="{{ url_for('employee_signup') }}"
-                class="font-bold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
-                >Create an employee account</a
-              >
-            </p>
+            <div class="login-employee-simple-footer mt-8 border-t border-slate-200/90 pt-6 dark:border-slate-700/60">
+              <div class="flex flex-col gap-4 text-center text-sm leading-relaxed text-slate-600 dark:text-slate-400 sm:flex-row sm:flex-wrap sm:justify-between sm:gap-x-6 sm:text-left">
+                <p class="min-w-0 sm:flex-1">
+                  Forgot password?
+                  {% if site_settings and site_settings.company_email %}
+                  <a
+                    href="mailto:{{ site_settings.company_email }}"
+                    class="font-semibold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
+                    >Contact support</a
+                  >
+                  {% else %}
+                  <a href="tel:{{ pub_phone_tel }}" class="font-semibold text-violet-700 hover:underline dark:text-violet-300">{{ pub_phone_display }}</a>
+                  <span class="text-slate-500 dark:text-slate-500"> · {{ pub_builder_name }}</span>
+                  {% endif %}
+                </p>
+                <p class="sm:flex-shrink-0">
+                  No account?
+                  <a
+                    href="{{ url_for('employee_signup') }}"
+                    class="font-semibold text-violet-700 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
+                    >Register</a
+                  >
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

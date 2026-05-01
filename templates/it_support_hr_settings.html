@@ -1,0 +1,67 @@
+{% extends "employee_layout.html" %}
+{% block title %}HR settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}HR settings{% endblock %}
+{% block sidebar_links %}
+  {% set hr_nav_active = 'settings' %}
+  {% include "partials/it_support_hr_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-xl space-y-6">
+    <div>
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Branch access for employees</h2>
+      <p class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Controls how HR links staff who work at branches (ADMIN, MANAGER, SALES, FINANCE, EMPLOYEE, RIDER).
+        SUPER ADMIN / IT SUPPORT are never limited to one branch here.
+      </p>
+    </div>
+
+    <form
+      method="post"
+      action="{{ url_for('it_support_hr_settings') }}"
+      class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm"
+    >
+      <fieldset class="space-y-4">
+        <legend class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee ↔ shop linking</legend>
+
+        <label class="flex cursor-pointer gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4 transition hover:border-emerald-500/30 has-[:checked]:border-emerald-400/35 has-[:checked]:bg-emerald-500/10">
+          <input
+            type="radio"
+            name="employee_shop_link_mode"
+            value="single"
+            class="mt-0.5 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-emerald-500 focus:ring-emerald-500/40"
+            {% if (hr_employee_shop_link_mode or 'single') != 'multi' %}checked{% endif %}
+          />
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">One branch per employee</span>
+            <span class="mt-1 block text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+              Legacy behaviour: assign a single branch. POS only accepts codes for that branch unless the employee is SUPER ADMIN / IT SUPPORT.
+            </span>
+          </span>
+        </label>
+
+        <label class="flex cursor-pointer gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4 transition hover:border-sky-500/30 has-[:checked]:border-sky-400/40 has-[:checked]:bg-sky-500/10">
+          <input
+            type="radio"
+            name="employee_shop_link_mode"
+            value="multi"
+            class="mt-0.5 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-sky-500 focus:ring-sky-500/40"
+            {% if (hr_employee_shop_link_mode or '') == 'multi' %}checked{% endif %}
+          />
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Multiple branches per employee</span>
+            <span class="mt-1 block text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+              HR approves and edits by selecting multiple branches an employee may use POS at (branch password flow unchanged). Existing single-branch assignments stay listed under the branches you select.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
+      <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <a href="{{ url_for('it_support_hr_management') }}" class="btn-rc btn-rc-ghost px-4 py-2.5 text-sm font-semibold sm:w-auto">
+          Back to HR management
+        </a>
+        <button type="submit" class="btn-rc btn-rc-primary px-4 py-2.5 text-sm font-semibold sm:w-auto">Save setting</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

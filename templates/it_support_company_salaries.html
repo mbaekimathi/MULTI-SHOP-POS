@@ -4,6 +4,9 @@
 {% block sidebar_links %}
   {% set salaries_nav = 'overview' %}
   {% include "partials/it_support_salaries_sidebar_nav.html" %}
+  {% set show_payroll_hub_link = false %}
+  {% set hr_nav_active = '' %}
+  {% include "partials/it_support_hr_sidebar_nav.html" %}
 {% endblock %}
 {% block head %}
   {{ super() }}

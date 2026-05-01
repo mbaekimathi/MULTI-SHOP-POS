@@ -15,7 +15,7 @@
     {% set _icon = site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg' %}
     <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
     <title>{% block title %}{{ pub_brand_name }}{% endblock %} — {{ pub_title_suffix }}</title>
-    <meta name="description" content="{% block meta_description %}Run every store with clear sales, stock, and reporting — one view of your retail business, from the till to head office.{% endblock %}" />
+    <meta name="description" content="{% block meta_description %}Run every store with clear sales, stock, and reporting — one view of your retail business, from the shop to head office.{% endblock %}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />

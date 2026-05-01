@@ -41,6 +41,11 @@
 {% endblock %}
 
 {% block employee_content %}
+  {% set pos_inv = pos_inventory_mode|default('shop') %}
+  {% set pos_is_kitchen = (pos_inv == 'kitchen') %}
+  {% set pos_is_shop = (pos_inv == 'shop') %}
+  {% set inv_col_short = 'Kitchen upd.' if pos_is_kitchen else ('Stock upd.' if pos_is_shop else 'POS inv.') %}
+  {% set inv_mobile_heading = 'Kitchen portion updates' if pos_is_kitchen else ('Stock updates' if pos_is_shop else 'POS inventory') %}
   {% set item_count = items|length %}
   {% set active_count = items|selectattr('status', 'equalto', 'active')|list|length %}
   {% set cat_groups = (items|sort(attribute='category')|groupby('category')|list) if items else [] %}
@@ -61,7 +66,18 @@
           <div class="min-w-0">
             <h2 class="text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Item catalog</h2>
             <p class="mt-1.5 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-              Manage product records, pricing, and availability. Changes sync across company stock and shop operations.
+              Manage product records, pricing, and availability.
+              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Listing status</strong>
+              {% if pos_is_kitchen %}
+                and <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">kitchen portion updates</strong>
+                are master switches for POS: when IT turns this toggle off here, every shop is forced off and cannot deduct portions until IT enables it; when on, branches can toggle kitchen portion deductions per item.
+              {% elif pos_is_shop %}
+                and <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">stock updates</strong>
+                are the company master switches: when either is off at this item, every shop is forced off and cannot turn it on; when both are on, all shops are set on and can enable or disable display and shop stock updates per branch.
+              {% else %}
+                and <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">POS inventory</strong>
+                is the catalog master: shops follow this until POS inventory is switched to stock or kitchen mode in settings.
+              {% endif %}
             </p>
           </div>
         </div>
@@ -154,7 +170,7 @@
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Selling</th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Stock</th>
                 <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Status</th>
-                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Stock upd.</th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">{{ inv_col_short }}</th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -247,9 +263,9 @@
                             {% endif %}"
                             role="switch"
                             aria-checked="{% if item.stock_update_enabled %}true{% else %}false{% endif %}"
-                            title="{% if item.stock_update_enabled %}Disable stock update{% else %}Enable stock update{% endif %}"
+                            title="{% if pos_is_kitchen %}{% if item.stock_update_enabled %}Disable kitchen portion updates at POS{% else %}Enable kitchen portion updates at POS{% endif %}{% elif pos_is_shop %}{% if item.stock_update_enabled %}Disable shop stock updates{% else %}Enable shop stock updates{% endif %}{% else %}{% if item.stock_update_enabled %}Disable POS inventory master{% else %}Enable POS inventory master{% endif %}{% endif %}"
                           >
-                            <span class="sr-only">{% if item.stock_update_enabled %}Stock update enabled (toggle to disable){% else %}Stock update disabled (toggle to enable){% endif %}</span>
+                            <span class="sr-only">{% if pos_is_kitchen %}{% if item.stock_update_enabled %}Kitchen POS tracking on (toggle to disable){% else %}Kitchen POS tracking off (toggle to enable){% endif %}{% elif pos_is_shop %}{% if item.stock_update_enabled %}Stock update enabled (toggle to disable){% else %}Stock update disabled (toggle to enable){% endif %}{% else %}{% if item.stock_update_enabled %}POS inventory master on (toggle to disable){% else %}POS inventory master off (toggle to enable){% endif %}{% endif %}</span>
                             <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
                               <span class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform duration-200 ease-out {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
                             </span>
@@ -351,11 +367,11 @@
                     </div>
                   </div>
                   <div class="flex flex-wrap items-center justify-between gap-3">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Stock updates</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ inv_mobile_heading }}</span>
                     <div class="flex items-center gap-2">
                       <form method="post" action="{{ url_for('it_support_item_toggle_stock_update', item_id=item.id) }}">
                         <button type="submit" class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition {% if item.stock_update_enabled %}bg-emerald-600 ring-emerald-700{% else %}bg-rose-600 ring-rose-700{% endif %}" role="switch" aria-checked="{% if item.stock_update_enabled %}true{% else %}false{% endif %}">
-                          <span class="sr-only">Toggle stock update</span>
+                          <span class="sr-only">{% if pos_is_kitchen %}Toggle kitchen portion updates{% elif pos_is_shop %}Toggle stock update{% else %}Toggle POS inventory master{% endif %}</span>
                           <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 shadow-sm" aria-hidden="true">
                             <span class="h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 {% if item.stock_update_enabled %}translate-x-5{% else %}translate-x-0{% endif %}"></span>
                           </span>

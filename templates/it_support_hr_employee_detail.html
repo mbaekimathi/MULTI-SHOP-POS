@@ -1,0 +1,73 @@
+{% extends "employee_layout.html" %}
+{% block title %}Module authorization — {{ employee.full_name }} — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Module authorization{% endblock %}
+{% block sidebar_links %}
+  {% set hr_nav_active = 'authorization' %}
+  {% include "partials/it_support_hr_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  {% from "partials/hr_employee_module_authorization_card.html" import hr_employee_module_auth_row %}
+  {% set emp = employee %}
+  <div class="mx-auto max-w-5xl space-y-6">
+    <nav class="text-sm text-[rgb(var(--rc-muted))]">
+      <a href="{{ url_for('it_support_hr_authorization') }}" class="font-medium text-emerald-600 underline-offset-2 hover:text-emerald-500 hover:underline dark:text-emerald-400">← HR authorization</a>
+      <span class="mx-1.5 text-[rgb(var(--rc-border))]">/</span>
+      <span class="text-[rgb(var(--rc-page-fg))]">{{ emp.full_name }}</span>
+    </nav>
+
+    <p id="hr-module-auth-preview-banner" class="max-w-prose text-xs leading-relaxed text-[rgb(var(--rc-muted))]" role="status">
+      Preview toggles — not saved and not enforced.
+      <span class="mt-1 block">
+        Shop module options apply while the user is in a branch session; credit sale, discounts, and buying stock only surface when that shop has them enabled.
+      </span>
+    </p>
+
+    <header class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 sm:p-5">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0 space-y-1">
+          <h1 class="text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ emp.full_name }}</h1>
+          <p class="font-mono text-[11px] uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ emp.employee_code }}</p>
+          <div class="flex flex-wrap gap-2 pt-2">
+            <span class="rounded-full bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ring-1 ring-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))]"
+              >{{ role_label }}</span
+            >
+            <span
+              class="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ring-1 {% if emp.status == 'active' %}bg-emerald-500/12 text-emerald-300{% elif emp.status == 'suspended' %}bg-rose-500/10 text-rose-300{% else %}bg-amber-500/10 text-amber-300{% endif %}"
+              >{{ (emp.status or '')|replace('_',' ') }}</span
+            >
+          </div>
+        </div>
+        <div class="max-w-md shrink-0 text-sm">
+          <span class="text-[10px] uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop</span>
+          <p class="mt-1 break-words text-[rgb(var(--rc-page-fg))]">{{ allocated_display if allocated_display else '—' }}</p>
+        </div>
+      </div>
+      {% if playbook_note %}
+        <p class="mt-4 border-t border-[rgb(var(--rc-border))] pt-4 text-xs text-[rgb(var(--rc-muted))]">{{ playbook_note }}</p>
+      {% endif %}
+      <div class="mt-4 flex flex-wrap gap-2 border-t border-[rgb(var(--rc-border))] pt-4">
+        {% if is_pending %}
+          <a href="{{ url_for('it_support_hr_management', open_approve=emp.id) }}" class="btn-rc btn-rc-success px-4 py-2 text-xs font-semibold">Approve in HR</a>
+        {% else %}
+          <a href="{{ url_for('it_support_hr_management', open_edit=emp.id) }}" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-semibold">Edit in HR</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <section aria-labelledby="module-auth-heading">
+      <h2 id="module-auth-heading" class="mb-1 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Modules</h2>
+      <p class="mb-4 text-sm text-[rgb(var(--rc-muted))]">Each card is one module; permissions are listed below it with a toggle.</p>
+
+      <form id="hr-module-auth-preview-form" action="#" method="get" onsubmit="return false;" aria-describedby="hr-module-auth-preview-banner">
+        <ol class="m-0 flex list-none flex-col gap-5 p-0">
+          {% for mod in module_playbook %}
+            {{ hr_employee_module_auth_row(mod, loop.index, employee, module_permission_columns) }}
+          {% endfor %}
+        </ol>
+        <div class="mt-4 flex justify-end">
+          <button type="button" disabled class="btn-rc cursor-not-allowed text-xs opacity-50" title="Not wired yet">Save</button>
+        </div>
+      </form>
+    </section>
+  </div>
+{% endblock %}

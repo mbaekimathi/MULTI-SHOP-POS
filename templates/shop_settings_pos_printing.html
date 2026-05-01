@@ -28,19 +28,44 @@
       <div class="mt-6 space-y-6">
         <div class="space-y-3">
           <p class="text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">POS cart (matches company unless customized above)</p>
-          <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit sales</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Allow credit checkout from the cart.</p>
+          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+            <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Transactional types</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">At least one must stay enabled (otherwise Sale turns back on automatically). Only one enabled → no transaction-type row in cart.</p>
+            <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
+              <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Sale</span>
+              <input type="checkbox" name="pos_allow_cash_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_cash_sale %}checked{% endif %} />
             </div>
-            <input type="checkbox" name="pos_allow_credit_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_credit_sale %}checked{% endif %} />
+            <div class="mt-3 flex items-center justify-between gap-4">
+              <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit</span>
+              <input type="checkbox" name="pos_allow_credit_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_credit_sale %}checked{% endif %} />
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-4">
+              <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Quotation</span>
+              <input type="checkbox" name="pos_allow_quotations" value="1" class="rc-receipt-switch" {% if ps.pos_allow_quotations %}checked{% endif %} />
+            </div>
+          </div>
+          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+            <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payment methods (cash sale)</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">At least one must stay on (otherwise Cash turns back on). Only one enabled → no payment row in cart.</p>
+            <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
+              <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash</span>
+              <input type="checkbox" name="pos_payment_cash" value="1" class="rc-receipt-switch" {% if ps.pos_payment_cash %}checked{% endif %} />
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-4">
+              <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">M-Pesa</span>
+              <input type="checkbox" name="pos_payment_mpesa" value="1" class="rc-receipt-switch" {% if ps.pos_payment_mpesa %}checked{% endif %} />
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-4">
+              <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash + M-Pesa (split)</span>
+              <input type="checkbox" name="pos_payment_both" value="1" class="rc-receipt-switch" {% if ps.pos_payment_both %}checked{% endif %} />
+            </div>
           </div>
           <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
             <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Quotations</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Allow quote-only flow from the cart.</p>
+              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Buy items (POS header)</p>
+              <p class="text-xs text-[rgb(var(--rc-muted))]">Show the stock-in shortcut on POS. Overrides company when customizing above.</p>
             </div>
-            <input type="checkbox" name="pos_allow_quotations" value="1" class="rc-receipt-switch" {% if ps.pos_allow_quotations %}checked{% endif %} />
+            <input type="checkbox" name="pos_show_buy_items_link" value="1" class="rc-receipt-switch" {% if ps.pos_show_buy_items_link %}checked{% endif %} />
           </div>
           <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
             <div>
@@ -86,7 +111,7 @@
           <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
             <div>
               <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Reserved for future enforcement.</p>
+              <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers must save a POS receipt printer before the 6-digit authorization works for a standard sale. Credit and quotations are not blocked.</p>
             </div>
             <input type="checkbox" name="printing_compulsory_sale" value="1" class="rc-receipt-switch" {% if ps.print_compulsory_sale %}checked{% endif %} />
           </div>
@@ -106,6 +131,7 @@
 
         <div>
           <p class="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Allowed printer types (POS setup)</p>
+          <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">If all three types are off, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</strong> is turned off automatically; enabling any type turns it back on.</p>
           <div class="grid gap-3 sm:grid-cols-3">
             <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
               <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</span>
@@ -142,6 +168,20 @@
       s.addEventListener("change", function () {
         if (s.checked) k.checked = false;
       });
+    })();
+    (function () {
+      var bt = document.querySelector('input[name="printing_allow_bluetooth"]');
+      var net = document.querySelector('input[name="printing_allow_network"]');
+      var usb = document.querySelector('input[name="printing_allow_usb"]');
+      var comp = document.querySelector('input[name="printing_compulsory_sale"]');
+      if (!bt || !net || !usb || !comp) return;
+      function sync() {
+        comp.checked = !!(bt.checked || net.checked || usb.checked);
+      }
+      [bt, net, usb].forEach(function (el) {
+        el.addEventListener("change", sync);
+      });
+      sync();
     })();
   </script>
 {% endblock %}

@@ -1,0 +1,107 @@
+{% extends "employee_layout.html" %}
+{% block title %}HR authorization — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}HR authorization{% endblock %}
+{% block sidebar_links %}
+  {% set hr_nav_active = 'authorization' %}
+  {% include "partials/it_support_hr_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-6xl space-y-10 px-0">
+    <div class="space-y-2">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Roles &amp; access overview</h2>
+      <p class="max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Tap a row to open that employee&apos;s summary. Approvals and edits live under
+        <a href="{{ url_for('it_support_hr_management') }}" class="font-semibold text-emerald-500 underline decoration-emerald-500/40 underline-offset-2 hover:text-emerald-400">HR management</a>.
+        Branch coverage follows your
+        {% if hr_employee_shop_link_mode == 'multi' %}multi-branch{% else %}single-branch{% endif %} HR setting.
+      </p>
+    </div>
+
+    {% if not role_sections %}
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+        <p class="text-sm text-[rgb(var(--rc-muted))]">No employees found.</p>
+      </div>
+    {% endif %}
+
+    {% for sec in role_sections %}
+      <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]" aria-labelledby="role-heading-{{ loop.index }}">
+        <header
+          id="role-heading-{{ loop.index }}"
+          class="flex flex-col gap-2 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+        >
+          <h3 class="text-base font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">{{ sec.title }}</h3>
+          <span
+            class="inline-flex w-fit shrink-0 rounded-full bg-[rgb(var(--rc-surface-2))] px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]"
+          >
+            {{ (sec.employees or [])|length }} staff
+          </span>
+        </header>
+
+        {# Desktop / tablet header row #}
+        <div class="hidden md:grid md:grid-cols-12 md:gap-4 md:border-b md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))]/40 md:px-5 md:py-3">
+          <div class="md:col-span-5 text-left text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee name</div>
+          <div class="md:col-span-3 text-left text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Status</div>
+          <div class="md:col-span-4 text-left text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop allocated</div>
+        </div>
+
+        <ul class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for e in sec.employees %}
+            {% set allocated = e.shops_access_concat if hr_employee_shop_link_mode == 'multi' and e.shops_access_concat else e.shop_name %}
+            <li class="transition-colors hover:bg-[rgb(var(--rc-surface-2))]/35">
+              <a
+                href="{{ url_for('it_support_hr_employee_detail', emp_id=e.id) }}"
+                class="group grid grid-cols-1 gap-4 px-4 py-4 no-underline text-inherit md:grid-cols-12 md:items-start md:gap-4 md:px-5 md:py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))]"
+              >
+                <div class="min-w-0 md:col-span-5 md:py-0.5">
+                  <p class="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))] md:hidden">
+                    Employee name
+                  </p>
+                  <div class="flex items-start gap-3 md:gap-4">
+                    <p class="min-w-0 flex-1 break-words text-base font-semibold leading-snug text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 group-hover:underline dark:group-hover:text-brand-300 md:text-sm">
+                      {{ e.full_name }}
+                    </p>
+                    <svg
+                      class="mt-0.5 hidden h-5 w-5 shrink-0 opacity-45 transition group-hover:translate-x-0.5 group-hover:opacity-100 md:inline"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))] md:hidden">
+                    Tap to open profile · {{ (e.status or '')|replace('_',' ') }}
+                  </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 md:col-span-3 md:flex-nowrap md:py-1">
+                  <span class="text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))] md:hidden shrink-0">Status</span>
+                  <span
+                    class="relative z-10 inline-flex max-w-full shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if e.status == 'active' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/25{% elif e.status == 'suspended' %}bg-rose-500/10 text-rose-300 ring-rose-400/25{% else %}bg-amber-500/10 text-amber-300 ring-amber-400/25{% endif %}"
+                  >
+                    {{ (e.status or '')|replace('_',' ') }}
+                  </span>
+                </div>
+                <div class="flex min-w-0 items-start justify-between gap-3 md:col-span-4 md:py-0.5">
+                  <div class="min-w-0 flex-1">
+                    <p class="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))] md:hidden">Shop allocated</p>
+                    <p class="break-words text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ allocated if allocated else '—' }}</p>
+                  </div>
+                  <svg
+                    class="h-5 w-5 shrink-0 opacity-40 transition group-hover:translate-x-0.5 group-hover:opacity-100 md:hidden"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+  </div>
+{% endblock %}

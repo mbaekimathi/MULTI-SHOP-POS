@@ -7,7 +7,7 @@
   <rect x="206" y="76" width="72" height="6" rx="1" fill="#cbd5e1"/>
   <rect x="206" y="92" width="88" height="32" rx="4" fill="#f5f3ff" stroke="#c4b5fd"/>
   <text x="250" y="112" text-anchor="middle" fill="#581c87" font-family="system-ui,sans-serif" font-size="10" font-weight="700">Head office</text>
-  <text x="250" y="126" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="8">Policies · Prices · Reports</text>
+  <text x="250" y="126" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="8">Policies ï¿½ Prices ï¿½ Reports</text>
   <!-- connectors -->
   <path d="M250 136 L250 158 M210 158 L290 158" stroke="#94a3b8" stroke-width="1.5"/>
   <path d="M210 158 L210 178 M250 158 L250 178 M290 158 L290 178" stroke="#94a3b8" stroke-width="1.5"/>
@@ -16,18 +16,18 @@
     <rect x="130" y="182" width="88" height="72" rx="8" fill="#fff" stroke="#9333ea" stroke-width="1.5"/>
     <path d="M130 198 L174 168 L218 198" fill="#ede9fe" stroke="#9333ea"/>
     <text x="174" y="232" text-anchor="middle" fill="#334155" font-family="system-ui,sans-serif" font-size="9" font-weight="600">Shop A</text>
-    <text x="174" y="246" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="7">POS · Stock</text>
+    <text x="174" y="246" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="7">POS ï¿½ Stock</text>
   </g>
   <g>
     <rect x="216" y="182" width="88" height="72" rx="8" fill="#fff" stroke="#9333ea" stroke-width="1.5"/>
     <path d="M216 198 L260 168 L304 198" fill="#ede9fe" stroke="#9333ea"/>
     <text x="260" y="232" text-anchor="middle" fill="#334155" font-family="system-ui,sans-serif" font-size="9" font-weight="600">Shop B</text>
-    <text x="260" y="246" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="7">POS · Stock</text>
+    <text x="260" y="246" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="7">POS ï¿½ Stock</text>
   </g>
   <g>
     <rect x="302" y="182" width="88" height="72" rx="8" fill="#fff" stroke="#9333ea" stroke-width="1.5"/>
     <path d="M302 198 L346 168 L390 198" fill="#ede9fe" stroke="#9333ea"/>
     <text x="346" y="232" text-anchor="middle" fill="#334155" font-family="system-ui,sans-serif" font-size="9" font-weight="600">Shop C</text>
-    <text x="346" y="246" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="7">POS · Stock</text>
+    <text x="346" y="246" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="7">POS ï¿½ Stock</text>
   </g>
 </svg>
