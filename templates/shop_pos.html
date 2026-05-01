@@ -8429,28 +8429,8 @@
 
       /** Same as the blue Bluetooth button: silent resume if paused, otherwise browser pairing dialog. */
       function runBluetoothPairOrResumeFromUi() {
-        var muted = !!(window.__POS_BT && window.__POS_BT.userMuted);
-        if (muted) {
-          if (!window.isSecureContext) {
-            msg("Use HTTPS or localhost first.");
-            return;
-          }
-          if (!navigator.bluetooth) {
-            msg("Use the latest Chrome or Edge on this PC.");
-            return;
-          }
-          if (!navigator.bluetooth.getDevices) {
-            // App-webview builds may support requestDevice but not getDevices. Re-pair directly.
-            pickBluetoothAndSave();
-            return;
-          }
-          msg("Connecting…");
-          if (typeof window.posBtResumeThermalAutoReconnect === "function") {
-            window.posBtResumeThermalAutoReconnect();
-          }
-          setTimeout(reflectBluetoothPrinterModal, 40);
-          return;
-        }
+        // Always open the native browser Bluetooth picker when cashier explicitly taps Pair.
+        // Silent reconnect paths can make it seem like nothing happened on some browser builds.
         pickBluetoothAndSave();
       }
 
