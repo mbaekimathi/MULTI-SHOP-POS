@@ -2869,15 +2869,6 @@
             >
               Choose printer…
             </button>
-            <div id="pos-printer-bt-actions" class="flex flex-col gap-2" style="display: none">
-              <button
-                type="button"
-                id="pos-printer-bt-disconnect"
-                class="btn-rc btn-rc-ghost w-full rounded-xl px-3 py-2.5 text-xs font-semibold uppercase tracking-wider ring-1 ring-amber-400/35"
-              >
-                Stop auto-connect
-              </button>
-            </div>
             <details class="group rounded-xl border border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/50 px-3 py-2 text-[11px] text-[rgb(var(--rc-muted))]">
               <summary class="cursor-pointer list-none py-1 font-semibold text-[rgb(var(--rc-page-fg))] [&::-webkit-details-marker]:hidden">
                 <span class="underline-offset-2 group-open:underline">Printer not showing in the list?</span>
@@ -5037,7 +5028,7 @@
       }
 
       function posPrinterCompulsoryBlockMessage() {
-        return "Printing is compulsory on sale: save a receipt printer under Printer in the header — for Bluetooth wait until the printer shows connected, then enter your 6-digit code.";
+        return "Printing is compulsory on sale: save a receipt printer under Printer in the header, then enter your 6-digit code.";
       }
 
       function posCartFeatureFlags() {
@@ -6907,31 +6898,17 @@
           });
       }
 
-      /**
-       * Web Bluetooth receipt peripheral: keep UI in sync with real GATT connection,
-       * auto-reconnect when the radio drops unless the cashier explicitly disconnects.
-       */
+      /** Simple Bluetooth session model for web apps. */
       var posBtPinnedDevice = null;
+      var posBtDevicesById = Object.create(null);
       var posBtGattDisconnectHandler = null;
-      /** When true we do not reopen GATT until Reconnect / new pair. */
-      var posBtUserChosenDisconnect = false;
-      var posBtReconnectTimer = null;
-      /** Prevents overlapping silent connect attempts */
-      var posBtSilentConnectBusy = false;
-      var posBtHealthTimer = null;
-
-      function posBtClearReconnectTimer() {
-        if (posBtReconnectTimer) {
-          clearTimeout(posBtReconnectTimer);
-          posBtReconnectTimer = null;
-        }
-      }
+      var posBtBusy = false;
 
       function posBtPublishUiFlags() {
         window.__POS_BT = window.__POS_BT || {};
         window.__POS_BT.gattConnected = !!(posBtPinnedDevice && posBtPinnedDevice.gatt && posBtPinnedDevice.gatt.connected);
-        window.__POS_BT.busyConnecting = !!posBtSilentConnectBusy;
-        window.__POS_BT.userMuted = !!posBtUserChosenDisconnect;
+        window.__POS_BT.busyConnecting = !!posBtBusy;
+        window.__POS_BT.userMuted = false;
         try {
           document.dispatchEvent(new CustomEvent("richcom-pos-bluetooth-changed"));
         } catch (eB0) {}
@@ -6946,47 +6923,25 @@
         posBtGattDisconnectHandler = null;
       }
 
-      /**
-       * @param {BluetoothDevice|null} device
-       */
-      function posBtWireDevice(device) {
-        if (!device) return;
-        if (posBtPinnedDevice === device && posBtGattDisconnectHandler) return;
-        posBtDetachGattHandler();
-        posBtPinnedDevice = device;
-        posBtGattDisconnectHandler = function () {
-          posBtSilentConnectBusy = false;
-          posBtPublishUiFlags();
-          if (!posBtUserChosenDisconnect) posBtScheduleSilentReconnect(650);
-        };
-        device.addEventListener("gattserverdisconnected", posBtGattDisconnectHandler);
-        posBtPublishUiFlags();
+      function posBtRememberDevice(device) {
+        if (!device || !device.id) return;
+        posBtDevicesById[String(device.id)] = device;
       }
 
-      function posBtScheduleSilentReconnect(delayMs) {
-        posBtClearReconnectTimer();
-        if (posBtUserChosenDisconnect) return;
-        var pp = window.POS_PRINTING || {};
-        if (pp.printer_allow_bluetooth === false) return;
-        if (!window.isSecureContext || !navigator.bluetooth || typeof navigator.bluetooth.getDevices !== "function") return;
-        posBtReconnectTimer = setTimeout(function () {
-          posBtReconnectTimer = null;
-          posBtSilentReconnectToSavedBluetooth();
-        }, delayMs || 800);
-      }
-
-      /** Cap hanging gatt.connect() so busy flag cannot block auto-reconnect forever */
-      function posBtConnectBareWithTimeout(cfg, ms) {
-        ms = ms || 24000;
+      function posBtConnectDevice(device, timeoutMs) {
+        timeoutMs = timeoutMs || 12000;
+        if (!device) return Promise.reject(new Error("Bluetooth device missing."));
+        if (!device.gatt) return Promise.reject(new Error("Bluetooth GATT unavailable."));
+        if (device.gatt.connected) return Promise.resolve(device);
         return new Promise(function (resolve, reject) {
           var done = false;
           var tid = setTimeout(function () {
             if (done) return;
             done = true;
-            reject(new Error("bt_connect_timeout"));
-          }, ms);
-          getBluetoothDeviceForEscPosBare(cfg).then(
-            function (device) {
+            reject(new Error("Bluetooth connection timed out."));
+          }, timeoutMs);
+          Promise.resolve(device.gatt.connect()).then(
+            function () {
               if (done) return;
               done = true;
               clearTimeout(tid);
@@ -6996,192 +6951,111 @@
               if (done) return;
               done = true;
               clearTimeout(tid);
-              reject(err);
+              reject(err || new Error("Bluetooth connection failed."));
             }
           );
         });
       }
 
-      function posBtHeartbeat() {
-        if (posBtUserChosenDisconnect) return;
-        if (posBtSilentConnectBusy) {
-          posBtScheduleSilentReconnect(1600);
-          return;
-        }
-        var pp = window.POS_PRINTING || {};
-        if (pp.printer_allow_bluetooth === false) return;
-        if (!window.isSecureContext || !navigator.bluetooth || typeof navigator.bluetooth.getDevices !== "function") return;
-        loadSavedPrinterProfile()
-          .then(function (saved) {
-            var cands = getBluetoothConfigCandidates(saved);
-            if (!cands.length) return;
-            var live =
-              !!(posBtPinnedDevice && posBtPinnedDevice.gatt && posBtPinnedDevice.gatt.connected);
-            if (live) return;
-            posBtSilentReconnectToSavedBluetooth();
-          })
-          .catch(function () {});
-      }
-
-      function posBtStartHealthPolling() {
-        if (posBtHealthTimer) return;
-        posBtHealthTimer = setInterval(posBtHeartbeat, 18000);
-      }
-
-      function posBtStopHealthPolling() {
-        if (!posBtHealthTimer) return;
-        clearInterval(posBtHealthTimer);
-        posBtHealthTimer = null;
-      }
-
-      /** Stop tracking Bluetooth (printer cleared or switched to network/USB). */
-      function posBtResetSession(stopGatt) {
-        posBtStopHealthPolling();
-        posBtClearReconnectTimer();
+      function posBtResetSession(disconnectGatt) {
         posBtDetachGattHandler();
-        if (stopGatt && posBtPinnedDevice && posBtPinnedDevice.gatt && posBtPinnedDevice.gatt.connected) {
+        if (disconnectGatt && posBtPinnedDevice && posBtPinnedDevice.gatt && posBtPinnedDevice.gatt.connected) {
           try {
             posBtPinnedDevice.gatt.disconnect();
           } catch (eG0) {}
         }
         posBtPinnedDevice = null;
-        posBtUserChosenDisconnect = false;
-        posBtSilentConnectBusy = false;
+        posBtBusy = false;
         posBtPublishUiFlags();
       }
 
-      /** Call when server-loaded printer row is non-Bluetooth or missing. */
-      function posBtOnSavedPrinterRowChanged(printerRow) {
-        var isBt =
-          !!(printerRow && String(printerRow.printer_type || "").toLowerCase() === "bluetooth");
-        if (!isBt) {
-          posBtResetSession(true);
-          return;
-        }
-        posBtStartHealthPolling();
-        posBtPublishUiFlags();
-        posBtSilentReconnectToSavedBluetooth();
-      }
-      window.posBtOnSavedPrinterRowChanged = posBtOnSavedPrinterRowChanged;
-
-      /** Auto-open GATT to the saved Bluetooth ESC/POS device (picker-free). */
-      function posBtSilentReconnectToSavedBluetooth() {
-        if (posBtUserChosenDisconnect) return Promise.resolve(null);
-        if (posBtSilentConnectBusy) {
-          posBtScheduleSilentReconnect(1600);
-          return Promise.resolve(null);
-        }
-        if (
-          posBtPinnedDevice &&
-          posBtPinnedDevice.gatt &&
-          posBtPinnedDevice.gatt.connected
-        ) {
+      function posBtWireDevice(device) {
+        if (!device) return;
+        posBtRememberDevice(device);
+        posBtDetachGattHandler();
+        posBtPinnedDevice = device;
+        posBtGattDisconnectHandler = function () {
+          posBtBusy = false;
           posBtPublishUiFlags();
-          return Promise.resolve(posBtPinnedDevice);
-        }
-        var pp = window.POS_PRINTING || {};
-        if (pp.printer_allow_bluetooth === false) return Promise.resolve(null);
-        if (!window.isSecureContext || !navigator.bluetooth || typeof navigator.bluetooth.getDevices !== "function") {
-          return Promise.resolve(null);
-        }
-        posBtSilentConnectBusy = true;
+        };
+        device.addEventListener("gattserverdisconnected", posBtGattDisconnectHandler);
         posBtPublishUiFlags();
-        return loadSavedPrinterProfile()
-          .then(function (saved) {
-            var cands = getBluetoothConfigCandidates(saved);
-            if (!cands.length) return Promise.reject(new Error("no_candidate"));
-            return posBtConnectBareWithTimeout(cands[0], 24000);
-          })
+      }
+
+      function posBtAutoConnectFromSavedRow(printerRow) {
+        var cfg = normalizePrinterConfig(printerRow && printerRow.config);
+        if (!cfg || !cfg.bluetoothId) return Promise.resolve(null);
+        posBtBusy = true;
+        posBtPublishUiFlags();
+        return getBluetoothDeviceForEscPos(cfg)
           .then(function (device) {
-            posBtSilentConnectBusy = false;
-            if (device) posBtWireDevice(device);
+            posBtBusy = false;
             posBtPublishUiFlags();
-            return device;
+            return device || null;
           })
-          .catch(function (err) {
-            posBtSilentConnectBusy = false;
+          .catch(function () {
+            posBtBusy = false;
             posBtPublishUiFlags();
-            if (err && String(err.message || "") === "no_candidate") return null;
-            posBtScheduleSilentReconnect(err && String(err.message) === "bt_connect_timeout" ? 900 : 2200);
             return null;
           });
       }
 
-      window.posBtSilentReconnectNow = posBtSilentReconnectToSavedBluetooth;
-      window.posBtStartHealthPolling = posBtStartHealthPolling;
-      window.posBtUserDisconnectThermal = function () {
-        posBtUserChosenDisconnect = true;
-        posBtClearReconnectTimer();
-        try {
-          if (posBtPinnedDevice && posBtPinnedDevice.gatt && posBtPinnedDevice.gatt.connected) {
-            posBtPinnedDevice.gatt.disconnect();
-          }
-        } catch (eU0) {}
-        posBtPublishUiFlags();
+      window.posBtOnSavedPrinterRowChanged = function (printerRow) {
+        var isBt = !!(printerRow && String(printerRow.printer_type || "").toLowerCase() === "bluetooth");
+        if (!isBt) {
+          posBtResetSession(true);
+          return;
+        }
+        posBtAutoConnectFromSavedRow(printerRow);
       };
-      window.posBtResumeThermalAutoReconnect = function () {
-        posBtUserChosenDisconnect = false;
-        posBtPublishUiFlags();
-        posBtSilentReconnectToSavedBluetooth();
-      };
-      /** After successful Web Bluetooth picker pairing (same-origin script may call). */
       window.posBtAttachPairedThermal = function (device) {
         if (!device) return;
-        posBtUserChosenDisconnect = false;
-        posBtClearReconnectTimer();
-        posBtWireDevice(device);
+        posBtBusy = true;
+        posBtPublishUiFlags();
+        posBtRememberDevice(device);
+        posBtConnectDevice(device, 15000)
+          .catch(function () {
+            return device;
+          })
+          .then(function () {
+            posBtBusy = false;
+            posBtWireDevice(device);
+          });
       };
-      /** Clear radios when saved printer cleared (printer dialog script calls). */
       window.posBtForgetSavedThermal = function () {
         posBtResetSession(true);
       };
-
-      document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState !== "visible" || posBtUserChosenDisconnect) return;
-        posBtSilentReconnectToSavedBluetooth();
-      });
-
-      window.addEventListener("online", function () {
-        if (posBtUserChosenDisconnect) return;
-        posBtSilentReconnectToSavedBluetooth();
-      });
 
       /** Resolve previously paired Web Bluetooth device (getDevices — no picker). */
       function getBluetoothDeviceForEscPosBare(cfg) {
         if (!cfg || !cfg.bluetoothId) {
           return Promise.reject(new Error("No Bluetooth printer id"));
         }
+        var targetId = String(cfg.bluetoothId);
         if (!navigator.bluetooth) {
           return Promise.reject(new Error("Web Bluetooth unavailable"));
         }
+        if (posBtPinnedDevice && posBtPinnedDevice.id && String(posBtPinnedDevice.id) === targetId) {
+          return posBtConnectDevice(posBtPinnedDevice);
+        }
+        var cached = posBtDevicesById[targetId];
+        if (cached) {
+          return posBtConnectDevice(cached);
+        }
         if (typeof navigator.bluetooth.getDevices !== "function") {
-          if (
-            posBtPinnedDevice &&
-            posBtPinnedDevice.id &&
-            String(posBtPinnedDevice.id) === String(cfg.bluetoothId) &&
-            posBtPinnedDevice.gatt
-          ) {
-            if (posBtPinnedDevice.gatt.connected) return Promise.resolve(posBtPinnedDevice);
-            return posBtPinnedDevice.gatt.connect().then(function () {
-              return posBtPinnedDevice;
-            });
-          }
           return Promise.reject(
-            new Error("This browser cannot auto-restore Bluetooth pairing. Tap Choose printer to pair again.")
+            new Error("This browser cannot restore paired Bluetooth devices. Tap Choose printer and pair again.")
           );
         }
         return navigator.bluetooth.getDevices().then(function (devices) {
-          var d = devices.filter(function (x) {
-            return x && x.id === cfg.bluetoothId;
+          var d = (devices || []).filter(function (x) {
+            return x && x.id && String(x.id) === targetId;
           })[0];
           if (!d) {
-            throw new Error(
-              "Saved printer not in this browser. Open printer setup and pair the thermal printer again."
-            );
+            throw new Error("Saved printer is not available in this browser. Pair it again from Choose printer.");
           }
-          if (!d.gatt) throw new Error("Bluetooth GATT unavailable.");
-          if (d.gatt.connected) return d;
-          return d.gatt.connect().then(function () {
+          posBtRememberDevice(d);
+          return posBtConnectDevice(d).then(function () {
             return d;
           });
         });
@@ -7203,19 +7077,41 @@
             if (c.properties.writeWithoutResponse) wnr = wnr || c;
             else if (c.properties.write) wr = wr || c;
           });
-          return wnr || wr || null;
+          var chosen = wnr || wr || null;
+          return chosen ? { service: svc, characteristic: chosen } : null;
         });
       }
 
-      function findWritableEscPosCharacteristic(server) {
+      function findWritableEscPosCharacteristic(server, preferredCfg) {
+        var preferredService = preferredCfg && preferredCfg.serviceUuid ? String(preferredCfg.serviceUuid) : "";
+        var preferredChar = preferredCfg && preferredCfg.characteristicUuid ? String(preferredCfg.characteristicUuid) : "";
+        function tryPreferred() {
+          if (!preferredService || !preferredChar) return Promise.resolve(null);
+          return server
+            .getPrimaryService(preferredService)
+            .then(function (svc) {
+              return svc.getCharacteristic(preferredChar).then(function (ch) {
+                var writable = !!(
+                  (ch.properties && ch.properties.writeWithoutResponse && typeof ch.writeValueWithoutResponse === "function") ||
+                  (ch.properties && ch.properties.write && typeof ch.writeValue === "function") ||
+                  typeof ch.writeValueWithoutResponse === "function" ||
+                  typeof ch.writeValue === "function"
+                );
+                return writable ? { service: svc, characteristic: ch } : null;
+              });
+            })
+            .catch(function () {
+              return null;
+            });
+        }
         var idx = 0;
         function tryKnown() {
           if (idx >= KNOWN_BLE_PRINT_SERVICE_UUIDS.length) {
             return server.getPrimaryServices().then(function (services) {
               function trySvc(i) {
                 if (i >= services.length) return Promise.resolve(null);
-                return pickWritableCharacteristic(services[i]).then(function (ch) {
-                  if (ch) return ch;
+                return pickWritableCharacteristic(services[i]).then(function (endpoint) {
+                  if (endpoint) return endpoint;
                   return trySvc(i + 1);
                 });
               }
@@ -7228,15 +7124,18 @@
             .then(function (svc) {
               return pickWritableCharacteristic(svc);
             })
-            .then(function (ch) {
-              if (ch) return ch;
+            .then(function (endpoint) {
+              if (endpoint) return endpoint;
               return tryKnown();
             })
             .catch(function () {
               return tryKnown();
             });
         }
-        return tryKnown();
+        return tryPreferred().then(function (preferredEndpoint) {
+          if (preferredEndpoint) return preferredEndpoint;
+          return tryKnown();
+        });
       }
 
       function writeEscPosToCharacteristic(char, bytes) {
@@ -7293,9 +7192,11 @@
             return delayPrintMs(device.gatt.connected ? 15 : 40);
           })
           .then(function () {
-            return findWritableEscPosCharacteristic(device.gatt);
+            var btCfg = printOpts.btConfig || null;
+            return findWritableEscPosCharacteristic(device.gatt, btCfg);
           })
-          .then(function (ch) {
+          .then(function (endpoint) {
+            var ch = endpoint && endpoint.characteristic ? endpoint.characteristic : null;
             if (!ch) {
               setAuthStatus(
                 "No writable print channel on this printer. Open printer setup, forget, and pair again (BLE services must be allowed).",
@@ -8018,56 +7919,21 @@
         return typeof raw === "object" ? raw : null;
       }
 
-      /**
-       * Bluetooth ids from server profile and/or offline cache (e.g. network primary on server but BT still in cache).
-       */
-      function getBluetoothConfigCandidates(saved) {
-        var seen = {};
-        var out = [];
-        function add(cfg) {
-          cfg = normalizePrinterConfig(cfg);
-          if (!cfg || !cfg.bluetoothId) return;
-          var id = String(cfg.bluetoothId);
-          if (seen[id]) return;
-          seen[id] = 1;
-          out.push(cfg);
-        }
-        if (saved && String(saved.printer_type || "").toLowerCase() === "bluetooth") {
-          add(saved.config);
-        }
-        var loc = offlinePrinterProfileFromCache();
-        if (loc && String(loc.printer_type || "").toLowerCase() === "bluetooth") {
-          add(loc.config);
-        }
-        return out;
-      }
-
-      /** Silent ESC/POS over Web Bluetooth — no browser print dialog. Tries each saved device id until one works. */
-      function tryBluetoothEscPosSilent(payload, pp, candidates) {
+      /** Silent ESC/POS over Web Bluetooth using the saved shop printer only. */
+      function tryBluetoothEscPosSilent(payload, pp, saved) {
         if (pp.printer_allow_bluetooth === false) {
           return Promise.reject(new Error("Bluetooth printing disabled"));
         }
         if (!window.isSecureContext || !navigator.bluetooth) {
           return Promise.reject(new Error("Web Bluetooth unavailable"));
         }
-        if (!candidates || !candidates.length) {
+        var cfg = normalizePrinterConfig(saved && saved.config);
+        if (!saved || String(saved.printer_type || "").toLowerCase() !== "bluetooth" || !cfg || !cfg.bluetoothId) {
           return Promise.reject(new Error("No saved Bluetooth printer"));
         }
-        var idx = 0;
-        function attempt() {
-          if (idx >= candidates.length) {
-            return Promise.reject(new Error("Bluetooth printers unavailable"));
-          }
-          var cfg = candidates[idx++];
-          return getBluetoothDeviceForEscPos(cfg)
-            .then(function (device) {
-              return printBluetoothEscPosReceipt(device, payload);
-            })
-            .catch(function () {
-              return attempt();
-            });
-        }
-        return attempt();
+        return getBluetoothDeviceForEscPos(cfg).then(function (device) {
+          return printBluetoothEscPosReceipt(device, payload, { btConfig: cfg });
+        });
       }
 
       function printBrowserThermalDialog(payload) {
@@ -8087,8 +7953,7 @@
           var host = cfg && String(cfg.host || "").trim();
 
           function fallbackBrowserOrBluetooth() {
-            var cands = getBluetoothConfigCandidates(saved);
-            return tryBluetoothEscPosSilent(payload, pp, cands).catch(function () {
+            return tryBluetoothEscPosSilent(payload, pp, saved).catch(function () {
               return printBrowserThermalDialog(payload);
             });
           }
@@ -8115,7 +7980,7 @@
           }
 
           if (saved && pt === "bluetooth" && cfg && cfg.bluetoothId) {
-            return tryBluetoothEscPosSilent(payload, pp, getBluetoothConfigCandidates(saved)).catch(function () {
+            return tryBluetoothEscPosSilent(payload, pp, saved).catch(function () {
               return printBrowserThermalDialog(payload);
             });
           }
@@ -8123,24 +7988,6 @@
           return fallbackBrowserOrBluetooth();
         });
       }
-
-      function prewarmSavedBluetoothPrinter() {
-        var pp = window.POS_PRINTING || {};
-        if (pp.printer_allow_bluetooth === false) return;
-        loadSavedPrinterProfile()
-          .then(function (saved) {
-            if (!getBluetoothConfigCandidates(saved).length) return;
-            if (typeof window.posBtStartHealthPolling === "function") {
-              window.posBtStartHealthPolling();
-            }
-          })
-          .catch(function () {});
-        if (typeof window.posBtSilentReconnectNow === "function") {
-          window.posBtSilentReconnectNow();
-        }
-      }
-
-      setTimeout(prewarmSavedBluetoothPrinter, 700);
 
       document.addEventListener("click", function (e) {
         var btn = e.target.closest(".pos-qty-btn");
@@ -8901,13 +8748,19 @@
           if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== "function") {
             return Promise.reject(new Error("Web Bluetooth picker unavailable"));
           }
-          // Keep one direct picker invocation inside the user gesture.
-          // A second requestDevice() call in async catch is blocked by many browsers.
-          var pickerOptions = {
-            acceptAllDevices: true,
-            optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
-          };
-          return navigator.bluetooth.requestDevice(pickerOptions);
+          // Keep requestDevice synchronous inside the user click gesture.
+          try {
+            return navigator.bluetooth.requestDevice({
+              acceptAllDevices: true,
+              optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
+            });
+          } catch (e) {
+            // Fallback for browsers that reject large/strict service lists.
+            return navigator.bluetooth.requestDevice({
+              acceptAllDevices: true,
+              optionalServices: ["generic_access", "device_information"],
+            });
+          }
         }
         msg("");
         if (!window.isSecureContext) {
@@ -8926,18 +8779,42 @@
               pickedEl.textContent = (device.name || device.id || "Device") + " — connecting…";
               pickedEl.classList.remove("hidden");
             }
-            msg("Connecting…");
-            var connectP = Promise.resolve();
-            if (device.gatt) {
-              connectP = device.gatt.connect().then(
-                function () {},
-                function () {}
-              );
-            }
-            return connectP.then(function () {
-              var label = device.name || "Bluetooth printer";
-              var cfg = { bluetoothId: device.id, name: device.name || "" };
-              return apiSave("bluetooth", label, cfg);
+            msg("Saving paired printer…");
+            var label = device.name || "Bluetooth printer";
+            var baseCfg = {
+              bluetoothId: device.id,
+              name: device.name || "",
+            };
+            // Save immediately after picker selection so the app always has a printer row.
+            return apiSave("bluetooth", label, baseCfg).then(function () {
+              // Best-effort: enrich saved config with BLE endpoint for faster prints.
+              // Do not fail setup if endpoint discovery fails here.
+              if (!device.gatt) return;
+              return Promise.resolve(device.gatt.connected ? null : device.gatt.connect())
+                .catch(function () {})
+                .then(function () {
+                  if (!device.gatt || !device.gatt.connected) return;
+                  var discoverWritable =
+                    typeof findWritableEscPosCharacteristic === "function"
+                      ? findWritableEscPosCharacteristic
+                      : null;
+                  if (!discoverWritable) return;
+                  return discoverWritable(device.gatt).then(function (endpoint) {
+                    if (!endpoint || !endpoint.characteristic) return;
+                    var serviceUuid = endpoint.service && endpoint.service.uuid ? String(endpoint.service.uuid) : "";
+                    var characteristicUuid =
+                      endpoint.characteristic && endpoint.characteristic.uuid
+                        ? String(endpoint.characteristic.uuid)
+                        : "";
+                    var richCfg = {
+                      bluetoothId: device.id,
+                      name: device.name || "",
+                      serviceUuid: serviceUuid,
+                      characteristicUuid: characteristicUuid,
+                    };
+                    return apiSave("bluetooth", label, richCfg).catch(function () {});
+                  }).catch(function () {});
+                });
             });
           })
           .then(function () {
@@ -8947,7 +8824,9 @@
               window.posBtAttachPairedThermal(d);
             }
             reflectBluetoothPrinterModal();
-            msg("Saved. You can run a test print below.");
+            // Close setup popup after successful app save.
+            setPrinterOpen(false);
+            msg("Printer saved.");
             if (pickedEl && d) {
               pickedEl.textContent = "Saved: " + (d.name || d.id || "Bluetooth printer");
               pickedEl.classList.remove("hidden");
@@ -9530,13 +9409,8 @@
 
         function publishReceiptPrinterReadyFlag() {
           var receiptReady = !!connected && !!printer;
-          if (receiptReady) {
-            var ptR = String((printer && printer.printer_type) || "").toLowerCase();
-            if (ptR === "bluetooth") {
-              var sgR = window.__POS_BT || {};
-              receiptReady = !!(sgR.gattConnected && !sgR.userMuted);
-            }
-          }
+          // Simple rule: if a printer is saved for this shop, POS can proceed.
+          // Bluetooth will connect on-demand during print.
           window.POS_RECEIPT_PRINTER_CONFIGURED = receiptReady;
           try {
             if (window.__posPrinterConnectionChanged) window.__posPrinterConnectionChanged();
@@ -9636,8 +9510,6 @@
       function reflectBluetoothPrinterModal() {
         var dot = document.getElementById("pos-printer-bt-status-dot");
         var label = document.getElementById("pos-printer-bt-status-label");
-        var disconnectBtn = document.getElementById("pos-printer-bt-disconnect");
-        var actionsRow = document.getElementById("pos-printer-bt-actions");
         var pairBtn = document.getElementById("pos-printer-bt-pair");
         if (!dot || !label) return;
 
@@ -9655,63 +9527,35 @@
           label.textContent = text;
         }
 
-        function setDisconnectRow(showDisconnect) {
-          if (disconnectBtn) {
-            disconnectBtn.classList.toggle("hidden", !showDisconnect);
-            disconnectBtn.disabled = false;
-            disconnectBtn.removeAttribute("title");
-          }
-          if (actionsRow) actionsRow.style.display = showDisconnect ? "flex" : "none";
-        }
-
-        function setPairLabel(savedBt, paused) {
+        function setPairLabel(savedBt) {
           if (!pairBtn) return;
-          if (paused) {
-            pairBtn.textContent = "Turn Bluetooth printing back on…";
-          } else {
-            pairBtn.textContent = savedBt ? "Connect printer…" : "Choose printer…";
-          }
+          pairBtn.textContent = savedBt ? "Connect printer…" : "Choose printer…";
         }
-
-        setDisconnectRow(false);
 
         if (!window.isSecureContext || !navigator.bluetooth) {
           greyState("Bluetooth printing needs Chrome or Edge with HTTPS — or localhost for testing.");
-          setPairLabel(hasSavedBt, false);
+          setPairLabel(hasSavedBt);
           return;
         }
 
         if (!hasSavedBt) {
           greyState("Tap Choose printer to add one.");
-          setPairLabel(false, false);
+          setPairLabel(false);
           return;
         }
 
-        setPairLabel(hasSavedBt, false);
+        setPairLabel(hasSavedBt);
 
         var p = pRow;
         var sg = window.__POS_BT || {};
-        var muted = !!sg.userMuted;
         var busy = !!sg.busyConnecting;
         var live = !!sg.gattConnected;
         var name = ((p.device_label || "") + "").trim() || "this printer";
-
-        if (muted) {
-          dot.className =
-            "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500 ring-2 ring-[rgb(var(--rc-surface))]";
-          label.textContent = 'Paused — tap the button below to turn Bluetooth receipts back on for “' + name + '”.';
-          setPairLabel(hasSavedBt, true);
-          setDisconnectRow(false);
-          return;
-        }
-
-        setPairLabel(hasSavedBt, false);
 
         if (busy) {
           dot.className =
             "mt-1.5 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-sky-500 ring-2 ring-sky-300/55";
           label.textContent = 'Connecting to “' + name + '"…';
-          setDisconnectRow(false);
           return;
         }
 
@@ -9719,15 +9563,13 @@
           dot.className =
             "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_10px_-3px_rgba(34,197,94,0.9)] ring-2 ring-emerald-400/65";
           label.textContent = 'Ready — “' + name + '” is linked; receipts print without prompts.';
-          setDisconnectRow(true);
           return;
         }
 
         dot.className =
           "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500 ring-2 ring-[rgb(var(--rc-surface))]";
         label.textContent =
-          'Away or sleeping — keep “' + name + '" on nearby. We reconnect automatically when it’s reachable.';
-        setDisconnectRow(false);
+          'Printer saved but not connected. Tap Connect printer when you need to print.';
       }
 
       document.addEventListener("richcom-pos-bluetooth-changed", function () {
@@ -9897,14 +9739,6 @@
       document.getElementById("pos-printer-bt-pair") &&
         document.getElementById("pos-printer-bt-pair").addEventListener("click", function () {
           runBluetoothPairOrResumeFromUi();
-        });
-
-      document.getElementById("pos-printer-bt-disconnect") &&
-        document.getElementById("pos-printer-bt-disconnect").addEventListener("click", function () {
-          if (typeof window.posBtUserDisconnectThermal !== "function") return;
-          window.posBtUserDisconnectThermal();
-          msg("Bluetooth printing paused until you tap the button below to turn it back on.");
-          reflectBluetoothPrinterModal();
         });
 
       document.getElementById("pos-printer-net-scan") &&
