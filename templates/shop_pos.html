@@ -2195,7 +2195,7 @@
             </div>
           </div>
           <nav
-            class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 sm:w-auto sm:max-w-[min(100%,42rem)] sm:flex-wrap sm:justify-end sm:gap-x-2.5 sm:gap-y-2 sm:overflow-visible sm:pb-0"
+            class="flex min-w-0 flex-1 items-center gap-1 overflow-visible pb-0.5 sm:w-auto sm:max-w-[min(100%,42rem)] sm:flex-wrap sm:justify-end sm:gap-x-2.5 sm:gap-y-2 sm:pb-0"
             aria-label="POS header"
           >
             <div class="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
@@ -8361,27 +8361,13 @@
           if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== "function") {
             return Promise.reject(new Error("Web Bluetooth picker unavailable"));
           }
-          var knownSvcFilters = KNOWN_BLE_PRINT_SERVICE_UUIDS.map(function (svc) {
-            return { services: [svc] };
-          });
-          var nameFilters = BLE_PICKER_NAME_PREFIX_FILTERS.map(function (prefix) {
-            return { namePrefix: prefix };
-          });
-          var strictOptions = {
-            filters: knownSvcFilters.concat(nameFilters),
-            optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
-          };
-          var broadOptions = {
+          // Keep one direct picker invocation inside the user gesture.
+          // A second requestDevice() call in async catch is blocked by many browsers.
+          var pickerOptions = {
             acceptAllDevices: true,
             optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
           };
-          return navigator.bluetooth.requestDevice(strictOptions).catch(function (err) {
-            // Some browser/app variants reject strict filter manifests; retry broad picker.
-            if (err && (err.name === "NotFoundError" || err.name === "TypeError" || err.name === "SecurityError")) {
-              return navigator.bluetooth.requestDevice(broadOptions);
-            }
-            throw err;
-          });
+          return navigator.bluetooth.requestDevice(pickerOptions);
         }
         msg("");
         if (!window.isSecureContext) {
@@ -8392,7 +8378,7 @@
           msg("Use the latest Chrome or Edge for Bluetooth printers.");
           return;
         }
-        msg("Scanning Bluetooth printers… pick your printer in the browser dialog.");
+        msg("Open your printer's Bluetooth pairing mode, then pick it in the browser dialog.");
         requestBluetoothPrinterDeviceCompat()
           .then(function (device) {
             btPending = device;
