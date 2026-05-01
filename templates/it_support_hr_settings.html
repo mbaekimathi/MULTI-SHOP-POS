@@ -5,20 +5,45 @@
   {% set hr_nav_active = 'settings' %}
   {% include "partials/it_support_hr_sidebar_nav.html" %}
 {% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #hr-settings-page .hr-settings-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-settings-page .hr-settings-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
+    }
+    #hr-settings-page fieldset label.flex {
+      transition: box-shadow 0.16s ease;
+    }
+    #hr-settings-page fieldset label.flex:hover {
+      box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.4);
+    }
+    #hr-settings-page input[type='radio'],
+    #hr-settings-page button {
+      min-height: 2.5rem;
+    }
+  </style>
+{% endblock %}
 {% block employee_content %}
-  <div class="mx-auto max-w-xl space-y-6">
-    <div>
+  <div id="hr-settings-page" class="mx-auto max-w-xl space-y-6">
+    <div class="hr-settings-card hr-settings-hero rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Branch access for employees</h2>
       <p class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
         Controls how HR links staff who work at branches (ADMIN, MANAGER, SALES, FINANCE, EMPLOYEE, RIDER).
         SUPER ADMIN / IT SUPPORT are never limited to one branch here.
       </p>
+      <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        Current · {{ ((hr_employee_shop_link_mode or 'single'))|upper }} branch mode
+      </div>
     </div>
 
     <form
       method="post"
       action="{{ url_for('it_support_hr_settings') }}"
-      class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm"
+      class="hr-settings-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm"
     >
       <fieldset class="space-y-4">
         <legend class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee ↔ shop linking</legend>

@@ -5,26 +5,83 @@
   {% set hr_nav_active = 'authorization' %}
   {% include "partials/it_support_hr_sidebar_nav.html" %}
 {% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #hr-auth-page .hr-auth-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-auth-page .hr-auth-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
+    }
+    #hr-auth-page .hr-auth-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    #hr-auth-page .hr-auth-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    #hr-auth-page section.hr-auth-section > ul > li > a:focus-visible {
+      outline-offset: 2px;
+    }
+    #hr-auth-page section.hr-auth-section > ul > li {
+      transition: background-color 0.16s ease;
+    }
+  </style>
+{% endblock %}
 {% block employee_content %}
-  <div class="mx-auto max-w-6xl space-y-10 px-0">
-    <div class="space-y-2">
+  {% set ns = namespace(total_staff=0) %}
+  {% for sec in role_sections or [] %}
+    {% set ns.total_staff = ns.total_staff + (sec.employees or [])|length %}
+  {% endfor %}
+  <div id="hr-auth-page" class="mx-auto max-w-6xl space-y-8 px-0 sm:space-y-10">
+    <div class="hr-auth-card hr-auth-hero space-y-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Roles &amp; access overview</h2>
-      <p class="max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+      <p class="max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
         Tap a row to open that employee&apos;s summary. Approvals and edits live under
         <a href="{{ url_for('it_support_hr_management') }}" class="font-semibold text-emerald-500 underline decoration-emerald-500/40 underline-offset-2 hover:text-emerald-400">HR management</a>.
         Branch coverage follows your
         {% if hr_employee_shop_link_mode == 'multi' %}multi-branch{% else %}single-branch{% endif %} HR setting.
       </p>
+
+      {% if role_sections %}
+        <div class="grid gap-3 pt-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="hr-auth-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Role groups</div>
+            <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ (role_sections or [])|length }}</div>
+          </div>
+          <div class="hr-auth-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Listed staff</div>
+            <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ ns.total_staff }}</div>
+          </div>
+          <div class="hr-auth-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Branch mode</div>
+            <div class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{% if hr_employee_shop_link_mode == 'multi' %}Multi-branch{% else %}Single-branch{% endif %}</div>
+          </div>
+          <div class="hr-auth-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Quick link</div>
+            <div class="mt-1 truncate text-sm font-semibold"><a href="{{ url_for('it_support_hr_management') }}" class="text-emerald-500 underline-offset-2 hover:underline">Open HR management</a></div>
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     {% if not role_sections %}
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+      <div class="hr-auth-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-8 shadow-sm">
         <p class="text-sm text-[rgb(var(--rc-muted))]">No employees found.</p>
       </div>
     {% endif %}
 
     {% for sec in role_sections %}
-      <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]" aria-labelledby="role-heading-{{ loop.index }}">
+      <section class="hr-auth-card hr-auth-section overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm" aria-labelledby="role-heading-{{ loop.index }}">
         <header
           id="role-heading-{{ loop.index }}"
           class="flex flex-col gap-2 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"

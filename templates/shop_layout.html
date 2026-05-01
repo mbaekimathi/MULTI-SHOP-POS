@@ -1,6 +1,79 @@
 {% extends "base.html" %}
 {% block body %}
-  <div class="flex min-h-screen flex-col md:h-screen md:max-h-screen md:min-h-0 md:flex-row">
+  <style>
+    #shop-shell #shop-sidebar nav a {
+      position: relative;
+      border: 1px solid transparent;
+      transition: all 0.18s ease;
+    }
+    #shop-shell #shop-sidebar nav a::before {
+      content: "";
+      position: absolute;
+      left: 0.5rem;
+      top: 50%;
+      width: 0.32rem;
+      height: 0.32rem;
+      border-radius: 999px;
+      transform: translateY(-50%) scale(0.85);
+      opacity: 0;
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.9), rgba(56, 189, 248, 0.85));
+      transition: all 0.18s ease;
+      pointer-events: none;
+    }
+    #shop-shell #shop-sidebar nav a:hover {
+      transform: translateX(2px);
+      border-color: rgba(var(--rc-border), 0.8);
+      background-color: rgba(var(--rc-surface-2), 0.9);
+    }
+    #shop-shell #shop-sidebar nav a:hover::before {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    #shop-shell #shop-sidebar nav a[class*="bg-brand-"],
+    #shop-shell #shop-sidebar nav a[class*="bg-[rgb(var(--rc-surface-2))]"] {
+      border-color: rgba(var(--rc-primary), 0.35);
+      box-shadow: 0 10px 18px -16px rgba(15, 23, 42, 0.65);
+    }
+    #shop-shell #shop-sidebar nav a[class*="bg-brand-"]::before,
+    #shop-shell #shop-sidebar nav a[class*="bg-[rgb(var(--rc-surface-2))]"]::before {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    #shop-shell main .rounded-2xl.border {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #shop-shell main .rounded-xl.border {
+      border-color: rgba(var(--rc-border), 0.85);
+    }
+    #shop-shell main input,
+    #shop-shell main select,
+    #shop-shell main textarea {
+      min-height: 2.45rem;
+    }
+    #shop-shell main table tbody tr {
+      transition: background-color 0.16s ease;
+    }
+    #shop-shell main table tbody tr:hover {
+      background-color: rgba(148, 163, 184, 0.08);
+    }
+    #shop-shell main .overflow-x-auto table thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    html[data-theme="dark"] #shop-shell #shop-sidebar nav a:hover {
+      border-color: rgba(148, 163, 184, 0.35);
+      background-color: rgba(30, 41, 59, 0.75);
+    }
+    @media (max-width: 768px) {
+      #shop-shell main {
+        padding-top: 1.25rem;
+        padding-bottom: 1.25rem;
+      }
+    }
+  </style>
+  <div id="shop-shell" class="flex min-h-screen flex-col md:h-screen md:max-h-screen md:min-h-0 md:flex-row">
     <div
       id="shop-sidebar-backdrop"
       class="fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"

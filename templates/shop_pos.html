@@ -2062,6 +2062,31 @@
         transform: none;
       }
     }
+    #pos-cart-lines .pos-qty-input {
+      width: 2.75rem;
+      min-width: 2.75rem;
+      height: 1.75rem;
+      padding: 0 0.25rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgba(var(--rc-border), 0.85);
+      background: rgb(var(--rc-surface));
+      text-align: center;
+      font-size: 11px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: rgb(var(--rc-page-fg));
+      outline: none;
+      -moz-appearance: textfield;
+    }
+    #pos-cart-lines .pos-qty-input::-webkit-outer-spin-button,
+    #pos-cart-lines .pos-qty-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    #pos-cart-lines .pos-qty-input:focus {
+      border-color: rgba(var(--rc-primary), 0.55);
+      box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.18);
+    }
     #pos-cart-lines .pos-line-price {
       border-radius: 0.65rem !important;
       border-color: rgba(var(--rc-border), 0.55) !important;
@@ -4711,7 +4736,11 @@
       }
 
       function cartLineHtml(line) {
-        var lt = fmt(parseFloat(line.price) * line.qty);
+        var qtyInt = parseInt(line.qty, 10);
+        if (isNaN(qtyInt) || qtyInt < 1) qtyInt = 1;
+        var cap = typeof line.stock === "number" && line.stock > 0 && line.stock < 999999999 ? line.stock : 0;
+        var maxAttr = cap ? ' max="' + cap + '"' : "";
+        var lt = fmt(parseFloat(line.price) * qtyInt);
         var allowEdit = window.POS_PRINTING && window.POS_PRINTING.allow_line_price_edit;
         var minEach = allowEdit && line.originalSellingPrice != null && !isNaN(parseFloat(line.originalSellingPrice))
           ? fmt(Math.max(0, parseFloat(line.originalSellingPrice)))
@@ -4743,9 +4772,13 @@
           '<button type="button" class="pos-qty-btn flex h-7 w-7 items-center justify-center rounded-md text-base leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
           line.id +
           '" data-delta="-1" aria-label="Decrease">−</button>' +
-          '<span class="min-w-[1.5rem] text-center text-[11px] font-black tabular-nums">' +
-          line.qty +
-          "</span>" +
+          '<input type="number" inputmode="numeric" step="1" min="1"' +
+          maxAttr +
+          ' class="pos-qty-input" data-id="' +
+          line.id +
+          '" value="' +
+          qtyInt +
+          '" aria-label="Quantity" />' +
           '<button type="button" class="pos-qty-btn flex h-7 w-7 items-center justify-center rounded-md text-base leading-none text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
           line.id +
           '" data-delta="1" aria-label="Increase">+</button>' +
@@ -4758,7 +4791,8 @@
         var sub = 0;
         var html = "";
         lines.forEach(function (line) {
-          sub += parseFloat(line.price) * line.qty;
+          var q = parseInt(line.qty, 10) || 1;
+          sub += parseFloat(line.price) * q;
           html += cartLineHtml(line);
         });
 
@@ -4832,6 +4866,30 @@
         }
         lines[i].qty += delta;
         if (lines[i].qty <= 0) lines.splice(i, 1);
+        save(lines);
+        render();
+      }
+
+      function commitQtyInput(input) {
+        if (!input || !input.classList || !input.classList.contains("pos-qty-input")) return;
+        var id = parseInt(input.getAttribute("data-id"), 10);
+        if (isNaN(id)) return;
+        var raw = input.value;
+        var lines = load();
+        var i = lines.findIndex(function (l) {
+          return l.id === id;
+        });
+        if (i < 0) return;
+        var n = parseInt(String(raw).trim(), 10);
+        if (isNaN(n) || n < 1) {
+          lines.splice(i, 1);
+          save(lines);
+          render();
+          return;
+        }
+        var stockCap = lines[i].stock;
+        if (typeof stockCap === "number" && stockCap > 0 && n > stockCap) n = stockCap;
+        lines[i].qty = n;
         save(lines);
         render();
       }
@@ -6125,7 +6183,7 @@
         var parts = [];
         parts.push(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
         /* GS ( k fn 167: module size 1–16; smaller = denser/smaller symbol on slip (was 8). */
-        parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x04);
+        parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x07);
         parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x30);
         var n = data.length + 3;
         parts.push(0x1d, 0x28, 0x6b, n & 0xff, (n >> 8) & 0xff, 0x31, 0x50, 0x30);
@@ -6551,9 +6609,9 @@
           if (qrData) {
             var enc = encodeURIComponent(qrData);
             qrHtml =
-              '<div class="receipt-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=' +
+              '<div class="receipt-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=' +
               enc +
-              '" alt="" width="96" height="96" /></div>' +
+              '" alt="" width="140" height="140" /></div>' +
               '<p class="receipt-qr-caption">Scan for receipt details</p>';
           }
         }
@@ -7860,9 +7918,9 @@
           if (qrDataN) {
             var encN = encodeURIComponent(qrDataN);
             qrBlock =
-              "<div class='sep'></div><div class='c' style='margin:6px 0;display:flex;flex-direction:column;align-items:center;width:100%'><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data=" +
+              "<div class='sep'></div><div class='c' style='margin:8px 0;display:flex;flex-direction:column;align-items:center;width:100%'><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=" +
               encN +
-              "\" alt=\"\" width=\"96\" height=\"96\" style=\"display:block;width:96px;height:96px;object-fit:contain;margin:0 auto\" /></div>" +
+              "\" alt=\"\" width=\"140\" height=\"140\" style=\"display:block;width:140px;height:140px;object-fit:contain;margin:0 auto\" /></div>" +
               "<div class='c mut' style='font-size:10px;text-align:center;width:100%'>Scan for receipt details</div>";
           }
         }
@@ -8121,6 +8179,49 @@
         var delta = parseInt(btn.getAttribute("data-delta"), 10);
         changeQty(id, delta);
       });
+
+      document.addEventListener(
+        "blur",
+        function (e) {
+          var inp = e.target && e.target.closest ? e.target.closest(".pos-qty-input") : null;
+          if (inp) commitQtyInput(inp);
+        },
+        true
+      );
+
+      document.addEventListener(
+        "keydown",
+        function (e) {
+          var inp = e.target && e.target.closest ? e.target.closest(".pos-qty-input") : null;
+          if (!inp) return;
+          if (e.key === "Enter") {
+            e.preventDefault();
+            inp.blur();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            try {
+              var id = parseInt(inp.getAttribute("data-id"), 10);
+              var lines = load();
+              var ln = lines.find(function (l) {
+                return l.id === id;
+              });
+              if (ln != null) inp.value = String(Math.max(1, parseInt(ln.qty, 10) || 1));
+            } catch (err1) {}
+            inp.blur();
+          }
+        },
+        false
+      );
+
+      document.addEventListener(
+        "wheel",
+        function (e) {
+          if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("pos-qty-input")) {
+            e.preventDefault();
+          }
+        },
+        { passive: false }
+      );
 
       document.querySelectorAll(".pos-item-card").forEach(function (btn) {
         btn.addEventListener("click", function () {

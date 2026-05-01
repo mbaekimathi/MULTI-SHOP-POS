@@ -7,6 +7,57 @@
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set d = stock_data or {} %}
+  <style>
+    .shop-stock-analytics-theme .it-analytics-toolbar,
+    .shop-stock-analytics-theme .it-analytics-filter {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 14px 28px -22px rgba(15, 23, 42, 0.55);
+    }
+    .shop-stock-analytics-theme .it-analytics-toolbar {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 38%);
+    }
+    .shop-stock-analytics-theme .it-analytics-filter input,
+    .shop-stock-analytics-theme .it-analytics-filter select {
+      min-height: 2.5rem;
+    }
+    .shop-stock-analytics-theme .rounded-2xl {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 28px -24px rgba(15, 23, 42, 0.52);
+    }
+    .shop-stock-analytics-theme [data-shop-analytics-report-view="raw"] .sa-visual-only {
+      display: none !important;
+    }
+    .shop-stock-analytics-theme [data-shop-analytics-report-view="visual"] .sa-raw-only {
+      display: none !important;
+    }
+    .shop-stock-analytics-theme .shop-analytics-tab {
+      transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+    }
+    .shop-stock-analytics-theme .shop-analytics-tab.shop-analytics-tab-active {
+      background: rgba(var(--rc-primary), 0.14);
+      color: rgb(var(--rc-page-fg));
+      box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.28);
+    }
+  </style>
+  <div class="shop-stock-analytics-theme">
+  <div class="it-analytics-toolbar mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock analytics</p>
+        <p class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Summary across the filtered period.</p>
+      </div>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300/95">
+          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+          Live
+        </span>
+        <div class="flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1" role="tablist" aria-label="Raw or visual stock analytics">
+          <button type="button" role="tab" id="shop-stock-tab-raw" class="shop-analytics-tab shop-analytics-tab-active rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" aria-selected="true">Raw data</button>
+          <button type="button" role="tab" id="shop-stock-tab-visual" class="shop-analytics-tab rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" aria-selected="false">Visual data</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -28,7 +79,7 @@
     </div>
   </div>
 
-  <form method="get" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
+  <form method="get" class="it-analytics-filter mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
     <div class="flex flex-wrap items-end gap-2.5">
       <div class="min-w-[10rem] flex-1">
         <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
@@ -70,19 +121,38 @@
     </div>
   </form>
 
-  <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">
+  <div id="shop-stock-report-root" data-shop-analytics-report-view="raw">
+  <div class="sa-visual-only mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">At a glance</h3>
+    <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">High-level KPIs reflect stock movement totals for your selected range above. Detailed line-level movement stays in Raw data plus full reports.</p>
+  </div>
+  <p class="sa-raw-only mt-4 text-sm text-[rgb(var(--rc-muted))]">
     Detailed tables are on
     <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, view='low_stock', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '', reorder_threshold=reorder_threshold or 5) }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">shop stock reports</a>.
   </p>
+  </div>
 
   <script>
     (function () {
+      var reportRoot = document.getElementById("shop-stock-report-root");
+      var rawBtn = document.getElementById("shop-stock-tab-raw");
+      var visualBtn = document.getElementById("shop-stock-tab-visual");
+      var STORAGE_KEY = "shop-stock-analytics-report-view";
       var mode = document.getElementById("analytics-filter-mode");
       var day = document.getElementById("filter-single-day");
       var period = document.getElementById("filter-period");
       var month = document.getElementById("filter-month");
       var year = document.getElementById("filter-year");
-      if (!mode) return;
+      function syncView(view) {
+        var v = view === "visual" ? "visual" : "raw";
+        if (!reportRoot || !rawBtn || !visualBtn) return;
+        reportRoot.setAttribute("data-shop-analytics-report-view", v);
+        rawBtn.classList.toggle("shop-analytics-tab-active", v === "raw");
+        visualBtn.classList.toggle("shop-analytics-tab-active", v === "visual");
+        rawBtn.setAttribute("aria-selected", v === "raw");
+        visualBtn.setAttribute("aria-selected", v === "visual");
+        try { localStorage.setItem(STORAGE_KEY, v); } catch (_e) {}
+      }
       function sync() {
         var m = mode.value || "single_day";
         if (day) day.classList.toggle("hidden", m !== "single_day");
@@ -90,8 +160,16 @@
         if (month) month.classList.toggle("hidden", m !== "month");
         if (year) year.classList.toggle("hidden", m !== "year");
       }
-      mode.addEventListener("change", sync);
-      sync();
+      if (rawBtn && visualBtn && reportRoot) {
+        rawBtn.addEventListener("click", function () { syncView("raw"); });
+        visualBtn.addEventListener("click", function () { syncView("visual"); });
+        try { syncView(localStorage.getItem(STORAGE_KEY) || "raw"); } catch (_e) { syncView("raw"); }
+      }
+      if (mode) {
+        mode.addEventListener("change", sync);
+        sync();
+      }
     })();
   </script>
+  </div>
 {% endblock %}

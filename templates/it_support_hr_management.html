@@ -53,24 +53,100 @@
         animation: approve-modal-accent-shift 10s ease-in-out infinite;
       }
     }
+    #hr-management-page .hr-mgmt-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-management-page .hr-mgmt-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
+    }
+    #hr-management-page .hr-mgmt-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    #hr-management-page .hr-mgmt-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    #hr-management-page .hr-mgmt-table-wrap {
+      max-height: min(70vh, 720px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #hr-management-page .hr-mgmt-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #hr-management-page .hr-mgmt-table tbody tr {
+      transition: background-color 0.16s ease;
+    }
+    #hr-management-page .hr-mgmt-table tbody tr:hover {
+      background: rgba(148, 163, 184, 0.08);
+    }
+    #hr-management-page .hr-mgmt-mobile-card {
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    #hr-management-page .hr-mgmt-mobile-card:hover {
+      border-color: rgba(var(--rc-border), 1);
+      box-shadow: 0 12px 28px -20px rgba(15, 23, 42, 0.45);
+    }
+    @media (max-width: 768px) {
+      #hr-management-page .hr-mgmt-table-wrap {
+        max-height: none;
+      }
+    }
   </style>
 {% endblock %}
 {% block employee_content %}
-  <div class="space-y-4">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Employees</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Approve new signups. For approved staff, you can edit details, suspend or reactivate accounts, and remove users from the system.
-        </p>
+  {% set emp_list = employees or [] %}
+  {% set n_active = emp_list|selectattr('status', 'equalto', 'active')|list|length %}
+  {% set n_pending = emp_list|selectattr('status', 'equalto', 'pending_approval')|list|length %}
+  {% set n_suspended = emp_list|selectattr('status', 'equalto', 'suspended')|list|length %}
+  <div id="hr-management-page" class="space-y-6">
+    <div class="hr-mgmt-card hr-mgmt-hero rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Employees</h2>
+          <p class="mt-1 max-w-2xl text-sm text-[rgb(var(--rc-muted))]">
+            Approve new signups. For approved staff, you can edit details, suspend or reactivate accounts, and remove users from the system.
+          </p>
+        </div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] shadow-sm ring-1 ring-[rgb(var(--rc-border))]/60">
+          {{ emp_list|length }} total
+        </div>
       </div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-        {{ (employees or [])|length }} employees
-      </div>
+
+      {% if emp_list %}
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="hr-mgmt-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Active</div>
+            <div class="mt-1 text-2xl font-extrabold text-emerald-400">{{ n_active }}</div>
+          </div>
+          <div class="hr-mgmt-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Pending approval</div>
+            <div class="mt-1 text-2xl font-extrabold text-amber-400">{{ n_pending }}</div>
+          </div>
+          <div class="hr-mgmt-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Suspended</div>
+            <div class="mt-1 text-2xl font-extrabold text-rose-400">{{ n_suspended }}</div>
+          </div>
+          <div class="hr-mgmt-stat rounded-xl border p-4">
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shop link mode</div>
+            <div class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ (hr_employee_shop_link_mode or 'single')|replace('_',' ')|upper }}</div>
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     {% if not employees %}
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+      <div class="hr-mgmt-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-8 shadow-sm">
         <p class="text-sm text-[rgb(var(--rc-muted))]">No employees found.</p>
       </div>
     {% else %}
@@ -79,7 +155,7 @@
         {% for e in employees %}
           {% set is_pending = (e.status or '') == 'pending_approval' %}
           {% set is_self = e.id|int == (session.get('employee_id', 0)|int) %}
-          <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+          <div class="hr-mgmt-card hr-mgmt-mobile-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ e.full_name }}</p>
@@ -159,9 +235,9 @@
       </div>
 
       {# Tablet/PC: table #}
-      <div class="hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] md:block">
-        <div class="overflow-x-auto">
-          <table class="min-w-[1080px] w-full text-sm">
+      <div class="hr-mgmt-card hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm md:block">
+        <div class="hr-mgmt-table-wrap overflow-x-auto">
+          <table class="hr-mgmt-table min-w-[1080px] w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Employee</th>

@@ -3,15 +3,85 @@
 {% block portal_page_title %}Portion analytics{% endblock %}
 {% block employee_content %}
   {% set a = analytics %}
+  <style>
+    .ka-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    .ka-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
+    }
+    .ka-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    .ka-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    .ka-filter select,
+    .ka-filter input {
+      min-height: 2.55rem;
+    }
+    .ka-tabs a {
+      border: 1px solid transparent;
+    }
+    .ka-table-wrap {
+      max-height: min(72vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .ka-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .ka-table tbody tr {
+      transition: background-color 0.16s ease;
+    }
+    .ka-table tbody tr:hover {
+      background: rgba(148, 163, 184, 0.08);
+    }
+    @media (max-width: 640px) {
+      .ka-table-wrap {
+        max-height: 68vh;
+      }
+    }
+  </style>
   <div class="space-y-6">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <div class="ka-card ka-hero rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portion sales</h2>
       <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
         Counts are <strong class="font-medium text-[rgb(var(--rc-page-fg))]">portions sold</strong> on POS checkouts while the shop was in
         <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen mode</strong>. Older sales (before this tracking) won’t appear.
       </p>
 
-      <form method="get" class="mt-5 space-y-4">
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="ka-stat rounded-xl border p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Rows</div>
+          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ raw_lines|length }}</div>
+        </div>
+        <div class="ka-stat rounded-xl border p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Items in chart</div>
+          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ chart_by_item|length }}</div>
+        </div>
+        <div class="ka-stat rounded-xl border p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Days covered</div>
+          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ chart_by_day|length }}</div>
+        </div>
+        <div class="ka-stat rounded-xl border p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Active view</div>
+          <div class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ "Raw data" if a.tab == "raw" else "Visuals" }}</div>
+        </div>
+      </div>
+
+      <form method="get" class="ka-filter mt-5 space-y-4">
         <input type="hidden" name="tab" value="{{ a.tab }}" />
         <div class="flex flex-wrap items-end gap-3">
           <div>
@@ -67,7 +137,7 @@
         </div>
       </form>
 
-      <div class="mt-6 flex justify-center gap-2 border-b border-[rgb(var(--rc-border))] pb-px">
+      <div class="ka-tabs mt-6 flex justify-center gap-2 border-b border-[rgb(var(--rc-border))] pb-px">
         <a
           href="{{ tab_raw_url }}"
           class="rounded-t-lg px-4 py-2 text-sm font-semibold transition {% if a.tab == 'raw' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-border))] ring-b-0{% else %}text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}"
@@ -80,11 +150,11 @@
     </div>
 
     {% if a.tab == 'raw' %}
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+      <div class="ka-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
         <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Line items</h3>
         <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ raw_lines|length }} row(s)</p>
-        <div class="mt-4 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
-          <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+        <div class="ka-table-wrap mt-4 rounded-xl border border-[rgb(var(--rc-border))]">
+          <table class="ka-table min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-left text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
                 <th class="px-3 py-2">Sold at</th>
@@ -116,13 +186,13 @@
       </div>
     {% else %}
       <div class="grid gap-6 lg:grid-cols-1">
-        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+        <div class="ka-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
           <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Portions by item (top {{ chart_by_item|length }})</h3>
           <div class="mt-4 h-72 w-full">
             <canvas id="ka-chart-item" aria-label="Portions by item"></canvas>
           </div>
         </div>
-        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+        <div class="ka-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
           <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Portions by day</h3>
           <div class="mt-4 h-64 w-full">
             <canvas id="ka-chart-day" aria-label="Portions by day"></canvas>
