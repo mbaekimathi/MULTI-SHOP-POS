@@ -625,14 +625,23 @@
       position: relative;
       z-index: 1;
     }
+    html[data-theme="dark"] .pos-search-panel,
     .dark .pos-search-panel {
-      border-color: rgba(var(--rc-border), 0.45);
-      background:
-        linear-gradient(155deg, rgba(15, 23, 42, 0.72) 0%, rgba(var(--rc-surface-2), 0.55) 50%, rgba(15, 23, 42, 0.5) 100%);
+      border-color: rgba(var(--rc-border), 0.65);
+      background: linear-gradient(
+        155deg,
+        rgb(var(--rc-surface)) 0%,
+        rgba(var(--rc-surface-2), 0.97) 48%,
+        rgb(var(--rc-surface)) 100%
+      );
       box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.05) inset,
+        0 1px 0 rgba(255, 255, 255, 0.07) inset,
         0 24px 56px -28px rgba(0, 0, 0, 0.55),
-        0 0 0 1px rgba(var(--rc-primary), 0.12);
+        0 0 0 1px rgba(var(--rc-primary), 0.18);
+    }
+    html[data-theme="dark"] .pos-search-panel::before,
+    .dark .pos-search-panel::before {
+      opacity: 0.55;
     }
     @media (min-width: 640px) {
       .pos-search-panel {
@@ -657,15 +666,31 @@
         box-shadow 0.2s ease,
         background 0.2s ease;
     }
+    html[data-theme="dark"] #pos-search,
     .dark #pos-search {
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(var(--rc-surface-2), 0.4) 100%);
+      border-color: rgba(var(--rc-border), 0.75);
+      background: rgb(var(--rc-surface-2));
+      color: rgb(var(--rc-page-fg));
       box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+    }
+    html[data-theme="dark"] #pos-search::placeholder,
+    .dark #pos-search::placeholder {
+      color: rgb(var(--rc-muted));
+      opacity: 1;
     }
     #pos-search:focus {
       border-color: rgba(var(--rc-primary), 0.45);
       box-shadow:
         0 0 0 3px rgba(var(--rc-primary), 0.14),
         inset 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    html[data-theme="dark"] #pos-search:focus,
+    .dark #pos-search:focus {
+      border-color: rgba(var(--rc-primary), 0.55);
+      box-shadow:
+        0 0 0 3px rgba(var(--rc-primary), 0.2),
+        inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
     .pos-cat-chip {
       border-radius: 9999px;
@@ -795,6 +820,13 @@
       background: rgba(var(--rc-surface), 0.45);
       border: 1px dashed rgba(var(--rc-border), 0.55);
     }
+    html[data-theme="dark"] #pos-no-results.pos-no-results,
+    .dark #pos-no-results.pos-no-results {
+      color: rgb(var(--rc-page-fg));
+      background: rgba(var(--rc-surface-2), 0.88);
+      border-color: rgba(var(--rc-border), 0.7);
+      border-style: dashed;
+    }
     footer.pos-footer-pos {
       box-shadow: 0 -12px 40px -20px rgba(0, 0, 0, 0.08);
     }
@@ -821,6 +853,13 @@
     .pos-item-scroll::-webkit-scrollbar-thumb {
       background: rgb(var(--rc-muted) / 0.45);
       border-radius: 9999px;
+    }
+    /* Touch devices: pan-x alone (e.g. Tailwind touch-pan-x) blocks vertical page scroll when dragging from a card.
+       pan-x pan-y lets the UA route mostly-vertical gestures to the page while keeping horizontal strip swipe. */
+    @media (hover: none) and (pointer: coarse) {
+      .pos-item-scroll {
+        touch-action: pan-x pan-y;
+      }
     }
     /* Desktop: prev/next icons for horizontal category strips (buttons after strip in DOM so they paint on top) */
     .pos-cat-strip-outer {
@@ -2127,27 +2166,27 @@
           aria-hidden="true"
         ></div>
         <div
-          class="relative z-30 mx-auto flex w-full min-w-0 max-w-[1920px] flex-col gap-3 px-[max(0.65rem,env(safe-area-inset-left))] py-3 pr-[max(0.65rem,env(safe-area-inset-right))] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 md:px-6 lg:px-8"
+          class="relative z-30 mx-auto flex w-full min-w-0 max-w-[1920px] items-center gap-2 px-[max(0.55rem,env(safe-area-inset-left))] py-2 pr-[max(0.55rem,env(safe-area-inset-right))] sm:justify-between sm:gap-4 sm:px-5 sm:py-3 md:px-6 lg:px-8"
         >
-          <div class="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+          <div class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
             {% if shop.shop_logo %}
               <img
                 src="{{ url_for('static', filename=shop.shop_logo) }}"
                 alt=""
-                class="h-11 w-11 shrink-0 rounded-2xl object-cover shadow-md ring-2 ring-[rgb(var(--rc-primary))]/35 ring-offset-2 ring-offset-[rgb(var(--rc-surface))] dark:ring-offset-[rgb(var(--rc-surface))]"
-                width="44"
-                height="44"
+                class="h-9 w-9 shrink-0 rounded-xl object-cover shadow-md ring-2 ring-[rgb(var(--rc-primary))]/35 ring-offset-2 ring-offset-[rgb(var(--rc-surface))] dark:ring-offset-[rgb(var(--rc-surface))] sm:h-11 sm:w-11 sm:rounded-2xl"
+                width="36"
+                height="36"
               />
             {% else %}
               <div
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white shadow-lg ring-2 ring-white/10"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-black text-white shadow-lg ring-2 ring-white/10 sm:h-11 sm:w-11 sm:rounded-2xl sm:text-sm"
                 style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
                 aria-hidden="true"
               >
                 POS
               </div>
             {% endif %}
-            <div class="min-w-0 flex-1">
+            <div class="hidden min-w-0 flex-1 sm:block">
               <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Point of sale</p>
                 <p id="pos-clock" class="tabular-nums text-[10px] font-semibold text-[rgb(var(--rc-primary))] sm:text-xs" aria-hidden="true"></p>
@@ -2156,31 +2195,33 @@
             </div>
           </div>
           <nav
-            class="flex w-full min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-2 sm:w-auto sm:max-w-[min(100%,42rem)] sm:gap-x-2.5"
+            class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 sm:w-auto sm:max-w-[min(100%,42rem)] sm:flex-wrap sm:justify-end sm:gap-x-2.5 sm:gap-y-2 sm:overflow-visible sm:pb-0"
             aria-label="POS header"
           >
+            <div class="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
             {% if pos_printing_settings.pos_show_buy_items_link %}
             <button
               type="button"
               id="pos-buy-open"
-              class="group inline-flex shrink-0 items-center gap-2 rounded-xl border border-[rgb(var(--rc-primary))]/35 bg-gradient-to-br from-[rgb(var(--rc-primary))]/20 to-[rgb(var(--rc-accent))]/10 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[rgb(var(--rc-page-fg))] shadow-[0_6px_20px_rgba(0,0,0,0.12)] transition hover:-translate-y-[1px] hover:from-[rgb(var(--rc-primary))]/28 hover:to-[rgb(var(--rc-accent))]/18 sm:px-3.5 sm:py-2 sm:text-[11px]"
+              class="group inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[rgb(var(--rc-primary))]/35 bg-gradient-to-br from-[rgb(var(--rc-primary))]/20 to-[rgb(var(--rc-accent))]/10 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[rgb(var(--rc-page-fg))] shadow-[0_6px_20px_rgba(0,0,0,0.12)] transition hover:-translate-y-[1px] hover:from-[rgb(var(--rc-primary))]/28 hover:to-[rgb(var(--rc-accent))]/18 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px]"
               aria-haspopup="dialog"
               aria-controls="pos-stockin-modal"
               aria-label="Buy and stock in items"
             >
-              <span class="relative inline-flex h-6 w-6 items-center justify-center rounded-lg bg-[rgb(var(--rc-surface))]/85 ring-1 ring-[rgb(var(--rc-primary))]/35">
+              <span class="relative inline-flex h-5 w-5 items-center justify-center rounded-md bg-[rgb(var(--rc-surface))]/85 ring-1 ring-[rgb(var(--rc-primary))]/35 sm:h-6 sm:w-6 sm:rounded-lg">
                 <svg class="h-3.5 w-3.5 text-[rgb(var(--rc-primary))] transition group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" />
                 </svg>
                 <span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[rgb(var(--rc-accent))] ring-2 ring-[rgb(var(--rc-surface))]" aria-hidden="true"></span>
               </span>
-              Buy items
+              <span class="hidden sm:inline">Buy items</span>
+              <span class="sm:hidden">Buy</span>
             </button>
             {% endif %}
             <button
               type="button"
               id="pos-printer-open"
-              class="pos-printer-header-btn pos-printer-header-btn--disconnected inline-flex shrink-0 items-center gap-2 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em] sm:gap-2.5 sm:px-3.5 sm:py-2 sm:text-[11px]"
+              class="pos-printer-header-btn pos-printer-header-btn--disconnected inline-flex shrink-0 items-center gap-1.5 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] sm:gap-2.5 sm:px-3.5 sm:py-2 sm:text-[11px]"
               aria-haspopup="dialog"
               aria-controls="pos-printer-dialog"
               aria-label="No receipt printer configured. Open set up printer."
@@ -2194,26 +2235,45 @@
               <span id="pos-printer-open-label-sm" class="hidden min-w-0 max-w-[min(14rem,40vw)] truncate text-left sm:inline">Set up printer</span>
               <span id="pos-printer-open-label-xs" class="max-w-[4.5rem] truncate sm:hidden">Printer</span>
             </button>
+            <button
+              type="button"
+              id="pos-receipts-open"
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px]"
+              aria-label="Open today's receipts"
+              title="Today's receipts"
+            >
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] sm:h-6 sm:w-6 sm:rounded-lg">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6m-7 4h8M7 3v4m10-4v4M6 21h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z" />
+                </svg>
+              </span>
+              <span class="hidden sm:inline">Receipts</span>
+              <span class="sm:hidden">R</span>
+            </button>
+            </div>
             <div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <div class="flex shrink-0 items-center gap-1 sm:gap-2">
               {% include "partials/notification_bell.html" %}
               {% include "partials/theme_toggle.html" %}
-            </div>
-            <div class="flex shrink-0 items-center border-l border-[rgb(var(--rc-border))]/60 pl-2 sm:pl-3">
-              {% if session.get('shop_id') and session.get('shop_id')|int == shop.id %}
-                {% include "partials/shop_session_header_menu.html" %}
-              {% elif session.get('employee_id') %}
-                {% include "partials/employee_portal_header_user.html" %}
-              {% else %}
-                <a
-                  href="{{ url_for('employee_login', next=request.path) }}"
-                  class="btn-rc btn-rc-primary inline-flex items-center gap-2 whitespace-nowrap px-3 py-2 text-xs font-bold uppercase tracking-wider sm:px-4 sm:py-2.5 sm:text-sm"
-                >
-                  <svg class="h-4 w-4 shrink-0 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  Employee login
-                </a>
-              {% endif %}
+              </div>
+              <div class="flex min-w-0 shrink-0 items-center border-l border-[rgb(var(--rc-border))]/60 pl-2 sm:pl-3">
+                {% if session.get('shop_id') and session.get('shop_id')|int == shop.id %}
+                  {% include "partials/shop_session_header_menu.html" %}
+                {% elif session.get('employee_id') %}
+                  {% include "partials/employee_portal_header_user.html" %}
+                {% else %}
+                  <a
+                    href="{{ url_for('employee_login', next=request.path) }}"
+                    class="btn-rc btn-rc-primary inline-flex items-center gap-2 whitespace-nowrap px-3 py-2 text-xs font-bold uppercase tracking-wider sm:px-4 sm:py-2.5 sm:text-sm"
+                  >
+                    <svg class="h-4 w-4 shrink-0 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    <span class="hidden sm:inline">Employee login</span>
+                    <span class="sm:hidden">Login</span>
+                  </a>
+                {% endif %}
+              </div>
             </div>
           </nav>
         </div>
@@ -2280,7 +2340,7 @@
                     <p class="pos-cat-section__hint">
                       <span class="sm:hidden">Swipe to browse · tap to add</span>
                       <span class="hidden sm:inline">
-                        {% if inv_mode == "kitchen" %}Scroll or use arrows · tap to add · kitchen portions{% elif inv_mode == "shop" %}Scroll or use arrows · tap to add · live stock{% else %}Scroll or use arrows · tap to add{% endif %}
+                        {% if inv_mode == "kitchen" or inv_mode == "both" %}Scroll or use arrows · tap to add · kitchen portions (selling){% elif inv_mode == "shop" %}Scroll or use arrows · tap to add · live stock{% else %}Scroll or use arrows · tap to add{% endif %}
                       </span>
                     </p>
                   </div>
@@ -2289,15 +2349,17 @@
 
                 <div class="pos-cat-strip-outer">
                   <div
-                    class="pos-item-scroll pos-item-scroll--bleed touch-pan-x overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 md:pl-12 md:pr-12 lg:-mx-8 lg:px-8 lg:pl-14 lg:pr-14"
+                    class="pos-item-scroll pos-item-scroll--bleed overscroll-x-contain -mx-[max(0.65rem,env(safe-area-inset-left))] px-[max(0.65rem,env(safe-area-inset-left))] sm:-mx-5 sm:px-5 md:-mx-6 md:px-6 md:pl-12 md:pr-12 lg:-mx-8 lg:px-8 lg:pl-14 lg:pr-14"
                   >
                   {% for it in rows %}
-                    {% if inv_mode == "kitchen" and (it.stock_update_enabled|default(0)|int) != 1 %}
+                    {% if inv_mode == "none" %}
                       {% set eff_stock = 999999999 %}
-                    {% elif inv_mode == "kitchen" %}
+                    {% elif (inv_mode == "kitchen" or inv_mode == "both") and (it.stock_update_enabled|default(0)|int) != 1 %}
+                      {% set eff_stock = 999999999 %}
+                    {% elif inv_mode == "kitchen" or inv_mode == "both" %}
                       {% set eff_stock = it.kitchen_portions %}
-                    {% elif inv_mode == "none" %}
-                      {% set eff_stock = 999999999 %}
+                    {% elif inv_mode == "shop" %}
+                      {% set eff_stock = it.shop_stock_qty %}
                     {% else %}
                       {% set eff_stock = it.shop_stock_qty %}
                     {% endif %}
@@ -2333,8 +2395,8 @@
                       <div class="pos-item-card__panel flex w-full shrink-0 flex-col gap-1.5">
                         <p class="pos-item-name line-clamp-2 min-h-0 text-[10px] font-extrabold leading-snug tracking-tight sm:text-[11px]">{{ it.name }}</p>
                         <div class="pos-item-card__meta flex items-center justify-between gap-1">
-                          <span class="pos-item-card__stock-label shrink-0 text-[8px] font-semibold uppercase tracking-[0.14em]">{% if inv_mode == "kitchen" %}Kitchen{% elif inv_mode == "shop" %}Stock{% else %}—{% endif %}</span>
-                          {% if inv_mode == "none" or (inv_mode == "kitchen" and (it.stock_update_enabled|default(0)|int) != 1) %}
+                          <span class="pos-item-card__stock-label shrink-0 text-[8px] font-semibold uppercase tracking-[0.14em]">{% if inv_mode == "kitchen" or inv_mode == "both" %}Kitchen{% elif inv_mode == "shop" %}Stock{% else %}—{% endif %}</span>
+                          {% if inv_mode == "none" or ((inv_mode == "kitchen" or inv_mode == "both") and (it.stock_update_enabled|default(0)|int) != 1) %}
                             <span
                               class="pos-item-stock pos-item-stock--detail is-in-stock tabular-nums text-[10px] sm:text-[11px]"
                               data-pos-stock
@@ -3015,6 +3077,65 @@
   </div>
   {% endif %}
 
+  <div
+    id="pos-receipts-modal"
+    class="fixed inset-0 z-[97] hidden"
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="pos-receipts-title"
+  >
+    <div id="pos-receipts-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
+      <div class="relative flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
+        <div class="flex items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-3 py-2.5 sm:px-4 sm:py-3">
+          <div class="min-w-0">
+            <h3 id="pos-receipts-title" class="truncate text-sm font-extrabold uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))] sm:text-base">Today's receipts</h3>
+            <p id="pos-receipts-subtitle" class="text-[11px] text-[rgb(var(--rc-muted))]">Select one receipt, then choose an action.</p>
+          </div>
+          <button
+            type="button"
+            id="pos-receipts-close"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]/80"
+            aria-label="Close receipts popup"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="flex min-h-0 flex-1 flex-col">
+          <div class="overflow-x-auto border-b border-[rgb(var(--rc-border))]/70">
+            <table class="min-w-full text-xs">
+              <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Receipt</th>
+                  <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Date and time</th>
+                  <th class="px-3 py-2.5 text-right font-bold uppercase tracking-wider">Amount</th>
+                  <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Recorded by</th>
+                  <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+          <div class="min-h-0 flex-1 overflow-auto">
+            <table class="min-w-full text-xs">
+              <tbody id="pos-receipts-list-body" class="divide-y divide-[rgb(var(--rc-border))]/70"></tbody>
+            </table>
+          </div>
+          <div class="border-t border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface-2))]/40 px-3 py-3 sm:px-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" id="pos-receipts-reprint" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reprint</button>
+              <button type="button" id="pos-receipts-cancel" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Cancel</button>
+              <button type="button" id="pos-receipts-return" class="btn-rc btn-rc-danger rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Return</button>
+              <span id="pos-receipts-msg" class="text-xs text-[rgb(var(--rc-muted))]"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {# Incoming stock request (another shop asked to transfer from this shop) — polled on POS #}
   <div
     id="pos-incoming-sr-modal"
@@ -3120,6 +3241,10 @@
       var RECORD_QUOTE_API = {{ url_for('shop_pos_record_quote', shop_id=shop.id)|tojson }};
       var SELLER_LOOKUP_API = {{ url_for('seller_lookup')|tojson }};
       var CATALOG_STOCK_API = {{ url_for('shop_pos_catalog_json', shop_id=shop.id)|tojson }};
+      var RECEIPTS_LIST_API = {{ url_for('shop_receipts_list_json', shop_id=shop.id)|tojson }};
+      var RECEIPTS_MARK_API = {{ url_for('shop_receipts_mark', shop_id=shop.id)|tojson }};
+      var RECEIPTS_DETAIL_API = {{ url_for('shop_receipts_detail', shop_id=shop.id)|tojson }};
+      var RECEIPTS_RETURN_LINES_API = {{ url_for('shop_receipts_return_lines', shop_id=shop.id)|tojson }};
       var POS_INVENTORY_MODE = {{ pos_inventory_mode|tojson }};
       window.POS_INVENTORY_MODE = POS_INVENTORY_MODE;
       var PRINTER_API = {{ url_for('shop_pos_printer', shop_id=shop.id)|tojson }};
@@ -3156,6 +3281,532 @@
       var customerRegisterInFlight = false;
       var lastSplitEdited = "cash";
       var stockInModal = document.getElementById("pos-stockin-modal");
+      var openReceiptsBtn = document.getElementById("pos-receipts-open");
+      var receiptsModal = document.getElementById("pos-receipts-modal");
+      var receiptsBackdrop = document.getElementById("pos-receipts-backdrop");
+      var receiptsCloseBtn = document.getElementById("pos-receipts-close");
+      var receiptsSubtitle = document.getElementById("pos-receipts-subtitle");
+      var receiptsListBody = document.getElementById("pos-receipts-list-body");
+      var receiptsMsg = document.getElementById("pos-receipts-msg");
+      var receiptsReprintBtn = document.getElementById("pos-receipts-reprint");
+      var receiptsCancelBtn = document.getElementById("pos-receipts-cancel");
+      var receiptsReturnBtn = document.getElementById("pos-receipts-return");
+      var selectedReceiptId = 0;
+      var receiptsRowsCache = [];
+      function todayIso() {
+        var d = new Date();
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, "0");
+        var day = String(d.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+      }
+      function setReceiptsMsg(text, tone) {
+        if (!receiptsMsg) return;
+        receiptsMsg.textContent = text || "";
+        receiptsMsg.className = "text-xs " + (tone === "error"
+          ? "text-rose-500"
+          : tone === "ok"
+            ? "text-emerald-600 dark:text-emerald-300"
+            : "text-[rgb(var(--rc-muted))]");
+      }
+      function receiptStatusChip(status) {
+        var s = String(status || "pending").toLowerCase();
+        if (s === "confirmed") return '<span class="inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">confirmed</span>';
+        if (s === "cancelled") return '<span class="inline-flex rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">cancelled</span>';
+        if (s === "partial_return") return '<span class="inline-flex rounded-md bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300">partial return</span>';
+        if (s === "returned") return '<span class="inline-flex rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">returned</span>';
+        return '<span class="inline-flex rounded-md bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300">pending</span>';
+      }
+      function selectedReceiptRow() {
+        var sid = selectedReceiptId;
+        if (!sid) return null;
+        for (var i = 0; i < receiptsRowsCache.length; i++) {
+          if (parseInt(receiptsRowsCache[i].sale_id || 0, 10) === sid) return receiptsRowsCache[i];
+        }
+        return null;
+      }
+      function renderReceiptsRows(rows) {
+        receiptsRowsCache = Array.isArray(rows) ? rows : [];
+        if (!receiptsListBody) return;
+        if (!receiptsRowsCache.length) {
+          receiptsListBody.innerHTML =
+            "<tr><td colspan='5' class='px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]'>No receipts found for today.</td></tr>";
+          selectedReceiptId = 0;
+          return;
+        }
+        receiptsListBody.innerHTML = receiptsRowsCache
+          .map(function (row) {
+            var sid = parseInt(row.sale_id || 0, 10) || 0;
+            var rec = row.receipt_number || ("#" + String(sid));
+            var when = row.created_at || row.created_at_iso || "-";
+            var amount = Number(row.total_amount || 0);
+            var emp = row.employee_name || "-";
+            var active = sid === selectedReceiptId;
+            return (
+              "<tr class='cursor-pointer " + (active ? "bg-[rgb(var(--rc-primary))]/10" : "hover:bg-[rgb(var(--rc-surface-2))]/40") + "' data-pos-receipt-row data-sale-id='" + String(sid) + "'>" +
+              "<td class='px-3 py-2.5 font-mono font-bold text-[rgb(var(--rc-page-fg))]'>" + receiptEsc(rec) + "</td>" +
+              "<td class='px-3 py-2.5 text-[rgb(var(--rc-muted))]'>" + receiptEsc(when) + "</td>" +
+              "<td class='px-3 py-2.5 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]'>" + receiptEsc(amount.toFixed(2)) + "</td>" +
+              "<td class='px-3 py-2.5 text-[rgb(var(--rc-muted))]'>" + receiptEsc(emp) + "</td>" +
+              "<td class='px-3 py-2.5'>" + receiptStatusChip(row.receipt_mark_status) + "</td>" +
+              "</tr>"
+            );
+          })
+          .join("");
+        if (!selectedReceiptId && receiptsRowsCache.length) {
+          selectedReceiptId = parseInt(receiptsRowsCache[0].sale_id || 0, 10) || 0;
+          renderReceiptsRows(receiptsRowsCache);
+        }
+      }
+      function loadPosReceiptsList() {
+        var q = "?mode=single_day&single_day=" + encodeURIComponent(todayIso());
+        if (receiptsSubtitle) receiptsSubtitle.textContent = "Loading today's receipts...";
+        setReceiptsMsg("", "muted");
+        return fetch(RECEIPTS_LIST_API + q, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not load receipts.");
+            renderReceiptsRows(j.rows || []);
+            if (receiptsSubtitle) {
+              receiptsSubtitle.textContent = (j.range_label ? String(j.range_label) + " · " : "") + String((j.rows || []).length) + " receipt(s).";
+            }
+          })
+          .catch(function (err) {
+            renderReceiptsRows([]);
+            setReceiptsMsg((err && err.message) ? err.message : "Could not load receipts.", "error");
+          });
+      }
+      function showReceiptsModal() {
+        if (!receiptsModal) return;
+        receiptsModal.classList.remove("hidden");
+        receiptsModal.setAttribute("aria-hidden", "false");
+        loadPosReceiptsList();
+      }
+      function hideReceiptsModal() {
+        if (!receiptsModal) return;
+        receiptsModal.classList.add("hidden");
+        receiptsModal.setAttribute("aria-hidden", "true");
+      }
+      function withSelectedReceiptDetail(fn) {
+        if (!selectedReceiptId) {
+          setReceiptsMsg("Select a receipt first.", "error");
+          return Promise.resolve();
+        }
+        return fetch(RECEIPTS_DETAIL_API + "?sale_id=" + encodeURIComponent(selectedReceiptId), {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not load receipt detail.");
+            return fn(j.sale || {}, j.items || []);
+          })
+          .catch(function (err) {
+            setReceiptsMsg((err && err.message) ? err.message : "Could not load receipt detail.", "error");
+          });
+      }
+      function buildPersistedReceiptPayload(sale, items) {
+        var saleObj = sale || {};
+        var rows = (items || []).map(function (it) {
+          var qty = parseInt(it.qty || 0, 10) || 0;
+          var total = Number(it.line_total || 0);
+          var unit = Number(it.unit_price || 0);
+          return {
+            id: it.item_id,
+            name: it.item_name || "Item",
+            qty: qty,
+            price: unit,
+            listPrice: unit,
+            total: total,
+            listTotal: total,
+            lineDiscount: 0,
+            discounted: false,
+          };
+        });
+        var subtotal = rows.reduce(function (sum, it) { return sum + Number(it.total || 0); }, 0);
+        var tx = computePosTax(subtotal);
+        var pm = String(saleObj.payment_method || "").toLowerCase();
+        var paymentTypeLabel = "Payment";
+        var paymentDetailText = "";
+        if (pm === "cash") {
+          paymentTypeLabel = "Payment: Cash";
+          paymentDetailText = "Cash: " + fmt(saleObj.cash_amount || saleObj.total_amount || 0);
+        } else if (pm === "mpesa") {
+          paymentTypeLabel = "Payment: M-Pesa";
+          paymentDetailText = "M-Pesa: " + fmt(saleObj.mpesa_amount || saleObj.total_amount || 0);
+        } else if (pm === "both") {
+          paymentTypeLabel = "Payment: Cash + M-Pesa";
+          paymentDetailText = "Cash: " + fmt(saleObj.cash_amount || 0) + " | M-Pesa: " + fmt(saleObj.mpesa_amount || 0);
+        } else if (String(saleObj.sale_type || "") === "credit") {
+          paymentTypeLabel = "Payment: Credit";
+          paymentDetailText = "Pending payment";
+        }
+        var createdAt = saleObj.created_at ? String(saleObj.created_at) : new Date().toLocaleString();
+        var site = window.POS_SITE || {};
+        var rs = receiptSettings();
+        return {
+          receiptNo: String(saleObj.receipt_number || ("#" + String(saleObj.id || ""))),
+          printedAt: createdAt,
+          shopName: String(saleObj.shop_name || site.shop_name || "Point of Sale"),
+          companyName: String(site.company_name || ""),
+          shopCode: String(saleObj.shop_code || site.shop_code || ""),
+          shopLocation: String(site.shop_location || ""),
+          receiptLogoUrl: String(site.receipt_logo_url || site.app_icon_url || ""),
+          mode: String(saleObj.sale_type || "sale") === "credit" ? "Credit" : "Sale",
+          isQuotation: false,
+          isReprint: true,
+          customerName: String(saleObj.customer_name || "Walk-in customer"),
+          customerPhone: String(saleObj.customer_phone || "-"),
+          employeeName: String(saleObj.employee_name || "Unknown"),
+          employeeCode: String(saleObj.employee_code || "-"),
+          lines: rows,
+          subtotal: subtotal,
+          discountTotal: 0,
+          hasDiscount: false,
+          taxAmount: tx.taxAmt,
+          taxPercent: tx.taxPct,
+          grandTotal: Number(saleObj.total_amount || tx.grand || subtotal),
+          includeTax: tx.includeTax,
+          paymentTypeLabel: paymentTypeLabel,
+          paymentDetailText: paymentDetailText,
+          receiptHeader: (rs.receipt_header || "").trim(),
+          receiptFooter: (rs.receipt_footer || "").trim(),
+          creditDueDate: "",
+        };
+      }
+      function escHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+      function verifyReceiptActionCode(rawCode) {
+        var code = String(rawCode || "").replace(/\D/g, "").slice(0, 6);
+        if (!/^\d{6}$/.test(code)) {
+          return Promise.reject(new Error("Enter a valid 6-digit code."));
+        }
+        return fetch(AUTH_API, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ employee_code: code }),
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Authorization failed.");
+            var role = String((j.employee && j.employee.role) || "").trim().toLowerCase();
+            if (role !== "manager" && role !== "admin" && role !== "super_admin") {
+              throw new Error("Only manager, admin, or super admin can do this action.");
+            }
+            return j.employee || {};
+          });
+      }
+      function ensureReceiptActionModal() {
+        var existing = document.getElementById("pos-receipt-action-modal");
+        if (existing) return existing;
+        var wrap = document.createElement("div");
+        wrap.id = "pos-receipt-action-modal";
+        wrap.className = "fixed inset-0 z-[130] hidden items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4";
+        wrap.innerHTML =
+          '<div class="w-full max-w-2xl overflow-hidden rounded-t-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl sm:rounded-2xl">' +
+          '<div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/95 px-4 py-3">' +
+          '<div class="min-w-0">' +
+          '<h3 id="pos-receipt-action-title" class="truncate text-sm font-black uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))]">Receipt action</h3>' +
+          '<p id="pos-receipt-action-subtitle" class="mt-1 text-xs text-[rgb(var(--rc-muted))]"></p>' +
+          "</div>" +
+          '<button type="button" id="pos-receipt-action-close" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>' +
+          "</div>" +
+          '<div id="pos-receipt-action-body" class="max-h-[68vh] overflow-auto p-4 text-sm text-[rgb(var(--rc-page-fg))]"></div>' +
+          '<div class="border-t border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/95 px-4 py-3">' +
+          '<p id="pos-receipt-action-msg" class="text-xs text-[rgb(var(--rc-muted))]"></p>' +
+          "</div>" +
+          "</div>";
+        document.body.appendChild(wrap);
+        wrap.addEventListener("click", function (e) {
+          if (e.target === wrap) wrap.classList.add("hidden");
+        });
+        var closeBtn = document.getElementById("pos-receipt-action-close");
+        if (closeBtn) closeBtn.addEventListener("click", function () { wrap.classList.add("hidden"); });
+        return wrap;
+      }
+      function openCancelReceiptModal(saleId, receiptNo) {
+        var modal = ensureReceiptActionModal();
+        var title = document.getElementById("pos-receipt-action-title");
+        var subtitle = document.getElementById("pos-receipt-action-subtitle");
+        var body = document.getElementById("pos-receipt-action-body");
+        var msg = document.getElementById("pos-receipt-action-msg");
+        if (title) title.textContent = "Cancel receipt";
+        if (subtitle) subtitle.textContent = "Receipt " + String(receiptNo || ("#" + String(saleId)));
+        if (body) {
+          body.innerHTML =
+            '<p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">Enter 6-digit employee code for manager/admin/super admin verification.</p>' +
+            '<label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee code</label>' +
+            '<input id="pos-receipt-cancel-code" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="••••••" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm tracking-[0.2em] text-[rgb(var(--rc-page-fg))] outline-none" />' +
+            '<div class="mt-3 flex justify-end gap-2">' +
+            '<button type="button" id="pos-receipt-cancel-submit" class="btn-rc btn-rc-danger rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Verify and cancel</button>' +
+            "</div>";
+        }
+        if (msg) msg.textContent = "";
+        modal.classList.remove("hidden");
+        var submit = document.getElementById("pos-receipt-cancel-submit");
+        var input = document.getElementById("pos-receipt-cancel-code");
+        if (input) input.focus();
+        if (submit) {
+          submit.onclick = function () {
+            var code = (input && input.value) || "";
+            submit.disabled = true;
+            if (msg) msg.textContent = "Verifying code...";
+            verifyReceiptActionCode(code)
+              .then(function () {
+                if (msg) msg.textContent = "Updating receipt...";
+                return fetch(RECEIPTS_MARK_API, {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "Content-Type": "application/json", Accept: "application/json" },
+                  body: JSON.stringify({ sale_ids: [saleId], mark_status: "cancelled" }),
+                });
+              })
+              .then(function (r) { return r.json().catch(function () { return {}; }); })
+              .then(function (j) {
+                if (!j || !j.ok) throw new Error((j && j.error) || "Could not cancel receipt.");
+                modal.classList.add("hidden");
+                setReceiptsMsg("Receipt cancelled.", "ok");
+                loadPosReceiptsList();
+              })
+              .catch(function (err) {
+                if (msg) msg.textContent = (err && err.message) ? err.message : "Could not cancel receipt.";
+                submit.disabled = false;
+              });
+          };
+        }
+      }
+      function openReturnReceiptModal(sale, items) {
+        var saleId = parseInt((sale && sale.id) || 0, 10) || 0;
+        var recNo = (sale && sale.receipt_number) || ("#" + String(saleId));
+        var modal = ensureReceiptActionModal();
+        var title = document.getElementById("pos-receipt-action-title");
+        var subtitle = document.getElementById("pos-receipt-action-subtitle");
+        var body = document.getElementById("pos-receipt-action-body");
+        var msg = document.getElementById("pos-receipt-action-msg");
+        if (title) title.textContent = "Return items";
+        if (subtitle) subtitle.textContent = "Receipt " + String(recNo) + " · select items then enter 6-digit code";
+        var rows = (items || []).map(function (it) {
+          var lineId = parseInt(it.line_id || 0, 10) || 0;
+          var qty = parseInt(it.qty || 0, 10) || 0;
+          var total = Number(it.line_total || 0);
+          return (
+            "<tr class='border-t border-[rgb(var(--rc-border))]/50 hover:bg-[rgb(var(--rc-surface-2))]/40'>" +
+            "<td class='py-3 px-2 text-center'><input type='checkbox' class='pos-return-line h-4 w-4 rounded border-[rgb(var(--rc-border))]' value='" + escHtml(lineId) + "'" + (qty <= 0 ? " disabled" : "") + " /></td>" +
+            "<td class='py-3 px-2 text-[rgb(var(--rc-page-fg))]'><div class='font-semibold'>" + escHtml(it.item_name || "Item") + "</div></td>" +
+            "<td class='py-3 px-2 text-right tabular-nums font-semibold'>" + escHtml(qty) + "</td>" +
+            "<td class='py-3 px-2 text-right tabular-nums'>" + escHtml(total.toFixed(2)) + "</td>" +
+            "</tr>"
+          );
+        }).join("");
+        if (body) {
+          body.innerHTML =
+            '<div class="space-y-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-gradient-to-br from-[rgb(var(--rc-surface-2))]/65 to-[rgb(var(--rc-surface))] p-3 sm:p-4">' +
+            '<div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/90 px-3 py-2.5">' +
+            '<p class="text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Choose specific lines to return.</p>' +
+            '<label class="inline-flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]"><input id="pos-return-select-all" type="checkbox" class="h-4 w-4 rounded border-[rgb(var(--rc-border))]" />All</label>' +
+            "</div>" +
+            '<div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] shadow-sm">' +
+            "<table class='min-w-full text-xs sm:text-sm'><thead><tr class='text-left text-[rgb(var(--rc-muted))]'>" +
+            "<th class='py-2.5 px-2 text-center font-bold uppercase tracking-wider'>Pick</th>" +
+            "<th class='py-2.5 px-2 font-bold uppercase tracking-wider'>Item</th>" +
+            "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Qty</th>" +
+            "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Total</th>" +
+            "</tr></thead><tbody>" + rows + "</tbody></table></div>" +
+            '<div class="rounded-xl border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-surface))] p-3 shadow-sm">' +
+            '<label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))]">6-digit verification code</label>' +
+            '<div class="relative">' +
+            '<input id="pos-receipt-return-code" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="Enter 6 digits" class="w-full rounded-xl border border-[rgb(var(--rc-primary))]/45 bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 pr-11 text-sm font-semibold tracking-[0.26em] text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/70 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />' +
+            '<button type="button" id="pos-receipt-return-code-toggle" class="absolute inset-y-0 right-1 inline-flex h-full items-center justify-center px-2 text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))]" aria-label="Show code" title="Show code">' +
+            '<svg id="pos-receipt-return-code-eye-open" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>' +
+            '<svg id="pos-receipt-return-code-eye-closed" class="hidden h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58"></path><path d="M9.36 5.37A10.94 10.94 0 0112 5c6.5 0 10 7 10 7a14.57 14.57 0 01-4.08 4.92"></path><path d="M6.23 6.23A14.54 14.54 0 002 12s3.5 7 10 7a10.94 10.94 0 005.27-1.37"></path></svg>' +
+            "</button>" +
+            "</div>" +
+            '<p id="pos-return-picked-hint" class="mt-1.5 text-[11px] text-[rgb(var(--rc-muted))]">0 item lines selected.</p>' +
+            '<p id="pos-return-code-hint" class="mt-0.5 text-[11px] text-[rgb(var(--rc-muted))]">Verification runs automatically on the 6th digit.</p>' +
+            "</div>" +
+            '<div class="sticky bottom-0 flex items-center justify-between gap-2 rounded-xl border border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/90 px-3 py-2">' +
+            '<span class="text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Auto submit after valid code</span>' +
+            '<button type="button" id="pos-receipt-return-submit" class="btn-rc btn-rc-danger rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Return now</button>' +
+            "</div>" +
+            "</div>";
+        }
+        if (msg) msg.textContent = "Select lines, then enter 6-digit code.";
+        modal.classList.remove("hidden");
+        var submit = document.getElementById("pos-receipt-return-submit");
+        var codeInput = document.getElementById("pos-receipt-return-code");
+        var codeToggle = document.getElementById("pos-receipt-return-code-toggle");
+        var codeEyeOpen = document.getElementById("pos-receipt-return-code-eye-open");
+        var codeEyeClosed = document.getElementById("pos-receipt-return-code-eye-closed");
+        var selectAll = document.getElementById("pos-return-select-all");
+        var pickedHint = document.getElementById("pos-return-picked-hint");
+        var codeHint = document.getElementById("pos-return-code-hint");
+        var returnAuthInFlight = false;
+        var returnLast6 = "";
+        function selectedLineIds() {
+          return Array.prototype.slice
+            .call(document.querySelectorAll(".pos-return-line:checked"))
+            .map(function (cb) { return parseInt(cb.value || "0", 10) || 0; })
+            .filter(function (n) { return n > 0; });
+        }
+        function updatePickedHint() {
+          var count = selectedLineIds().length;
+          if (pickedHint) {
+            pickedHint.textContent = String(count) + " item line" + (count === 1 ? "" : "s") + " selected.";
+          }
+        }
+        function runAutoReturnFromCode(source) {
+          if (returnAuthInFlight) return;
+          var picks = selectedLineIds();
+          if (!picks.length) {
+            if (msg) msg.textContent = "Select at least one item to return.";
+            return;
+          }
+          var code = ((codeInput && codeInput.value) || "").replace(/\D/g, "").slice(0, 6);
+          if (!/^\d{6}$/.test(code)) {
+            if (msg) msg.textContent = "Enter a valid 6-digit code.";
+            return;
+          }
+          if (source === "auto" && code === returnLast6) return;
+          returnLast6 = code;
+          returnAuthInFlight = true;
+          if (submit) submit.disabled = true;
+          if (codeInput) codeInput.disabled = true;
+          if (msg) msg.textContent = "Verifying code...";
+          verifyReceiptActionCode(code)
+            .then(function () {
+              if (msg) msg.textContent = "Code valid. Returning selected items...";
+              return fetch(RECEIPTS_RETURN_LINES_API, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify({ sale_id: saleId, line_ids: picks }),
+              });
+            })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+              if (!j || !j.ok) throw new Error((j && j.error) || "Could not return receipt.");
+              modal.classList.add("hidden");
+              setReceiptsMsg("Return processed.", "ok");
+              loadPosReceiptsList();
+            })
+            .catch(function (err) {
+              if (msg) msg.textContent = (err && err.message) ? err.message : "Could not process return.";
+              if (codeHint) codeHint.textContent = "Fix the code and retry.";
+              returnAuthInFlight = false;
+              if (submit) submit.disabled = false;
+              if (codeInput) {
+                codeInput.disabled = false;
+                codeInput.focus();
+              }
+            });
+        }
+        if (selectAll) {
+          selectAll.addEventListener("change", function () {
+            Array.prototype.slice.call(document.querySelectorAll(".pos-return-line")).forEach(function (cb) {
+              if (!cb.disabled) cb.checked = !!selectAll.checked;
+            });
+            updatePickedHint();
+          });
+        }
+        Array.prototype.slice.call(document.querySelectorAll(".pos-return-line")).forEach(function (cb) {
+          cb.addEventListener("change", updatePickedHint);
+        });
+        updatePickedHint();
+        if (codeInput) {
+          codeInput.focus();
+          codeInput.select();
+          codeInput.addEventListener("input", function () {
+            var val = (codeInput.value || "").replace(/\D/g, "").slice(0, 6);
+            codeInput.value = val;
+            if (codeHint) {
+              codeHint.textContent = val.length < 6
+                ? "Verification runs automatically on the 6th digit."
+                : "Verifying now...";
+            }
+            if (val.length === 6) {
+              setTimeout(function () { runAutoReturnFromCode("auto"); }, 120);
+            } else {
+              returnLast6 = "";
+            }
+          });
+        }
+        if (codeToggle && codeInput) {
+          codeToggle.addEventListener("click", function () {
+            var show = codeInput.type === "password";
+            codeInput.type = show ? "text" : "password";
+            codeToggle.setAttribute("aria-label", show ? "Hide code" : "Show code");
+            codeToggle.setAttribute("title", show ? "Hide code" : "Show code");
+            if (codeEyeOpen) codeEyeOpen.classList.toggle("hidden", show);
+            if (codeEyeClosed) codeEyeClosed.classList.toggle("hidden", !show);
+            codeInput.focus();
+          });
+        }
+        if (submit) {
+          submit.onclick = function () {
+            runAutoReturnFromCode("manual");
+          };
+        }
+      }
+      if (openReceiptsBtn) {
+        openReceiptsBtn.addEventListener("click", function () {
+          showReceiptsModal();
+        });
+      }
+      if (receiptsCloseBtn) receiptsCloseBtn.addEventListener("click", hideReceiptsModal);
+      if (receiptsBackdrop) receiptsBackdrop.addEventListener("click", hideReceiptsModal);
+      if (receiptsListBody) {
+        receiptsListBody.addEventListener("click", function (e) {
+          var row = e.target && e.target.closest ? e.target.closest("[data-pos-receipt-row]") : null;
+          if (!row) return;
+          selectedReceiptId = parseInt(row.getAttribute("data-sale-id") || "0", 10) || 0;
+          renderReceiptsRows(receiptsRowsCache);
+          setReceiptsMsg("", "muted");
+        });
+      }
+      if (receiptsCancelBtn) {
+        receiptsCancelBtn.addEventListener("click", function () {
+          var row = selectedReceiptRow();
+          if (!row || !selectedReceiptId) {
+            setReceiptsMsg("Select a receipt first.", "error");
+            return;
+          }
+          openCancelReceiptModal(selectedReceiptId, row.receipt_number || ("#" + String(selectedReceiptId)));
+        });
+      }
+      if (receiptsReturnBtn) {
+        receiptsReturnBtn.addEventListener("click", function () {
+          withSelectedReceiptDetail(function (sale, items) {
+            openReturnReceiptModal(sale || {}, items || []);
+          });
+        });
+      }
+      if (receiptsReprintBtn) {
+        receiptsReprintBtn.addEventListener("click", function () {
+          withSelectedReceiptDetail(function (sale, items) {
+            setReceiptsMsg("Sending receipt to printer...", "muted");
+            var payload = buildPersistedReceiptPayload(sale, items);
+            return runConfiguredPrinterAction(payload)
+              .then(function () {
+                setReceiptsMsg("Reprint sent.", "ok");
+              })
+              .catch(function () {
+                setReceiptsMsg("Could not print receipt.", "error");
+              });
+          });
+        });
+      }
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && receiptsModal && !receiptsModal.classList.contains("hidden")) {
+          hideReceiptsModal();
+        }
+      });
       var stockInOpenBtn = document.getElementById("pos-buy-open");
       var stockInCloseBtn = document.getElementById("pos-stockin-close");
       var stockInCancelBtn = document.getElementById("pos-stockin-cancel");
@@ -4373,8 +5024,11 @@
               ).catch(function () {});
             });
           }
-          return recordSaleForAnalytics(buildAnalyticsPayload(lines, mode)).then(function () {
-            return runConfiguredPrinterAction(makeReceiptPayload(lines, mode)).catch(function () {});
+          return recordSaleForAnalytics(buildAnalyticsPayload(lines, mode)).then(function (res) {
+            var persistedReceiptNo = (res && res.receipt_number) ? String(res.receipt_number) : "";
+            return runConfiguredPrinterAction(
+              makeReceiptPayload(lines, mode, { persistedReceiptNo: persistedReceiptNo })
+            ).catch(function () {});
           });
         }
         maybeRegisterCustomerAfterAuth()
@@ -4740,6 +5394,8 @@
           receiptNo:
             opts.quoteId != null && opts.quoteId !== ""
               ? "Q-" + String(opts.quoteId)
+              : (opts.persistedReceiptNo || "").trim()
+                ? String(opts.persistedReceiptNo).trim()
               : nextReceiptNumber(),
           printedAt: b.printedAt,
           shopName: b.shopDisplayName,
@@ -4749,6 +5405,7 @@
           receiptLogoUrl: (site.receipt_logo_url || site.app_icon_url || "").trim(),
           mode: b.modeLabel,
           isQuotation: !!opts.isQuotation,
+          isReprint: !!opts.isReprint,
           customerName: b.customerName,
           customerPhone: b.customerPhone,
           employeeName: (authorizedEmployee && authorizedEmployee.full_name) || "Unknown",
@@ -5044,6 +5701,9 @@
             ".receipt-thermal-quote{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #94a3b8;background:#f8fafc;text-align:center}" +
             ".receipt-thermal-quote__title{display:block;font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#0f172a}" +
             ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:9.5px;color:#64748b}" +
+            ".receipt-thermal-reprint{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #f59e0b;background:#fffbeb;text-align:center}" +
+            ".receipt-thermal-reprint__title{display:block;font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#92400e}" +
+            ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:9.5px;color:#b45309}" +
             ".receipt-thermal-meta{margin:0 0 1.5mm;padding:1mm 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb}" +
             ".receipt-thermal-meta div{display:flex;justify-content:space-between;align-items:baseline;gap:1.5mm;margin:0.8mm 0}" +
             ".receipt-thermal-meta dt{margin:0;font-size:7.5px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em}" +
@@ -5179,6 +5839,16 @@
             '<div class="receipt-thermal-quote" role="status">' +
             '<span class="receipt-thermal-quote__title">Quotation</span>' +
             '<span class="receipt-thermal-quote__sub">Not a finalized sale</span>' +
+            "</div>"
+          );
+        }
+
+        function reprintBannerHtml() {
+          if (!payload.isReprint) return "";
+          return (
+            '<div class="receipt-thermal-reprint" role="status">' +
+            '<span class="receipt-thermal-reprint__title">Reprinted receipt</span>' +
+            '<span class="receipt-thermal-reprint__sub">This is a duplicate copy</span>' +
             "</div>"
           );
         }
@@ -5337,6 +6007,7 @@
           brandBlockHtml() +
           headerAndContactHtml() +
           quoteBannerHtml() +
+          reprintBannerHtml() +
           metaDlHtml() +
           '<pre class="receipt receipt--items">' +
           receiptEsc(itemsPlain) +
@@ -5484,6 +6155,16 @@
           pushLn("*** QUOTATION ***");
           boldOff();
           pushLn("NOT A FINALIZED SALE");
+          pushBytes([ESC, 0x61, 0x00]);
+          sep();
+        }
+        if (payload.isReprint) {
+          sep();
+          pushBytes([ESC, 0x61, 0x01]);
+          boldOn();
+          pushLn("*** REPRINTED RECEIPT ***");
+          boldOff();
+          pushLn("DUPLICATE COPY");
           pushBytes([ESC, 0x61, 0x00]);
           sep();
         }
@@ -7326,7 +8007,7 @@
         function posEffectiveQtyFromCatalogRow(row, mode) {
           mode = mode || window.POS_INVENTORY_MODE || "shop";
           if (!row) return 0;
-          if (mode === "kitchen") {
+          if (mode === "kitchen" || mode === "both") {
             if (!posKitchenPortionTrackedFromRow(row)) return 999999999;
             var kk = parseInt(row.kitchen_portions, 10);
             return isNaN(kk) ? 0 : kk;
@@ -7371,7 +8052,7 @@
             var lbl = btn.querySelector(".pos-item-card__stock-label");
             if (lbl) {
               lbl.textContent =
-                mode === "kitchen"
+                mode === "kitchen" || mode === "both"
                   ? posKitchenPortionTrackedFromRow(row)
                     ? "Kitchen"
                     : "—"
@@ -7381,7 +8062,8 @@
             }
             var badge = btn.querySelector("[data-pos-stock]");
             if (badge) {
-              var kitchenUntracked = mode === "kitchen" && !posKitchenPortionTrackedFromRow(row);
+              var kitchenUntracked =
+                (mode === "kitchen" || mode === "both") && !posKitchenPortionTrackedFromRow(row);
               badge.setAttribute("data-pos-stock-qty", mode === "none" || kitchenUntracked ? "999999999" : String(q));
               badge.classList.remove("is-in-stock", "is-out");
               if (mode === "none" || kitchenUntracked) {

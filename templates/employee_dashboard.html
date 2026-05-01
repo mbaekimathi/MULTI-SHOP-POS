@@ -3,6 +3,7 @@
 {% block portal_page_title %}Dashboard{% endblock %}
 {% block sidebar_links %}
   {% if request.view_args and request.view_args.get('role') in ('it_support', 'super_admin') %}
+    {% set _hide_receipt_links_on_super_admin_dashboard = request.endpoint == 'employee_dashboard' and (request.view_args.get('role') or '') == 'super_admin' %}
     <a
       href="{{ url_for('it_support_register_shop') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
@@ -33,6 +34,30 @@
       Analytics page
     </a>
 
+    {% if not _hide_receipt_links_on_super_admin_dashboard %}
+      <a
+        href="{{ url_for('it_support_system_settings', tab='receipt') }}"
+        class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() in ('receipt', 'printing') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+        {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() in ('receipt', 'printing') %}aria-current="page"{% endif %}
+      >
+        <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        Receipt settings
+      </a>
+
+      <a
+        href="{{ url_for('it_support_receipts') }}"
+        class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+        {% if request.endpoint == 'it_support_receipts' %}aria-current="page"{% endif %}
+      >
+        <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+        Receipt register
+      </a>
+    {% endif %}
+
     <a
       href="{{ url_for('it_support_leads') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
@@ -43,6 +68,7 @@
       Leads &amp; quotations
     </a>
 
+    {% if company_pos_allow_credit_sale|default(true) %}
     <a
       href="{{ url_for('it_support_credit_payments') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
@@ -52,7 +78,10 @@
       </svg>
       Credit payments (all shops)
     </a>
+    {% endif %}
 
+    {# Company POS tab: Shop stock hides kitchen workflows (kitchen portions + analytics). #}
+    {% if (company_pos_inventory_exclusive|default('kitchen')) != 'shop' %}
     <a
       href="{{ url_for('it_support_dashboard') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_dashboard' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -74,6 +103,7 @@
       </svg>
       Portion analytics
     </a>
+    {% endif %}
 
     <a
       href="{{ url_for('it_support_store_management') }}"

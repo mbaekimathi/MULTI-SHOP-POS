@@ -3,55 +3,81 @@
 {% block shop_page_title %}Shop analytics{% endblock %}
 {% block shop_sidebar_links %}
   {% set av = analytics_view or 'revenue' %}
-  <a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'revenue' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  {% set _shop_nav_role = portal_employee.role_key if portal_employee else (session.get('employee_role') or '') %}
+  {% set _ascope = request.args.get('analytics_scope') or 'general' %}
+  <a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'revenue' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
     </svg>
     Revenue analytics
   </a>
-  <a href="{{ url_for('shop_item_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'item' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  <a href="{{ url_for('shop_item_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'item' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
     </svg>
     Item analytics
   </a>
-  <a href="{{ url_for('shop_period_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'period' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  <a href="{{ url_for('shop_period_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'period' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
     Period analytics
   </a>
-  <a href="{{ url_for('shop_sales_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'sales' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  <a href="{{ url_for('shop_sales_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'sales' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h5M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
     </svg>
     Sales analytics
   </a>
   {% if pos_allow_credit_sale %}
-  <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'credit' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'credit' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
     </svg>
     Credit analytics
   </a>
   {% endif %}
-  <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'customer' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'customer' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
     Customer analytics
   </a>
-  <a href="{{ url_for('shop_stock_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'stock' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+  <a href="{{ url_for('shop_stock_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'stock' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />
     </svg>
     Stock status
   </a>
+  {% if _shop_nav_role in ('admin', 'manager') %}
+  <a href="{{ url_for('shop_receipts', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
+    <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+    Receipts
+  </a>
+  {% endif %}
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set av = analytics_view or 'revenue' %}
+  {% set analytics_scope = analytics_scope or 'general' %}
   {% set analytics_qs = ('?' ~ request.query_string.decode()) if request.query_string else '' %}
+  <form method="get" action="{{ request.path }}" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-3 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Data view</p>
+      <div class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1">
+        <button type="submit" name="analytics_scope" value="general" class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if analytics_scope != 'actual' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))]{% endif %}">General</button>
+        <button type="submit" name="analytics_scope" value="actual" class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if analytics_scope == 'actual' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))]{% endif %}">Actual</button>
+      </div>
+    </div>
+    <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
+    <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
+    <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
+    <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
+    <input type="hidden" name="month" value="{{ f.month or '' }}" />
+    <input type="hidden" name="year" value="{{ f.year or '' }}" />
+  </form>
   {% if av == 'revenue' %}
     {% set view_title = 'Revenue overview' %}
     {% set view_blurb = 'Sale and credit income for the range below.' %}
@@ -143,6 +169,13 @@
           <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
           <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
           <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div class="min-w-[10rem] flex-1">
+        <label for="analytics-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Data mode</label>
+        <select id="analytics-scope" name="analytics_scope" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+          <option value="general" {% if analytics_scope != 'actual' %}selected{% endif %}>General data</option>
+          <option value="actual" {% if analytics_scope == 'actual' %}selected{% endif %}>Actual data (confirmed only)</option>
         </select>
       </div>
 
@@ -1051,7 +1084,7 @@
                 <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.total_amount or 0)|float) }}</td>
                 <td class="px-4 py-2 text-center">
                   <a
-                    href="{{ url_for('shop_customer_analytics_detail', shop_id=shop.id, customer_name=row.customer_name, customer_phone=row.customer_phone, mode=f.mode, single_day=f.single_day, start_date=f.start_date, end_date=f.end_date, month=f.month, year=f.year) }}"
+                    href="{{ url_for('shop_customer_analytics_detail', shop_id=shop.id, customer_name=row.customer_name, customer_phone=row.customer_phone, mode=f.mode, single_day=f.single_day, start_date=f.start_date, end_date=f.end_date, month=f.month, year=f.year, analytics_scope=analytics_scope) }}"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:border-[rgb(var(--rc-primary))]/45 hover:bg-[rgb(var(--rc-surface))]"
                     aria-label="View customer analytics"
                   >

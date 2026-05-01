@@ -3,7 +3,7 @@
   <button
     type="button"
     id="shop-header-dd-btn"
-    class="inline-flex max-w-[min(15rem,56vw)] items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-left shadow-sm ring-1 ring-black/5 transition hover:bg-[rgb(var(--rc-surface-2))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:gap-2.5 sm:px-3 sm:py-2 dark:ring-white/10"
+    class="inline-flex max-w-[min(13rem,52vw)] items-center gap-1.5 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-1.5 py-1 text-left shadow-sm ring-1 ring-black/5 transition hover:bg-[rgb(var(--rc-surface-2))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:max-w-[min(15rem,56vw)] sm:gap-2.5 sm:px-3 sm:py-2 dark:ring-white/10"
     aria-expanded="false"
     aria-haspopup="true"
     aria-controls="shop-header-dd-panel"
@@ -12,24 +12,24 @@
       <img
         src="{{ url_for('static', filename=shop.shop_logo) }}"
         alt=""
-        class="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-black/10"
-        width="32"
-        height="32"
+        class="h-7 w-7 shrink-0 rounded-lg object-cover ring-1 ring-black/10 sm:h-8 sm:w-8"
+        width="28"
+        height="28"
       />
     {% else %}
       <span
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white shadow-inner ring-1 ring-white/15"
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-black text-white shadow-inner ring-1 ring-white/15 sm:h-8 sm:w-8 sm:text-xs"
         style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
         aria-hidden="true"
         >{{ (shop.shop_name[:1] if shop.shop_name else '?')|e }}</span
       >
     {% endif %}
     <span class="min-w-0 flex-1">
-      <span class="block truncate text-xs font-bold leading-tight text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</span>
-      <span class="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shop account</span>
+      <span class="block truncate text-[11px] font-bold leading-tight text-[rgb(var(--rc-page-fg))] sm:text-xs">{{ shop.shop_name }}</span>
+      <span class="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] sm:block">Shop account</span>
     </span>
     <svg
-      class="shop-header-dd-chevron h-4 w-4 shrink-0 text-[rgb(var(--rc-muted))] transition-transform duration-200"
+      class="shop-header-dd-chevron h-3.5 w-3.5 shrink-0 text-[rgb(var(--rc-muted))] transition-transform duration-200 sm:h-4 sm:w-4"
       data-shop-dd-chevron
       fill="none"
       stroke="currentColor"

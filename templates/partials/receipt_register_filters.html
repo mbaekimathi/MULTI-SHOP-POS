@@ -1,0 +1,213 @@
+{# Shared date scope + receipt number (server) for receipt register pages.
+   Expects: form_action (url), f (analytics_filter dict), receipt_q (str),
+   show_shop_picker (bool), shops (list of shop dicts), shop_filter_id (int|none)
+#}
+{% set f = f or {} %}
+<form method="get" action="{{ form_action }}" id="receipt-scope-form" class="rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+  <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/60 pb-3">
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Receipts</p>
+      <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Date range &amp; filters</p>
+    </div>
+    <p class="max-w-sm text-right text-[11px] text-[rgb(var(--rc-muted))]">Default is <strong class="text-[rgb(var(--rc-page-fg))]">today</strong>. Apply reloads from the server; receipt search below also filters this list live.</p>
+  </div>
+  <div class="flex flex-wrap items-end gap-2.5">
+    {% if show_shop_picker and shops %}
+    <div class="min-w-[12rem] flex-1">
+      <label for="receipt-filter-shop" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Shop</label>
+      <select id="receipt-filter-shop" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+        <option value="" {% if not shop_filter_id %}selected{% endif %}>All shops</option>
+        {% for sh in shops %}
+          <option value="{{ sh.id }}" {% if shop_filter_id and (sh.id|int) == (shop_filter_id|int) %}selected{% endif %}>{{ sh.shop_name or ('Shop #' ~ sh.id) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="min-w-[10rem] flex-1">
+      <label for="receipt-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
+      <select id="receipt-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+        <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+        <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+        <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+        <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+      </select>
+    </div>
+    <div id="receipt-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+      <label for="receipt-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+      <input id="receipt-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+    </div>
+    <div id="receipt-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+      <div class="min-w-[9.5rem] flex-1">
+        <label for="receipt-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+        <input id="receipt-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+      <div class="min-w-[9.5rem] flex-1">
+        <label for="receipt-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+        <input id="receipt-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+    </div>
+    <div id="receipt-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+      <label for="receipt-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+      <input id="receipt-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+    </div>
+    <div id="receipt-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+      <label for="receipt-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+      <input id="receipt-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+    </div>
+    <input type="hidden" name="receipt_q" id="receipt-q-hidden" value="{{ receipt_q or '' }}" />
+    <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
+  </div>
+</form>
+<div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/50 p-4">
+  <label for="receipt-live-search" class="mb-2 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Live search receipt #</label>
+  <input
+    id="receipt-live-search"
+    type="search"
+    autocomplete="off"
+    placeholder="Type receipt number…"
+    value="{{ receipt_q or '' }}"
+    class="w-full max-w-md rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))] focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+  />
+  <div id="receipt-live-suggestions" class="mt-2 hidden w-full max-w-md overflow-hidden rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm"></div>
+  <p class="mt-2 text-[11px] text-[rgb(var(--rc-muted))]">
+    Showing <span id="receipt-visible-count" class="font-bold text-[rgb(var(--rc-page-fg))]">0</span> of {{ receipt_rows_total or 0 }} loaded row(s).
+  </p>
+</div>
+
+<script>
+  (function () {
+    var mode = document.getElementById("receipt-filter-mode");
+    var day = document.getElementById("receipt-filter-single-day");
+    var period = document.getElementById("receipt-filter-period");
+    var month = document.getElementById("receipt-filter-month");
+    var year = document.getElementById("receipt-filter-year");
+    if (mode && day && period && month && year) {
+      function sync() {
+        var m = mode.value || "single_day";
+        day.classList.toggle("hidden", m !== "single_day");
+        period.classList.toggle("hidden", m !== "period");
+        month.classList.toggle("hidden", m !== "month");
+        year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    }
+    var live = document.getElementById("receipt-live-search");
+    var hidden = document.getElementById("receipt-q-hidden");
+    var scopeForm = document.getElementById("receipt-scope-form");
+    var badge = document.getElementById("receipt-visible-count");
+    var suggestionsBox = document.getElementById("receipt-live-suggestions");
+    function getTbody() {
+      return document.getElementById("receipt-register-tbody");
+    }
+    function escHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+    function collectMatches(raw) {
+      var tbody = getTbody();
+      if (!tbody) return [];
+      var rows = tbody.querySelectorAll("tr[data-sale-id]");
+      var out = [];
+      rows.forEach(function (tr) {
+        if (tr.getAttribute("data-sale-id") === "__none__") return;
+        var id = String(tr.getAttribute("data-sale-id") || "");
+        var rec = String(tr.getAttribute("data-receipt-no") || "");
+        var recLc = rec.toLowerCase();
+        var needle = raw.replace(/^#/, "");
+        var matches = !raw || recLc.indexOf(needle) !== -1;
+        if (!matches) return;
+        out.push({
+          saleId: id,
+          receiptNo: rec || ("#" + id),
+          row: tr,
+        });
+      });
+      return out.slice(0, 8);
+    }
+    function renderSuggestions(raw) {
+      if (!suggestionsBox) return;
+      var matches = collectMatches(raw);
+      if (!matches.length) {
+        suggestionsBox.classList.add("hidden");
+        suggestionsBox.innerHTML = "";
+        return;
+      }
+      suggestionsBox.innerHTML = matches
+        .map(function (m) {
+          return (
+            '<button type="button" class="receipt-suggestion-row flex w-full items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/60 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-[rgb(var(--rc-surface-2))]" data-sale-id="' +
+            escHtml(m.saleId) +
+            '" data-receipt-no="' +
+            escHtml(m.receiptNo) +
+            '">' +
+            '<span class="font-mono font-semibold text-[rgb(var(--rc-page-fg))]">' +
+            escHtml(m.receiptNo) +
+            "</span>" +
+            '<span class="text-[rgb(var(--rc-muted))]">sale #' +
+            escHtml(m.saleId) +
+            "</span>" +
+            "</button>"
+          );
+        })
+        .join("");
+      suggestionsBox.classList.remove("hidden");
+    }
+    function runFilter() {
+      var tbody = getTbody();
+      if (!tbody || !live) return;
+      var raw = String(live.value || "").trim().toLowerCase();
+      var rows = tbody.querySelectorAll("tr[data-sale-id]");
+      var n = 0;
+      rows.forEach(function (tr) {
+        var id = String(tr.getAttribute("data-sale-id") || "");
+        var rec = String(tr.getAttribute("data-receipt-no") || "").toLowerCase();
+        var needle = raw.replace(/^#/, "");
+        var show =
+          !raw ||
+          rec.indexOf(needle) !== -1;
+        tr.classList.toggle("hidden", !show);
+        if (show) n++;
+      });
+      if (badge) badge.textContent = String(n);
+      renderSuggestions(raw);
+    }
+    if (live) {
+      live.addEventListener("input", runFilter);
+      live.addEventListener("focus", runFilter);
+    }
+    if (scopeForm && live && hidden) {
+      scopeForm.addEventListener("submit", function () {
+        hidden.value = String(live.value || "").trim();
+      });
+    }
+    if (suggestionsBox && live) {
+      suggestionsBox.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest(".receipt-suggestion-row") : null;
+        if (!btn) return;
+        var saleId = String(btn.getAttribute("data-sale-id") || "").trim();
+        if (saleId) {
+          var row = getTbody() ? getTbody().querySelector('tr[data-sale-id="' + saleId + '"]') : null;
+          var cb = row ? row.querySelector(".receipt-select-one") : null;
+          if (cb && !cb.checked) {
+            cb.checked = true;
+            cb.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }
+        live.value = "";
+        live.focus();
+        runFilter();
+      });
+      document.addEventListener("click", function (e) {
+        if (!suggestionsBox || suggestionsBox.classList.contains("hidden")) return;
+        if (e.target === live || suggestionsBox.contains(e.target)) return;
+        suggestionsBox.classList.add("hidden");
+      });
+    }
+    runFilter();
+  })();
+</script>

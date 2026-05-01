@@ -298,6 +298,11 @@ def _build_analytics_filter():
     }
 
 
+def _analytics_scope_from_request() -> str:
+    scope = (request.args.get("analytics_scope") or "general").strip().lower()
+    return scope if scope in ("general", "actual") else "general"
+
+
 def _normalize_static_relative_path(path) -> str:
     """Normalize DB paths for Flask url_for('static', filename=...)."""
     if path is None:
@@ -388,6 +393,15 @@ def inject_portal_context():
         "dashboard_url": url_for("employee_dashboard", role=role_key),
         "profile_settings_url": url_for("employee_profile_settings"),
     }
+    extra: dict[str, object] = {}
+    if role_key in ("it_support", "super_admin"):
+        try:
+            ps = _load_printing_settings()
+            extra["company_pos_inventory_exclusive"] = _printing_pos_inventory_exclusive_choice(ps)
+            extra["company_pos_allow_credit_sale"] = bool(ps.get("pos_allow_credit_sale"))
+        except Exception:
+            extra["company_pos_inventory_exclusive"] = "shop"
+            extra["company_pos_allow_credit_sale"] = True
     return {
         "nav_employee": {
             "name": pe["name"],
@@ -395,6 +409,7 @@ def inject_portal_context():
             "dashboard_url": pe["dashboard_url"],
         },
         "portal_employee": pe,
+        **extra,
     }
 
 
@@ -1059,6 +1074,66 @@ def _shop_has_receipt_override(shop: dict) -> bool:
     return _parse_shop_settings_json(shop.get("receipt_settings_json")) is not None
 
 
+def _enforce_exclusive_pos_inventory(merged: dict) -> None:
+    """
+    Exactly one POS inventory posture is active among:
+    dual (kitchen + shelf), kitchen-only (portions at checkout), or shop-only (shelf qty at checkout).
+    Priority after loading legacy JSON: ``pos_inventory_use_both`` ⇒ dual;
+    elif kitchen on ⇒ kitchen-only; elif shop sale on ⇒ shop-only; else default shop-only.
+    """
+    if not isinstance(merged, dict):
+        return
+    use_both = bool(merged.get("pos_inventory_use_both"))
+    k = bool(merged.get("pos_kitchen_portions"))
+    s = bool(merged.get("pos_shop_stock_sale"))
+    if use_both:
+        merged["pos_inventory_use_both"] = True
+        merged["pos_kitchen_portions"] = True
+        merged["pos_shop_stock_sale"] = True
+    elif k:
+        merged["pos_inventory_use_both"] = False
+        merged["pos_kitchen_portions"] = True
+        merged["pos_shop_stock_sale"] = False
+    elif s:
+        merged["pos_inventory_use_both"] = False
+        merged["pos_kitchen_portions"] = False
+        merged["pos_shop_stock_sale"] = True
+    else:
+        merged["pos_inventory_use_both"] = False
+        merged["pos_kitchen_portions"] = False
+        merged["pos_shop_stock_sale"] = True
+
+
+def _printing_pos_inventory_exclusive_choice(merged: dict) -> str:
+    """Single UI value derived from stored printing flags (after enforce rules)."""
+    if not isinstance(merged, dict):
+        return "shop"
+    if bool(merged.get("pos_inventory_use_both")):
+        return "dual"
+    if bool(merged.get("pos_kitchen_portions")):
+        return "kitchen"
+    return "shop"
+
+
+def _apply_pos_inventory_exclusive_form_choice(merged: dict, choice: str) -> None:
+    """Set the three booleans from the POS inventory dropdown (shop | kitchen | dual)."""
+    if not isinstance(merged, dict):
+        return
+    c = (choice or "").strip().lower()
+    if c == "kitchen":
+        merged["pos_inventory_use_both"] = False
+        merged["pos_kitchen_portions"] = True
+        merged["pos_shop_stock_sale"] = False
+    elif c == "dual":
+        merged["pos_inventory_use_both"] = True
+        merged["pos_kitchen_portions"] = True
+        merged["pos_shop_stock_sale"] = True
+    else:
+        merged["pos_inventory_use_both"] = False
+        merged["pos_kitchen_portions"] = False
+        merged["pos_shop_stock_sale"] = True
+
+
 def _effective_printing_settings_for_shop(shop: dict) -> dict:
     base = _load_printing_settings()
     data = _parse_shop_settings_json(shop.get("printing_settings_json"))
@@ -1077,6 +1152,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
         "pos_show_buy_items_link",
         "pos_show_customer_details_sale",
         "pos_include_tax",
+        "pos_inventory_use_both",
         "pos_kitchen_portions",
         "pos_shop_stock_sale",
         "printer_allow_bluetooth",
@@ -1091,6 +1167,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
+    _enforce_exclusive_pos_inventory(merged)
     return merged
 
 
@@ -1112,16 +1189,33 @@ def _pos_inventory_mode_from_ps(ps: dict | None) -> str:
     """How POS deducts inventory given merged printing settings dict (global or per-shop)."""
     if not ps:
         return "none"
-    if ps.get("pos_kitchen_portions"):
+    k = bool(ps.get("pos_kitchen_portions"))
+    s = bool(ps.get("pos_shop_stock_sale"))
+    if k and s:
+        return "both"
+    if k:
         return "kitchen"
-    if ps.get("pos_shop_stock_sale"):
+    if s:
         return "shop"
     return "none"
 
 
 def _pos_inventory_mode(shop: dict) -> str:
-    """How POS deducts inventory: shop stock, kitchen portions, or none."""
+    """How POS deducts inventory: shop stock, kitchen portions, both, or none."""
+    try:
+        from database import resolve_shop_pos_inventory_mode
+
+        sid = int((shop or {}).get("id") or 0)
+        if sid > 0:
+            return resolve_shop_pos_inventory_mode(sid)
+    except Exception:
+        pass
     return _pos_inventory_mode_from_ps(_effective_printing_settings_for_shop(shop))
+
+
+def _global_pos_inventory_mode() -> str:
+    """Company-level POS inventory mode from system printing settings."""
+    return _pos_inventory_mode_from_ps(_load_printing_settings())
 
 
 def _effective_receipt_settings_for_shop(shop: dict) -> dict:
@@ -1266,6 +1360,7 @@ def _default_printing_settings() -> dict:
         "pos_show_buy_items_link": True,
         "pos_show_customer_details_sale": True,
         "pos_include_tax": True,
+        "pos_inventory_use_both": False,
         "pos_kitchen_portions": False,
         "pos_shop_stock_sale": True,
         "receipt_copies": "1",
@@ -1299,6 +1394,7 @@ def _load_printing_settings() -> dict:
         "pos_show_buy_items_link",
         "pos_show_customer_details_sale",
         "pos_include_tax",
+        "pos_inventory_use_both",
         "pos_kitchen_portions",
         "pos_shop_stock_sale",
         "printer_allow_bluetooth",
@@ -1313,6 +1409,7 @@ def _load_printing_settings() -> dict:
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
+    _enforce_exclusive_pos_inventory(merged)
     return merged
 
 
@@ -1324,12 +1421,9 @@ def _printing_settings_from_form() -> dict:
     if rc not in ("1", "2", "3"):
         rc = "1"
     allow_price = _b("printing_allow_line_price_edit") or _b("pos_allow_line_price_edit")
-    kitchen = _b("pos_kitchen_portions")
-    store_sale = _b("pos_shop_stock_sale")
-    if kitchen:
-        store_sale = False
-    elif store_sale:
-        kitchen = False
+    inv_choice = (request.form.get("pos_inventory_exclusive") or "shop").strip().lower()
+    if inv_choice not in ("shop", "kitchen", "dual"):
+        inv_choice = "shop"
     merged = {
         "print_compulsory_sale": _b("printing_compulsory_sale"),
         "allow_line_price_edit": allow_price,
@@ -1342,16 +1436,19 @@ def _printing_settings_from_form() -> dict:
         "pos_show_buy_items_link": _b("pos_show_buy_items_link"),
         "pos_show_customer_details_sale": _b("pos_show_customer_details_sale"),
         "pos_include_tax": _b("pos_include_tax"),
-        "pos_kitchen_portions": kitchen,
-        "pos_shop_stock_sale": store_sale,
+        "pos_inventory_use_both": False,
+        "pos_kitchen_portions": False,
+        "pos_shop_stock_sale": True,
         "receipt_copies": rc,
         "printer_allow_bluetooth": _b("printing_allow_bluetooth"),
         "printer_allow_network": _b("printing_allow_network"),
         "printer_allow_usb": _b("printing_allow_usb"),
     }
+    _apply_pos_inventory_exclusive_form_choice(merged, inv_choice)
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
+    _enforce_exclusive_pos_inventory(merged)
     return merged
 
 
@@ -1366,6 +1463,7 @@ _POS_PANEL_PRINTING_PATCH_FIELDS: Tuple[Tuple[str, str], ...] = (
     ("pos_show_buy_items_link", "pos_show_buy_items_link"),
     ("pos_show_customer_details_sale", "pos_show_customer_details_sale"),
     ("pos_include_tax", "pos_include_tax"),
+    ("pos_inventory_use_both", "pos_inventory_use_both"),
     ("pos_kitchen_portions", "pos_kitchen_portions"),
     ("pos_shop_stock_sale", "pos_shop_stock_sale"),
     ("pos_allow_line_price_edit", "allow_line_price_edit"),
@@ -1391,33 +1489,39 @@ def _printing_settings_apply_pos_panel_patch_dict(merged: dict, patch: dict) -> 
     """Apply JSON patch (form field names → bool); mutates merged. Mirrors _printing_settings_from_form inventory rules."""
     if not isinstance(patch, dict):
         return
+    inv_ex = patch.get("pos_inventory_exclusive")
+    inv_exclusive: Optional[str] = None
+    if isinstance(inv_ex, str):
+        c = inv_ex.strip().lower()
+        if c in ("shop", "kitchen", "dual"):
+            inv_exclusive = c
+    if inv_exclusive is not None:
+        _apply_pos_inventory_exclusive_form_choice(merged, inv_exclusive)
     for form_name, mkey in _POS_PANEL_PRINTING_PATCH_FIELDS:
+        if inv_exclusive is not None and form_name in (
+            "pos_inventory_use_both",
+            "pos_kitchen_portions",
+            "pos_shop_stock_sale",
+        ):
+            continue
         if form_name not in patch:
             continue
         b = _pos_patch_bool(patch.get(form_name))
         if b is None:
             continue
         merged[mkey] = b
-    kitchen = bool(merged.get("pos_kitchen_portions"))
-    store_sale = bool(merged.get("pos_shop_stock_sale"))
-    if kitchen:
-        merged["pos_shop_stock_sale"] = False
-        store_sale = False
-    elif store_sale:
-        merged["pos_kitchen_portions"] = False
-        kitchen = False
-    merged["pos_kitchen_portions"] = kitchen
-    merged["pos_shop_stock_sale"] = store_sale
+    _enforce_exclusive_pos_inventory(merged)
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
 
 
-def _printing_settings_pos_panel_client_payload(merged: dict) -> Dict[str, bool]:
-    """Field names matching POS tab checkbox `name=` attributes."""
-    out: Dict[str, bool] = {}
+def _printing_settings_pos_panel_client_payload(merged: dict) -> Dict[str, Any]:
+    """Field names matching POS tab form controls; inventory is one exclusive choice plus legacy bools."""
+    out: Dict[str, Any] = {}
     for form_name, mkey in _POS_PANEL_PRINTING_PATCH_FIELDS:
         out[form_name] = bool(merged.get(mkey))
+    out["pos_inventory_exclusive"] = _printing_pos_inventory_exclusive_choice(merged)
     return out
 
 
@@ -1604,7 +1708,7 @@ def _it_support_kitchen_portion_matrix(shops: list) -> dict:
         sid = int(s["id"])
         m = _pos_inventory_mode(s)
         shop_modes[sid] = m
-        shop_editable[sid] = m == "kitchen"
+        shop_editable[sid] = m in ("kitchen", "both")
 
     return {
         "shops": shop_list,
@@ -1646,7 +1750,7 @@ def it_support_kitchen_portions_save():
             shop_id = int(m.group(1))
             item_id = int(m.group(2))
             shop = _get_shop_or_404(shop_id)
-            if _pos_inventory_mode(shop) != "kitchen":
+            if _pos_inventory_mode(shop) not in ("kitchen", "both"):
                 continue
             try:
                 q = int(str(raw or "").strip() or "0")
@@ -2205,13 +2309,129 @@ def it_support_stock_management():
     _it_support_only()
     if request.method == "POST":
         return _it_support_stock_management_post()
+    show_register_stock_item_link = False
     try:
         from database import list_stock_manage_items
 
         items = list_stock_manage_items(limit=500)
+        show_register_stock_item_link = _global_pos_inventory_mode() == "both"
     except Exception:
         items = []
-    return render_template("it_support_stock_management.html", items=items)
+    return render_template(
+        "it_support_stock_management.html",
+        items=items,
+        show_register_stock_item_link=show_register_stock_item_link,
+    )
+
+
+@app.route("/it_support/item-management/register-stock-item", methods=["GET", "POST"])
+@login_required
+def it_support_register_stock_item():
+    """Register dedicated store stock items for all shops in POS Both mode."""
+    _it_support_only()
+    try:
+        from database import (
+            create_store_stock_item,
+            init_store_stock_items_table,
+            list_store_stock_items,
+            list_shops,
+            resolve_shop_pos_inventory_mode,
+        )
+    except Exception:
+        flash("Could not load stock item registration tools.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    shops = list_shops(limit=500) or []
+    both_shops = []
+    for s in (shops or []):
+        try:
+            sid = int(s.get("id") or 0)
+        except Exception:
+            sid = 0
+        if sid <= 0:
+            continue
+        try:
+            if resolve_shop_pos_inventory_mode(sid) == "both":
+                both_shops.append(s)
+        except Exception:
+            continue
+    measure_options = (
+        "pcs",
+        "kg",
+        "g",
+        "l",
+        "ml",
+        "pack",
+        "crate",
+        "box",
+        "dozen",
+        "portion",
+    )
+
+    if request.method == "POST":
+        if not both_shops:
+            flash("No shops are currently set to Both mode.", "error")
+            return redirect(url_for("it_support_register_stock_item"))
+        action = (request.form.get("action") or "").strip().lower()
+        if action == "create_stock_item":
+            cat = (request.form.get("category") or "").strip()
+            nm = (request.form.get("name") or "").strip()
+            desc = (request.form.get("description") or "").strip()
+            measure = (request.form.get("measure_unit") or "").strip().lower()
+            if measure not in measure_options:
+                flash("Choose a valid measure unit.", "error")
+                return redirect(url_for("it_support_register_stock_item"))
+            if not cat or not nm:
+                flash("Category and stock item name are required.", "error")
+                return redirect(url_for("it_support_register_stock_item"))
+            init_store_stock_items_table()
+            created = 0
+            for s in both_shops:
+                try:
+                    sid = int(s.get("id") or 0)
+                except Exception:
+                    sid = 0
+                if sid <= 0:
+                    continue
+                new_id = create_store_stock_item(
+                    shop_id=sid,
+                    category=cat,
+                    name=nm,
+                    description=desc,
+                    measure_unit=measure,
+                    created_by_employee_id=session.get("employee_id"),
+                )
+                if new_id:
+                    created += 1
+            flash(
+                f"Stock item created in {created} shop(s) using Both mode." if created else "Could not create stock item.",
+                "success" if created else "error",
+            )
+        else:
+            flash("Invalid action.", "error")
+        return redirect(url_for("it_support_register_stock_item"))
+
+    init_store_stock_items_table()
+    store_stock_items = []
+    for s in both_shops:
+        try:
+            sid = int(s.get("id") or 0)
+        except Exception:
+            sid = 0
+        if sid <= 0:
+            continue
+        sname = (s.get("shop_name") or "").strip() or f"Shop #{sid}"
+        for row in (list_store_stock_items(shop_id=sid, limit=5000, active_only=True) or []):
+            rr = dict(row)
+            rr["shop_name"] = sname
+            store_stock_items.append(rr)
+
+    return render_template(
+        "it_support_register_stock_item.html",
+        both_shops=both_shops,
+        measure_options=measure_options,
+        store_stock_items=store_stock_items,
+    )
 
 
 @app.route("/it_support/item-management/stock-in", methods=["GET", "POST"])
@@ -2263,14 +2483,18 @@ def it_support_company_stock_analytics():
         stock_data = get_company_stock_analytics(analytics_filter=analytics_filter)
     except Exception:
         stock_data = {}
+    inv_mode = _global_pos_inventory_mode()
     try:
         from database import get_company_stock_status, list_company_stock_movements
 
-        shops, stock_rows = get_company_stock_status(limit_items=2000)
+        shops, stock_rows = get_company_stock_status(limit_items=2000, inventory_mode=inv_mode)
         transaction_rows = list_company_stock_movements(analytics_filter=analytics_filter, limit=2000)
     except Exception:
         shops, stock_rows = [], []
         transaction_rows = []
+    allowed_ids = {int(r.get("id") or 0) for r in (stock_rows or []) if int(r.get("id") or 0) > 0}
+    if inv_mode in ("both", "kitchen"):
+        transaction_rows = [r for r in (transaction_rows or []) if int(r.get("item_id") or 0) in allowed_ids]
     return render_template(
         "it_support_stock_analytics.html",
         analytics_filter=analytics_filter,
@@ -2383,10 +2607,11 @@ def it_support_stock_status_print_daily_data():
 def it_support_stock_status_print():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
+    inv_mode = _global_pos_inventory_mode()
     try:
         from database import get_company_stock_status
 
-        shops, stock_rows = get_company_stock_status(limit_items=2000)
+        shops, stock_rows = get_company_stock_status(limit_items=2000, inventory_mode=inv_mode)
     except Exception:
         shops, stock_rows = [], []
     return render_template(
@@ -2410,10 +2635,12 @@ def it_support_stock_analytics_legacy():
 def it_support_stock_movement_analysis():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
+    inv_mode = _global_pos_inventory_mode()
     selected_shop_id = request.args.get("shop_id", type=int)
     selected_employee_id = request.args.get("employee_id", type=int)
     try:
         from database import (
+            get_company_stock_status,
             get_company_stock_movement_analytics,
             list_company_stock_movements,
             list_employees,
@@ -2432,6 +2659,28 @@ def it_support_stock_movement_analysis():
             employee_id=selected_employee_id,
             limit=1500,
         )
+        _, allowed_rows = get_company_stock_status(limit_items=5000, inventory_mode=inv_mode)
+        allowed_ids = {int(r.get("id") or 0) for r in (allowed_rows or []) if int(r.get("id") or 0) > 0}
+        if inv_mode in ("both", "kitchen"):
+            movement_rows = [r for r in (movement_rows or []) if int(r.get("item_id") or 0) in allowed_ids]
+            tx_count = len(movement_rows)
+            qty_in = sum(int(r.get("qty") or 0) for r in movement_rows if str(r.get("direction") or "").lower() == "in")
+            qty_out = sum(int(r.get("qty") or 0) for r in movement_rows if str(r.get("direction") or "").lower() == "out")
+            distinct_shops = len(
+                {
+                    int(r.get("shop_id") or 0)
+                    for r in movement_rows
+                    if int(r.get("shop_id") or 0) > 0
+                }
+            )
+            movement = {
+                **(movement or {}),
+                "tx_count": tx_count,
+                "qty_in": qty_in,
+                "qty_out": qty_out,
+                "net_qty": qty_in - qty_out,
+                "distinct_shops": distinct_shops,
+            }
     except Exception:
         shops = []
         employees = []
@@ -2454,6 +2703,7 @@ def it_support_stock_movement_analysis():
 def it_support_stock_profitability_analysis():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
+    inv_mode = _global_pos_inventory_mode()
     selected_view = (request.args.get("view") or "margin").strip().lower()
     allowed_views = {
         "margin",
@@ -2485,11 +2735,11 @@ def it_support_stock_profitability_analysis():
     )
 
     try:
-        items = list_stock_manage_items(limit=3000) or []
+        items = list_stock_manage_items(limit=3000, inventory_mode=inv_mode) or []
     except Exception:
         items = []
     try:
-        _, stock_rows = get_company_stock_status(limit_items=3000)
+        _, stock_rows = get_company_stock_status(limit_items=3000, inventory_mode=inv_mode)
     except Exception:
         stock_rows = []
     try:
@@ -3178,6 +3428,7 @@ def it_support_stock_supplier_stock_ins(item_id: int):
 @login_required
 def it_support_company_stock_settings():
     _it_support_or_super_admin_only()
+    inv_mode = _global_pos_inventory_mode()
     try:
         from database import (
             get_shop_item_stock_movement_summary,
@@ -3191,7 +3442,7 @@ def it_support_company_stock_settings():
 
         init_items_table()
         init_shop_items_table()
-        items = list_items_for_company_stock_settings(limit=8000) or []
+        items = list_items_for_company_stock_settings(limit=8000, inventory_mode=inv_mode) or []
         shops = list_shops(limit=1000) or []
         shop_reorder_totals = {}
         for sh in shops:
@@ -3223,6 +3474,9 @@ def it_support_company_stock_settings():
         items = []
 
     if request.method == "POST":
+        if inv_mode == "both":
+            flash("Company stock thresholds are not editable from this page in Both mode store stock items.", "warning")
+            return redirect(url_for("it_support_company_stock_settings"))
         allowed_ids = sorted({int(i.get("id") or 0) for i in items if i.get("id")} - {0})
         reorder_by_id = {int(i.get("id") or 0): int(i.get("reorder_level") or 0) for i in items if i.get("id")}
         ok = True
@@ -3257,22 +3511,27 @@ def it_support_stock_settings():
 @login_required
 def it_support_company_stock_update():
     _it_support_or_super_admin_only()
+    inv_mode = _global_pos_inventory_mode()
     try:
         from database import get_company_stock_status, list_shops, list_stock_manage_items
 
         shops = list_shops(limit=500)
-        items = list_stock_manage_items(limit=2000)
-        _, stock_rows = get_company_stock_status(limit_items=2000)
+        items = list_stock_manage_items(limit=2000, inventory_mode=inv_mode)
+        _, stock_rows = get_company_stock_status(limit_items=2000, inventory_mode=inv_mode)
     except Exception:
         shops, items, stock_rows = [], [], []
 
     if request.method == "POST":
+        if inv_mode == "both":
+            flash("Company stock update actions here use sales catalog items. In Both mode, manage shelf stock from shop stock management.", "warning")
+            return redirect(url_for("it_support_company_stock_update"))
         action = (request.form.get("action") or "").strip().lower()
         note = (request.form.get("note") or "").strip().upper() or None
 
         item_ids = request.form.getlist("item_id[]")
         qtys = request.form.getlist("qty[]")
 
+        allowed_ids = {int(i.get("id") or 0) for i in (items or []) if int(i.get("id") or 0) > 0}
         lines = []
         for i in range(min(len(item_ids), len(qtys), 200)):
             iid_raw = (item_ids[i] or "").strip()
@@ -3285,6 +3544,8 @@ def it_support_company_stock_update():
             except Exception:
                 continue
             if q <= 0:
+                continue
+            if iid not in allowed_ids:
                 continue
             lines.append((iid, q))
 
@@ -3473,6 +3734,8 @@ def it_support_item_toggle_stock_update(item_id: int):
             flash("Kitchen portion update setting updated.", "success")
         elif m == "shop":
             flash("Shop stock update setting updated.", "success")
+        elif m == "both":
+            flash("Kitchen portion (POS) toggle updated. Shelf stock is managed separately in branch Stock management.", "success")
         else:
             flash("Company POS inventory toggle updated.", "success")
     else:
@@ -3584,6 +3847,7 @@ def it_support_analytics():
 def _render_it_support_analytics_page(view_key: str):
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
     labels = {
         "revenue": "Revenue analytics",
         "item": "Item analytics",
@@ -3613,7 +3877,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_revenue_analytics
 
-            revenue_data = get_it_support_revenue_analytics(analytics_filter=analytics_filter)
+            revenue_data = get_it_support_revenue_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             revenue_data = {
                 "tx_count": 0,
@@ -3628,7 +3894,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_item_analytics
 
-            item_data = get_it_support_item_analytics(analytics_filter=analytics_filter)
+            item_data = get_it_support_item_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             item_data = {
                 "total_qty": 0,
@@ -3643,7 +3911,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_period_analytics
 
-            period_data = get_it_support_period_analytics(analytics_filter=analytics_filter)
+            period_data = get_it_support_period_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             period_data = {
                 "total_tx_count": 0,
@@ -3659,7 +3929,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_employee_analytics
 
-            employee_data = get_it_support_employee_analytics(analytics_filter=analytics_filter)
+            employee_data = get_it_support_employee_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             employee_data = {
                 "total_tx_count": 0,
@@ -3675,7 +3947,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_sales_analytics
 
-            sales_data = get_it_support_sales_analytics(analytics_filter=analytics_filter)
+            sales_data = get_it_support_sales_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             sales_data = {
                 "total_tx_count": 0,
@@ -3692,7 +3966,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_credit_analytics
 
-            credit_data = get_it_support_credit_analytics(analytics_filter=analytics_filter)
+            credit_data = get_it_support_credit_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             credit_data = {
                 "total_tx_count": 0,
@@ -3710,7 +3986,9 @@ def _render_it_support_analytics_page(view_key: str):
         try:
             from database import get_it_support_customer_analytics
 
-            customer_data = get_it_support_customer_analytics(analytics_filter=analytics_filter)
+            customer_data = get_it_support_customer_analytics(
+                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            )
         except Exception:
             customer_data = {
                 "total_tx_count": 0,
@@ -3742,19 +4020,27 @@ def _render_it_support_analytics_page(view_key: str):
 
                 if shop_view == "item":
                     shop_view_data = get_shop_item_analytics(
-                        shop_id=selected_shop_id, analytics_filter=analytics_filter
+                        shop_id=selected_shop_id,
+                        analytics_filter=analytics_filter,
+                        analytics_scope=analytics_scope,
                     )
                 elif shop_view == "sales":
                     shop_view_data = get_shop_sales_analytics(
-                        shop_id=selected_shop_id, analytics_filter=analytics_filter
+                        shop_id=selected_shop_id,
+                        analytics_filter=analytics_filter,
+                        analytics_scope=analytics_scope,
                     )
                 elif shop_view == "credit":
                     shop_view_data = get_shop_credit_analytics(
-                        shop_id=selected_shop_id, analytics_filter=analytics_filter
+                        shop_id=selected_shop_id,
+                        analytics_filter=analytics_filter,
+                        analytics_scope=analytics_scope,
                     )
                 elif shop_view == "period":
                     shop_view_data = get_shop_period_analytics(
-                        shop_id=selected_shop_id, analytics_filter=analytics_filter
+                        shop_id=selected_shop_id,
+                        analytics_filter=analytics_filter,
+                        analytics_scope=analytics_scope,
                     )
                 elif shop_view == "stock":
                     shop_view_data = get_shop_stock_analytics(
@@ -3762,11 +4048,15 @@ def _render_it_support_analytics_page(view_key: str):
                     )
                 elif shop_view == "customer":
                     shop_view_data = get_shop_customer_analytics(
-                        shop_id=selected_shop_id, analytics_filter=analytics_filter
+                        shop_id=selected_shop_id,
+                        analytics_filter=analytics_filter,
+                        analytics_scope=analytics_scope,
                     )
                 else:
                     shop_view_data = get_shop_revenue_analytics(
-                        shop_id=selected_shop_id, analytics_filter=analytics_filter
+                        shop_id=selected_shop_id,
+                        analytics_filter=analytics_filter,
+                        analytics_scope=analytics_scope,
                     )
             except Exception:
                 shop_view_data = None
@@ -3775,6 +4065,7 @@ def _render_it_support_analytics_page(view_key: str):
         analytics_key=view_key,
         analytics_title=labels[view_key],
         analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
         revenue_data=revenue_data,
         item_data=item_data,
         period_data=period_data,
@@ -3845,6 +4136,7 @@ def it_support_customer_transactions():
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
     scoped_shop_id = request.args.get("shop_id", type=int)
     analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
     try:
         from database import (
             get_it_support_customer_detail_analytics,
@@ -3858,12 +4150,14 @@ def it_support_customer_transactions():
             limit=3000,
             analytics_filter=analytics_filter,
             shop_id=scoped_shop_id,
+            analytics_scope=analytics_scope,
         )
         analytics = get_it_support_customer_detail_analytics(
             customer_name=customer_name,
             customer_phone=customer_phone,
             analytics_filter=analytics_filter,
             shop_id=scoped_shop_id,
+            analytics_scope=analytics_scope,
         )
         tx_item_rows = get_it_support_customer_transaction_items(
             customer_name=customer_name,
@@ -3871,6 +4165,7 @@ def it_support_customer_transactions():
             limit=5000,
             analytics_filter=analytics_filter,
             shop_id=scoped_shop_id,
+            analytics_scope=analytics_scope,
         )
         items_by_sale_id = {}
         for row in (tx_item_rows or []):
@@ -3913,6 +4208,7 @@ def it_support_customer_transactions():
         customer_phone=customer_phone,
         scoped_shop_id=scoped_shop_id,
         analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
         customer_analytics=analytics,
         transactions=txs,
         transaction_item_rows=tx_item_rows,
@@ -4994,7 +5290,7 @@ def shop_pos_record_sale(shop_id: int):
     try:
         from database import create_shop_pos_sale
 
-        ok, sale_err = create_shop_pos_sale(
+        ok, sale_err, sale_id, receipt_number = create_shop_pos_sale(
             shop_id=shop_id,
             sale_type=sale_type,
             payment_method=payment_method,
@@ -5017,7 +5313,13 @@ def shop_pos_record_sale(shop_id: int):
         msg = sale_err or "Could not record sale."
         status = 400 if sale_err else 500
         return jsonify({"ok": False, "error": msg}), status
-    return jsonify({"ok": True})
+    return jsonify(
+        {
+            "ok": True,
+            "sale_id": int(sale_id or 0),
+            "receipt_number": (receipt_number or "").strip(),
+        }
+    )
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/record-quote", methods=["POST"])
@@ -5206,6 +5508,118 @@ def it_support_leads():
         quote_lines_by_id=quote_lines_by_id,
         leads_filter=filt,
     )
+
+
+@app.route("/it_support/receipts")
+@login_required
+def it_support_receipts():
+    _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    rq = (request.args.get("receipt_q") or "").strip()
+    shop_filter_arg = request.args.get("shop_id", type=int)
+    shop_filter_id = shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
+    shops = []
+    try:
+        from database import list_all_shops_pos_sales_receipt_rows, list_shops
+
+        shops = list_shops(limit=5000) or []
+        rows = list_all_shops_pos_sales_receipt_rows(
+            analytics_filter,
+            shop_id=shop_filter_id,
+            sale_id_search=rq,
+            limit=8000,
+        )
+    except Exception:
+        logger.exception("it_support_receipts list failed")
+        rows = []
+        try:
+            from database import list_shops
+
+            shops = list_shops(limit=5000) or []
+        except Exception:
+            shops = []
+
+    return render_template(
+        "it_support_receipts.html",
+        analytics_filter=analytics_filter,
+        receipt_rows=rows,
+        receipt_rows_total=len(rows),
+        receipt_q=rq,
+        shops=shops,
+        shop_filter_id=shop_filter_id or 0,
+    )
+
+
+@app.route("/it_support/receipts/mark", methods=["POST"])
+@login_required
+def it_support_receipts_mark():
+    _it_support_or_super_admin_only()
+    data = request.get_json(force=True, silent=True) or {}
+    raw_ids = data.get("sale_ids")
+    mark_status = (data.get("mark_status") or "").strip().lower()
+    if not isinstance(raw_ids, list):
+        return jsonify({"ok": False, "error": "Select at least one receipt."}), 400
+    try:
+        from database import bulk_mark_shop_pos_receipts
+
+        affected = bulk_mark_shop_pos_receipts(
+            sale_ids=raw_ids,
+            mark_status=mark_status,
+        )
+    except Exception:
+        logger.exception("it_support_receipts_mark failed")
+        return jsonify({"ok": False, "error": "Could not update receipt marks."}), 500
+    if affected <= 0:
+        return jsonify({"ok": False, "error": "No receipts were updated."}), 400
+    return jsonify({"ok": True, "updated": int(affected), "mark_status": mark_status})
+
+
+@app.route("/it_support/receipts/detail")
+@login_required
+def it_support_receipts_detail():
+    _it_support_or_super_admin_only()
+    shop_id = request.args.get("shop_id", type=int)
+    sale_id = request.args.get("sale_id", type=int)
+    if not shop_id or not sale_id:
+        return jsonify({"ok": False, "error": "Missing receipt reference."}), 400
+    try:
+        from database import get_shop_pos_sale_detail
+
+        d = get_shop_pos_sale_detail(shop_id=int(shop_id), sale_id=int(sale_id)) or {}
+    except Exception:
+        logger.exception("it_support_receipts_detail failed shop_id=%s sale_id=%s", shop_id, sale_id)
+        return jsonify({"ok": False, "error": "Could not load receipt detail."}), 500
+    if not d.get("sale"):
+        return jsonify({"ok": False, "error": "Receipt not found."}), 404
+    return jsonify({"ok": True, "sale": d.get("sale") or {}, "items": d.get("items") or []})
+
+
+@app.route("/it_support/receipts/return-lines", methods=["POST"])
+@login_required
+def it_support_receipts_return_lines():
+    _it_support_or_super_admin_only()
+    data = request.get_json(force=True, silent=True) or {}
+    shop_id = int(data.get("shop_id") or 0)
+    sale_id = int(data.get("sale_id") or 0)
+    line_ids = data.get("line_ids")
+    if shop_id <= 0 or sale_id <= 0:
+        return jsonify({"ok": False, "error": "Invalid receipt reference."}), 400
+    if not isinstance(line_ids, list):
+        return jsonify({"ok": False, "error": "Select at least one item to return."}), 400
+    try:
+        from database import return_shop_pos_sale_lines
+
+        ok, err, meta = return_shop_pos_sale_lines(
+            shop_id=shop_id,
+            sale_id=sale_id,
+            line_ids=line_ids,
+        )
+    except Exception:
+        logger.exception("it_support_receipts_return_lines failed shop_id=%s sale_id=%s", shop_id, sale_id)
+        return jsonify({"ok": False, "error": "Could not process return."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not process return."}), 400
+    return jsonify({"ok": True, "meta": meta or {}})
 
 
 def _normalize_subnet_scan_prefix(raw) -> str:
@@ -6124,6 +6538,157 @@ def shop_dashboard(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-receipts")
+def shop_receipts(shop_id: int):
+    """POS receipts register: persisted sale/credit rows with date scopes (default today)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    rq = (request.args.get("receipt_q") or "").strip()
+    try:
+        from database import list_shop_pos_sales_receipt_rows
+
+        rows = list_shop_pos_sales_receipt_rows(
+            int(shop_id),
+            analytics_filter,
+            sale_id_search=rq,
+            limit=5000,
+        )
+    except Exception:
+        logger.exception("shop_receipts list failed shop_id=%s", shop_id)
+        rows = []
+    return render_template(
+        "shop_receipts.html",
+        shop=shop,
+        analytics_filter=analytics_filter,
+        receipt_rows=rows,
+        receipt_rows_total=len(rows),
+        receipt_q=rq,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-receipts/list-json")
+def shop_receipts_list_json(shop_id: int):
+    """JSON list for POS receipts popup (defaults to today's rows)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    rq = (request.args.get("receipt_q") or "").strip()
+    try:
+        from database import list_shop_pos_sales_receipt_rows
+
+        rows = list_shop_pos_sales_receipt_rows(
+            int(shop_id),
+            analytics_filter,
+            sale_id_search=rq,
+            limit=800,
+        )
+    except Exception:
+        logger.exception("shop_receipts_list_json failed shop_id=%s", shop_id)
+        return jsonify({"ok": False, "error": "Could not load receipts."}), 500
+    return jsonify(
+        {
+            "ok": True,
+            "rows": rows or [],
+            "range_label": analytics_filter.get("range_label") or "",
+        }
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-receipts/mark", methods=["POST"])
+def shop_receipts_mark(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    role_key = (session.get("employee_role") or "").strip().lower()
+    if role_key not in ("admin", "manager", "super_admin", "it_support"):
+        return jsonify({"ok": False, "error": "Only admin or manager can mark receipts."}), 403
+    data = request.get_json(force=True, silent=True) or {}
+    raw_ids = data.get("sale_ids")
+    mark_status = (data.get("mark_status") or "").strip().lower()
+    if not isinstance(raw_ids, list):
+        return jsonify({"ok": False, "error": "Select at least one receipt."}), 400
+    try:
+        from database import bulk_mark_shop_pos_receipts
+
+        affected = bulk_mark_shop_pos_receipts(
+            sale_ids=raw_ids,
+            mark_status=mark_status,
+            shop_id=int(shop_id),
+        )
+    except Exception:
+        logger.exception("shop_receipts_mark failed shop_id=%s", shop_id)
+        return jsonify({"ok": False, "error": "Could not update receipt marks."}), 500
+    if affected <= 0:
+        return jsonify({"ok": False, "error": "No receipts were updated."}), 400
+    return jsonify({"ok": True, "updated": int(affected), "mark_status": mark_status})
+
+
+@app.route("/shops/<int:shop_id>/shop-receipts/detail")
+def shop_receipts_detail(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    sale_id = request.args.get("sale_id", type=int)
+    if not sale_id:
+        return jsonify({"ok": False, "error": "Missing receipt reference."}), 400
+    try:
+        from database import get_shop_pos_sale_detail
+
+        d = get_shop_pos_sale_detail(shop_id=int(shop_id), sale_id=int(sale_id)) or {}
+    except Exception:
+        logger.exception("shop_receipts_detail failed shop_id=%s sale_id=%s", shop_id, sale_id)
+        return jsonify({"ok": False, "error": "Could not load receipt detail."}), 500
+    if not d.get("sale"):
+        return jsonify({"ok": False, "error": "Receipt not found."}), 404
+    return jsonify({"ok": True, "sale": d.get("sale") or {}, "items": d.get("items") or []})
+
+
+@app.route("/shops/<int:shop_id>/shop-receipts/return-lines", methods=["POST"])
+def shop_receipts_return_lines(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    role_key = (session.get("employee_role") or "").strip().lower()
+    if role_key not in ("admin", "manager", "super_admin", "it_support"):
+        return jsonify({"ok": False, "error": "Only admin or manager can return items."}), 403
+    data = request.get_json(force=True, silent=True) or {}
+    sale_id = int(data.get("sale_id") or 0)
+    line_ids = data.get("line_ids")
+    if sale_id <= 0:
+        return jsonify({"ok": False, "error": "Invalid receipt reference."}), 400
+    if not isinstance(line_ids, list):
+        return jsonify({"ok": False, "error": "Select at least one item to return."}), 400
+    try:
+        from database import return_shop_pos_sale_lines
+
+        ok, err, meta = return_shop_pos_sale_lines(
+            shop_id=int(shop_id),
+            sale_id=sale_id,
+            line_ids=line_ids,
+        )
+    except Exception:
+        logger.exception("shop_receipts_return_lines failed shop_id=%s sale_id=%s", shop_id, sale_id)
+        return jsonify({"ok": False, "error": "Could not process return."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not process return."}), 400
+    return jsonify({"ok": True, "meta": meta or {}})
+
+
 @app.route("/shops/<int:shop_id>/kitchen-portion-analytics")
 def shop_kitchen_portion_analytics(shop_id: int):
     """Kitchen portion sales for this shop only (same data as IT analytics, shop session access)."""
@@ -6131,6 +6696,8 @@ def shop_kitchen_portion_analytics(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if _pos_inventory_mode(shop) not in ("kitchen", "both"):
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
     from database import (
         kitchen_portion_analytics_by_day,
         kitchen_portion_analytics_by_item,
@@ -6189,6 +6756,8 @@ def shop_kitchen_portions(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if _pos_inventory_mode(shop) not in ("kitchen", "both"):
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
 
     if request.method == "POST":
         try:
@@ -6463,6 +7032,15 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
     if gate is not None:
         return gate
 
+    store_registration_enabled = False
+    try:
+        from database import column_exists, init_shop_items_table
+
+        init_shop_items_table()
+        store_registration_enabled = column_exists("shop_items", "store_stock_registered")
+    except Exception:
+        store_registration_enabled = False
+
     mode = (mode or request.args.get("mode") or "in").strip().lower()
     if mode not in ("in", "out"):
         mode = "in"
@@ -6478,6 +7056,90 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
+
+        if action == "register_store_items":
+            view_arg = (request.form.get("view") or request.args.get("view") or "auto").strip().lower()
+            if view_arg not in ("auto", "manual"):
+                view_arg = "auto"
+            if _pos_inventory_mode(shop) != "both":
+                flash("Shelf registration is only used when POS inventory is set to Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                from database import ensure_shop_items_for_shop, set_shop_store_stock_registered
+
+                ensure_shop_items_for_shop(shop_id)
+                registered = 0
+                for raw in request.form.getlist("register_item_ids"):
+                    try:
+                        iid = int(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if set_shop_store_stock_registered(shop_id, iid, True):
+                        registered += 1
+                flash(
+                    f"Registered {registered} item(s) for shelf stock (stock in/out)." if registered else "Nothing was registered.",
+                    "success" if registered else "warning",
+                )
+            except Exception as e:
+                app.logger.exception("register_store_items: %s", e)
+                flash("Could not save shelf registration.", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action == "register_all_store_items":
+            view_arg = (request.form.get("view") or request.args.get("view") or "auto").strip().lower()
+            if view_arg not in ("auto", "manual"):
+                view_arg = "auto"
+            if _pos_inventory_mode(shop) != "both":
+                flash("Shelf registration is only used when POS inventory is set to Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                from database import (
+                    ensure_shop_items_for_shop,
+                    list_shop_store_stock_registration_candidates,
+                    set_shop_store_stock_registered,
+                )
+
+                ensure_shop_items_for_shop(shop_id)
+                registered = 0
+                for row in list_shop_store_stock_registration_candidates(shop_id=shop_id, limit=5000):
+                    try:
+                        iid = int(row.get("id") or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if iid <= 0:
+                        continue
+                    if set_shop_store_stock_registered(shop_id, iid, True):
+                        registered += 1
+                flash(
+                    f"Registered all {registered} remaining catalogue line(s) for shelf stock." if registered else "Every item was already registered.",
+                    "success" if registered else "warning",
+                )
+            except Exception as e:
+                app.logger.exception("register_all_store_items: %s", e)
+                flash("Could not register all items for shelf stock.", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action == "unregister_store_stock":
+            view_arg = (request.form.get("view") or request.args.get("view") or "auto").strip().lower()
+            if view_arg not in ("auto", "manual"):
+                view_arg = "auto"
+            if _pos_inventory_mode(shop) != "both":
+                flash("This action applies only when the branch uses kitchen + shop stock.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            iid_raw = (request.form.get("item_id") or "").strip()
+            try:
+                iid = int(iid_raw)
+            except (TypeError, ValueError):
+                flash("Invalid item.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                from database import set_shop_store_stock_registered
+
+                ok_un = set_shop_store_stock_registered(shop_id, iid, False)
+            except Exception:
+                ok_un = False
+            flash("Removed from shelf stock list." if ok_un else "Could not unregister item.", "success" if ok_un else "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
         if action == "batch_request_stock":
             try:
@@ -6825,12 +7487,14 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             ensure_shop_items_for_shop,
             list_shop_stock_manage_items,
             list_shop_stock_transactions,
+            list_shop_store_stock_registration_candidates,
             list_shops,
             list_stock_requests_for_session,
         )
 
         ensure_shop_items_for_shop(shop_id)
         items = list_shop_stock_manage_items(shop_id=shop_id, limit=500)
+        store_reg_candidates = list_shop_store_stock_registration_candidates(shop_id=shop_id, limit=500)
         txs = list_shop_stock_transactions(shop_id=shop_id, item_id=None, limit=200)
         request_rows = list_stock_requests_for_session(
             role_key=(session.get("employee_role") or "employee"),
@@ -6840,12 +7504,15 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
         all_shops = list_shops(limit=500) or []
         other_shops = [s for s in all_shops if int(s.get("id") or 0) != int(shop_id)]
     except Exception:
-        items, txs, request_rows, other_shops = [], [], [], []
+        items, txs, request_rows, other_shops, store_reg_candidates = [], [], [], [], []
 
     return render_template(
         "shop_stock_management.html",
         shop=shop,
         items=items,
+        store_reg_candidates=store_reg_candidates or [],
+        store_registration_enabled=store_registration_enabled,
+        pos_inventory_mode=_pos_inventory_mode(shop),
         other_shops=other_shops,
         view=view_arg,
         stock_requests=request_rows,
@@ -7550,6 +8217,8 @@ def shop_item_toggle_stock_update_enabled(shop_id: int, item_id: int):
             flash("Kitchen portion update setting updated.", "success")
         elif mode == "shop":
             flash("Shop stock update setting updated.", "success")
+        elif mode == "both":
+            flash("Kitchen portion (POS) toggle updated. Shelf stock uses Stock management registration separately.", "success")
         else:
             flash("Branch POS inventory toggle updated.", "success")
     elif mode == "shop":
@@ -7562,6 +8231,12 @@ def shop_item_toggle_stock_update_enabled(shop_id: int, item_id: int):
         flash(
             "Kitchen portion toggle was not saved. To turn ON, the company item must be active and IT must enable "
             "the same master toggle under item management (kitchen mode uses this for portion deductions).",
+            "error",
+        )
+    elif mode == "both":
+        flash(
+            "Toggle was not saved. To turn ON, the company item must be active, IT must enable the catalog master "
+            "toggle, and stock rules must apply (both kitchen portions and shop stock use this toggle).",
             "error",
         )
     else:
@@ -7609,12 +8284,17 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
     if analytics_view == "credit" and not _shop_pos_allow_credit_sale(shop):
         return redirect(url_for("shop_analytics", shop_id=shop_id))
     analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
     revenue_data = None
     if analytics_view == "revenue":
         try:
             from database import get_shop_revenue_analytics
 
-            revenue_data = get_shop_revenue_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+            revenue_data = get_shop_revenue_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
         except Exception:
             revenue_data = {
                 "sale": {"amount": 0.0, "count": 0},
@@ -7628,7 +8308,11 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         try:
             from database import get_shop_item_analytics
 
-            item_data = get_shop_item_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+            item_data = get_shop_item_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
         except Exception:
             item_data = {
                 "total_qty": 0,
@@ -7644,7 +8328,11 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         try:
             from database import get_shop_period_analytics
 
-            period_data = get_shop_period_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+            period_data = get_shop_period_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
         except Exception:
             period_data = {
                 "total_tx_count": 0,
@@ -7662,7 +8350,11 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         try:
             from database import get_shop_sales_analytics
 
-            sales_data = get_shop_sales_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+            sales_data = get_shop_sales_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
         except Exception:
             sales_data = {
                 "total_tx_count": 0,
@@ -7681,7 +8373,11 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         try:
             from database import get_shop_credit_analytics
 
-            credit_data = get_shop_credit_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+            credit_data = get_shop_credit_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
         except Exception:
             credit_data = {
                 "total_tx_count": 0,
@@ -7701,7 +8397,11 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         try:
             from database import get_shop_customer_analytics
 
-            customer_data = get_shop_customer_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
+            customer_data = get_shop_customer_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
         except Exception:
             customer_data = {
                 "total_tx_count": 0,
@@ -7714,6 +8414,7 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         shop=shop,
         analytics_view=analytics_view,
         analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
         revenue_data=revenue_data,
         item_data=item_data,
         period_data=period_data,
@@ -7773,6 +8474,7 @@ def shop_customer_analytics_detail(shop_id: int):
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
     analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
     try:
         from database import (
             get_it_support_customer_detail_analytics,
@@ -7784,6 +8486,7 @@ def shop_customer_analytics_detail(shop_id: int):
             customer_phone=customer_phone,
             analytics_filter=analytics_filter,
             shop_id=shop_id,
+            analytics_scope=analytics_scope,
         )
         transactions = get_it_support_customer_transactions(
             customer_name=customer_name,
@@ -7791,6 +8494,7 @@ def shop_customer_analytics_detail(shop_id: int):
             analytics_filter=analytics_filter,
             shop_id=shop_id,
             limit=3000,
+            analytics_scope=analytics_scope,
         )
     except Exception:
         customer_analytics = {
@@ -7816,6 +8520,7 @@ def shop_customer_analytics_detail(shop_id: int):
         customer_name=customer_name,
         customer_phone=customer_phone,
         analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
         customer_analytics=customer_analytics,
         transactions=transactions,
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),

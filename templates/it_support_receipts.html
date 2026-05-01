@@ -1,0 +1,413 @@
+{% extends "employee_layout.html" %}
+{% block title %}Receipts (all shops) — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Receipts{% endblock %}
+
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">All-branch receipt register</h2>
+    <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
+      Completed POS transactions across branches. Receipt number is persisted per sale and can be searched directly.
+      Range <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or '' }}</span>.
+    </p>
+  </div>
+
+  {% set form_action = url_for('it_support_receipts') %}
+  {% set show_shop_picker = True %}
+  {% include "partials/receipt_register_filters.html" with context %}
+
+  <div class="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-3 py-2.5 shadow-sm">
+    <span class="text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Selected: <span id="receipt-selected-count" class="font-bold text-[rgb(var(--rc-page-fg))]">0</span></span>
+    <button type="button" data-mark-action="confirmed" class="btn-rc btn-rc-primary rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider">Mark confirmed</button>
+    <button type="button" data-mark-action="cancelled" class="btn-rc btn-rc-ghost rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider">Mark cancelled</button>
+    <span class="rounded-lg border border-[rgb(var(--rc-border))] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Use eye icon to return specific items</span>
+    <span id="receipt-mark-msg" class="ml-auto text-[11px] text-[rgb(var(--rc-muted))]"></span>
+  </div>
+
+  <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+    <div class="border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+      <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Transactions</h3>
+      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Sorted newest first · up to 8,000 rows per request</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+          <tr>
+            <th class="px-3 py-2.5 text-center font-bold uppercase tracking-wider">
+              <input id="receipt-select-all" type="checkbox" class="h-4 w-4 rounded border-[rgb(var(--rc-border))]" />
+            </th>
+            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Receipt</th>
+            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Shop</th>
+            <th class="px-3 py-2.5 text-right font-bold uppercase tracking-wider">Amount</th>
+            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Recorded by</th>
+            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Date and time</th>
+            <th class="px-3 py-2.5 text-center font-bold uppercase tracking-wider">View</th>
+          </tr>
+        </thead>
+        <tbody id="receipt-register-tbody" class="divide-y divide-[rgb(var(--rc-border))]/70">
+          {% for row in receipt_rows or [] %}
+            <tr data-sale-id="{{ row.sale_id }}" data-shop-id="{{ row.shop_id }}" data-receipt-no="{{ row.receipt_number or '' }}" data-total-amount="{{ '%.2f'|format(row.total_amount or 0) }}" data-mark-status="{{ row.receipt_mark_status or 'pending' }}" class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+              <td class="px-3 py-2 text-center">
+                <input type="checkbox" class="receipt-select-one h-4 w-4 rounded border-[rgb(var(--rc-border))]" value="{{ row.sale_id }}" />
+              </td>
+              <td class="px-3 py-2 font-mono font-bold text-[rgb(var(--rc-page-fg))]">
+                <div>{{ row.receipt_number or ('#' ~ row.sale_id) }}</div>
+                {% set mark = row.receipt_mark_status or 'pending' %}
+                {% if mark == 'confirmed' %}
+                  <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300" data-mark-status="confirmed">confirmed</span>
+                {% elif mark == 'cancelled' %}
+                  <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-mark-status="cancelled">cancelled</span>
+                {% elif mark == 'partial_return' %}
+                  <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300" data-mark-status="partial_return">partial return</span>
+                {% elif mark == 'returned' %}
+                  <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-mark-status="returned">returned</span>
+                {% else %}
+                  <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300" data-mark-status="pending">pending</span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-2 text-[rgb(var(--rc-muted))]" title="{{ row.shop_code or '' }}">{{ row.shop_name or ('#' ~ row.shop_id) }}</td>
+              <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+              <td class="max-w-[7rem] truncate px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_name or '—' }}</td>
+              <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{% if row.created_at %}{{ row.created_at }}{% else %}—{% endif %}</td>
+              <td class="px-3 py-2 text-center">
+                <button
+                  type="button"
+                  class="receipt-view-btn inline-flex h-7 w-7 items-center justify-center rounded-lg text-[rgb(var(--rc-primary))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+                  data-shop-id="{{ row.shop_id }}"
+                  data-sale-id="{{ row.sale_id }}"
+                  title="View receipt items"
+                  aria-label="View receipt items"
+                >
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No receipts in this date range.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var BULK_MARK_API = {{ url_for('it_support_receipts_mark')|tojson }};
+      var RECEIPT_DETAIL_API = {{ url_for('it_support_receipts_detail')|tojson }};
+      var RECEIPT_RETURN_LINES_API = {{ url_for('it_support_receipts_return_lines')|tojson }};
+      var tbody = document.getElementById("receipt-register-tbody");
+      var selectAll = document.getElementById("receipt-select-all");
+      var selectedCount = document.getElementById("receipt-selected-count");
+      var liveSearch = document.getElementById("receipt-live-search");
+      var msg = document.getElementById("receipt-mark-msg");
+      if (!tbody) return;
+
+      var selected = new Set();
+
+      function statusBadgeClass(status) {
+        if (status === "confirmed") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300";
+        if (status === "cancelled") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300";
+        if (status === "partial_return") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300";
+        if (status === "returned") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300";
+        return "receipt-mark-badge mt-1 inline-flex rounded-md bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300";
+      }
+
+      function updateSelectedUi() {
+        if (selectedCount) selectedCount.textContent = String(selected.size);
+      }
+
+      function syncCheckboxesFromState() {
+        tbody.querySelectorAll(".receipt-select-one").forEach(function (cb) {
+          var id = String(cb.value || "");
+          cb.checked = selected.has(id);
+        });
+      }
+
+      function clearLiveSearchForNextInput() {
+        if (!liveSearch) return;
+        if (liveSearch.value) {
+          liveSearch.value = "";
+          liveSearch.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }
+
+      function applyRowStatus(saleId, status) {
+        var row = tbody.querySelector('tr[data-sale-id="' + saleId + '"]');
+        if (!row) return;
+        row.setAttribute("data-mark-status", status);
+        var badge = row.querySelector(".receipt-mark-badge");
+        if (!badge) return;
+        badge.className = statusBadgeClass(status);
+        badge.setAttribute("data-mark-status", status);
+        badge.textContent = status;
+      }
+
+      tbody.addEventListener("change", function (e) {
+        var target = e.target;
+        if (!target || !target.classList || !target.classList.contains("receipt-select-one")) return;
+        var id = String(target.value || "");
+        if (!id) return;
+        if (target.checked) selected.add(id);
+        else selected.delete(id);
+        updateSelectedUi();
+        clearLiveSearchForNextInput();
+      });
+
+      if (selectAll) {
+        selectAll.addEventListener("change", function () {
+          var rows = tbody.querySelectorAll("tr[data-sale-id]");
+          rows.forEach(function (row) {
+            if (row.getAttribute("data-sale-id") === "__none__" || row.classList.contains("hidden")) return;
+            var cb = row.querySelector(".receipt-select-one");
+            if (!cb) return;
+            cb.checked = !!selectAll.checked;
+            var id = String(cb.value || "");
+            if (!id) return;
+            if (selectAll.checked) selected.add(id);
+            else selected.delete(id);
+          });
+          updateSelectedUi();
+          clearLiveSearchForNextInput();
+        });
+      }
+
+      function postBulkMark(status) {
+        if (!selected.size) {
+          if (msg) msg.textContent = "Select at least one receipt.";
+          return;
+        }
+        var ids = Array.from(selected).map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
+        fetch(BULK_MARK_API, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ sale_ids: ids, mark_status: status }),
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not update receipts.");
+            ids.forEach(function (sid) { applyRowStatus(String(sid), status); });
+            if (msg) msg.textContent = "Updated " + String(j.updated || ids.length) + " receipt(s) to " + status + ".";
+          })
+          .catch(function (err) {
+            if (msg) msg.textContent = (err && err.message) ? err.message : "Could not update receipts.";
+          });
+      }
+
+      document.querySelectorAll("[data-mark-action]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var status = String(btn.getAttribute("data-mark-action") || "").toLowerCase();
+          postBulkMark(status);
+        });
+      });
+
+      syncCheckboxesFromState();
+      updateSelectedUi();
+
+      function escHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function ensureReceiptModal() {
+        var existing = document.getElementById("receipt-items-modal");
+        if (existing) return existing;
+        var wrap = document.createElement("div");
+        wrap.id = "receipt-items-modal";
+        wrap.className = "fixed inset-0 z-[120] hidden items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4";
+        wrap.innerHTML =
+          '<div class="w-full max-w-3xl overflow-hidden rounded-t-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl sm:rounded-2xl">' +
+          '<div class="sticky top-0 z-10 border-b border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/95 px-4 py-3 backdrop-blur">' +
+          '<div class="flex items-start justify-between gap-3">' +
+          '<div class="min-w-0">' +
+          '<p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Receipt preview</p>' +
+          '<h3 id="receipt-items-title" class="mt-1 truncate text-base font-black text-[rgb(var(--rc-page-fg))]">Receipt items</h3>' +
+          '<p id="receipt-items-subtitle" class="mt-1 text-xs text-[rgb(var(--rc-muted))]"></p>' +
+          "</div>" +
+          '<button type="button" id="receipt-items-close" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>' +
+          "</div>" +
+          "</div>" +
+          '<div id="receipt-items-body" class="max-h-[72vh] overflow-auto p-4 text-sm text-[rgb(var(--rc-page-fg))]"></div>' +
+          '<div class="sticky bottom-0 z-10 border-t border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/95 px-4 py-3 backdrop-blur">' +
+          '<div class="flex flex-wrap items-center justify-between gap-2">' +
+          '<p id="receipt-return-msg" class="text-xs text-[rgb(var(--rc-muted))]"></p>' +
+          '<button type="button" id="receipt-return-submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Return selected items</button>' +
+          "</div>" +
+          "</div>" +
+          "</div>";
+        document.body.appendChild(wrap);
+        wrap.addEventListener("click", function (e) {
+          if (e.target === wrap) wrap.classList.add("hidden");
+        });
+        var closeBtn = document.getElementById("receipt-items-close");
+        if (closeBtn) closeBtn.addEventListener("click", function () { wrap.classList.add("hidden"); });
+        return wrap;
+      }
+
+      function openReceiptModal(data) {
+        var modal = ensureReceiptModal();
+        var sale = (data && data.sale) || {};
+        var items = (data && data.items) || [];
+        var title = document.getElementById("receipt-items-title");
+        var subtitle = document.getElementById("receipt-items-subtitle");
+        var body = document.getElementById("receipt-items-body");
+        if (title) title.textContent = "Receipt " + String(sale.receipt_number || ("#" + String(sale.id || "")));
+        if (subtitle) {
+          subtitle.textContent =
+            String(sale.shop_name || "Shop") +
+            " · " +
+            String(sale.created_at || "") +
+            " · " +
+            String((sale.employee_name || "Unknown"));
+        }
+        var status = String(sale.receipt_mark_status || "pending").toLowerCase();
+        var statusPill =
+          status === "confirmed"
+            ? "<span class='inline-flex rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300'>confirmed</span>"
+            : status === "cancelled"
+              ? "<span class='inline-flex rounded-md bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300'>cancelled</span>"
+              : status === "partial_return"
+                ? "<span class='inline-flex rounded-md bg-orange-500/15 px-2 py-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300'>partial return</span>"
+              : status === "returned"
+                ? "<span class='inline-flex rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300'>returned</span>"
+                : "<span class='inline-flex rounded-md bg-slate-500/15 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300'>pending</span>";
+        if (body) {
+          if (!items.length) {
+            body.innerHTML =
+              "<div class='rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4'>" +
+              "<div class='mb-3 flex flex-wrap items-center gap-2'>" +
+              statusPill +
+              "<span class='text-xs text-[rgb(var(--rc-muted))]'>No line items found.</span>" +
+              "</div>" +
+              "<p class='text-sm text-[rgb(var(--rc-muted))]'>No items found for this receipt.</p>" +
+              "</div>";
+          } else {
+            var itemRows = items
+              .map(function (it) {
+                var lineId = parseInt(it.line_id || 0, 10) || 0;
+                var qty = parseInt(it.qty || 0, 10) || 0;
+                return (
+                  "<tr class='border-t border-[rgb(var(--rc-border))]/50'>" +
+                  "<td class='py-2.5 px-2 text-center'>" +
+                  "<input type='checkbox' class='receipt-return-line h-4 w-4 rounded border-[rgb(var(--rc-border))]' value='" +
+                  escHtml(lineId) +
+                  "'" +
+                  (qty <= 0 ? " disabled" : "") +
+                  " />" +
+                  "</td>" +
+                  "<td class='py-2.5 pr-2'>" +
+                  "<div class='font-semibold text-[rgb(var(--rc-page-fg))]'>" +
+                  escHtml(it.item_name || "Item") +
+                  "</div></td>" +
+                  "<td class='py-2.5 pr-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]'>" +
+                  escHtml(qty) +
+                  "</td>" +
+                  "<td class='py-2.5 px-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]'>" +
+                  escHtml((Number(it.line_total || 0)).toFixed(2)) +
+                  "</td>" +
+                  "</tr>"
+                );
+              })
+              .join("");
+            body.innerHTML =
+              "<div class='rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/35 p-3'>" +
+              "<div class='mb-3 flex flex-wrap items-center gap-2'>" +
+              statusPill +
+              "<span class='inline-flex rounded-md border border-[rgb(var(--rc-border))] px-2 py-0.5 text-[10px] font-semibold text-[rgb(var(--rc-muted))]'>Items: " +
+              escHtml(items.length) +
+              "</span>" +
+              "<span class='inline-flex rounded-md border border-[rgb(var(--rc-border))] px-2 py-0.5 text-[10px] font-semibold text-[rgb(var(--rc-muted))]'>Type: " +
+              escHtml(String(sale.sale_type || "sale")) +
+              "</span>" +
+              "</div>" +
+              "<div class='overflow-x-auto rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]'>" +
+              "<table class='min-w-full text-xs sm:text-sm'><thead><tr class='text-left text-[rgb(var(--rc-muted))]'>" +
+              "<th class='py-2.5 px-2 text-center font-bold uppercase tracking-wider'>Return</th>" +
+              "<th class='py-2.5 px-2 font-bold uppercase tracking-wider'>Item</th>" +
+              "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Qty</th>" +
+              "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Total</th>" +
+              "</tr></thead><tbody>" +
+              itemRows +
+              "</tbody></table></div>" +
+              "<div class='mt-3 flex items-center justify-between rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-3 py-2'>" +
+              "<span class='text-xs font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]'>Grand total</span>" +
+              "<span class='text-base font-black tabular-nums text-[rgb(var(--rc-page-fg))]'>" +
+              escHtml((Number(sale.total_amount || 0)).toFixed(2)) +
+              "</span>" +
+              "</div>" +
+              "</div>";
+          }
+        }
+        var submitBtn = document.getElementById("receipt-return-submit");
+        var returnMsg = document.getElementById("receipt-return-msg");
+        if (returnMsg) returnMsg.textContent = "Select item lines to return.";
+        if (submitBtn) {
+          submitBtn.onclick = function () {
+            var picks = Array.prototype.slice
+              .call(document.querySelectorAll(".receipt-return-line:checked"))
+              .map(function (cb) { return parseInt(cb.value || "0", 10) || 0; })
+              .filter(function (n) { return n > 0; });
+            if (!picks.length) {
+              if (returnMsg) returnMsg.textContent = "Select at least one item.";
+              return;
+            }
+            submitBtn.disabled = true;
+            if (returnMsg) returnMsg.textContent = "Processing return...";
+            fetch(RECEIPT_RETURN_LINES_API, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ shop_id: sale.shop_id, sale_id: sale.id, line_ids: picks }),
+            })
+              .then(function (r) { return r.json().catch(function () { return {}; }); })
+              .then(function (j) {
+                if (!j || !j.ok) throw new Error((j && j.error) || "Could not process return.");
+                if (returnMsg) {
+                  returnMsg.textContent =
+                    "Returned " +
+                    String((j.meta && j.meta.returned_lines) || picks.length) +
+                    " item line(s). New total: " +
+                    String((j.meta && Number(j.meta.new_total_amount || 0).toFixed(2)) || "0.00");
+                }
+                setTimeout(function () { window.location.reload(); }, 600);
+              })
+              .catch(function (e) {
+                if (returnMsg) returnMsg.textContent = (e && e.message) ? e.message : "Could not process return.";
+                submitBtn.disabled = false;
+              });
+          };
+        }
+        modal.classList.remove("hidden");
+      }
+
+      tbody.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest(".receipt-view-btn") : null;
+        if (!btn) return;
+        var shopId = parseInt(String(btn.getAttribute("data-shop-id") || "0"), 10) || 0;
+        var saleId = parseInt(String(btn.getAttribute("data-sale-id") || "0"), 10) || 0;
+        if (!shopId || !saleId) return;
+        fetch(RECEIPT_DETAIL_API + "?shop_id=" + encodeURIComponent(shopId) + "&sale_id=" + encodeURIComponent(saleId), {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not load receipt.");
+            openReceiptModal(j);
+          })
+          .catch(function (err) {
+            if (msg) msg.textContent = (err && err.message) ? err.message : "Could not load receipt.";
+          });
+      });
+    })();
+  </script>
+{% endblock %}

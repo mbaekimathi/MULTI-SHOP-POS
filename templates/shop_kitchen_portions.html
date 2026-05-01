@@ -2,6 +2,8 @@
 {% block title %}Kitchen portion update — {{ shop.shop_name }}{% endblock %}
 {% block shop_page_title %}Kitchen portion update{% endblock %}
 {% block shop_sidebar_links %}
+  {% set pos_show_kitchen_nav = (pos_inventory_mode|default('')) in ('kitchen', 'both') %}
+  {% if pos_show_kitchen_nav %}
   <a
     href="{{ url_for('shop_kitchen_portion_analytics', shop_id=shop.id) }}"
     class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_kitchen_portion_analytics' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -12,6 +14,7 @@
     </svg>
     Kitchen portion analytics
   </a>
+  {% endif %}
 {% endblock %}
 {% block shop_content %}
   <div class="space-y-6">
@@ -22,7 +25,7 @@
         Sales history: <a href="{{ url_for('shop_kitchen_portion_analytics', shop_id=shop.id) }}" class="font-medium text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">kitchen portion analytics</a> (sidebar).
       </p>
 
-      {% if pos_inventory_mode != "kitchen" %}
+      {% if pos_inventory_mode not in ('kitchen', 'both') %}
         <p class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))]">
           POS is not in <strong class="font-medium">kitchen mode</strong> yet — you can still set portions here; they apply when kitchen mode is enabled for this shop.
         </p>

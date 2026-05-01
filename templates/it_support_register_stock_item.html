@@ -1,0 +1,113 @@
+{% extends "employee_layout.html" %}
+{% block title %}Register stock items — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Register stock items{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-6xl space-y-6">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Register stock items for store management</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          Create store stock items once and apply them to all shops currently in POS <strong class="text-[rgb(var(--rc-page-fg))]">Both</strong> mode.
+        </p>
+      </div>
+      <a href="{{ url_for('it_support_stock_management') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock management</a>
+    </div>
+
+    {% if not both_shops %}
+      <section class="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-5">
+        <p class="text-sm text-[rgb(var(--rc-page-fg))]">
+          No shops are currently set to <strong>Both</strong> mode. Switch at least one shop/company POS inventory to Both to use this page.
+        </p>
+      </section>
+    {% else %}
+      <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Create new stock item</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+          Create a dedicated store stock item (separate from the sales `items` table) using name, category, description, and measure.
+        </p>
+        <form method="post" class="mt-3 grid gap-3 md:grid-cols-2">
+          <input type="hidden" name="action" value="create_stock_item" />
+          <label class="block">
+            <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Name</span>
+            <input
+              name="name"
+              required
+              autocomplete="off"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+              placeholder="e.g. Beef Trimmings"
+            />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Category</span>
+            <input
+              name="category"
+              required
+              autocomplete="off"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+              placeholder="e.g. Raw Meat"
+            />
+          </label>
+          <label class="block md:col-span-2">
+            <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Description</span>
+            <textarea
+              name="description"
+              rows="3"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+              placeholder="Optional item details"
+            ></textarea>
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Measure to be used</span>
+            <select
+              name="measure_unit"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+            >
+              {% for mu in measure_options or [] %}
+                <option value="{{ mu }}">{{ mu|upper }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="flex items-end">
+            <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider">Create stock item</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Created stock items ({{ store_stock_items|length }})</h3>
+        {% if store_stock_items %}
+          <div class="mt-3 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
+            <table class="min-w-[44rem] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Name</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Category</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Measure</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Description</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for it in store_stock_items %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ it.shop_name or "—" }}</td>
+                    <td class="px-3 py-2 font-medium text-[rgb(var(--rc-page-fg))]">{{ it.name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ it.category }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ (it.measure_unit or '')|upper }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ it.description or "—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No created stock items yet for this shop.</p>
+        {% endif %}
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% endblock %}

@@ -13,7 +13,8 @@
   {% set pos_inv = pos_inventory_mode|default('shop') %}
   {% set pos_is_kitchen = (pos_inv == 'kitchen') %}
   {% set pos_is_shop = (pos_inv == 'shop') %}
-  {% set inv_toggle_col = 'Kitchen portion update' if pos_is_kitchen else ('Shop stock update' if pos_is_shop else 'POS inventory update') %}
+  {% set pos_is_both = (pos_inv == 'both') %}
+  {% set inv_toggle_col = 'Kitchen portion update' if pos_is_kitchen else ('Shop stock update' if pos_is_shop else ('Kitchen (POS sale)' if pos_is_both else 'POS inventory update')) %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
@@ -24,6 +25,9 @@
             When this branch uses <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portions</strong> at checkout, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portion updates</strong> here control whether POS deducts portions per item — IT’s master toggle on the catalog item applies first.
           {% elif pos_is_shop %}
             <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Shop stock updates</strong> follow IT catalog rules: suspended or company‑wide stock‑off items cannot be turned on here until IT enables them.
+          {% elif pos_is_both %}
+            Checkout uses <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portions only</strong>. This toggle gates portion deductions per item.
+            Shelf quantities are handled in <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Stock management</strong> for items registered there — IT’s catalog master still applies first.
           {% else %}
             <strong class="font-medium text-[rgb(var(--rc-page-fg))]">POS inventory updates</strong> follow IT catalog rules until IT enables the master toggle per item (used when POS stock or kitchen deductions are enabled).
           {% endif %}
@@ -188,9 +192,9 @@
                               aria-checked="{% if (item.stock_update_enabled|default(0)|int) == 1 %}true{% else %}false{% endif %}"
                               {% if stock_switch_locked_on %}
                                 disabled
-                                title="{% if pos_is_kitchen %}Company POS inventory master is off for this item or it is suspended — IT must enable the catalog toggle before portions can deduct at checkout.{% elif pos_is_shop %}Company stock updates are off or the item is suspended — IT must enable before this shop can turn stock updates on.{% else %}Company POS inventory master is off or the item is suspended — IT must enable the catalog toggle first.{% endif %}"
+                                title="{% if pos_is_kitchen %}Company POS inventory master is off for this item or it is suspended — IT must enable the catalog toggle before portions can deduct at checkout.{% elif pos_is_shop %}Company stock updates are off or the item is suspended — IT must enable before this shop can turn stock updates on.{% elif pos_is_both %}Company master is off or the item is suspended — IT must enable the catalog toggle before portions and shop stock can deduct.{% else %}Company POS inventory master is off or the item is suspended — IT must enable the catalog toggle first.{% endif %}"
                               {% else %}
-                                title="{% if pos_is_kitchen %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen portion deduction at POS for this item{% else %}Turn ON kitchen portion deduction at POS for this item{% endif %}{% elif pos_is_shop %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn shop stock update OFF for this shop{% else %}Turn shop stock update ON for this shop{% endif %}{% else %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF POS inventory tracking for this item{% else %}Turn ON POS inventory tracking for this item{% endif %}{% endif %}"
+                                title="{% if pos_is_kitchen %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen portion deduction at POS for this item{% else %}Turn ON kitchen portion deduction at POS for this item{% endif %}{% elif pos_is_shop %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn shop stock update OFF for this shop{% else %}Turn shop stock update ON for this shop{% endif %}{% elif pos_is_both %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen + shop deductions for this item{% else %}Turn ON kitchen + shop deductions for this item{% endif %}{% else %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF POS inventory tracking for this item{% else %}Turn ON POS inventory tracking for this item{% endif %}{% endif %}"
                               {% endif %}
                             >
                               <span class="sr-only">
@@ -198,6 +202,8 @@
                                   {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN PORTION UPDATE ON{% else %}KITCHEN PORTION UPDATE OFF{% endif %}
                                 {% elif pos_is_shop %}
                                   {% if (item.stock_update_enabled|default(0)|int) == 1 %}SHOP STOCK UPDATE ON{% else %}SHOP STOCK UPDATE OFF{% endif %}
+                                {% elif pos_is_both %}
+                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN + STOCK UPDATE ON{% else %}KITCHEN + STOCK UPDATE OFF{% endif %}
                                 {% else %}
                                   {% if (item.stock_update_enabled|default(0)|int) == 1 %}POS INVENTORY TRACKING ON{% else %}POS INVENTORY TRACKING OFF{% endif %}
                                 {% endif %}

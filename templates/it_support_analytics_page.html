@@ -2,25 +2,28 @@
 {% block title %}{{ analytics_title }} — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}{{ analytics_title }}{% endblock %}
 {% block sidebar_links %}
+  {% set _ascope = request.args.get('analytics_scope') or (analytics_scope or 'general') %}
   {% if analytics_key == 'shop' %}
     {% set sv = shop_view or 'revenue' %}
-    <a href="{{ url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Select shop</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='revenue') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'revenue' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop revenue analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='item') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'item' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop item analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='sales') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'sales' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop sales analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='credit') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'credit' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop credit analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='customer') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'customer' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop customer analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='period') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'period' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop period analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='stock') if selected_shop_id else url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'stock' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop stock analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Select shop</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='revenue', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'revenue' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop revenue analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='item', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'item' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop item analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='sales', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'sales' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop sales analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='credit', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'credit' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop credit analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='customer', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'customer' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop customer analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='period', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'period' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop period analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='stock', analytics_scope=_ascope) if selected_shop_id else url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'stock' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop stock analytics</a>
+    <a href="{{ url_for('it_support_receipts') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Receipts</a>
   {% else %}
-    <a href="{{ url_for('it_support_revenue_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Revenue analytics</a>
-    <a href="{{ url_for('it_support_item_analytics_page') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Item analytics</a>
-    <a href="{{ url_for('it_support_sales_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Sales analytics</a>
-    <a href="{{ url_for('it_support_credit_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Credit analytics</a>
-    <a href="{{ url_for('it_support_period_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Period analytics</a>
-    <a href="{{ url_for('it_support_employee_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Employee analytics</a>
-    <a href="{{ url_for('it_support_customer_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Customer analytics</a>
-    <a href="{{ url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop analytics</a>
+    <a href="{{ url_for('it_support_revenue_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Revenue analytics</a>
+    <a href="{{ url_for('it_support_item_analytics_page', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Item analytics</a>
+    <a href="{{ url_for('it_support_sales_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Sales analytics</a>
+    <a href="{{ url_for('it_support_credit_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Credit analytics</a>
+    <a href="{{ url_for('it_support_period_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Period analytics</a>
+    <a href="{{ url_for('it_support_employee_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Employee analytics</a>
+    <a href="{{ url_for('it_support_customer_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Customer analytics</a>
+    <a href="{{ url_for('it_support_shop_analytics', analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop analytics</a>
+    <a href="{{ url_for('it_support_receipts') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Receipts</a>
   {% endif %}
 {% endblock %}
 {% block employee_content %}
@@ -34,6 +37,28 @@
   {% set cust = customer_data or {} %}
   {% set sv = shop_view or 'revenue' %}
   {% set svd = shop_view_data or {} %}
+  {% set analytics_scope = analytics_scope or 'general' %}
+  <form method="get" action="{{ request.path }}" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-3 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Data view</p>
+      <div class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1">
+        <button type="submit" name="analytics_scope" value="general" class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if analytics_scope != 'actual' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))]{% endif %}">General</button>
+        <button type="submit" name="analytics_scope" value="actual" class="rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if analytics_scope == 'actual' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))]{% endif %}">Actual</button>
+      </div>
+    </div>
+    <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
+    <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
+    <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
+    <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
+    <input type="hidden" name="month" value="{{ f.month or '' }}" />
+    <input type="hidden" name="year" value="{{ f.year or '' }}" />
+    {% if request.args.get('shop_id') %}
+      <input type="hidden" name="shop_id" value="{{ request.args.get('shop_id') }}" />
+    {% endif %}
+    {% if request.args.get('shop_view') %}
+      <input type="hidden" name="shop_view" value="{{ request.args.get('shop_view') }}" />
+    {% endif %}
+  </form>
   <form method="get" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
     <div class="flex flex-wrap items-end gap-2.5">
       <div class="min-w-[10rem] flex-1">
@@ -43,6 +68,13 @@
           <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
           <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
           <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div class="min-w-[10rem] flex-1">
+        <label for="analytics-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Data mode</label>
+        <select id="analytics-scope" name="analytics_scope" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+          <option value="general" {% if analytics_scope != 'actual' %}selected{% endif %}>General data</option>
+          <option value="actual" {% if analytics_scope == 'actual' %}selected{% endif %}>Actual data (confirmed only)</option>
         </select>
       </div>
 
@@ -1473,7 +1505,7 @@
                         <td class="px-2 py-1 font-semibold">{{ "%.2f"|format(r.total_amount or 0) }}</td>
                         <td class="px-2 py-1">
                           <a
-                            href="{{ url_for('it_support_customer_transactions', customer_name=r.customer_name, customer_phone=r.customer_phone, shop_id=selected_shop_id, mode=f.mode, single_day=f.single_day, start_date=f.start_date, end_date=f.end_date, month=f.month, year=f.year) }}"
+                            href="{{ url_for('it_support_customer_transactions', customer_name=r.customer_name, customer_phone=r.customer_phone, shop_id=selected_shop_id, mode=f.mode, single_day=f.single_day, start_date=f.start_date, end_date=f.end_date, month=f.month, year=f.year, analytics_scope=analytics_scope) }}"
                             class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
                             aria-label="View customer transactions for this shop"
                           >

@@ -55,7 +55,12 @@
           Choose <strong class="text-[rgb(var(--rc-page-fg))]">Stock in</strong> or <strong class="text-[rgb(var(--rc-page-fg))]">Stock out</strong>, fill in any rows you need, then submit once. Only rows with a quantity are saved; everything rolls back if any line fails.
         </p>
       </div>
-      <a href="{{ url_for('it_support_item_management') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to items</a>
+      <div class="flex flex-wrap items-center gap-2">
+        {% if show_register_stock_item_link %}
+          <a href="{{ url_for('it_support_register_stock_item') }}" class="btn-rc btn-rc-primary shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Register stock item</a>
+        {% endif %}
+        <a href="{{ url_for('it_support_item_management') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to items</a>
+      </div>
     </div>
 
     <div class="mb-4 flex flex-col gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 sm:flex-row sm:items-center sm:justify-between">
