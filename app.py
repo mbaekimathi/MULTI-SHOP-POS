@@ -5111,6 +5111,47 @@ def shop_pos_authorize_employee(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-pos/employee-auth-cache.json", methods=["GET"])
+def shop_pos_employee_auth_cache(shop_id: int):
+    """Lightweight employee auth directory for offline POS code validation."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    from database import employee_may_use_shop_branch, list_employees
+
+    out = []
+    try:
+        rows = list_employees(limit=5000) or []
+    except Exception:
+        rows = []
+    for row in rows:
+        code = str((row or {}).get("employee_code") or "").strip()
+        if not re.fullmatch(r"\d{6}", code):
+            continue
+        status = str((row or {}).get("status") or "").strip().lower()
+        if status != "active":
+            continue
+        role_key = str((row or {}).get("role") or "employee").strip().lower()
+        if role_key not in ("super_admin", "it_support"):
+            try:
+                if not employee_may_use_shop_branch(dict(row), int(shop_id)):
+                    continue
+            except Exception:
+                continue
+        out.append(
+            {
+                "id": row.get("id"),
+                "full_name": row.get("full_name"),
+                "employee_code": code,
+                "role": row.get("role") or "employee",
+                "status": "active",
+            }
+        )
+    return jsonify({"ok": True, "employees": out, "shop_id": int(shop_id)})
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/customer-lookup", methods=["POST"])
 def shop_pos_customer_lookup(shop_id: int):
     """Lookup POS customer by phone for this shop."""

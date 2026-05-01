@@ -3262,6 +3262,8 @@
       var OFFLINE_CATALOG_DOC_ID = "shop-" + SHOP_ID;
       var OFFLINE_CATALOG_STALE_MS = 6 * 60 * 60 * 1000;
       var AUTH_API = {{ url_for('shop_pos_authorize_employee', shop_id=shop.id)|tojson }};
+      var EMPLOYEE_CACHE_API = {{ url_for('shop_pos_employee_auth_cache', shop_id=shop.id)|tojson }};
+      var EMPLOYEE_AUTH_CACHE_KEY = "richcom-shop-pos-employee-auth-cache-" + SHOP_ID;
       var CUSTOMER_LOOKUP_API = {{ url_for('shop_pos_customer_lookup', shop_id=shop.id)|tojson }};
       var CUSTOMER_UPSERT_API = {{ url_for('shop_pos_customer_upsert', shop_id=shop.id)|tojson }};
       var RECORD_SALE_API = {{ url_for('shop_pos_record_sale', shop_id=shop.id)|tojson }};
@@ -3521,6 +3523,81 @@
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
       }
+      function employeeAuthCacheLoad() {
+        try {
+          var raw = localStorage.getItem(EMPLOYEE_AUTH_CACHE_KEY);
+          if (!raw) return [];
+          var j = JSON.parse(raw) || {};
+          var rows = Array.isArray(j.employees) ? j.employees : [];
+          return rows.filter(function (r) {
+            return r && /^\d{6}$/.test(String(r.employee_code || ""));
+          });
+        } catch (e) {
+          return [];
+        }
+      }
+      function employeeAuthCacheSave(rows) {
+        try {
+          var clean = (Array.isArray(rows) ? rows : []).filter(function (r) {
+            return r && /^\d{6}$/.test(String(r.employee_code || ""));
+          });
+          localStorage.setItem(
+            EMPLOYEE_AUTH_CACHE_KEY,
+            JSON.stringify({ updated_at: Date.now(), employees: clean })
+          );
+        } catch (e) {}
+      }
+      function employeeAuthCacheUpsert(employee) {
+        if (!employee || !/^\d{6}$/.test(String(employee.employee_code || ""))) return;
+        var rows = employeeAuthCacheLoad();
+        var code = String(employee.employee_code);
+        var next = rows.filter(function (r) {
+          return String((r && r.employee_code) || "") !== code;
+        });
+        next.unshift({
+          id: employee.id,
+          full_name: employee.full_name || "Employee",
+          employee_code: code,
+          role: employee.role || "employee",
+          status: employee.status || "active",
+        });
+        if (next.length > 400) next = next.slice(0, 400);
+        employeeAuthCacheSave(next);
+      }
+      function employeeAuthCacheFindByCode(code) {
+        var needle = String(code || "").replace(/\D/g, "").slice(0, 6);
+        if (!/^\d{6}$/.test(needle)) return null;
+        var rows = employeeAuthCacheLoad();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i].employee_code || "") === needle) return rows[i];
+        }
+        return null;
+      }
+      function refreshEmployeeAuthCacheFromServer() {
+        if (!navigator.onLine) return Promise.resolve();
+        return fetch(EMPLOYEE_CACHE_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (r) {
+            return r.json().catch(function () {
+              return {};
+            });
+          })
+          .then(function (j) {
+            if (!j || !j.ok) return;
+            employeeAuthCacheSave(j.employees || []);
+          })
+          .catch(function () {});
+      }
+      function looksLikeOfflineNetworkError(err) {
+        if (!err) return false;
+        if (!navigator.onLine) return true;
+        var t = String((err && err.message) || err).toLowerCase();
+        return (
+          t.indexOf("failed to fetch") !== -1 ||
+          t.indexOf("networkerror") !== -1 ||
+          t.indexOf("network error") !== -1 ||
+          t.indexOf("load failed") !== -1
+        );
+      }
       function verifyReceiptActionCode(rawCode) {
         var code = String(rawCode || "").replace(/\D/g, "").slice(0, 6);
         if (!/^\d{6}$/.test(code)) {
@@ -3535,11 +3612,22 @@
           .then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (j) {
             if (!j || !j.ok) throw new Error((j && j.error) || "Authorization failed.");
+            employeeAuthCacheUpsert(j.employee || null);
             var role = String((j.employee && j.employee.role) || "").trim().toLowerCase();
             if (role !== "manager" && role !== "admin" && role !== "super_admin") {
               throw new Error("Only manager, admin, or super admin can do this action.");
             }
             return j.employee || {};
+          })
+          .catch(function (err) {
+            if (!looksLikeOfflineNetworkError(err)) throw err;
+            var cached = employeeAuthCacheFindByCode(code);
+            if (!cached) throw new Error("Offline: employee code not in local cache. Connect once to sync employees.");
+            var role = String(cached.role || "").trim().toLowerCase();
+            if (role !== "manager" && role !== "admin" && role !== "super_admin") {
+              throw new Error("Only manager, admin, or super admin can do this action.");
+            }
+            return cached;
           });
       }
       function ensureReceiptActionModal() {
@@ -3928,6 +4016,7 @@
               return;
             }
             stockInAuthorizedEmployee = x.j.employee || null;
+            employeeAuthCacheUpsert(stockInAuthorizedEmployee);
             var nm =
               stockInAuthorizedEmployee && stockInAuthorizedEmployee.full_name
                 ? stockInAuthorizedEmployee.full_name
@@ -3937,9 +4026,25 @@
             if (stockInAuthCode) stockInAuthCode.disabled = false;
             stockInForm.requestSubmit();
           })
-          .catch(function () {
-            stockInAuthorizedEmployee = null;
-            setStockInAuthStatus("Could not verify code. Try again.", "error");
+          .catch(function (err) {
+            if (looksLikeOfflineNetworkError(err)) {
+              var cached = employeeAuthCacheFindByCode(six);
+              if (cached) {
+                stockInAuthorizedEmployee = cached;
+                setStockInAuthStatus(
+                  "Authorized offline: " + (cached.full_name || "Employee") + ". Saving…",
+                  "ok"
+                );
+                if (stockInAuthCode) stockInAuthCode.disabled = false;
+                stockInForm.requestSubmit();
+                return;
+              }
+              stockInAuthorizedEmployee = null;
+              setStockInAuthStatus("Offline: code not in local cache. Connect once, then retry.", "error");
+            } else {
+              stockInAuthorizedEmployee = null;
+              setStockInAuthStatus("Could not verify code. Try again.", "error");
+            }
             if (stockInAuthCode) {
               stockInAuthCode.value = "";
               stockInLastSixCode = "";
@@ -5363,6 +5468,7 @@
           })
           .then(function (j) {
             authorizedEmployee = j.employee || null;
+            employeeAuthCacheUpsert(authorizedEmployee);
             lastVerifiedAuthCode = raw;
             setAuthStatus("Authorized: " + ((authorizedEmployee && authorizedEmployee.full_name) || "Employee"), "ok");
             updateProceedState();
@@ -5373,6 +5479,24 @@
             });
           })
           .catch(function (e) {
+            if (looksLikeOfflineNetworkError(e)) {
+              var cached = employeeAuthCacheFindByCode(raw);
+              if (cached) {
+                authorizedEmployee = cached;
+                lastVerifiedAuthCode = raw;
+                setAuthStatus("Authorized offline: " + (cached.full_name || "Employee"), "ok");
+                updateProceedState();
+                maybeRegisterCustomerAfterAuth().then(function () {
+                  if (load().length > 0) proceedSale();
+                });
+                return;
+              }
+              authorizedEmployee = null;
+              lastVerifiedAuthCode = "";
+              setAuthStatus("Offline: code not in local cache. Connect once to sync employees.", "error");
+              updateProceedState();
+              return;
+            }
             authorizedEmployee = null;
             lastVerifiedAuthCode = "";
             var errText = e.message || String(e);
@@ -8582,6 +8706,10 @@
       setPaymentMethod("");
       clearAuthorization();
       setCustomerLookupStatus("Enter phone to lookup.", "muted");
+      refreshEmployeeAuthCacheFromServer();
+      window.addEventListener("online", function () {
+        refreshEmployeeAuthCacheFromServer();
+      });
       render();
       applyPosCartUiSettings();
 
