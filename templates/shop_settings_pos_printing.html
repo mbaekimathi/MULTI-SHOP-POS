@@ -141,7 +141,15 @@
               <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</p>
               <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers must save a POS receipt printer before the 6-digit authorization works for a standard sale. Credit and quotations are not blocked.</p>
             </div>
-            <input type="checkbox" name="printing_compulsory_sale" value="1" class="rc-receipt-switch" {% if ps.print_compulsory_sale %}checked{% endif %} />
+            <input
+              type="checkbox"
+              name="printing_compulsory_sale"
+              value="1"
+              class="rc-receipt-switch js-printing-compulsory-sale"
+              {% if ps.print_compulsory_sale %}checked{% endif %}
+              {% if not (ps.printer_allow_bluetooth or ps.printer_allow_network or ps.printer_allow_usb) %}disabled{% endif %}
+              title="Turn on at least one allowed printer type to enable this option."
+            />
           </div>
         </div>
 
@@ -159,19 +167,19 @@
 
         <div>
           <p class="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Allowed printer types (POS setup)</p>
-          <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">If all three types are off, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</strong> is turned off automatically; enabling any type turns it back on.</p>
+          <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">You can allow printer types but leave <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</strong> off. If all three types are off, compulsory printing turns off automatically.</p>
           <div class="grid gap-3 sm:grid-cols-3">
             <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
               <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</span>
-              <input type="checkbox" name="printing_allow_bluetooth" value="1" class="rc-receipt-switch" {% if ps.printer_allow_bluetooth %}checked{% endif %} />
+              <input type="checkbox" name="printing_allow_bluetooth" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_bluetooth %}checked{% endif %} />
             </div>
             <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
               <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Network</span>
-              <input type="checkbox" name="printing_allow_network" value="1" class="rc-receipt-switch" {% if ps.printer_allow_network %}checked{% endif %} />
+              <input type="checkbox" name="printing_allow_network" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_network %}checked{% endif %} />
             </div>
             <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
               <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">USB</span>
-              <input type="checkbox" name="printing_allow_usb" value="1" class="rc-receipt-switch" {% if ps.printer_allow_usb %}checked{% endif %} />
+              <input type="checkbox" name="printing_allow_usb" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_usb %}checked{% endif %} />
             </div>
           </div>
         </div>
@@ -219,18 +227,24 @@
     })();
 
     (function () {
-      var bt = document.querySelector('input[name="printing_allow_bluetooth"]');
-      var net = document.querySelector('input[name="printing_allow_network"]');
-      var usb = document.querySelector('input[name="printing_allow_usb"]');
-      var comp = document.querySelector('input[name="printing_compulsory_sale"]');
-      if (!bt || !net || !usb || !comp) return;
-      function sync() {
-        comp.checked = !!(bt.checked || net.checked || usb.checked);
+      var allows = document.querySelectorAll("input.js-printing-allow-printer");
+      var comp = document.querySelector("input.js-printing-compulsory-sale");
+      if (!allows.length || !comp) return;
+      function syncAllowVsCompulsory() {
+        var any = false;
+        allows.forEach(function (el) {
+          if (el.checked) any = true;
+        });
+        comp.disabled = !any;
+        comp.title = any
+          ? ""
+          : "Turn on at least one allowed printer type to enable this option.";
+        if (!any) comp.checked = false;
       }
-      [bt, net, usb].forEach(function (el) {
-        el.addEventListener("change", sync);
+      allows.forEach(function (el) {
+        el.addEventListener("change", syncAllowVsCompulsory);
       });
-      sync();
+      syncAllowVsCompulsory();
     })();
   </script>
 {% endblock %}

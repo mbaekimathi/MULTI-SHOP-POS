@@ -1308,13 +1308,11 @@ def _ensure_at_least_one_pos_payment_method(merged: dict) -> None:
 
 
 def _sync_print_compulsory_with_printer_allow_list(merged: dict) -> None:
-    """No allowed printer types → cannot enforce compulsory printing; any type allowed → compulsory on."""
+    """No allowed printer types → cannot enforce compulsory printing (must be off). Otherwise keep saved choice."""
     bt = bool(merged.get("printer_allow_bluetooth"))
     net = bool(merged.get("printer_allow_network"))
     usb = bool(merged.get("printer_allow_usb"))
-    if bt or net or usb:
-        merged["print_compulsory_sale"] = True
-    else:
+    if not (bt or net or usb):
         merged["print_compulsory_sale"] = False
 
 

@@ -1574,6 +1574,24 @@
       opacity: 1 !important;
       filter: none;
     }
+    /* Compulsory printing: block catalog until receipt printer is ready (BT linked, etc.) */
+    #pos-catalog-main.pos-compulsory-printer-locked {
+      opacity: 0.52;
+      filter: grayscale(0.25);
+      transition: opacity 0.2s ease;
+    }
+    #pos-cart-toggle-fab:disabled {
+      cursor: not-allowed;
+      opacity: 0.38;
+      filter: grayscale(0.35);
+    }
+    /* Compulsory printer notice (above cart + printer dialogs) */
+    #pos-compulsory-printer-modal-backdrop {
+      z-index: 85;
+    }
+    #pos-compulsory-printer-modal {
+      z-index: 86;
+    }
     /* Cart drawer: form labels + helper copy readable on dark panels */
     #pos-cart-drawer label {
       color: rgb(var(--rc-page-fg)) !important;
@@ -2363,8 +2381,74 @@
       </div>
     </header>
 
+    {# Compulsory-printing gate: modal appears when standard sale is blocked until printer is ready #}
+    <div
+      id="pos-compulsory-printer-modal-backdrop"
+      class="fixed inset-0 hidden bg-slate-950/65 backdrop-blur-[2px] motion-reduce:backdrop-blur-none"
+      aria-hidden="true"
+    ></div>
+    <div
+      id="pos-compulsory-printer-modal"
+      class="fixed inset-0 hidden flex items-center justify-center p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pos-compulsory-printer-modal-title"
+      aria-describedby="pos-compulsory-printer-modal-desc"
+    >
+      <div
+        class="relative w-full max-w-md overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl shadow-black/25 ring-1 ring-black/5 dark:ring-white/10"
+      >
+        <div class="h-1 shrink-0 bg-gradient-to-r from-rose-500 via-amber-500 to-sky-500" aria-hidden="true"></div>
+        <div class="flex items-start gap-3 border-b border-[rgb(var(--rc-border))]/80 bg-gradient-to-b from-rose-500/[0.07] to-transparent px-4 py-4 sm:px-5 sm:py-5">
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300" aria-hidden="true">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-rose-600/95 dark:text-rose-400/95">Cannot start a sale yet</p>
+            <h2 id="pos-compulsory-printer-modal-title" class="mt-1 text-lg font-bold leading-snug tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">
+              Receipt printer required
+            </h2>
+          </div>
+        </div>
+        <div id="pos-compulsory-printer-modal-desc" class="space-y-3 px-4 py-4 text-sm leading-relaxed text-[rgb(var(--rc-muted))] sm:px-5 sm:py-5">
+          <p class="text-[rgb(var(--rc-page-fg))]">
+            This shop has <strong class="font-semibold">compulsory printing</strong> on standard sales. The catalog stays locked until a receipt printer is connected and ready.
+          </p>
+          <ul class="list-inside list-disc space-y-2 text-[rgb(var(--rc-muted))] marker:text-[rgb(var(--rc-primary))]">
+            <li>
+              Tap <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Printer</strong> in the header and finish setup for this register.
+            </li>
+            <li>
+              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Bluetooth:</strong> use <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Connect printer</strong> and wait until the header shows the printer as <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">linked</strong>. Saving the device alone is not enough.
+            </li>
+            <li>
+              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Network or USB:</strong> complete pairing in the same Printer panel so printing is allowed for this shop.
+            </li>
+          </ul>
+        </div>
+        <div class="flex flex-col-reverse gap-2 border-t border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-5 sm:py-4">
+          <button
+            type="button"
+            id="pos-compulsory-printer-modal-dismiss"
+            class="btn-rc btn-rc-ghost w-full rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider sm:w-auto"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            id="pos-compulsory-printer-modal-open-setup"
+            class="btn-rc btn-rc-primary w-full rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider sm:w-auto"
+          >
+            Open printer setup
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="pos-page-content relative mx-auto flex min-h-0 w-full min-w-0 flex-1 max-w-[1920px] flex-col gap-5 px-[max(0.65rem,env(safe-area-inset-left))] py-5 pr-[max(0.65rem,env(safe-area-inset-right))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-6 sm:px-4 sm:py-7 md:px-6 lg:gap-8 lg:px-8 lg:py-9 lg:pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <main class="pos-catalog-main min-w-0 flex-1 space-y-5 sm:space-y-6 md:space-y-7 lg:space-y-8">
+      <main id="pos-catalog-main" class="pos-catalog-main min-w-0 flex-1 space-y-5 sm:space-y-6 md:space-y-7 lg:space-y-8">
         {% if not items %}
           <div
             class="pos-catalog-empty flex flex-col items-center justify-center px-6 py-20 text-center"
@@ -5401,6 +5485,7 @@
         if (dueSec) dueSec.classList.toggle("hidden", !must);
         if (!must && dueIn) dueIn.value = "";
         refreshPaymentMethodUi();
+        updatePosCompulsoryPrinterWorkspaceLock();
       }
 
       function printingCompulsoryOnSaleEnabled() {
@@ -5427,8 +5512,86 @@
       }
 
       function posPrinterCompulsoryBlockMessage() {
-        return "Printing is compulsory on sale: save a receipt printer under Printer in the header, then enter your 6-digit code.";
+        return "Printing is compulsory on sale: connect the receipt printer in the header (Bluetooth must be linked), then enter your 6-digit code.";
       }
+
+      var __posCompulsoryPrinterLockWasActive = false;
+
+      function posCompulsoryPrinterModalShow() {
+        var root = document.getElementById("pos-compulsory-printer-modal");
+        var bd = document.getElementById("pos-compulsory-printer-modal-backdrop");
+        if (!root || !bd) return;
+        bd.classList.remove("hidden");
+        root.classList.remove("hidden");
+        bd.setAttribute("aria-hidden", "false");
+        root.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        var btn = document.getElementById("pos-compulsory-printer-modal-open-setup");
+        if (btn) {
+          setTimeout(function () {
+            try {
+              btn.focus();
+            } catch (eF) {}
+          }, 0);
+        }
+      }
+
+      function posCompulsoryPrinterModalHide() {
+        var root = document.getElementById("pos-compulsory-printer-modal");
+        var bd = document.getElementById("pos-compulsory-printer-modal-backdrop");
+        if (!root || !bd) return;
+        bd.classList.add("hidden");
+        root.classList.add("hidden");
+        bd.setAttribute("aria-hidden", "true");
+        root.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+      }
+
+      /** Lock item search / catalog and cart FAB until compulsory-sale printer readiness passes. */
+      function updatePosCompulsoryPrinterWorkspaceLock() {
+        var main = document.getElementById("pos-catalog-main");
+        var fab = document.getElementById("pos-cart-toggle-fab");
+        var locked = requiresConfiguredPrinterForCurrentSale() && !posReceiptPrinterConfiguredForUi();
+        if (locked && typeof setCartOpen === "function") setCartOpen(false);
+        if (main) {
+          main.classList.toggle("pos-compulsory-printer-locked", locked);
+          if (locked) main.setAttribute("inert", "");
+          else main.removeAttribute("inert");
+        }
+        if (fab) {
+          fab.disabled = !!locked;
+          fab.setAttribute("aria-disabled", locked ? "true" : "false");
+        }
+        if (locked && !__posCompulsoryPrinterLockWasActive) {
+          posCompulsoryPrinterModalShow();
+        }
+        if (!locked && __posCompulsoryPrinterLockWasActive) {
+          posCompulsoryPrinterModalHide();
+        }
+        __posCompulsoryPrinterLockWasActive = !!locked;
+      }
+
+      (function initCompulsoryPrinterNoticeModal() {
+        var root = document.getElementById("pos-compulsory-printer-modal");
+        var bd = document.getElementById("pos-compulsory-printer-modal-backdrop");
+        var dismiss = document.getElementById("pos-compulsory-printer-modal-dismiss");
+        var openSetup = document.getElementById("pos-compulsory-printer-modal-open-setup");
+        function hide() {
+          posCompulsoryPrinterModalHide();
+        }
+        if (bd) bd.addEventListener("click", hide);
+        if (dismiss) dismiss.addEventListener("click", hide);
+        if (openSetup)
+          openSetup.addEventListener("click", function () {
+            hide();
+            var po = document.getElementById("pos-printer-open");
+            if (po) po.click();
+          });
+        if (root)
+          root.addEventListener("click", function (e) {
+            if (e.target === root) hide();
+          });
+      })();
 
       function posCartFeatureFlags() {
         var p = window.POS_PRINTING || {};
@@ -5494,6 +5657,7 @@
             (saleType === "sale" && !qOnly && f.customerOnSale);
           detailsCard.classList.toggle("hidden", !showCustomer);
         }
+        updatePosCompulsoryPrinterWorkspaceLock();
       }
 
       function round2(n) {
@@ -8549,14 +8713,23 @@
         });
       }
 
+      /**
+       * Opens the system/browser print dialog for thermal HTML receipts (typical USB POS driver path).
+       * Respects IT POS → Printer “USB printer”: when disabled, does nothing (no dialog).
+       */
       function printBrowserThermalDialog(payload) {
+        var pp = window.POS_PRINTING || {};
+        if (pp.printer_allow_usb === false) {
+          return Promise.resolve();
+        }
         return printReceiptCopies(payload, printThermalReceipt);
       }
 
       /**
        * After checkout: try silent ESC/POS (network / USB / Bluetooth) using the saved profile first.
        * Preflight TCP/USB/BT probes were removed — they often false-negative while the real print path works.
-       * Opens the browser print dialog only when every direct attempt fails.
+       * Opens the browser print dialog only when USB printing is allowed in system settings
+       * and every direct ESC/POS attempt fails.
        */
       function runConfiguredPrinterAction(payload) {
         var pp = window.POS_PRINTING || {};
@@ -8857,6 +9030,7 @@
           if (quoteBtn) quoteBtn.classList.toggle("is-active", !!quoteOnlyToggle.checked);
           refreshPaymentMethodUi();
           updateCustomerSectionState();
+          updatePosCompulsoryPrinterWorkspaceLock();
         });
       }
 
@@ -8975,6 +9149,12 @@
 
       document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;
+        var compDlg = document.getElementById("pos-compulsory-printer-modal");
+        if (compDlg && !compDlg.classList.contains("hidden")) {
+          posCompulsoryPrinterModalHide();
+          e.preventDefault();
+          return;
+        }
         if (document.getElementById("pos-printer-dialog") && !document.getElementById("pos-printer-dialog").classList.contains("hidden")) return;
         if (!cartUiOpen) return;
         setCartOpen(false);
@@ -9196,11 +9376,13 @@
         setTimeout(function () {
           loadCatalogSnapshot().then(function (snap) {
             if (!snap || !Array.isArray(snap.items) || !snap.items.length) return;
-            if (snap.inventory_mode) window.POS_INVENTORY_MODE = snap.inventory_mode;
-            applyCatalogStockRows(snap.items);
-            var savedAtMs = Date.parse(String(snap.saved_at || ""));
-            var ageMs = isFinite(savedAtMs) ? Math.max(0, Date.now() - savedAtMs) : 0;
+            // Only merge cached catalog when offline. If online, fetchCatalogStock() is authoritative;
+            // applying a stale snapshot here races with that fetch and can overwrite correct stock with 0.
             if (!navigator.onLine) {
+              if (snap.inventory_mode) window.POS_INVENTORY_MODE = snap.inventory_mode;
+              applyCatalogStockRows(snap.items);
+              var savedAtMs = Date.parse(String(snap.saved_at || ""));
+              var ageMs = isFinite(savedAtMs) ? Math.max(0, Date.now() - savedAtMs) : 0;
               var tone = ageMs > OFFLINE_CATALOG_STALE_MS ? "error" : "warn";
               setCatalogStaleBanner(
                 "Offline mode: catalog snapshot loaded (" + formatCatalogAge(ageMs) + ").",
@@ -9266,6 +9448,7 @@
       };
       window.__posPrinterConnectionChanged = function () {
         updateCustomerSectionState();
+        updatePosCompulsoryPrinterWorkspaceLock();
         updateProceedState();
       };
 
@@ -10133,9 +10316,16 @@
         window.__POS_LAST_HEADER_PRINTER = connected && printer ? printer : null;
 
         function publishReceiptPrinterReadyFlag() {
-          var receiptReady = !!connected && !!printer;
-          // Simple rule: if a printer is saved for this shop, POS can proceed.
-          // Bluetooth will connect on-demand during print.
+          var baseReady = !!connected && !!printer;
+          var receiptReady = baseReady;
+          if (
+            baseReady &&
+            printer &&
+            String(printer.printer_type || "").toLowerCase() === "bluetooth"
+          ) {
+            var sg = window.__POS_BT || {};
+            receiptReady = !!(sg.gattConnected && !sg.userMuted);
+          }
           window.POS_RECEIPT_PRINTER_CONFIGURED = receiptReady;
           try {
             if (window.__posPrinterConnectionChanged) window.__posPrinterConnectionChanged();
