@@ -5214,6 +5214,23 @@
         render();
       }
 
+      /** Selling-side cap for the active POS inventory mode (shelf vs portions — never mixed). */
+      function posSellingCapFromItemCard(btn) {
+        var mode = window.POS_INVENTORY_MODE || "shop";
+        if (mode === "none") return 999999999;
+        var cap = parseInt(btn.getAttribute("data-stock") || "0", 10);
+        if (cap >= 999999998) return cap;
+        if (mode === "shop") {
+          var sq = parseInt(btn.getAttribute("data-shop-stock") || "", 10);
+          return !isNaN(sq) ? sq : cap;
+        }
+        if (mode === "kitchen" || mode === "both") {
+          var kp = parseInt(btn.getAttribute("data-kitchen-portions") || "", 10);
+          return !isNaN(kp) ? kp : cap;
+        }
+        return cap;
+      }
+
       function addFromCard(btn) {
         var id = parseInt(btn.getAttribute("data-item-id"), 10);
         var name = btn.getAttribute("data-name") || "";
@@ -5222,9 +5239,7 @@
         var originalSellingPrice = parseFloat(origRaw != null && origRaw !== "" ? origRaw : price);
         if (isNaN(originalSellingPrice)) originalSellingPrice = price;
         if (originalSellingPrice < 0) originalSellingPrice = 0;
-        var mode = window.POS_INVENTORY_MODE || "shop";
-        var stock =
-          mode === "none" ? 999999999 : parseInt(btn.getAttribute("data-stock") || "0", 10);
+        var stock = posSellingCapFromItemCard(btn);
         var lines = load();
         var i = lines.findIndex(function (l) {
           return l.id === id;

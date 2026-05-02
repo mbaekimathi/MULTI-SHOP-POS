@@ -2089,11 +2089,13 @@ def list_kitchen_portion_analytics_lines(
     shop_id: Optional[int] = None,
     limit: int = 50000,
 ):
+    """Detail rows for portion-based POS sales (``kitchen`` and ``both`` inventory modes)."""
     ensure_shop_pos_sales_inventory_mode_column()
     init_shop_pos_sale_items_table()
     dt_start = datetime.combine(date_from, datetime.min.time())
     dt_end_excl = datetime.combine(date_to + timedelta(days=1), datetime.min.time())
-    where = ["s.created_at >= %s", "s.created_at < %s", "s.inventory_mode = 'kitchen'"]
+    # Kitchen + "both" POS modes deduct portions at checkout (never shelf in those flows).
+    where = ["s.created_at >= %s", "s.created_at < %s", "s.inventory_mode IN ('kitchen', 'both')"]
     params: list = [dt_start, dt_end_excl]
     if shop_id is not None and int(shop_id) > 0:
         where.append("s.shop_id = %s")
@@ -2141,12 +2143,12 @@ def kitchen_portion_analytics_by_item(
     shop_id: Optional[int] = None,
     limit: int = 30,
 ):
-    """Total portions sold per item (kitchen-mode checkouts only)."""
+    """Total portions sold per item (POS modes that deduct kitchen portions: kitchen, both)."""
     ensure_shop_pos_sales_inventory_mode_column()
     init_shop_pos_sale_items_table()
     dt_start = datetime.combine(date_from, datetime.min.time())
     dt_end_excl = datetime.combine(date_to + timedelta(days=1), datetime.min.time())
-    where = ["s.created_at >= %s", "s.created_at < %s", "s.inventory_mode = 'kitchen'"]
+    where = ["s.created_at >= %s", "s.created_at < %s", "s.inventory_mode IN ('kitchen', 'both')"]
     params: list = [dt_start, dt_end_excl]
     if shop_id is not None and int(shop_id) > 0:
         where.append("s.shop_id = %s")
@@ -2181,12 +2183,12 @@ def kitchen_portion_analytics_by_day(
     date_to: date,
     shop_id: Optional[int] = None,
 ):
-    """Total portions sold per calendar day (kitchen-mode checkouts)."""
+    """Total portions sold per calendar day (kitchen + both POS modes)."""
     ensure_shop_pos_sales_inventory_mode_column()
     init_shop_pos_sale_items_table()
     dt_start = datetime.combine(date_from, datetime.min.time())
     dt_end_excl = datetime.combine(date_to + timedelta(days=1), datetime.min.time())
-    where = ["s.created_at >= %s", "s.created_at < %s", "s.inventory_mode = 'kitchen'"]
+    where = ["s.created_at >= %s", "s.created_at < %s", "s.inventory_mode IN ('kitchen', 'both')"]
     params: list = [dt_start, dt_end_excl]
     if shop_id is not None and int(shop_id) > 0:
         where.append("s.shop_id = %s")
@@ -3647,6 +3649,13 @@ def create_shop_pos_sale(
     inventory_mode: str = "shop",
     client_txn_id: Optional[str] = None,
 ) -> Tuple[bool, Optional[str], Optional[int], Optional[str]]:
+    """
+    Apply inventory for exactly one pathway per sale (no shelf + portion double-move).
+
+    ``shop``: decrement ``shop_items.shop_stock_qty``. ``kitchen``: decrement kitchen portions only.
+    ``both``: POS checkout uses kitchen portions only; shelf qty is adjusted elsewhere (Stock management).
+    ``none``: no quantity movement.
+    """
     ensure_shop_credit_payments_schema()
     mode = (inventory_mode or "shop").strip().lower()
     if mode not in ("shop", "kitchen", "none", "both"):
@@ -3809,6 +3818,7 @@ def create_shop_pos_sale(
                     continue
                 need[iid] = need.get(iid, 0) + p["qty"]
 
+            # Exactly one inventory pathway per sale — never validate shelf and portions together.
             if mode == "shop":
                 for iid in sorted(need.keys()):
                     cur.execute(
@@ -3831,8 +3841,7 @@ def create_shop_pos_sale(
                             "Not enough stock at the shop for one or more items. Adjust quantities or stock."
                         )
             elif mode in ("kitchen", "both"):
-                # When company uses kitchen+shop inventory, checkout still deducts portions only;
-                # shelf stock is maintained separately in Stock management (store-registered lines).
+                # Mode "both": POS checkout consumes kitchen portions only; shelf qty is separate (Stock management).
                 for iid in sorted(need.keys()):
                     cur.execute(
                         """
@@ -3908,6 +3917,7 @@ def create_shop_pos_sale(
                 if iid is None:
                     continue
                 q = int(p["qty"])
+                # Mutually exclusive: shop shelf decrement OR kitchen portions — never both on one sale.
                 if mode == "shop":
                     cur.execute(
                         """
@@ -3944,7 +3954,7 @@ def create_shop_pos_sale(
                             int(employee_id) if employee_id is not None else None,
                         ),
                     )
-                if mode in ("kitchen", "both"):
+                elif mode in ("kitchen", "both"):
                     cur.execute(
                         """
                         SELECT COALESCE(stock_update_enabled,0) AS sue
@@ -4345,7 +4355,7 @@ def bulk_mark_shop_pos_receipts(
                     """,
                     (int(qty), int(sid_shop), int(iid)),
                 )
-            if mode in ("kitchen", "both"):
+            elif mode in ("kitchen", "both"):
                 cur.execute(
                     """
                     INSERT INTO shop_kitchen_portions (shop_id, item_id, portions_remaining)

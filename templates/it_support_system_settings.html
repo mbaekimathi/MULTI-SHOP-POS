@@ -320,10 +320,11 @@
         <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
           <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">POS inventory</p>
           <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-            Exactly one mode applies company-wide (toggle one on — the others turn off automatically):
+            Default for all branches: pick exactly one mode (toggle one on — the others turn off automatically).
             <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Shop stock</strong> deducts shelf quantity at checkout;
             <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Kitchen portions</strong> deducts portion counts;
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Both</strong> uses portions at checkout while shelf quantities are maintained separately for items registered under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Stock management</strong>.
+            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Both</strong> deducts portions at checkout while shelf quantities are maintained separately for items registered under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Stock management</strong>.
+            A shop can override this under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Shop settings → POS printing</strong> when “Customize POS printing for this shop” is on.
           </p>
           <input type="hidden" name="pos_inventory_exclusive" value="{{ pos_inv_exclusive }}" />
           <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
@@ -1185,6 +1186,14 @@
         }
         Object.keys(patch).forEach(function (name) {
           if (name === "pos_inventory_exclusive") return;
+          // Inventory posture is only represented by hidden pos_inventory_exclusive + unnamed toggles (already synced above).
+          if (
+            name === "pos_inventory_use_both" ||
+            name === "pos_kitchen_portions" ||
+            name === "pos_shop_stock_sale"
+          ) {
+            return;
+          }
           posPanel.querySelectorAll('input[type="checkbox"]').forEach(function (el) {
             if (el.name === name) el.checked = !!patch[name];
           });
