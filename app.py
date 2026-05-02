@@ -5271,6 +5271,10 @@ def shop_pos_record_sale(shop_id: int):
 
     data = request.get_json(force=True, silent=True) or {}
     client_txn_id = (data.get("client_txn_id") or "").strip()[:64] or None
+    # Offline-queued sales replay with this flag / timestamp; do not block on compulsory printer (sale already completed offline).
+    offline_queue_replay = bool(data.get("offline_queue_sync")) or bool(
+        str(data.get("queued_at") or "").strip()
+    )
     sale_type = (data.get("sale_type") or "sale").strip().lower()
     if sale_type not in ("sale", "credit"):
         return jsonify({"ok": False, "error": "Invalid sale type."}), 400
@@ -5309,6 +5313,7 @@ def shop_pos_record_sale(shop_id: int):
         sale_type == "sale"
         and _shop_print_compulsory_on_sale_enabled(shop)
         and not _shop_has_saved_pos_printer(shop_id)
+        and not offline_queue_replay
     ):
         return jsonify(
             {
@@ -5386,6 +5391,8 @@ def shop_pos_record_quote(shop_id: int):
     if not _shop_pos_allow_quotations(shop):
         return jsonify({"ok": False, "error": "Quotations are disabled for this POS."}), 403
 
+    client_txn_id = (data.get("client_txn_id") or "").strip()[:64] or None
+
     quote_basis = (data.get("quote_basis") or "sale").strip().lower()
     if quote_basis not in ("sale", "credit"):
         return jsonify({"ok": False, "error": "Invalid quotation type."}), 400
@@ -5422,6 +5429,7 @@ def shop_pos_record_quote(shop_id: int):
             employee_code=(emp.get("employee_code") or "").strip() or None,
             employee_name=(emp.get("full_name") or "").strip() or None,
             lines=data.get("lines") if isinstance(data.get("lines"), list) else [],
+            client_txn_id=client_txn_id,
         )
     except Exception:
         qid, err = None, None

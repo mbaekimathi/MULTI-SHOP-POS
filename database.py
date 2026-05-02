@@ -2003,6 +2003,34 @@ def ensure_shop_pos_sales_receipt_columns() -> bool:
         return False
 
 
+def ensure_shop_pos_quotations_client_txn_column() -> bool:
+    """Adds client_txn_id for idempotent offline quotation sync (same pattern as POS sales)."""
+    init_shop_pos_quotations_table()
+    try:
+        with get_cursor(commit=True) as cur:
+            if not column_exists("shop_pos_quotations", "client_txn_id"):
+                cur.execute(
+                    """
+                    ALTER TABLE shop_pos_quotations
+                    ADD COLUMN client_txn_id VARCHAR(64) NULL DEFAULT NULL
+                    AFTER employee_name
+                    """
+                )
+            try:
+                cur.execute(
+                    """
+                    CREATE UNIQUE INDEX uq_shop_pos_quotations_shop_client_txn
+                    ON shop_pos_quotations (shop_id, client_txn_id)
+                    """
+                )
+            except pymysql.Error:
+                pass
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not add shop_pos_quotations.client_txn_id: %s", e)
+        return False
+
+
 def ensure_shop_pos_sales_client_txn_column() -> bool:
     """Adds client transaction ID for idempotent offline sync retries."""
     init_shop_pos_sales_table()
@@ -3445,6 +3473,7 @@ def create_shop_pos_quotation(
     employee_code: Optional[str] = None,
     employee_name: Optional[str] = None,
     lines: Optional[list] = None,
+    client_txn_id: Optional[str] = None,
 ) -> Tuple[Optional[int], Optional[str]]:
     basis = (quote_basis or "").strip().lower()
     if basis not in ("sale", "credit"):
@@ -3508,14 +3537,29 @@ def create_shop_pos_quotation(
     except (TypeError, ValueError):
         blob = "[]"
 
+    ensure_shop_pos_quotations_client_txn_column()
+    client_txn = (client_txn_id or "").strip()[:64] or None
+
     sql = """
     INSERT INTO shop_pos_quotations
         (shop_id, quote_basis, quote_channel, total_amount, item_count, customer_name, customer_phone,
-         lines_json, employee_id, employee_code, employee_name)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         lines_json, employee_id, employee_code, employee_name, client_txn_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     try:
         with get_cursor(commit=True) as cur:
+            if client_txn and shop_id is not None:
+                cur.execute(
+                    """
+                    SELECT id FROM shop_pos_quotations
+                    WHERE shop_id=%s AND client_txn_id=%s
+                    LIMIT 1
+                    """,
+                    (int(shop_id), client_txn),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    return int(existing.get("id") or 0), None
             cur.execute(
                 sql,
                 (
@@ -3530,6 +3574,7 @@ def create_shop_pos_quotation(
                     int(employee_id) if employee_id is not None else None,
                     (employee_code or "").strip()[:6] or None,
                     (employee_name or "").strip()[:190] or None,
+                    client_txn,
                 ),
             )
             qid = int(cur.lastrowid or 0)

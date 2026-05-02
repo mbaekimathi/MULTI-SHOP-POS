@@ -4620,8 +4620,8 @@
         toast.classList.remove("pos-sync-toast--ok", "pos-sync-toast--err");
         if (ok) {
           iconEl.innerHTML = tickSvg;
-          titleEl.textContent = "Offline sales synced";
-          detailEl.textContent = String(stats.synced) + " saved to the server.";
+          titleEl.textContent = "Offline queue synced";
+          detailEl.textContent = String(stats.synced) + " checkout(s) saved to the server.";
           toast.classList.add("pos-sync-toast--ok");
         } else if (partialOk) {
           iconEl.innerHTML = xSvg;
@@ -4703,7 +4703,7 @@
         wrap.innerHTML =
           '<div class="w-full max-w-4xl overflow-hidden rounded-t-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl sm:rounded-2xl">' +
           '<div class="flex items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))]/70 px-4 py-3">' +
-          '<div class="min-w-0"><h3 class="truncate text-sm font-black uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))]">Offline sync diagnostics</h3>' +
+          '<div class="min-w-0"><h3 class="truncate text-sm font-black uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))]">Offline queue diagnostics</h3>' +
           '<p id="pos-offline-diag-sub" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Loading...</p></div>' +
           '<button type="button" id="pos-offline-diag-close" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>' +
           "</div>" +
@@ -4928,6 +4928,7 @@
 
       function enqueueOfflineSale(body) {
         var payload = Object.assign({}, body || {});
+        payload.offline_queue_sync = true;
         payload.client_txn_id = String(payload.client_txn_id || randomTxnId());
         payload.local_receipt_number = payload.local_receipt_number || nextOfflineReceiptNumber();
         payload.queued_at = new Date().toISOString();
@@ -4938,6 +4939,43 @@
           updateOfflineSyncBadge();
           return saved;
         });
+      }
+
+      /** Strip queue metadata and branch payload shape for the correct POST endpoint. */
+      function offlinePayloadForRecordSync(entry) {
+        var e = entry || {};
+        var kind = String(e.pos_offline_record_kind || "sale").toLowerCase();
+        if (kind === "quote") {
+          return {
+            quote_basis: e.quote_basis,
+            quote_channel: e.quote_channel || "walkin",
+            total_amount: e.total_amount,
+            item_count: e.item_count,
+            customer_name: e.customer_name,
+            customer_phone: e.customer_phone,
+            lines: e.lines,
+            employee: e.employee,
+            client_txn_id: e.client_txn_id,
+            offline_queue_sync: true,
+            queued_at: e.queued_at,
+          };
+        }
+        return {
+          sale_type: e.sale_type,
+          payment_method: e.payment_method,
+          cash_amount: e.cash_amount,
+          mpesa_amount: e.mpesa_amount,
+          total_amount: e.total_amount,
+          item_count: e.item_count,
+          customer_name: e.customer_name,
+          customer_phone: e.customer_phone,
+          lines: e.lines,
+          employee: e.employee,
+          credit_due_date: e.credit_due_date || "",
+          client_txn_id: e.client_txn_id,
+          offline_queue_sync: true,
+          queued_at: e.queued_at,
+        };
       }
 
       function syncOfflineSalesQueue(opts) {
@@ -4971,27 +5009,47 @@
             queue.forEach(function (entry) {
               cursor = cursor.then(function () {
                 if (!navigator.onLine) return;
-                return fetch(RECORD_SALE_API, {
+                var kind = String((entry && entry.pos_offline_record_kind) || "sale").toLowerCase();
+                var api = kind === "quote" ? RECORD_QUOTE_API : RECORD_SALE_API;
+                var syncBody = offlinePayloadForRecordSync(entry);
+                return fetch(api, {
                   method: "POST",
                   credentials: "same-origin",
+                  cache: "no-store",
                   headers: { "Content-Type": "application/json", Accept: "application/json" },
-                  body: JSON.stringify(entry),
+                  body: JSON.stringify(syncBody),
                 }).then(function (r) {
-                  return r.json().catch(function () {
-                    return {};
-                  }).then(function (j) {
-                    if (!r.ok) throw new Error((j && j.error) || "HTTP " + String(r.status));
+                  return r.text().then(function (t) {
+                    var j = {};
+                    try {
+                      j = t ? JSON.parse(t) : {};
+                    } catch (parseErr) {
+                      j = {};
+                    }
+                    if (!r.ok) {
+                      var hint = (j && j.error) || t || "HTTP " + String(r.status);
+                      throw new Error(String(hint).slice(0, 280));
+                    }
                     return j;
                   });
                 }).then(function (j) {
                   if (!j || !j.ok) throw new Error((j && j.error) || "Sync failed");
-                  mergeReceiptSeqMaxFromReceiptString((j && j.receipt_number) || "");
-                  stats.synced++;
-                  appendOfflineSyncLogEntry({
-                    receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
-                    ok: true,
-                    detail: (j && j.receipt_number) ? "Saved as " + String(j.receipt_number) : "Saved to server",
-                  });
+                  if (kind === "quote") {
+                    stats.synced++;
+                    appendOfflineSyncLogEntry({
+                      receipt: (entry && entry.local_receipt_number) || "Quote",
+                      ok: true,
+                      detail: j.quote_id ? "Quote #" + String(j.quote_id) : "Saved to server",
+                    });
+                  } else {
+                    mergeReceiptSeqMaxFromReceiptString((j && j.receipt_number) || "");
+                    stats.synced++;
+                    appendOfflineSyncLogEntry({
+                      receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
+                      ok: true,
+                      detail: (j && j.receipt_number) ? "Saved as " + String(j.receipt_number) : "Saved to server",
+                    });
+                  }
                   return deleteOfflineSale(entry.client_txn_id);
                 }).catch(function (err) {
                   stats.failed++;
@@ -5027,6 +5085,11 @@
           .then(function () {
             if (notify && !stats.skipped && (stats.synced > 0 || stats.failed > 0)) {
               showOfflineSyncResultToast(stats);
+            }
+            if ((stats.synced || 0) > 0 && typeof window.refreshPosCatalogStock === "function") {
+              try {
+                window.refreshPosCatalogStock();
+              } catch (eRf3) {}
             }
             return stats;
           });
@@ -6042,11 +6105,15 @@
           var quoteEl = document.getElementById("pos-quote-only");
           var quoteOnly = quoteEl && quoteEl.checked;
           if (quoteOnly) {
-            return recordQuoteForLeads(buildQuoteRequestBody(lines, mode)).then(function (res) {
-              var qid = res && res.quote_id;
+            return commitQuoteWithOfflineFallback(lines, mode).then(function (res) {
+              var qid = res && !res.queued && res.quote_id;
+              var quotePrintRef =
+                res && res.queued && res.quote_print_ref ? res.quote_print_ref : qid != null ? qid : "";
               return runConfiguredPrinterAction(
-                makeReceiptPayload(lines, mode, { isQuotation: true, quoteId: qid })
-              ).catch(function () {});
+                makeReceiptPayload(lines, mode, { isQuotation: true, quoteId: quotePrintRef })
+              ).catch(function () {}).then(function () {
+                return res;
+              });
             });
           }
           return commitSaleWithOfflineFallback(lines, mode).then(function (res) {
@@ -6077,10 +6144,19 @@
             var qEl = document.getElementById("pos-quote-only");
             var wasQuote = qEl && qEl.checked;
             var queuedNow = !!(checkoutResult && checkoutResult.queued);
-            if (!wasQuote && queuedNow) {
+            if (queuedNow) {
               getPendingOfflineSalesCount().then(function (queueSize) {
-                showToast("Saved offline. Pending sync: " + String(queueSize));
-                setAuthStatus("Sale saved offline. It will sync automatically when internet returns.", "muted");
+                showToast(
+                  (wasQuote ? "Quotation saved offline" : "Sale saved offline") +
+                    ". Pending sync: " +
+                    String(queueSize)
+                );
+                setAuthStatus(
+                  wasQuote
+                    ? "Quote queued offline. It will sync when internet returns."
+                    : "Sale saved offline. It will sync automatically when internet returns.",
+                  "muted"
+                );
                 updateOfflineSyncBadge();
               });
             } else {
@@ -6108,18 +6184,52 @@
         return fetch(RECORD_QUOTE_API, {
           method: "POST",
           credentials: "same-origin",
+          cache: "no-store",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify(body),
         })
           .then(function (r) {
-            return r.json().catch(function () {
-              return {};
+            return r.text().then(function (t) {
+              var j = {};
+              try {
+                j = t ? JSON.parse(t) : {};
+              } catch (ePQ) {
+                j = {};
+              }
+              if (!r.ok) throw new Error(String((j && j.error) || t || "HTTP " + String(r.status)).slice(0, 280));
+              return j;
             });
           })
           .then(function (j) {
             if (!j || !j.ok) throw new Error((j && j.error) || "Could not save quotation.");
             return j;
           });
+      }
+
+      function commitQuoteWithOfflineFallback(lines, mode) {
+        var body = buildQuoteRequestBody(lines, mode);
+        body.client_txn_id = randomTxnId();
+        return recordQuoteForLeads(body).then(function (res) {
+          return { queued: false, quote_id: res && res.quote_id };
+        }).catch(function (err) {
+          var msg = String((err && err.message) || "");
+          var offlineish =
+            !navigator.onLine ||
+            msg.toLowerCase().indexOf("failed to fetch") !== -1 ||
+            msg.toLowerCase().indexOf("network") !== -1 ||
+            msg.toLowerCase().indexOf("timeout") !== -1;
+          if (!offlineish) throw err;
+          return enqueueOfflineSale(
+            Object.assign({}, body, {
+              pos_offline_record_kind: "quote",
+            })
+          ).then(function (queued) {
+            return {
+              queued: true,
+              quote_print_ref: String((queued && queued.local_receipt_number) || ""),
+            };
+          });
+        });
       }
 
       function buildQuoteRequestBody(lines, mode) {
@@ -6220,6 +6330,7 @@
             msg.toLowerCase().indexOf("timeout") !== -1;
           if (!offlineish) throw err;
           return enqueueOfflineSale({
+            pos_offline_record_kind: "sale",
             sale_type: payload.mode === "credit" ? "credit" : "sale",
             payment_method: payload.paymentMethod || "cash",
             cash_amount: parseFloat(payload.cashAmount != null ? payload.cashAmount : 0) || 0,
