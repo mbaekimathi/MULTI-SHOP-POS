@@ -22,19 +22,22 @@
 {% endblock %}
 
 {% block shop_content %}
+  {% set _shop_nav_role = portal_employee.role_key if portal_employee else (session.get('employee_role') or '') %}
   {% set f = analytics_filter or {} %}
   {% set can_mark_receipts = _shop_nav_role in ('admin', 'manager', 'super_admin', 'it_support') %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Receipt register</h2>
     <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
-      Completed POS checkouts recorded on the server. Receipt number is saved per sale and is searchable below.
-      Range <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or '' }}</span>.
+      Completed POS checkouts for <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</span> (shop #{{ shop.id }}). Receipt number is saved per sale and is searchable below.
+      Range <span id="receipt-range-label" class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or '' }}</span>.
     </p>
   </div>
 
   {% set form_action = url_for('shop_receipts', shop_id=shop.id) %}
   {% set show_shop_picker = False %}
   {% include "partials/receipt_register_filters.html" with context %}
+
+  <p id="receipt-page-msg" class="mt-4 hidden rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100" role="status"></p>
 
   {% if can_mark_receipts %}
   <div class="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-3 py-2.5 shadow-sm">
@@ -136,20 +139,40 @@
     </div>
   </div>
 
-  {% if can_mark_receipts %}
   <script>
     (function () {
-      var BULK_MARK_API = {{ url_for('shop_receipts_mark', shop_id=shop.id)|tojson }};
-      var RECEIPT_DETAIL_API = {{ url_for('shop_receipts_detail', shop_id=shop.id)|tojson }};
-      var RECEIPT_RETURN_LINES_API = {{ url_for('shop_receipts_return_lines', shop_id=shop.id)|tojson }};
+      var CFG = {
+        shopId: {{ shop.id|int }},
+        listUrl: {{ url_for('shop_receipts_list_json', shop_id=shop.id)|tojson }},
+        detailUrl: {{ url_for('shop_receipts_detail', shop_id=shop.id)|tojson }},
+        returnUrl: {% if can_mark_receipts %}{{ url_for('shop_receipts_return_lines', shop_id=shop.id)|tojson }}{% else %}null{% endif %},
+        markUrl: {% if can_mark_receipts %}{{ url_for('shop_receipts_mark', shop_id=shop.id)|tojson }}{% else %}null{% endif %},
+        canMark: {{ can_mark_receipts|tojson }},
+        colspan: {% if can_mark_receipts %}10{% else %}9{% endif %},
+      };
+
       var tbody = document.getElementById("receipt-register-tbody");
       var selectAll = document.getElementById("receipt-select-all");
       var selectedCount = document.getElementById("receipt-selected-count");
       var liveSearch = document.getElementById("receipt-live-search");
-      var msg = document.getElementById("receipt-mark-msg");
+      var markMsg = document.getElementById("receipt-mark-msg");
+      var pageMsg = document.getElementById("receipt-page-msg");
+      var rangeLabel = document.getElementById("receipt-range-label");
+      var loadedCountEl = document.getElementById("receipt-loaded-count");
       if (!tbody) return;
 
       var selected = new Set();
+
+      function showPageMsg(text) {
+        if (!pageMsg) return;
+        if (text) {
+          pageMsg.textContent = text;
+          pageMsg.classList.remove("hidden");
+        } else {
+          pageMsg.textContent = "";
+          pageMsg.classList.add("hidden");
+        }
+      }
 
       function statusBadgeClass(status) {
         if (status === "confirmed") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300";
@@ -157,6 +180,11 @@
         if (status === "partial_return") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300";
         if (status === "returned") return "receipt-mark-badge mt-1 inline-flex rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300";
         return "receipt-mark-badge mt-1 inline-flex rounded-md bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300";
+      }
+
+      function statusBadgeLabel(status) {
+        if (status === "partial_return") return "partial return";
+        return status || "pending";
       }
 
       function updateSelectedUi() {
@@ -179,69 +207,71 @@
         if (!badge) return;
         badge.className = statusBadgeClass(status);
         badge.setAttribute("data-mark-status", status);
-        badge.textContent = status;
+        badge.textContent = statusBadgeLabel(status);
       }
 
-      tbody.addEventListener("change", function (e) {
-        var target = e.target;
-        if (!target || !target.classList || !target.classList.contains("receipt-select-one")) return;
-        var id = String(target.value || "");
-        if (!id) return;
-        if (target.checked) selected.add(id);
-        else selected.delete(id);
-        updateSelectedUi();
-        clearLiveSearchForNextInput();
-      });
-
-      if (selectAll) {
-        selectAll.addEventListener("change", function () {
-          var rows = tbody.querySelectorAll("tr[data-sale-id]");
-          rows.forEach(function (row) {
-            if (row.getAttribute("data-sale-id") === "__none__" || row.classList.contains("hidden")) return;
-            var cb = row.querySelector(".receipt-select-one");
-            if (!cb) return;
-            cb.checked = !!selectAll.checked;
-            var id = String(cb.value || "");
-            if (!id) return;
-            if (selectAll.checked) selected.add(id);
-            else selected.delete(id);
-          });
+      if (CFG.canMark) {
+        tbody.addEventListener("change", function (e) {
+          var target = e.target;
+          if (!target || !target.classList || !target.classList.contains("receipt-select-one")) return;
+          var id = String(target.value || "");
+          if (!id) return;
+          if (target.checked) selected.add(id);
+          else selected.delete(id);
           updateSelectedUi();
           clearLiveSearchForNextInput();
         });
-      }
 
-      function postBulkMark(status) {
-        if (!selected.size) {
-          if (msg) msg.textContent = "Select at least one receipt.";
-          return;
-        }
-        var ids = Array.from(selected).map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
-        fetch(BULK_MARK_API, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ sale_ids: ids, mark_status: status }),
-        })
-          .then(function (r) { return r.json().catch(function () { return {}; }); })
-          .then(function (j) {
-            if (!j || !j.ok) throw new Error((j && j.error) || "Could not update receipts.");
-            ids.forEach(function (sid) { applyRowStatus(String(sid), status); });
-            if (msg) msg.textContent = "Updated " + String(j.updated || ids.length) + " receipt(s) to " + status + ".";
-          })
-          .catch(function (err) {
-            if (msg) msg.textContent = (err && err.message) ? err.message : "Could not update receipts.";
+        if (selectAll) {
+          selectAll.addEventListener("change", function () {
+            var rows = tbody.querySelectorAll("tr[data-sale-id]");
+            rows.forEach(function (row) {
+              if (row.getAttribute("data-sale-id") === "__none__" || row.classList.contains("hidden")) return;
+              var cb = row.querySelector(".receipt-select-one");
+              if (!cb) return;
+              cb.checked = !!selectAll.checked;
+              var id = String(cb.value || "");
+              if (!id) return;
+              if (selectAll.checked) selected.add(id);
+              else selected.delete(id);
+            });
+            updateSelectedUi();
+            clearLiveSearchForNextInput();
           });
-      }
+        }
 
-      document.querySelectorAll("[data-mark-action]").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          var status = String(btn.getAttribute("data-mark-action") || "").toLowerCase();
-          postBulkMark(status);
+        function postBulkMark(status) {
+          if (!selected.size) {
+            if (markMsg) markMsg.textContent = "Select at least one receipt.";
+            return;
+          }
+          var ids = Array.from(selected).map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
+          fetch(CFG.markUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ sale_ids: ids, mark_status: status }),
+          })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+              if (!j || !j.ok) throw new Error((j && j.error) || "Could not update receipts.");
+              ids.forEach(function (sid) { applyRowStatus(String(sid), status); });
+              if (markMsg) markMsg.textContent = "Updated " + String(j.updated || ids.length) + " receipt(s) to " + status + ".";
+            })
+            .catch(function (err) {
+              if (markMsg) markMsg.textContent = (err && err.message) ? err.message : "Could not update receipts.";
+            });
+        }
+
+        document.querySelectorAll("[data-mark-action]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var status = String(btn.getAttribute("data-mark-action") || "").toLowerCase();
+            postBulkMark(status);
+          });
         });
-      });
 
-      updateSelectedUi();
+        updateSelectedUi();
+      }
 
       function escHtml(s) {
         return String(s == null ? "" : s)
@@ -250,6 +280,134 @@
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
+      }
+
+      function fmtWhen(row) {
+        var raw = row.created_at_iso || row.created_at || "";
+        if (!raw) return "—";
+        try {
+          var d = new Date(String(raw).replace(" ", "T"));
+          if (!isNaN(d.getTime())) return d.toLocaleString();
+        } catch (e) {}
+        return String(raw);
+      }
+
+      function truncateCust(name) {
+        var s = String(name || "Walk-in").trim() || "Walk-in";
+        return s.length > 22 ? s.slice(0, 21) + "…" : s;
+      }
+
+      function buildRowHtml(row) {
+        var sid = parseInt(row.sale_id || row.id || 0, 10) || 0;
+        var recNo = String(row.receipt_number || "").trim();
+        var mark = String(row.receipt_mark_status || "pending").toLowerCase();
+        var total = Number(row.total_amount || 0).toFixed(2);
+        var cbCell = "";
+        if (CFG.canMark) {
+          cbCell =
+            '<td class="px-3 py-2 text-center">' +
+            '<input type="checkbox" class="receipt-select-one h-4 w-4 rounded border-[rgb(var(--rc-border))]" value="' +
+            escHtml(sid) +
+            '" />' +
+            "</td>";
+        }
+        return (
+          '<tr data-sale-id="' +
+          escHtml(sid) +
+          '" data-receipt-no="' +
+          escHtml(recNo) +
+          '" data-total-amount="' +
+          escHtml(total) +
+          '" data-mark-status="' +
+          escHtml(mark) +
+          '" class="hover:bg-[rgb(var(--rc-surface-2))]/30">' +
+          cbCell +
+          '<td class="px-3 py-2 font-mono font-bold text-[rgb(var(--rc-page-fg))]">' +
+          "<div>" +
+          escHtml(recNo || "#" + sid) +
+          "</div>" +
+          '<span class="' +
+          statusBadgeClass(mark) +
+          '" data-mark-status="' +
+          escHtml(mark) +
+          '">' +
+          escHtml(statusBadgeLabel(mark)) +
+          "</span>" +
+          "</td>" +
+          '<td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]" title="' +
+          escHtml(row.created_at_iso || "") +
+          '">' +
+          escHtml(fmtWhen(row)) +
+          "</td>" +
+          '<td class="px-3 py-2">' +
+          (String(row.sale_type || "").toLowerCase() === "credit"
+            ? '<span class="rounded-md bg-orange-500/15 px-1.5 py-0.5 font-semibold text-orange-700 dark:text-orange-300">Credit</span>'
+            : '<span class="rounded-md bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">Sale</span>') +
+          "</td>" +
+          '<td class="px-3 py-2 text-[rgb(var(--rc-muted))]">' +
+          escHtml(row.payment_method || "—") +
+          "</td>" +
+          '<td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">' +
+          escHtml(total) +
+          "</td>" +
+          '<td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">' +
+          escHtml(parseInt(row.item_count || 0, 10) || 0) +
+          "</td>" +
+          '<td class="max-w-[10rem] truncate px-3 py-2 text-[rgb(var(--rc-muted))]" title="' +
+          escHtml(String(row.customer_name || "") + " " + String(row.customer_phone || "")) +
+          '">' +
+          escHtml(truncateCust(row.customer_name)) +
+          "</td>" +
+          '<td class="max-w-[8rem] truncate px-3 py-2 text-[rgb(var(--rc-muted))]" title="' +
+          escHtml(row.employee_name || "") +
+          '">' +
+          escHtml(row.employee_name || "—") +
+          "</td>" +
+          '<td class="px-3 py-2 text-center">' +
+          '<button type="button" class="receipt-view-btn inline-flex h-7 w-7 items-center justify-center rounded-lg text-[rgb(var(--rc-primary))] transition hover:bg-[rgb(var(--rc-surface-2))]" data-sale-id="' +
+          escHtml(sid) +
+          '" title="View receipt items" aria-label="View receipt items">' +
+          '<svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+          '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path>' +
+          '<circle cx="12" cy="12" r="3"></circle>' +
+          "</svg></button></td></tr>"
+        );
+      }
+
+      function renderRows(rows) {
+        selected.clear();
+        if (selectAll) selectAll.checked = false;
+        updateSelectedUi();
+
+        if (!rows || !rows.length) {
+          tbody.innerHTML =
+            '<tr data-sale-id="__none__"><td colspan="' +
+            CFG.colspan +
+            '" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No receipts in this date range.</td></tr>';
+          if (loadedCountEl) loadedCountEl.textContent = "0";
+          return;
+        }
+
+        tbody.innerHTML = rows.map(buildRowHtml).join("");
+        if (loadedCountEl) loadedCountEl.textContent = String(rows.length);
+      }
+
+      function fetchReceiptsForShop() {
+        showPageMsg("");
+        var params = new URLSearchParams(window.location.search || "");
+        params.set("limit", "5000");
+        var url = CFG.listUrl + (CFG.listUrl.indexOf("?") >= 0 ? "&" : "?") + params.toString();
+        fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not load receipts for this shop.");
+            if (rangeLabel && j.range_label) rangeLabel.textContent = j.range_label;
+            renderRows(j.rows || []);
+            if (liveSearch) liveSearch.dispatchEvent(new Event("input", { bubbles: true }));
+          })
+          .catch(function (err) {
+            showPageMsg((err && err.message ? err.message : "Could not load receipts.") + " Showing server-rendered rows if any.");
+          });
       }
 
       function ensureReceiptModal() {
@@ -270,7 +428,7 @@
           '<button type="button" id="receipt-items-close" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>' +
           "</div></div>" +
           '<div id="receipt-items-body" class="max-h-[72vh] overflow-auto p-4 text-sm text-[rgb(var(--rc-page-fg))]"></div>' +
-          '<div class="sticky bottom-0 z-10 border-t border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/95 px-4 py-3 backdrop-blur">' +
+          '<div id="receipt-return-footer" class="sticky bottom-0 z-10 border-t border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/95 px-4 py-3 backdrop-blur">' +
           '<div class="flex flex-wrap items-center justify-between gap-2">' +
           '<p id="receipt-return-msg" class="text-xs text-[rgb(var(--rc-muted))]"></p>' +
           '<button type="button" id="receipt-return-submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Return selected items</button>' +
@@ -291,53 +449,80 @@
         var title = document.getElementById("receipt-items-title");
         var subtitle = document.getElementById("receipt-items-subtitle");
         var body = document.getElementById("receipt-items-body");
+        var footer = document.getElementById("receipt-return-footer");
         if (title) title.textContent = "Receipt " + String(sale.receipt_number || ("#" + String(sale.id || "")));
         if (subtitle) {
           subtitle.textContent = String(sale.created_at || "") + " · " + String((sale.employee_name || "Unknown"));
         }
-        if (body) {
-          var itemRows = items.map(function (it) {
+
+        var theadReturn = CFG.canMark
+          ? "<th class='py-2.5 px-2 text-center font-bold uppercase tracking-wider'>Return</th>"
+          : "";
+        var itemRows = items
+          .map(function (it) {
             var lineId = parseInt(it.line_id || 0, 10) || 0;
             var qty = parseInt(it.qty || 0, 10) || 0;
+            var retCell = CFG.canMark
+              ? "<td class='py-2.5 px-2 text-center'><input type='checkbox' class='receipt-return-line h-4 w-4 rounded border-[rgb(var(--rc-border))]' value='" +
+                escHtml(lineId) +
+                "'" +
+                (qty <= 0 ? " disabled" : "") +
+                " /></td>"
+              : "";
             return (
               "<tr class='border-t border-[rgb(var(--rc-border))]/50'>" +
-              "<td class='py-2.5 px-2 text-center'><input type='checkbox' class='receipt-return-line h-4 w-4 rounded border-[rgb(var(--rc-border))]' value='" + escHtml(lineId) + "'" + (qty <= 0 ? " disabled" : "") + " /></td>" +
-              "<td class='py-2.5 pr-2'><div class='font-semibold text-[rgb(var(--rc-page-fg))]'>" + escHtml(it.item_name || "Item") + "</div></td>" +
-              "<td class='py-2.5 pr-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]'>" + escHtml(qty) + "</td>" +
-              "<td class='py-2.5 px-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]'>" + escHtml((Number(it.line_total || 0)).toFixed(2)) + "</td>" +
-              "</tr>"
+              retCell +
+              "<td class='py-2.5 pr-2'><div class='font-semibold text-[rgb(var(--rc-page-fg))]'>" +
+              escHtml(it.item_name || "Item") +
+              "</div></td>" +
+              "<td class='py-2.5 pr-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]'>" +
+              escHtml(qty) +
+              "</td>" +
+              "<td class='py-2.5 px-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]'>" +
+              escHtml(Number(it.line_total || 0).toFixed(2)) +
+              "</td></tr>"
             );
-          }).join("");
+          })
+          .join("");
+
+        if (body) {
           body.innerHTML =
             "<div class='rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/35 p-3'>" +
             "<div class='overflow-x-auto rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]'>" +
             "<table class='min-w-full text-xs sm:text-sm'><thead><tr class='text-left text-[rgb(var(--rc-muted))]'>" +
-            "<th class='py-2.5 px-2 text-center font-bold uppercase tracking-wider'>Return</th>" +
+            theadReturn +
             "<th class='py-2.5 px-2 font-bold uppercase tracking-wider'>Item</th>" +
             "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Qty</th>" +
             "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Total</th>" +
-            "</tr></thead><tbody>" + itemRows + "</tbody></table></div>" +
+            "</tr></thead><tbody>" +
+            itemRows +
+            "</tbody></table></div>" +
             "<div class='mt-3 flex items-center justify-between rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-3 py-2'>" +
             "<span class='text-xs font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]'>Grand total</span>" +
-            "<span class='text-base font-black tabular-nums text-[rgb(var(--rc-page-fg))]'>" + escHtml((Number(sale.total_amount || 0)).toFixed(2)) + "</span>" +
-            "</div></div>";
+            "<span class='text-base font-black tabular-nums text-[rgb(var(--rc-page-fg))]'>" +
+            escHtml(Number(sale.total_amount || 0).toFixed(2)) +
+            "</span></div></div>";
         }
+
+        if (footer) footer.classList.toggle("hidden", !CFG.canMark);
+
         var submitBtn = document.getElementById("receipt-return-submit");
         var returnMsg = document.getElementById("receipt-return-msg");
-        if (returnMsg) returnMsg.textContent = "Select item lines to return.";
-        if (submitBtn) {
+        if (CFG.canMark && submitBtn && returnMsg && CFG.returnUrl) {
+          returnMsg.textContent = "Select item lines to return.";
+          submitBtn.disabled = false;
           submitBtn.onclick = function () {
             var picks = Array.prototype.slice
               .call(document.querySelectorAll(".receipt-return-line:checked"))
               .map(function (cb) { return parseInt(cb.value || "0", 10) || 0; })
               .filter(function (n) { return n > 0; });
             if (!picks.length) {
-              if (returnMsg) returnMsg.textContent = "Select at least one item.";
+              returnMsg.textContent = "Select at least one item.";
               return;
             }
             submitBtn.disabled = true;
-            if (returnMsg) returnMsg.textContent = "Processing return...";
-            fetch(RECEIPT_RETURN_LINES_API, {
+            returnMsg.textContent = "Processing return...";
+            fetch(CFG.returnUrl, {
               method: "POST",
               credentials: "same-origin",
               headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -346,21 +531,20 @@
               .then(function (r) { return r.json().catch(function () { return {}; }); })
               .then(function (j) {
                 if (!j || !j.ok) throw new Error((j && j.error) || "Could not process return.");
-                if (returnMsg) {
-                  returnMsg.textContent =
-                    "Returned " +
-                    String((j.meta && j.meta.returned_lines) || picks.length) +
-                    " item line(s). New total: " +
-                    String((j.meta && Number(j.meta.new_total_amount || 0).toFixed(2)) || "0.00");
-                }
+                returnMsg.textContent =
+                  "Returned " +
+                  String((j.meta && j.meta.returned_lines) || picks.length) +
+                  " item line(s). New total: " +
+                  String((j.meta && Number(j.meta.new_total_amount || 0).toFixed(2)) || "0.00");
                 setTimeout(function () { window.location.reload(); }, 600);
               })
               .catch(function (e) {
-                if (returnMsg) returnMsg.textContent = (e && e.message) ? e.message : "Could not process return.";
+                returnMsg.textContent = e && e.message ? e.message : "Could not process return.";
                 submitBtn.disabled = false;
               });
           };
         }
+
         modal.classList.remove("hidden");
       }
 
@@ -369,7 +553,7 @@
         if (!btn) return;
         var saleId = parseInt(String(btn.getAttribute("data-sale-id") || "0"), 10) || 0;
         if (!saleId) return;
-        fetch(RECEIPT_DETAIL_API + "?sale_id=" + encodeURIComponent(saleId), {
+        fetch(CFG.detailUrl + "?sale_id=" + encodeURIComponent(saleId), {
           credentials: "same-origin",
           headers: { Accept: "application/json" },
         })
@@ -379,10 +563,11 @@
             openReceiptModal(j);
           })
           .catch(function (err) {
-            if (msg) msg.textContent = (err && err.message) ? err.message : "Could not load receipt.";
+            showPageMsg((err && err.message) ? err.message : "Could not load receipt.");
           });
       });
+
+      fetchReceiptsForShop();
     })();
   </script>
-  {% endif %}
 {% endblock %}

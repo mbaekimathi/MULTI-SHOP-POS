@@ -6635,6 +6635,9 @@ def shop_receipts_list_json(shop_id: int):
         return gate
     analytics_filter = _build_analytics_filter()
     rq = (request.args.get("receipt_q") or "").strip()
+    lim_raw = request.args.get("limit", type=int)
+    lim = int(lim_raw) if lim_raw is not None else 5000
+    lim = max(1, min(lim, 5000))
     try:
         from database import list_shop_pos_sales_receipt_rows
 
@@ -6642,7 +6645,7 @@ def shop_receipts_list_json(shop_id: int):
             int(shop_id),
             analytics_filter,
             sale_id_search=rq,
-            limit=800,
+            limit=lim,
         )
     except Exception:
         logger.exception("shop_receipts_list_json failed shop_id=%s", shop_id)
