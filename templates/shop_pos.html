@@ -5079,6 +5079,19 @@
         updateProceedState();
       }
 
+      /**
+       * Chrome may synthesize a click on the element under the cursor when Bluetooth/USB pickers close.
+       * Briefly ignore catalog card taps so POS lines are not changed unintentionally.
+       */
+      window.__posSuppressCatalogClicksUntil = 0;
+      window.posSuppressCatalogGhostClicks = function (ms) {
+        window.__posSuppressCatalogClicksUntil = Date.now() + Math.max(250, ms || 550);
+      };
+      function posCatalogClickSuppressed() {
+        var t = window.__posSuppressCatalogClicksUntil;
+        return typeof t === "number" && Date.now() < t;
+      }
+
       function changeQty(id, delta) {
         var lines = load();
         var i = lines.findIndex(function (l) {
@@ -5107,9 +5120,7 @@
         if (i < 0) return;
         var n = parseInt(String(raw).trim(), 10);
         if (isNaN(n) || n < 1) {
-          lines.splice(i, 1);
-          save(lines);
-          render();
+          input.value = String(Math.max(1, parseInt(lines[i].qty, 10) || 1));
           return;
         }
         var stockCap = lines[i].stock;
@@ -8644,11 +8655,24 @@
       );
 
       document.querySelectorAll(".pos-item-card").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          addFromCard(btn);
-        });
+        btn.addEventListener(
+          "click",
+          function (e) {
+            if (posCatalogClickSuppressed()) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+            addFromCard(btn);
+          },
+          true
+        );
         btn.addEventListener("keydown", function (e) {
           if (e.key === "Enter" || e.key === " ") {
+            if (posCatalogClickSuppressed()) {
+              e.preventDefault();
+              return;
+            }
             e.preventDefault();
             addFromCard(btn);
           }
@@ -9431,7 +9455,11 @@
           return;
         }
         msg("Open your printer's Bluetooth pairing mode, then pick it in the browser dialog.");
-        requestBluetoothPrinterDeviceCompat()
+        var pickerPromise = requestBluetoothPrinterDeviceCompat();
+        pickerPromise.finally(function () {
+          if (typeof window.posSuppressCatalogGhostClicks === "function") window.posSuppressCatalogGhostClicks(600);
+        });
+        pickerPromise
           .then(function (device) {
             btPending = device;
             if (pickedEl) {
@@ -9557,8 +9585,11 @@
           return;
         }
         if (retryEl) retryEl.classList.add("hidden");
-        navigator.usb
-          .requestDevice({ filters: USB_FILTERS })
+        var usbPickPromise = navigator.usb.requestDevice({ filters: USB_FILTERS });
+        usbPickPromise.finally(function () {
+          if (typeof window.posSuppressCatalogGhostClicks === "function") window.posSuppressCatalogGhostClicks(600);
+        });
+        usbPickPromise
           .then(function (device) {
             usbPending = device;
             if (pickedEl) {
