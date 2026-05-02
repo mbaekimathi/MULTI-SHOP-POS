@@ -25,6 +25,14 @@
     .pos-toast-show {
       animation: pos-toast-in 0.28s ease-out forwards;
     }
+    #pos-sync-toast.pos-sync-toast--ok {
+      border-color: rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.12);
+    }
+    #pos-sync-toast.pos-sync-toast--err {
+      border-color: rgba(244, 63, 94, 0.45);
+      background: rgba(244, 63, 94, 0.1);
+    }
     .pos-item-card:focus-visible {
       outline: 2px solid rgb(var(--rc-primary));
       outline-offset: 2px;
@@ -2144,6 +2152,22 @@
       aria-live="polite"
     ></div>
 
+    {# Offline sync result (auto-dismiss) #}
+    <div
+      id="pos-sync-toast"
+      class="pointer-events-none fixed bottom-[7.25rem] left-1/2 z-[102] hidden max-w-[min(92vw,calc(100vw-6rem))] -translate-x-1/2 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/96 px-3 py-3 shadow-2xl shadow-black/25 backdrop-blur-md dark:shadow-black/50 sm:bottom-[8.5rem] sm:px-4"
+      role="alert"
+      aria-live="assertive"
+    >
+      <div class="flex items-start gap-3">
+        <span id="pos-sync-toast-icon" class="mt-0.5 shrink-0" aria-hidden="true"></span>
+        <div class="min-w-0 flex-1 text-left">
+          <p id="pos-sync-toast-title" class="text-sm font-bold leading-snug text-[rgb(var(--rc-page-fg))]"></p>
+          <p id="pos-sync-toast-detail" class="mt-1 text-xs leading-snug text-[rgb(var(--rc-muted))]"></p>
+        </div>
+      </div>
+    </div>
+
     <button
       type="button"
       id="pos-cart-toggle-fab"
@@ -3354,6 +3378,9 @@
       var catalogStaleBannerEl = document.getElementById("pos-catalog-stale-banner");
       var offlineSyncBusy = false;
       var offlineSyncTimer = null;
+      var offlineSyncRecentLog = [];
+      var offlineSyncToastHideTimer = null;
+      var OFFLINE_SYNC_LOG_CAP = 30;
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
           navigator.serviceWorker.register("/pos-sw.js").catch(function () {});
@@ -4475,6 +4502,78 @@
         }
       }
 
+      function appendOfflineSyncLogEntry(entry) {
+        var rec = String((entry && entry.receipt) || "").trim() || "Sale";
+        offlineSyncRecentLog.unshift({
+          at: new Date().toISOString(),
+          receipt: rec,
+          ok: !!(entry && entry.ok),
+          detail: String((entry && entry.detail) || "").trim(),
+        });
+        while (offlineSyncRecentLog.length > OFFLINE_SYNC_LOG_CAP) offlineSyncRecentLog.pop();
+      }
+
+      function showOfflineSyncResultToast(stats) {
+        var toast = document.getElementById("pos-sync-toast");
+        var iconEl = document.getElementById("pos-sync-toast-icon");
+        var titleEl = document.getElementById("pos-sync-toast-title");
+        var detailEl = document.getElementById("pos-sync-toast-detail");
+        if (!toast || !iconEl || !titleEl || !detailEl || !stats || stats.skipped) return;
+        if ((stats.synced || 0) + (stats.failed || 0) === 0) return;
+        clearTimeout(offlineSyncToastHideTimer);
+        var tickSvg =
+          '<svg class="h-6 w-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
+        var xSvg =
+          '<svg class="h-6 w-6 shrink-0 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>';
+        var ok = (stats.failed || 0) === 0 && (stats.synced || 0) > 0;
+        var partialOk = (stats.synced || 0) > 0 && (stats.failed || 0) > 0;
+        var allFail = (stats.synced || 0) === 0 && (stats.failed || 0) > 0;
+        toast.classList.remove("pos-sync-toast--ok", "pos-sync-toast--err");
+        if (ok) {
+          iconEl.innerHTML = tickSvg;
+          titleEl.textContent = "Offline sales synced";
+          detailEl.textContent = String(stats.synced) + " saved to the server.";
+          toast.classList.add("pos-sync-toast--ok");
+        } else if (partialOk) {
+          iconEl.innerHTML = xSvg;
+          titleEl.textContent = "Sync partly failed";
+          var lines = (stats.errors || []).map(function (e) {
+            return String((e && e.receipt) || "Sale") + ": " + String((e && e.message) || "");
+          });
+          detailEl.textContent = lines.slice(0, 3).join(" · ") + ((stats.failed || 0) > 3 ? " …" : "");
+          toast.classList.add("pos-sync-toast--err");
+        } else if (allFail) {
+          iconEl.innerHTML = xSvg;
+          titleEl.textContent = "Sync failed";
+          var e0 = (stats.errors && stats.errors[0]) || {};
+          detailEl.textContent =
+            String(e0.message || "Could not upload offline sales.") +
+            ((stats.failed || 0) > 1 ? " (" + String(stats.failed) + " pending)" : "");
+          toast.classList.add("pos-sync-toast--err");
+        } else {
+          return;
+        }
+        toast.classList.remove("hidden");
+        toast.classList.add("pos-toast-show");
+        var hideMs = ok ? 4200 : 6800;
+        offlineSyncToastHideTimer = setTimeout(function () {
+          toast.classList.add("hidden");
+          toast.classList.remove("pos-toast-show");
+        }, hideMs);
+      }
+
+      function mergeOfflineSyncStats(a, b) {
+        a = a || {};
+        b = b || {};
+        return {
+          skipped: false,
+          synced: (parseInt(a.synced, 10) || 0) + (parseInt(b.synced, 10) || 0),
+          failed: (parseInt(a.failed, 10) || 0) + (parseInt(b.failed, 10) || 0),
+          errors: (a.errors || []).concat(b.errors || []),
+          attempted: (parseInt(a.attempted, 10) || 0) + (parseInt(b.attempted, 10) || 0),
+        };
+      }
+
       function updateOfflineSyncBadge() {
         updateNetworkStateIndicator();
         if (!offlineSyncBadgeEl) return Promise.resolve();
@@ -4541,31 +4640,109 @@
         var subEl = document.getElementById("pos-offline-diag-sub");
         if (!listEl) return;
         var arr = Array.isArray(rows) ? rows : [];
+        var tickMini =
+          '<svg class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
+        var xMini =
+          '<svg class="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>';
+        var pendingMini =
+          '<svg class="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg>';
         if (subEl) {
           subEl.textContent =
-            String(arr.length) + " pending item(s)." + (navigator.onLine ? " Online." : " Offline.");
+            String(arr.length) +
+            " pending · " +
+            String(offlineSyncRecentLog.length) +
+            " recent sync row(s)." +
+            (navigator.onLine ? " Online." : " Offline.");
         }
-        if (!arr.length) {
-          listEl.innerHTML = '<div class="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 font-semibold text-emerald-800 dark:text-emerald-200">No pending offline sales.</div>';
+        var recentHtml = "";
+        if (offlineSyncRecentLog.length) {
+          recentHtml =
+            '<div class="mb-4">' +
+            '<p class="mb-2 text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Recent sync</p>' +
+            '<div class="space-y-2">' +
+            offlineSyncRecentLog
+              .map(function (log) {
+                var ic = log.ok ? tickMini : xMini;
+                var det = escapeHtml(String(log.detail || "").trim() || (log.ok ? "OK" : "Failed"));
+                var when = escapeHtml(fmtDiagDate(log.at));
+                var rc = escapeHtml(String(log.receipt || ""));
+                return (
+                  '<div class="flex gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/30 px-3 py-2">' +
+                  '<span class="mt-0.5 shrink-0" title="' +
+                  (log.ok ? "Synced" : "Failed") +
+                  '">' +
+                  ic +
+                  "</span>" +
+                  '<div class="min-w-0 flex-1">' +
+                  '<p class="font-bold text-[rgb(var(--rc-page-fg))]">' +
+                  rc +
+                  "</p>" +
+                  '<p class="mt-0.5 text-[rgb(var(--rc-muted))]">' +
+                  det +
+                  "</p>" +
+                  '<p class="mt-0.5 text-[10px] text-[rgb(var(--rc-muted))]">' +
+                  when +
+                  "</p>" +
+                  "</div></div>"
+                );
+              })
+              .join("") +
+            "</div></div>";
+        }
+        if (!arr.length && !offlineSyncRecentLog.length) {
+          listEl.innerHTML =
+            '<div class="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 font-semibold text-emerald-800 dark:text-emerald-200">No pending offline sales.</div>';
           return;
         }
-        listEl.innerHTML = arr.map(function (row, idx) {
-          var dueAt = fmtDiagDate(row && row.next_retry_at);
-          var queuedAt = fmtDiagDate(row && row.queued_at);
-          var err = String((row && row.last_error) || "").trim() || "-";
-          var attempts = parseInt((row && row.attempts) || 0, 10) || 0;
-          var total = Number((row && row.total_amount) || 0).toFixed(2);
-          return (
-            '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-3">' +
-            '<div class="flex flex-wrap items-center justify-between gap-2">' +
-            '<p class="font-bold text-[rgb(var(--rc-page-fg))]">#' + String(idx + 1) + " · " + String((row && row.local_receipt_number) || (row && row.client_txn_id) || "txn") + "</p>" +
-            '<p class="tabular-nums font-semibold text-[rgb(var(--rc-muted))]">' + total + "</p></div>" +
-            '<p class="mt-1 text-[rgb(var(--rc-muted))]">Queued: ' + queuedAt + " · Attempts: " + String(attempts) + "</p>" +
-            '<p class="mt-1 text-[rgb(var(--rc-muted))]">Next retry: ' + dueAt + "</p>" +
-            '<p class="mt-1 text-[rgb(var(--rc-muted))]">Last error: ' + err.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>" +
-            "</div>"
-          );
-        }).join("");
+        var pendingHtml = "";
+        if (arr.length) {
+          pendingHtml =
+            '<p class="mb-2 text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Pending upload</p>' +
+            '<div class="space-y-2">' +
+            arr
+              .map(function (row, idx) {
+                var dueAt = fmtDiagDate(row && row.next_retry_at);
+                var queuedAt = fmtDiagDate(row && row.queued_at);
+                var err = String((row && row.last_error) || "").trim() || "-";
+                var attempts = parseInt((row && row.attempts) || 0, 10) || 0;
+                var total = Number((row && row.total_amount) || 0).toFixed(2);
+                var pendingIcon = attempts > 0 && err !== "-" ? xMini : pendingMini;
+                var pendingTitle = attempts > 0 && err !== "-" ? "Last upload failed" : "Waiting to sync";
+                return (
+                  '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-3">' +
+                  '<div class="flex flex-wrap items-start justify-between gap-2">' +
+                  '<div class="flex min-w-0 flex-1 items-start gap-2">' +
+                  '<span class="mt-0.5 shrink-0" title="' +
+                  pendingTitle +
+                  '">' +
+                  pendingIcon +
+                  "</span>" +
+                  '<p class="min-w-0 font-bold text-[rgb(var(--rc-page-fg))]">#' +
+                  String(idx + 1) +
+                  " · " +
+                  escapeHtml(String((row && row.local_receipt_number) || (row && row.client_txn_id) || "txn")) +
+                  "</p></div>" +
+                  '<p class="tabular-nums font-semibold text-[rgb(var(--rc-muted))]">' +
+                  total +
+                  "</p></div>" +
+                  '<p class="mt-1 pl-6 text-[rgb(var(--rc-muted))]">Queued: ' +
+                  queuedAt +
+                  " · Attempts: " +
+                  String(attempts) +
+                  "</p>" +
+                  '<p class="mt-1 pl-6 text-[rgb(var(--rc-muted))]">Next retry: ' +
+                  dueAt +
+                  "</p>" +
+                  '<p class="mt-1 pl-6 text-[rgb(var(--rc-muted))]">Last error: ' +
+                  escapeHtml(err) +
+                  "</p>" +
+                  "</div>"
+                );
+              })
+              .join("") +
+            "</div>";
+        }
+        listEl.innerHTML = recentHtml + pendingHtml;
       }
 
       function refreshOfflineDiagnostics() {
@@ -4663,7 +4840,7 @@
       function enqueueOfflineSale(body) {
         var payload = Object.assign({}, body || {});
         payload.client_txn_id = String(payload.client_txn_id || randomTxnId());
-        payload.local_receipt_number = payload.local_receipt_number || nextReceiptNumber();
+        payload.local_receipt_number = payload.local_receipt_number || nextOfflineReceiptNumber();
         payload.queued_at = new Date().toISOString();
         payload.attempts = parseInt(payload.attempts || 0, 10) || 0;
         payload.last_error = String(payload.last_error || "");
@@ -4674,10 +4851,22 @@
         });
       }
 
-      function syncOfflineSalesQueue() {
-        if (offlineSyncBusy || !navigator.onLine) return Promise.resolve();
+      function syncOfflineSalesQueue(opts) {
+        opts = opts || {};
+        var notify = !!opts.notify;
+        if (offlineSyncBusy || !navigator.onLine) {
+          return Promise.resolve({
+            skipped: true,
+            reason: offlineSyncBusy ? "busy" : "offline",
+            synced: 0,
+            failed: 0,
+            errors: [],
+            attempted: 0,
+          });
+        }
         offlineSyncBusy = true;
-        return listOfflineSales()
+        var stats = { skipped: false, synced: 0, failed: 0, errors: [], attempted: 0 };
+        var chain = listOfflineSales()
           .then(function (queue) {
             if (!queue.length) return;
             var nowMs = Date.now();
@@ -4688,38 +4877,69 @@
               return !isFinite(t) || t <= nowMs;
             });
             if (!queue.length) return;
+            stats.attempted = queue.length;
             var cursor = Promise.resolve();
             queue.forEach(function (entry) {
               cursor = cursor.then(function () {
+                if (!navigator.onLine) return;
                 return fetch(RECORD_SALE_API, {
                   method: "POST",
                   credentials: "same-origin",
                   headers: { "Content-Type": "application/json", Accept: "application/json" },
                   body: JSON.stringify(entry),
-                })
-                  .then(function (r) { return r.json().catch(function () { return {}; }); })
-                  .then(function (j) {
-                    if (!j || !j.ok) throw new Error((j && j.error) || "Sync failed");
-                    return deleteOfflineSale(entry.client_txn_id);
-                  })
-                  .catch(function (err) {
-                    var attempts = (parseInt(entry.attempts || 0, 10) || 0) + 1;
-                    var capped = Math.min(attempts, 8);
-                    var baseMs = Math.min(30 * 60 * 1000, Math.pow(2, capped) * 1000);
-                    var jitterMs = Math.floor(Math.random() * 1200);
-                    entry.attempts = attempts;
-                    entry.last_error = String((err && err.message) || "Sync failed");
-                    entry.next_retry_at = new Date(Date.now() + baseMs + jitterMs).toISOString();
-                    return putOfflineSale(entry);
+                }).then(function (r) {
+                  return r.json().catch(function () {
+                    return {};
+                  }).then(function (j) {
+                    if (!r.ok) throw new Error((j && j.error) || "HTTP " + String(r.status));
+                    return j;
                   });
+                }).then(function (j) {
+                  if (!j || !j.ok) throw new Error((j && j.error) || "Sync failed");
+                  mergeReceiptSeqMaxFromReceiptString((j && j.receipt_number) || "");
+                  stats.synced++;
+                  appendOfflineSyncLogEntry({
+                    receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
+                    ok: true,
+                    detail: (j && j.receipt_number) ? "Saved as " + String(j.receipt_number) : "Saved to server",
+                  });
+                  return deleteOfflineSale(entry.client_txn_id);
+                }).catch(function (err) {
+                  stats.failed++;
+                  var msg = String((err && err.message) || "Sync failed");
+                  stats.errors.push({
+                    receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
+                    message: msg,
+                  });
+                  appendOfflineSyncLogEntry({
+                    receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
+                    ok: false,
+                    detail: msg,
+                  });
+                  var attempts = (parseInt(entry.attempts || 0, 10) || 0) + 1;
+                  var capped = Math.min(attempts, 8);
+                  var baseMs = Math.min(30 * 60 * 1000, Math.pow(2, capped) * 1000);
+                  var jitterMs = Math.floor(Math.random() * 1200);
+                  entry.attempts = attempts;
+                  entry.last_error = msg;
+                  entry.next_retry_at = new Date(Date.now() + baseMs + jitterMs).toISOString();
+                  return putOfflineSale(entry);
+                });
               });
             });
             return cursor;
           })
-          .catch(function () {})
+          .catch(function () {});
+        return chain
           .finally(function () {
             offlineSyncBusy = false;
             updateOfflineSyncBadge();
+          })
+          .then(function () {
+            if (notify && !stats.skipped && (stats.synced > 0 || stats.failed > 0)) {
+              showOfflineSyncResultToast(stats);
+            }
+            return stats;
           });
       }
 
@@ -5791,6 +6011,7 @@
         var payload = buildAnalyticsPayload(lines, mode);
         payload.clientTxnId = randomTxnId();
         return recordSaleForAnalytics(payload).then(function (res) {
+          mergeReceiptSeqMaxFromReceiptString((res && res.receipt_number) || "");
           return {
             queued: false,
             receipt_number: (res && res.receipt_number) ? String(res.receipt_number) : "",
@@ -5897,24 +6118,133 @@
         return normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm" ? 58 : 80;
       }
 
-      function nextReceiptNumber() {
-        var s = receiptSettings();
-        var prefix = String(s.receipt_number_prefix != null ? s.receipt_number_prefix : "T").trim() || "T";
-        var fmt = String(s.receipt_number_format || "sequential").trim();
-        var startStr = String(s.starting_number != null ? s.starting_number : "1001").trim() || "1001";
+      /** Local calendar date YYYY-MM-DD (aligns server receipt_scope daily keys). */
+      function receiptSeqLocalYmd() {
+        var d = new Date();
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, "0");
+        var day = String(d.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+      }
+
+      function receiptSeqLocalYm() {
+        var d = new Date();
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, "0");
+        return y + "-" + m;
+      }
+
+      function receiptSeqScopeKeySuffix() {
+        var fmt = String(receiptSettings().receipt_number_format || "sequential").trim();
+        if (fmt === "daily") return "d-" + receiptSeqLocalYmd();
+        if (fmt === "per_month") return "m-" + receiptSeqLocalYm();
+        return "seq";
+      }
+
+      function receiptSeqStorageKey() {
+        return "richcom-pos-rseq-" + SHOP_ID + "-" + receiptSeqScopeKeySuffix();
+      }
+
+      function receiptSeqStartingNumber() {
+        var startStr = String(receiptSettings().starting_number != null ? receiptSettings().starting_number : "1001").trim() || "1001";
         var startNum = parseInt(startStr, 10);
         if (isNaN(startNum) || startNum < 0) startNum = 1001;
-        var d = new Date();
-        var keySuffix = "seq";
-        if (fmt === "daily") keySuffix = "d-" + d.toISOString().slice(0, 10);
-        else if (fmt === "per_month") keySuffix = "m-" + d.toISOString().slice(0, 7);
-        var key = "richcom-pos-rseq-" + SHOP_ID + "-" + keySuffix;
+        return startNum;
+      }
+
+      function canonicalReceiptPrefix() {
+        var p = String(receiptSettings().receipt_number_prefix != null ? receiptSettings().receipt_number_prefix : "T").trim() || "T";
+        return p;
+      }
+
+      /** Offline slips insert "-OF-" after the prefix (e.g. T-OF-1051 vs online T-1051). */
+      function formatOfflineReceiptNumber(seqNum) {
+        return canonicalReceiptPrefix() + "-OF-" + String(seqNum);
+      }
+
+      function parseTrailingReceiptSeq(receiptNo) {
+        var s = String(receiptNo || "").trim();
+        if (!s || s.charAt(0) === "#") return null;
+        var parts = s.split("-");
+        var tail = parts[parts.length - 1];
+        if (!tail || !/^\d+$/.test(tail)) return null;
+        var n = parseInt(tail, 10);
+        return isFinite(n) ? n : null;
+      }
+
+      function mergeReceiptSeqMaxFromNumber(n) {
+        var num = parseInt(n, 10);
+        if (!isFinite(num) || num < 0) return;
+        var key = receiptSeqStorageKey();
+        var startNum = receiptSeqStartingNumber();
+        var last = parseInt(localStorage.getItem(key), 10);
+        if (isNaN(last)) last = startNum - 1;
+        var merged = Math.max(last, num);
+        localStorage.setItem(key, String(merged));
+      }
+
+      function mergeReceiptSeqMaxFromReceiptString(receiptNo) {
+        var n = parseTrailingReceiptSeq(receiptNo);
+        if (n != null) mergeReceiptSeqMaxFromNumber(n);
+      }
+
+      function advanceReceiptSeqAndReturnNext() {
+        var key = receiptSeqStorageKey();
+        var startNum = receiptSeqStartingNumber();
         var last = parseInt(localStorage.getItem(key), 10);
         if (isNaN(last)) last = startNum - 1;
         var next = last + 1;
         if (next < startNum) next = startNum;
         localStorage.setItem(key, String(next));
-        return prefix + "-" + String(next);
+        return next;
+      }
+
+      /** Query receipts list using the same calendar scope as receipt numbering (approx.; capped row limit). */
+      function receiptSeqSyncListQuery() {
+        var fmt = String(receiptSettings().receipt_number_format || "sequential").trim();
+        var y = new Date().getFullYear();
+        if (fmt === "daily") return "?mode=single_day&single_day=" + encodeURIComponent(todayIso());
+        if (fmt === "per_month") return "?mode=month&month=" + encodeURIComponent(receiptSeqLocalYm());
+        return "?mode=year&year=" + encodeURIComponent(String(y));
+      }
+
+      function syncLocalReceiptSeqFromServerQuiet() {
+        if (!navigator.onLine || !RECEIPTS_LIST_API) return Promise.resolve();
+        return fetch(RECEIPTS_LIST_API + receiptSeqSyncListQuery(), {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) {
+            return r.json().catch(function () {
+              return {};
+            });
+          })
+          .then(function (j) {
+            if (!j || !j.ok || !Array.isArray(j.rows)) return;
+            var mx = 0;
+            var seen = false;
+            j.rows.forEach(function (row) {
+              var n = parseTrailingReceiptSeq(row && row.receipt_number);
+              if (n != null) {
+                seen = true;
+                if (n > mx) mx = n;
+              }
+            });
+            if (seen) mergeReceiptSeqMaxFromNumber(mx);
+          })
+          .catch(function () {});
+      }
+
+      /** Next display number for queued/offline sales (-OF- marker + shared numeric sequence). */
+      function nextOfflineReceiptNumber() {
+        var num = advanceReceiptSeqAndReturnNext();
+        return formatOfflineReceiptNumber(num);
+      }
+
+      /** Fallback when no server/offline number is available yet (e.g. draft paths). */
+      function nextReceiptNumber() {
+        var num = advanceReceiptSeqAndReturnNext();
+        return canonicalReceiptPrefix() + "-" + String(num);
       }
 
       function gatherReceiptBase(lines, mode, opts) {
@@ -8766,6 +9096,7 @@
           });
           fetchCatalogStock();
           startStockPoll();
+          syncLocalReceiptSeqFromServerQuiet();
         }, 4000);
         window.refreshPosCatalogStock = fetchCatalogStock;
       })();
@@ -8808,8 +9139,10 @@
       clearAuthorization();
       setCustomerLookupStatus("Enter phone to lookup.", "muted");
       refreshEmployeeAuthCacheFromServer();
+      syncLocalReceiptSeqFromServerQuiet();
       window.addEventListener("online", function () {
         refreshEmployeeAuthCacheFromServer();
+        syncLocalReceiptSeqFromServerQuiet();
       });
       render();
       applyPosCartUiSettings();
@@ -10371,20 +10704,58 @@
       });
 
       window.addEventListener("online", function () {
-        syncOfflineSalesQueue().then(function () {
-          return getPendingOfflineSalesCount();
-        }).then(function (pending) {
-          if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
-          updateOfflineSyncBadge();
-        });
+        updateNetworkStateIndicator();
+        updateOfflineSyncBadge();
+        setAuthStatus("Back online. Syncing offline sales…", "muted");
+        syncOfflineSalesQueue({ notify: false })
+          .then(function (s1) {
+            return new Promise(function (res) {
+              setTimeout(function () {
+                res(s1 || {});
+              }, 900);
+            });
+          })
+          .then(function (s1) {
+            return syncOfflineSalesQueue({ notify: false }).then(function (s2) {
+              return mergeOfflineSyncStats(s1 || {}, s2 || {});
+            });
+          })
+          .then(function (merged) {
+            merged = merged || { synced: 0, failed: 0, errors: [] };
+            if ((merged.synced || 0) > 0 || (merged.failed || 0) > 0) {
+              showOfflineSyncResultToast(merged);
+            }
+            return getPendingOfflineSalesCount().then(function (pending) {
+              var didWork = (merged.synced || 0) + (merged.failed || 0) > 0;
+              if (didWork && (merged.failed || 0) === 0 && pending === 0) {
+                setAuthStatus("Offline sales synced.", "ok");
+              } else if ((merged.failed || 0) > 0) {
+                setAuthStatus("Some offline sales failed to sync. Open Diagnostics for details.", "error");
+              } else if (didWork && pending > 0) {
+                setAuthStatus("Still uploading " + String(pending) + " offline sale(s)…", "muted");
+              }
+              updateOfflineSyncBadge();
+            });
+          })
+          .catch(function () {
+            updateOfflineSyncBadge();
+          });
       });
       window.addEventListener("offline", function () {
         updateNetworkStateIndicator();
         updateOfflineSyncBadge();
       });
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden || !navigator.onLine) return;
+        syncOfflineSalesQueue({ notify: false }).then(function (stats) {
+          if (stats && !stats.skipped && ((stats.synced || 0) > 0 || (stats.failed || 0) > 0)) {
+            showOfflineSyncResultToast(stats);
+          }
+        });
+      });
       if (offlineSyncTimer) clearInterval(offlineSyncTimer);
       offlineSyncTimer = setInterval(function () {
-        syncOfflineSalesQueue();
+        syncOfflineSalesQueue({ notify: false });
       }, 20000);
       if (offlineSyncNowBtn) {
         offlineSyncNowBtn.addEventListener("click", function () {
@@ -10394,7 +10765,7 @@
             return;
           }
           setAuthStatus("Syncing offline sales...", "muted");
-          syncOfflineSalesQueue().then(function () {
+          syncOfflineSalesQueue({ notify: true }).then(function () {
             return getPendingOfflineSalesCount();
           }).then(function (pending) {
             if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
@@ -10422,7 +10793,7 @@
                 return;
               }
               setAuthStatus("Syncing offline sales...", "muted");
-              syncOfflineSalesQueue().then(function () {
+              syncOfflineSalesQueue({ notify: true }).then(function () {
                 return refreshOfflineDiagnostics();
               }).then(function () {
                 return getPendingOfflineSalesCount();
@@ -10436,7 +10807,7 @@
       }
       updateNetworkStateIndicator();
       updateOfflineSyncBadge();
-      syncOfflineSalesQueue();
+      syncOfflineSalesQueue({ notify: false });
 
       setTimeout(function () { poll(false); }, 1200);
       setInterval(function () { poll(false); }, 25000);
