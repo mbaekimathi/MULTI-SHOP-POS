@@ -7,6 +7,7 @@ if this module is imported before `app.py` runs.
 
 import json
 import logging
+import math
 import os
 import re
 from contextlib import contextmanager
@@ -23,6 +24,69 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 logger = logging.getLogger(__name__)
+
+# Stock movements (manual stock in/out, company grid, transfers) allow fractional qty e.g. 0.15 kg.
+STOCK_QTY_DECIMAL_PLACES = 4
+
+
+def normalize_stock_move_qty(qty) -> Optional[float]:
+    """Parse quantity for stock in/out; returns positive float rounded to STOCK_QTY_DECIMAL_PLACES or None."""
+    try:
+        q = float(qty)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(q) or q <= 0:
+        return None
+    q = round(q, STOCK_QTY_DECIMAL_PLACES)
+    if q <= 0:
+        return None
+    return q
+
+
+def ensure_stock_qty_decimal_schema() -> None:
+    """Best-effort ALTER: INT qty columns → DECIMAL(14,4) for fractional inventory."""
+    alters: list[str] = []
+    if table_exists("items"):
+        alters.append(
+            "ALTER TABLE items MODIFY COLUMN stock_qty DECIMAL(14,4) NOT NULL DEFAULT 0"
+        )
+    if table_exists("shop_items"):
+        alters.append(
+            "ALTER TABLE shop_items MODIFY COLUMN shop_stock_qty DECIMAL(14,4) NOT NULL DEFAULT 0"
+        )
+    if table_exists("stock_transactions"):
+        alters.extend(
+            [
+                "ALTER TABLE stock_transactions MODIFY COLUMN qty DECIMAL(14,4) NOT NULL",
+                "ALTER TABLE stock_transactions MODIFY COLUMN stock_before DECIMAL(14,4) NOT NULL",
+                "ALTER TABLE stock_transactions MODIFY COLUMN stock_after DECIMAL(14,4) NOT NULL",
+            ]
+        )
+    if table_exists("shop_stock_transactions"):
+        alters.extend(
+            [
+                "ALTER TABLE shop_stock_transactions MODIFY COLUMN qty DECIMAL(14,4) NOT NULL",
+                "ALTER TABLE shop_stock_transactions MODIFY COLUMN shop_stock_before DECIMAL(14,4) NOT NULL",
+                "ALTER TABLE shop_stock_transactions MODIFY COLUMN shop_stock_after DECIMAL(14,4) NOT NULL",
+            ]
+        )
+    if table_exists("shop_stock_requests") and column_exists("shop_stock_requests", "qty"):
+        alters.append("ALTER TABLE shop_stock_requests MODIFY COLUMN qty DECIMAL(14,4) NOT NULL")
+    if table_exists("shop_pos_sale_items") and column_exists("shop_pos_sale_items", "qty"):
+        alters.append(
+            "ALTER TABLE shop_pos_sale_items MODIFY COLUMN qty DECIMAL(14,4) NOT NULL DEFAULT 0"
+        )
+    if table_exists("shop_pos_sales") and column_exists("shop_pos_sales", "item_count"):
+        alters.append(
+            "ALTER TABLE shop_pos_sales MODIFY COLUMN item_count DECIMAL(14,4) NOT NULL DEFAULT 0"
+        )
+    for sql in alters:
+        try:
+            with get_cursor(commit=True) as cur:
+                cur.execute(sql)
+        except pymysql.Error as e:
+            logger.warning("Stock qty decimal migration skipped/failed (%s): %s", sql[:72], e)
+
 
 # Avoid spamming logs when MySQL rejects credentials (e.g. Flask debug reloader / repeated init).
 _MYSQL_1045_LOGGED = False
@@ -732,7 +796,7 @@ def update_item(
     price,
     selling_price,
     image_path,
-    stock_qty: int,
+    stock_qty,
 ):
     sql = """
     UPDATE items
@@ -749,7 +813,7 @@ def update_item(
                 price,
                 selling_price,
                 image_path,
-                int(stock_qty),
+                round(float(stock_qty), STOCK_QTY_DECIMAL_PLACES),
                 int(item_id),
             ),
         )
@@ -1140,7 +1204,7 @@ def get_company_item_supplier_summary(*, limit_items: int = 2000) -> list:
                 "in_transaction_count": in_tx_count,
                 "best_supplier": best_sup,
                 "best_supplier_avg_price": best_avg,
-                "company_stock_qty": int(it.get("stock_qty") or 0),
+                "company_stock_qty": round(float(it.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES),
             }
         )
     return out
@@ -1151,7 +1215,7 @@ def _apply_stock_transaction_on_cursor(
     *,
     item_id: int,
     direction: str,
-    qty: int,
+    qty,
     buying_price: Optional[float] = None,
     place_brought_from: Optional[str] = None,
     seller_phone: Optional[str] = None,
@@ -1164,8 +1228,8 @@ def _apply_stock_transaction_on_cursor(
     """Apply one stock movement using an existing cursor (caller manages transaction)."""
     if direction not in ("in", "out"):
         return False
-    qty = int(qty)
-    if qty <= 0:
+    n = normalize_stock_move_qty(qty)
+    if n is None:
         return False
 
     cur.execute(
@@ -1183,11 +1247,11 @@ def _apply_stock_transaction_on_cursor(
     if row.get("status") != "active" or int(row.get("stock_update_enabled") or 0) != 1:
         return False
 
-    before = int(row.get("stock_qty") or 0)
+    before = round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
     if direction == "in":
-        after = before + qty
+        after = round(before + n, STOCK_QTY_DECIMAL_PLACES)
     else:
-        after = before - qty
+        after = round(before - n, STOCK_QTY_DECIMAL_PLACES)
         if after < 0:
             return False
 
@@ -1205,7 +1269,7 @@ def _apply_stock_transaction_on_cursor(
         (
             int(item_id),
             direction,
-            qty,
+            n,
             before,
             after,
             buying_price if buying_price is not None else None,
@@ -1225,7 +1289,7 @@ def create_stock_transaction(
     *,
     item_id: int,
     direction: str,
-    qty: int,
+    qty,
     buying_price: Optional[float] = None,
     place_brought_from: Optional[str] = None,
     seller_phone: Optional[str] = None,
@@ -1274,7 +1338,7 @@ def create_stock_transactions_batch(
                     cur,
                     item_id=int(op["item_id"]),
                     direction=str(op["direction"]),
-                    qty=int(op["qty"]),
+                    qty=op["qty"],
                     buying_price=op.get("buying_price"),
                     place_brought_from=op.get("place_brought_from"),
                     seller_phone=op.get("seller_phone"),
@@ -3173,7 +3237,7 @@ def return_shop_pos_sale_lines(
                 ensure_shop_kitchen_portions_schema()
 
             refunded_amount = 0.0
-            returned_qty = 0
+            returned_qty = 0.0
             returned_lines = 0
 
             for lid in uniq_ids:
@@ -3188,7 +3252,7 @@ def return_shop_pos_sale_lines(
                     (int(lid), int(sale_id), int(shop_id)),
                 )
                 ln = cur.fetchone() or {}
-                qty = int(ln.get("qty") or 0)
+                qty = round(float(ln.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
                 if qty <= 0:
                     continue
                 item_id = ln.get("item_id")
@@ -3207,7 +3271,7 @@ def return_shop_pos_sale_lines(
                     (int(lid), int(sale_id), int(shop_id)),
                 )
                 refunded_amount += max(0.0, line_total)
-                returned_qty += int(qty)
+                returned_qty += qty
                 returned_lines += 1
 
                 if item_id is None:
@@ -3231,7 +3295,7 @@ def return_shop_pos_sale_lines(
                         SET shop_stock_qty = COALESCE(shop_stock_qty,0) + %s
                         WHERE shop_id=%s AND item_id=%s
                         """,
-                        (int(qty), int(shop_id), int(item_id)),
+                        (qty, int(shop_id), int(item_id)),
                     )
                 elif mode in ("kitchen", "both"):
                     cur.execute(
@@ -3247,9 +3311,9 @@ def return_shop_pos_sale_lines(
                 return False, "Selected items are already returned.", {}
 
             prev_total = float(sale.get("total_amount") or 0)
-            prev_count = int(sale.get("item_count") or 0)
+            prev_count = round(float(sale.get("item_count") or 0), STOCK_QTY_DECIMAL_PLACES)
             new_total = max(0.0, round(prev_total - refunded_amount, 2))
-            new_count = max(0, prev_count - returned_qty)
+            new_count = max(0.0, round(prev_count - returned_qty, STOCK_QTY_DECIMAL_PLACES))
             cur.execute(
                 """
                 UPDATE shop_pos_sales
@@ -3716,12 +3780,6 @@ def create_shop_pos_sale(
         return False, None, None, None
     if amount < 0:
         return False, None, None, None
-    try:
-        count = int(item_count)
-    except Exception:
-        return False, None, None, None
-    if count < 0:
-        count = 0
     pay_method = (payment_method or "").strip().lower()
     if s_type == "credit":
         pay_method = "credit"
@@ -3761,6 +3819,65 @@ def create_shop_pos_sale(
                 due_sql_val = date(y, m, d)
             except Exception:
                 return False, "Invalid credit payment date.", None, None
+
+    parsed: list = []
+    for ln in (lines or []):
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "").strip()
+        if not nm:
+            continue
+        if mode in ("kitchen", "both"):
+            try:
+                qf = float(ln.get("qty") or 0)
+            except Exception:
+                qf = 0.0
+            if qf <= 0:
+                continue
+            qr = round(qf, STOCK_QTY_DECIMAL_PLACES)
+            if abs(qr - int(qr)) > 1e-9:
+                return False, "Kitchen inventory uses whole portions only; adjust quantities.", None, None
+            qty = int(qr)
+        elif mode == "shop":
+            qty = normalize_stock_move_qty(ln.get("qty"))
+            if qty is None:
+                continue
+        else:
+            qty = normalize_stock_move_qty(ln.get("qty"))
+            if qty is None:
+                continue
+        try:
+            unit_price = float(ln.get("price") or 0)
+        except Exception:
+            unit_price = 0.0
+        try:
+            line_total = float(ln.get("total") or 0)
+        except Exception:
+            line_total = unit_price * float(qty)
+        item_id_ln = ln.get("id")
+        try:
+            item_id_ln = int(item_id_ln) if item_id_ln is not None else None
+        except Exception:
+            item_id_ln = None
+        parsed.append(
+            {
+                "name": nm[:200],
+                "qty": qty,
+                "unit_price": unit_price,
+                "line_total": line_total,
+                "item_id": item_id_ln,
+            }
+        )
+
+    count = round(sum(float(p["qty"]) for p in parsed), STOCK_QTY_DECIMAL_PLACES)
+
+    need = {}
+    for p in parsed:
+        iid = p["item_id"]
+        if iid is None:
+            continue
+        qv = float(p["qty"])
+        need[iid] = round(need.get(iid, 0.0) + qv, STOCK_QTY_DECIMAL_PLACES)
 
     ensure_shop_pos_sales_inventory_mode_column()
     ensure_shop_pos_sales_receipt_columns()
@@ -3820,49 +3937,6 @@ def create_shop_pos_sale(
             next_seq = max(start - 1, mx) + 1
             receipt_number = f"{prefix}-{next_seq}"
 
-            parsed = []
-            for ln in (lines or []):
-                if not isinstance(ln, dict):
-                    continue
-                nm = (ln.get("name") or "").strip()
-                if not nm:
-                    continue
-                try:
-                    qty = int(ln.get("qty") or 0)
-                except Exception:
-                    qty = 0
-                if qty <= 0:
-                    continue
-                try:
-                    unit_price = float(ln.get("price") or 0)
-                except Exception:
-                    unit_price = 0.0
-                try:
-                    line_total = float(ln.get("total") or 0)
-                except Exception:
-                    line_total = unit_price * qty
-                item_id = ln.get("id")
-                try:
-                    item_id = int(item_id) if item_id is not None else None
-                except Exception:
-                    item_id = None
-                parsed.append(
-                    {
-                        "name": nm[:200],
-                        "qty": qty,
-                        "unit_price": unit_price,
-                        "line_total": line_total,
-                        "item_id": item_id,
-                    }
-                )
-
-            need = {}
-            for p in parsed:
-                iid = p["item_id"]
-                if iid is None:
-                    continue
-                need[iid] = need.get(iid, 0) + p["qty"]
-
             # Exactly one inventory pathway per sale — never validate shelf and portions together.
             if mode == "shop":
                 for iid in sorted(need.keys()):
@@ -3880,7 +3954,7 @@ def create_shop_pos_sale(
                         raise ValueError("POS item is not linked to this shop.")
                     if int(si.get("stock_update_enabled") or 0) != 1:
                         continue
-                    before = int(si.get("shop_stock_qty") or 0)
+                    before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
                     if before < need[iid]:
                         raise ValueError(
                             "Not enough stock at the shop for one or more items. Adjust quantities or stock."
@@ -3913,7 +3987,7 @@ def create_shop_pos_sale(
                     )
                     kr = cur.fetchone()
                     rem = int(kr.get("portions_remaining") or 0) if kr else 0
-                    if rem < need[iid]:
+                    if rem < int(need[iid]):
                         raise ValueError(
                             "Not enough kitchen portions for one or more items. Set portions on the shop dashboard or reduce quantities."
                         )
@@ -3961,7 +4035,7 @@ def create_shop_pos_sale(
                 iid = p["item_id"]
                 if iid is None:
                     continue
-                q = int(p["qty"])
+                q = float(p["qty"])
                 # Mutually exclusive: shop shelf decrement OR kitchen portions — never both on one sale.
                 if mode == "shop":
                     cur.execute(
@@ -3976,12 +4050,13 @@ def create_shop_pos_sale(
                     si = cur.fetchone()
                     if not si or int(si.get("stock_update_enabled") or 0) != 1:
                         continue
-                    shop_before = int(si.get("shop_stock_qty") or 0)
-                    if shop_before < q:
+                    shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    qshop = round(q, STOCK_QTY_DECIMAL_PLACES)
+                    if shop_before < qshop:
                         raise ValueError(
                             "Not enough stock at the shop for one or more items. Adjust quantities or stock."
                         )
-                    shop_after = shop_before - q
+                    shop_after = round(shop_before - qshop, STOCK_QTY_DECIMAL_PLACES)
                     cur.execute(
                         "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
                         (shop_after, int(shop_id), int(iid)),
@@ -3992,7 +4067,7 @@ def create_shop_pos_sale(
                         (
                             int(shop_id),
                             int(iid),
-                            q,
+                            qshop,
                             shop_before,
                             shop_after,
                             note,
@@ -4000,6 +4075,7 @@ def create_shop_pos_sale(
                         ),
                     )
                 elif mode in ("kitchen", "both"):
+                    qk = int(q)
                     cur.execute(
                         """
                         SELECT COALESCE(stock_update_enabled,0) AS sue
@@ -4018,7 +4094,7 @@ def create_shop_pos_sale(
                         SET portions_remaining = portions_remaining - %s
                         WHERE shop_id=%s AND item_id=%s AND portions_remaining >= %s
                         """,
-                        (q, int(shop_id), int(iid), q),
+                        (qk, int(shop_id), int(iid), qk),
                     )
                     if int(cur.rowcount or 0) < 1:
                         raise ValueError(
@@ -4362,19 +4438,19 @@ def bulk_mark_shop_pos_receipts(
             (int(sid), int(sid_shop)),
         )
         lines = cur.fetchall() or []
-        needed: dict[int, int] = {}
+        needed: dict[int, float] = {}
         for ln in lines:
             try:
                 iid = int(ln.get("item_id") or 0)
             except (TypeError, ValueError):
                 iid = 0
             try:
-                qty = int(ln.get("qty") or 0)
+                qty = round(float(ln.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
             except (TypeError, ValueError):
-                qty = 0
+                qty = 0.0
             if iid <= 0 or qty <= 0:
                 continue
-            needed[iid] = needed.get(iid, 0) + qty
+            needed[iid] = round(needed.get(iid, 0.0) + qty, STOCK_QTY_DECIMAL_PLACES)
         if not needed:
             return
         mode = (inventory_mode or "shop").strip().lower()
@@ -4398,7 +4474,7 @@ def bulk_mark_shop_pos_receipts(
                     SET shop_stock_qty = COALESCE(shop_stock_qty,0) + %s
                     WHERE shop_id=%s AND item_id=%s
                     """,
-                    (int(qty), int(sid_shop), int(iid)),
+                    (qty, int(sid_shop), int(iid)),
                 )
             elif mode in ("kitchen", "both"):
                 cur.execute(
@@ -4798,7 +4874,7 @@ def get_it_support_item_detail_analytics(item_id: int, analytics_filter: dict) -
         "description": (row.get("description") or "").strip(),
         "price": float(row.get("price") or 0),
         "selling_price": float(row.get("selling_price") if row.get("selling_price") is not None else row.get("price") or 0),
-        "stock_qty": int(row.get("stock_qty") or 0),
+        "stock_qty": round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES),
         "image_path": row.get("image_path"),
         "status": (row.get("status") or "").strip(),
     }
@@ -7097,7 +7173,7 @@ def list_shop_items(shop_id: int, limit: int = 500):
         rows = cur.fetchall() or []
     # Normalize fields used by templates.
     for r in rows:
-        r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
+        r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         # Explicit aliased cols avoid DictCursor overriding duplicate logical column names from JOINs.
         shop_s = r.get("shop_item_stock_updates")
         if shop_s is None:
@@ -7142,7 +7218,7 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
         cur.execute(sql, (int(shop_id), int(limit)))
         rows = cur.fetchall() or []
     for r in rows:
-        r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
+        r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         r["stock_update_enabled"] = int(r.get("shop_pos_inventory_toggle") or r.get("stock_update_enabled") or 0)
         r["kitchen_portions"] = int(r.get("kitchen_portions") or 0)
         r["displayed"] = int(r.get("displayed") or 0)
@@ -7265,8 +7341,8 @@ def get_shop_item_stock_movement_summary(shop_id: int, lookback_days: int = 30) 
         if iid <= 0:
             continue
         out[iid] = {
-            "out_qty": int(r.get("out_qty") or 0),
-            "in_qty": int(r.get("in_qty") or 0),
+            "out_qty": round(float(r.get("out_qty") or 0), STOCK_QTY_DECIMAL_PLACES),
+            "in_qty": round(float(r.get("in_qty") or 0), STOCK_QTY_DECIMAL_PLACES),
             "out_days": int(r.get("out_days") or 0),
             "lookback_days": days,
         }
@@ -7302,8 +7378,8 @@ def list_shop_stock_manage_items(shop_id: int, limit: int = 500):
             cur.execute(sql, (int(shop_id), int(limit)))
             rows = cur.fetchall() or []
         for r in rows:
-            r["company_stock_qty"] = int(r.get("company_stock_qty") or 0)
-            r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
+            r["company_stock_qty"] = round(float(r.get("company_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
             r["stock_update_enabled"] = int(r.get("stock_update_enabled") or 0)
             r["displayed"] = int(r.get("displayed") or 0)
             r["store_stock_registered"] = int(r.get("store_stock_registered") or 0)
@@ -7350,8 +7426,8 @@ def list_shop_stock_manage_items(shop_id: int, limit: int = 500):
         cur.execute(sql, (int(shop_id), int(limit)))
         rows = cur.fetchall() or []
     for r in rows:
-        r["company_stock_qty"] = int(r.get("company_stock_qty") or 0)
-        r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
+        r["company_stock_qty"] = round(float(r.get("company_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         r["stock_update_enabled"] = int(r.get("stock_update_enabled") or 0)
         r["displayed"] = int(r.get("displayed") or 0)
         r["store_stock_registered"] = int(r.get("store_stock_registered") or 0)
@@ -7384,7 +7460,7 @@ def list_shop_store_stock_registration_candidates(shop_id: int, limit: int = 500
         cur.execute(sql, (int(shop_id), int(limit)))
         rows = cur.fetchall() or []
     for r in rows:
-        r["shop_stock_qty"] = int(r.get("shop_stock_qty") or 0)
+        r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
     return rows
 
 
@@ -7437,9 +7513,15 @@ def get_request_source_stock_snapshot(
         except Exception:
             source_shop_id = None
         if not source_shop_id or source_shop_id == requesting_shop_id:
-            return "Company", {iid: int(next((r.get("company_stock_qty") for r in rows if int(r.get("id") or 0) == iid), 0) or 0) for iid in item_ids}
+            return "Company", {
+                iid: round(
+                    float(next((r.get("company_stock_qty") for r in rows if int(r.get("id") or 0) == iid), 0) or 0),
+                    STOCK_QTY_DECIMAL_PLACES,
+                )
+                for iid in item_ids
+            }
 
-    out: dict[int, int] = {}
+    out: dict[int, float] = {}
     if source_type == "company":
         label = "Company warehouse"
         try:
@@ -7450,11 +7532,11 @@ def get_request_source_stock_snapshot(
                     tuple(item_ids),
                 )
                 for r in cur.fetchall() or []:
-                    out[int(r["id"])] = int(r.get("stock_qty") or 0)
+                    out[int(r["id"])] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         except pymysql.Error:
-            out = {iid: 0 for iid in item_ids}
+            out = {iid: 0.0 for iid in item_ids}
         for iid in item_ids:
-            out.setdefault(iid, 0)
+            out.setdefault(iid, 0.0)
         return label, out
 
     label = f"Shop #{int(source_shop_id)}"
@@ -7482,11 +7564,11 @@ def get_request_source_stock_snapshot(
                 tuple([int(source_shop_id)] + item_ids),
             )
             for r in cur.fetchall() or []:
-                out[int(r["item_id"])] = int(r.get("q") or 0)
+                out[int(r["item_id"])] = round(float(r.get("q") or 0), STOCK_QTY_DECIMAL_PLACES)
     except pymysql.Error:
         out = {}
     for iid in item_ids:
-        out.setdefault(iid, 0)
+        out.setdefault(iid, 0.0)
     return label, out
 
 
@@ -7846,7 +7928,7 @@ def list_shop_stock_audit_rows(
         where_parts.append("sst.direction=%s")
         params.append(d)
     s = (source or "").strip().lower()
-    if s in ("company", "manual"):
+    if s in ("company", "manual", "transfer"):
         where_parts.append("sst.source=%s")
         params.append(s)
     try:
@@ -7859,16 +7941,18 @@ def list_shop_stock_audit_rows(
     q = (search or "").strip()
     if q:
         like = f"%{q}%"
-        where_parts.append("(i.name LIKE %s OR i.category LIKE %s)")
-        params.extend([like, like])
+        where_parts.append(
+            "(COALESCE(i.name,'') LIKE %s OR COALESCE(i.category,'') LIKE %s OR CAST(sst.item_id AS CHAR) LIKE %s)"
+        )
+        params.extend([like, like, like])
 
     where_sql = " AND ".join(where_parts)
     sql = f"""
     SELECT
         sst.id,
         sst.item_id,
-        i.category,
-        i.name,
+        COALESCE(NULLIF(TRIM(i.category), ''), '—') AS category,
+        COALESCE(NULLIF(TRIM(i.name), ''), CONCAT('Item #', sst.item_id)) AS name,
         sst.direction,
         sst.source,
         sst.qty,
@@ -7882,9 +7966,11 @@ def list_shop_stock_audit_rows(
         sst.refunded,
         sst.refund_amount,
         sst.note,
-        sst.created_at
+        sst.created_at,
+        COALESCE(NULLIF(TRIM(e.full_name), ''), '') AS moved_by
     FROM shop_stock_transactions sst
-    JOIN items i ON i.id = sst.item_id
+    LEFT JOIN items i ON i.id = sst.item_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
     WHERE {where_sql}
     ORDER BY sst.created_at DESC
     LIMIT %s
@@ -8886,7 +8972,7 @@ def get_shop_manual_stock_in_transaction(tx_id: int):
             r = cur.fetchone()
         if not r:
             return None
-        qty = int(r.get("qty") or 0)
+        qty = round(float(r.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         buying_price = float(r.get("buying_price") or 0)
         total_cost = max(0.0, float(qty * buying_price))
         amount_paid = max(0.0, float(r.get("amount_paid") or 0))
@@ -8929,7 +9015,7 @@ def get_shop_stock_qty_map_for_item(item_id: int) -> dict:
         for r in rows:
             sid = int(r.get("shop_id") or 0)
             if sid > 0:
-                out[sid] = int(r.get("shop_stock_qty") or 0)
+                out[sid] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         return out
     except pymysql.Error:
         return {}
@@ -8939,13 +9025,13 @@ def shop_request_stock_from_company(
     *,
     shop_id: int,
     item_id: int,
-    qty: int,
+    qty,
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
     stock_request_id: Optional[int] = None,
 ) -> bool:
-    qty = int(qty)
-    if qty <= 0:
+    n = normalize_stock_move_qty(qty)
+    if n is None:
         return False
 
     with get_cursor(commit=True) as cur:
@@ -8957,8 +9043,8 @@ def shop_request_stock_from_company(
         item = cur.fetchone()
         if not item or item.get("status") != "active":
             return False
-        company_before = int(item.get("stock_qty") or 0)
-        if company_before < qty:
+        company_before = round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if company_before < n:
             return False
 
         # Lock shop item row.
@@ -8970,9 +9056,9 @@ def shop_request_stock_from_company(
         if not si or not _shop_item_physical_stock_tracking_ok(si, shop_id=int(shop_id)):
             return False
 
-        shop_before = int(si.get("shop_stock_qty") or 0)
-        shop_after = shop_before + qty
-        company_after = company_before - qty
+        shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        shop_after = round(shop_before + n, STOCK_QTY_DECIMAL_PLACES)
+        company_after = round(company_before - n, STOCK_QTY_DECIMAL_PLACES)
 
         cur.execute("UPDATE items SET stock_qty=%s WHERE id=%s", (company_after, int(item_id)))
         cur.execute(
@@ -8991,7 +9077,7 @@ def shop_request_stock_from_company(
                 (
                     int(shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     shop_before,
                     shop_after,
                     company_before,
@@ -9012,7 +9098,7 @@ def shop_request_stock_from_company(
                 (
                     int(shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     shop_before,
                     shop_after,
                     company_before,
@@ -9028,7 +9114,7 @@ def shop_return_stock_to_company(
     *,
     shop_id: int,
     item_id: int,
-    qty: int,
+    qty,
     reason: Optional[str] = None,
     refunded: bool = False,
     refund_amount: Optional[float] = None,
@@ -9036,8 +9122,8 @@ def shop_return_stock_to_company(
     created_by_employee_id: Optional[int] = None,
     stock_request_id: Optional[int] = None,
 ) -> bool:
-    qty = int(qty)
-    if qty <= 0:
+    n = normalize_stock_move_qty(qty)
+    if n is None:
         return False
     reason = (reason or "").strip().lower() or None
     if reason not in (None, "return", "waste"):
@@ -9062,7 +9148,7 @@ def shop_return_stock_to_company(
         item = cur.fetchone()
         if not item or item.get("status") != "active":
             return False
-        company_before = int(item.get("stock_qty") or 0)
+        company_before = round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
 
         # Lock shop item row.
         cur.execute(
@@ -9073,11 +9159,11 @@ def shop_return_stock_to_company(
         if not si or not _shop_item_physical_stock_tracking_ok(si, shop_id=int(shop_id)):
             return False
 
-        shop_before = int(si.get("shop_stock_qty") or 0)
-        if shop_before < qty:
+        shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if shop_before < n:
             return False
-        shop_after = shop_before - qty
-        company_after = company_before + qty
+        shop_after = round(shop_before - n, STOCK_QTY_DECIMAL_PLACES)
+        company_after = round(company_before + n, STOCK_QTY_DECIMAL_PLACES)
 
         cur.execute("UPDATE items SET stock_qty=%s WHERE id=%s", (company_after, int(item_id)))
         cur.execute(
@@ -9096,7 +9182,7 @@ def shop_return_stock_to_company(
                 (
                     int(shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     shop_before,
                     shop_after,
                     company_before,
@@ -9120,7 +9206,7 @@ def shop_return_stock_to_company(
                 (
                     int(shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     shop_before,
                     shop_after,
                     company_before,
@@ -9139,7 +9225,7 @@ def shop_manual_stock_in(
     *,
     shop_id: int,
     item_id: int,
-    qty: int,
+    qty,
     buying_price: float,
     place_brought_from: str,
     seller_phone: str,
@@ -9147,8 +9233,8 @@ def shop_manual_stock_in(
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
 ) -> bool:
-    qty = int(qty)
-    if qty <= 0:
+    n = normalize_stock_move_qty(qty)
+    if n is None:
         return False
     try:
         buying_price = float(buying_price)
@@ -9174,8 +9260,8 @@ def shop_manual_stock_in(
         si = cur.fetchone()
         if not si or not _shop_item_physical_stock_tracking_ok(si, shop_id=int(shop_id)):
             return False
-        shop_before = int(si.get("shop_stock_qty") or 0)
-        shop_after = shop_before + qty
+        shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        shop_after = round(shop_before + n, STOCK_QTY_DECIMAL_PLACES)
 
         cur.execute(
             "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
@@ -9191,7 +9277,7 @@ def shop_manual_stock_in(
             (
                 int(shop_id),
                 int(item_id),
-                qty,
+                n,
                 shop_before,
                 shop_after,
                 buying_price,
@@ -9209,15 +9295,15 @@ def shop_manual_stock_out(
     *,
     shop_id: int,
     item_id: int,
-    qty: int,
+    qty,
     reason: str,
     refunded: bool,
     refund_amount: Optional[float] = None,
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
 ) -> bool:
-    qty = int(qty)
-    if qty <= 0:
+    n = normalize_stock_move_qty(qty)
+    if n is None:
         return False
 
     reason = (reason or "").strip().lower()
@@ -9243,10 +9329,10 @@ def shop_manual_stock_out(
         si = cur.fetchone()
         if not si or not _shop_item_physical_stock_tracking_ok(si, shop_id=int(shop_id)):
             return False
-        shop_before = int(si.get("shop_stock_qty") or 0)
-        if shop_before < qty:
+        shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if shop_before < n:
             return False
-        shop_after = shop_before - qty
+        shop_after = round(shop_before - n, STOCK_QTY_DECIMAL_PLACES)
 
         cur.execute(
             "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
@@ -9262,7 +9348,7 @@ def shop_manual_stock_out(
             (
                 int(shop_id),
                 int(item_id),
-                qty,
+                n,
                 shop_before,
                 shop_after,
                 reason.upper(),
@@ -9280,14 +9366,14 @@ def shop_transfer_stock_between_shops(
     from_shop_id: int,
     to_shop_id: int,
     item_id: int,
-    qty: int,
+    qty,
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
     stock_request_id: Optional[int] = None,
 ) -> bool:
     """Move stock for one item from one shop to another (atomic)."""
-    qty = int(qty)
-    if qty <= 0:
+    n = normalize_stock_move_qty(qty)
+    if n is None:
         return False
     if int(from_shop_id) == int(to_shop_id):
         return False
@@ -9301,8 +9387,8 @@ def shop_transfer_stock_between_shops(
         src = cur.fetchone()
         if not src or not _shop_item_physical_stock_tracking_ok(src, shop_id=int(from_shop_id)):
             return False
-        src_before = int(src.get("shop_stock_qty") or 0)
-        if src_before < qty:
+        src_before = round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if src_before < n:
             return False
 
         cur.execute(
@@ -9312,10 +9398,10 @@ def shop_transfer_stock_between_shops(
         dst = cur.fetchone()
         if not dst or not _shop_item_physical_stock_tracking_ok(dst, shop_id=int(to_shop_id)):
             return False
-        dst_before = int(dst.get("shop_stock_qty") or 0)
+        dst_before = round(float(dst.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
 
-        src_after = src_before - qty
-        dst_after = dst_before + qty
+        src_after = round(src_before - n, STOCK_QTY_DECIMAL_PLACES)
+        dst_after = round(dst_before + n, STOCK_QTY_DECIMAL_PLACES)
 
         cur.execute(
             "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
@@ -9339,7 +9425,7 @@ def shop_transfer_stock_between_shops(
                 (
                     int(from_shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     src_before,
                     src_after,
                     "TRANSFER",
@@ -9359,7 +9445,7 @@ def shop_transfer_stock_between_shops(
                 (
                     int(from_shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     src_before,
                     src_after,
                     "TRANSFER",
@@ -9379,7 +9465,7 @@ def shop_transfer_stock_between_shops(
                 (
                     int(to_shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     dst_before,
                     dst_after,
                     "TRANSFER",
@@ -9399,7 +9485,7 @@ def shop_transfer_stock_between_shops(
                 (
                     int(to_shop_id),
                     int(item_id),
-                    qty,
+                    n,
                     dst_before,
                     dst_after,
                     "TRANSFER",
@@ -9893,7 +9979,7 @@ def create_shop_stock_request(
     source_type: str,
     source_shop_id: Optional[int],
     item_id: int,
-    qty: int,
+    qty,
     note: Optional[str] = None,
     requested_by_employee_id: Optional[int] = None,
 ) -> Optional[int]:
@@ -9903,8 +9989,8 @@ def create_shop_stock_request(
     source_type = (source_type or "").strip().lower()
     if source_type not in ("company", "shop"):
         return None
-    qty = int(qty)
-    if qty <= 0:
+    qty = normalize_stock_move_qty(qty)
+    if qty is None:
         return None
     requesting_shop_id = int(requesting_shop_id)
     item_id = int(item_id)
@@ -9932,7 +10018,7 @@ def create_shop_stock_request(
                 src = cur.fetchone()
                 if not src or not _shop_item_physical_stock_tracking_ok(src, shop_id=requesting_shop_id):
                     return None
-                if int(src.get("shop_stock_qty") or 0) < qty:
+                if round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < qty:
                     return None
             elif source_type == "shop":
                 cur.execute("SELECT id FROM shops WHERE id=%s LIMIT 1", (source_shop_id,))
@@ -9945,7 +10031,7 @@ def create_shop_stock_request(
                 src = cur.fetchone()
                 if not src or not _shop_item_physical_stock_tracking_ok(src, shop_id=int(source_shop_id or 0)):
                     return None
-                if int(src.get("shop_stock_qty") or 0) < qty:
+                if round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < qty:
                     return None
             else:
                 cur.execute(
@@ -9959,7 +10045,7 @@ def create_shop_stock_request(
                 item = cur.fetchone()
                 if not item or item.get("status") != "active":
                     return None
-                if int(item.get("stock_qty") or 0) < qty:
+                if round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < qty:
                     return None
             has_request_type = column_exists("shop_stock_requests", "request_type")
             if has_request_type:
@@ -10121,13 +10207,10 @@ def _can_review_request(row: dict, *, approver_role: str, approver_shop_id: Opti
     return False
 
 
-def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty: int) -> bool:
+def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty) -> bool:
     """Same rules as can_fulfill_stock_request but for an approved quantity (same cursor/transaction)."""
-    try:
-        mq = int(move_qty)
-    except (TypeError, ValueError):
-        return False
-    if mq <= 0:
+    mq = normalize_stock_move_qty(move_qty)
+    if mq is None:
         return False
     request_type = (req.get("request_type") or "stock_in").lower()
     source_type = (req.get("source_type") or "").lower()
@@ -10142,12 +10225,16 @@ def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty: int) -> bool
         return (
             bool(row)
             and _shop_item_physical_stock_tracking_ok(row, shop_id=rq_shop)
-            and int(row.get("shop_stock_qty") or 0) >= mq
+            and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= mq
         )
     if source_type == "company":
         cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
         row = cur.fetchone()
-        if not row or row.get("status") != "active" or int(row.get("stock_qty") or 0) < mq:
+        if (
+            not row
+            or row.get("status") != "active"
+            or round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < mq
+        ):
             return False
         rq_shop = int(req.get("requesting_shop_id") or 0)
         cur.execute(
@@ -10166,7 +10253,7 @@ def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty: int) -> bool
         return (
             bool(row)
             and _shop_item_physical_stock_tracking_ok(row, shop_id=src_shop)
-            and int(row.get("shop_stock_qty") or 0) >= mq
+            and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= mq
         )
     return False
 
@@ -10179,7 +10266,7 @@ def review_stock_request(
     approver_role: str,
     approver_shop_id: Optional[int],
     review_note: Optional[str] = None,
-    fulfill_qty: Optional[int] = None,
+    fulfill_qty=None,
 ) -> Tuple[bool, str]:
     """Approve or reject a pending stock request. Returns (success, error_message). error_message is empty on success."""
     request_id = int(request_id)
@@ -10209,13 +10296,15 @@ def review_stock_request(
             if not _can_review_request(req, approver_role=approver_role, approver_shop_id=approver_shop_id):
                 return False, "You are not allowed to act on this request."
 
-            rqty = int(req["qty"] or 0)
+            rqty = round(float(req["qty"] or 0), STOCK_QTY_DECIMAL_PLACES)
             eff_qty = rqty
             if approve:
                 if fulfill_qty is not None:
-                    eff_qty = int(fulfill_qty)
-                if eff_qty < 1 or eff_qty > rqty:
-                    return False, "Enter a quantity between 1 and the amount requested."
+                    eff_qty = normalize_stock_move_qty(fulfill_qty)
+                    if eff_qty is None:
+                        return False, "Enter a valid positive quantity."
+                if eff_qty <= 0 or eff_qty > rqty:
+                    return False, "Enter a quantity greater than zero and not more than the amount requested."
 
             user_note = (review_note or "").strip()
             final_review_note: Optional[str] = user_note[:255] if user_note else None
@@ -10346,7 +10435,7 @@ def review_stock_request(
         return False, "Something went wrong. Please try again."
 
 
-def can_fulfill_stock_request(request_id: int, *, move_qty: Optional[int] = None) -> bool:
+def can_fulfill_stock_request(request_id: int, *, move_qty=None) -> bool:
     """True when current source stock can satisfy this pending request (full qty, or move_qty if given)."""
     try:
         with get_cursor() as cur:
@@ -10365,15 +10454,12 @@ def can_fulfill_stock_request(request_id: int, *, move_qty: Optional[int] = None
                 return False
             if (req.get("status") or "").lower() != "pending":
                 return False
-            rqty = int(req.get("qty") or 0)
+            rqty = round(float(req.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
             if rqty <= 0:
                 return False
             if move_qty is not None:
-                try:
-                    check_qty = int(move_qty)
-                except (TypeError, ValueError):
-                    return False
-                if check_qty < 1 or check_qty > rqty:
+                check_qty = normalize_stock_move_qty(move_qty)
+                if check_qty is None or check_qty > rqty:
                     return False
             else:
                 check_qty = rqty
@@ -10390,12 +10476,16 @@ def can_fulfill_stock_request(request_id: int, *, move_qty: Optional[int] = None
                 return (
                     bool(row)
                     and _shop_item_physical_stock_tracking_ok(row, shop_id=rq_shop)
-                    and int(row.get("shop_stock_qty") or 0) >= check_qty
+                    and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= check_qty
                 )
             if source_type == "company":
                 cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
                 row = cur.fetchone()
-                if not row or row.get("status") != "active" or int(row.get("stock_qty") or 0) < check_qty:
+                if (
+                    not row
+                    or row.get("status") != "active"
+                    or round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < check_qty
+                ):
                     return False
                 rq_shop = int(req.get("requesting_shop_id") or 0)
                 cur.execute(
@@ -10414,7 +10504,7 @@ def can_fulfill_stock_request(request_id: int, *, move_qty: Optional[int] = None
                 return (
                     bool(row)
                     and _shop_item_physical_stock_tracking_ok(row, shop_id=src_shop)
-                    and int(row.get("shop_stock_qty") or 0) >= check_qty
+                    and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= check_qty
                 )
             return False
     except pymysql.Error:
@@ -10661,6 +10751,7 @@ def init_schema() -> bool:
     if not steps_ok:
         logger.warning("Database schema initialization did not complete successfully.")
         return False
+    ensure_stock_qty_decimal_schema()
     if not verify_database_schema_integrity():
         return False
     logger.info("Database schema is up to date.")

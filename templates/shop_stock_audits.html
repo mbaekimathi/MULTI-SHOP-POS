@@ -1,6 +1,6 @@
 {% extends "shop_layout.html" %}
-{% block title %}Shop stock audits — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}Shop stock audits{% endblock %}
+{% block title %}Shop stock transactions — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop stock transactions{% endblock %}
 {% block shop_sidebar_links %}
   {% set selected_view = '' %}
   {% include "partials/shop_stock_workspace_sidebar.html" %}
@@ -10,19 +10,21 @@
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Stock audits</h2>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop stock transactions</h2>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Stock transactions for this shop
-          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'selected period' }}</span>.
-          Filter by date, direction, source, item, or name search.
+          Full ledger for this shop (<span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'selected period' }}</span>):
+          company, manual/POS, and transfers. Rows without a catalog match still appear. Newest first — loads up to
+          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ '{:,}'.format(audit_row_limit|default(25000)) }}</span>
+          lines (use URL parameter <code class="rounded bg-[rgb(var(--rc-surface-2))] px-1 font-mono text-[11px]">limit</code>, max 50,000).
         </p>
       </div>
       <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-        {{ (transactions or [])|length }} records
+        {{ (transactions or [])|length }} loaded
       </div>
     </div>
 
     <form method="get" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3">
+      <input type="hidden" name="limit" value="{{ audit_row_limit|default(25000) }}" />
       <div class="flex flex-wrap items-end gap-2.5">
         <div class="min-w-[10rem] flex-1">
           <label for="audit-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
@@ -74,9 +76,10 @@
         <div class="min-w-[8rem] flex-1 sm:max-w-[11rem]">
           <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
           <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
-            <option value="" {% if not audit_source %}selected{% endif %}>All</option>
+            <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
             <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
-            <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual</option>
+            <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual / POS</option>
+            <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
           </select>
         </div>
         <div class="min-w-[12rem] flex-[2]">
@@ -96,6 +99,12 @@
         <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
       </div>
     </form>
+
+    {% if transactions and (transactions|length) >= (audit_row_limit|default(25000)) %}
+      <p class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-200">
+        Showing the {{ audit_row_limit|default(25000) }} most recent rows only. Narrow the date range or use filters to find older movements, or increase <span class="font-mono">limit</span> in the URL (max 50,000).
+      </p>
+    {% endif %}
 
     {% if not transactions %}
       <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
@@ -160,6 +169,12 @@
                   {{ tx.note }}
                 </div>
               {% endif %}
+              {% if tx.moved_by %}
+                <div class="flex items-center justify-between">
+                  <span class="text-[rgb(var(--rc-muted))]">BY</span>
+                  <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.moved_by }}</span>
+                </div>
+              {% endif %}
             </div>
           </div>
         {% endfor %}
@@ -172,6 +187,7 @@
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Recorded by</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Direction</th>
                 <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Source</th>
@@ -192,6 +208,9 @@
               {% for tx in transactions %}
                 <tr>
                   <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">
+                    <span class="block max-w-[140px] truncate">{{ tx.moved_by or '—' }}</span>
+                  </td>
                   <td class="px-3 py-2">
                     <div class="min-w-0">
                       <div class="truncate text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ tx.category }}</div>

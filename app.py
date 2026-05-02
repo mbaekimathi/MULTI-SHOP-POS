@@ -2068,10 +2068,11 @@ def _it_support_stock_page(direction: str):
             flash("Invalid item.", "error")
             return redirect(url_for("it_support_stock_in" if direction == "in" else "it_support_stock_out"))
 
-        try:
-            qty = int(float(qty_raw))
-        except Exception:
-            flash("Quantity must be a whole number.", "error")
+        from database import normalize_stock_move_qty
+
+        qty = normalize_stock_move_qty(qty_raw)
+        if qty is None:
+            flash("Quantity must be a positive number (decimals allowed, e.g. 0.15).", "error")
             return redirect(
                 url_for("it_support_stock_in" if direction == "in" else "it_support_stock_out", item_id=item_id)
             )
@@ -2180,7 +2181,7 @@ def _it_support_stock_management_post():
         flash("Invalid action.", "error")
         return redirect(url_for("it_support_stock_management"))
     try:
-        from database import create_stock_transactions_batch, list_stock_manage_items
+        from database import create_stock_transactions_batch, list_stock_manage_items, normalize_stock_move_qty
 
         items = list_stock_manage_items(limit=500)
     except Exception:
@@ -2202,12 +2203,9 @@ def _it_support_stock_management_post():
             qty_raw = (request.form.get(f"in_qty_{iid}") or "").strip()
             if not qty_raw:
                 continue
-            try:
-                qty = int(float(qty_raw))
-            except Exception:
+            qty = normalize_stock_move_qty(qty_raw)
+            if qty is None:
                 errors.append(f"{it.get('name') or ('Item #' + str(iid))}: invalid quantity.")
-                continue
-            if qty <= 0:
                 continue
             bp_raw = (request.form.get(f"in_buying_price_{iid}") or "").strip()
             place = (request.form.get(f"in_place_{iid}") or "").strip()
@@ -2242,12 +2240,9 @@ def _it_support_stock_management_post():
             qty_raw = (request.form.get(f"out_qty_{iid}") or "").strip()
             if not qty_raw:
                 continue
-            try:
-                qty = int(float(qty_raw))
-            except Exception:
+            qty = normalize_stock_move_qty(qty_raw)
+            if qty is None:
                 errors.append(f"{it.get('name') or ('Item #' + str(iid))}: invalid quantity.")
-                continue
-            if qty <= 0:
                 continue
             label = it.get("name") or f"Item #{iid}"
             reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
@@ -3532,6 +3527,8 @@ def it_support_company_stock_update():
 
         allowed_ids = {int(i.get("id") or 0) for i in (items or []) if int(i.get("id") or 0) > 0}
         lines = []
+        from database import normalize_stock_move_qty
+
         for i in range(min(len(item_ids), len(qtys), 200)):
             iid_raw = (item_ids[i] or "").strip()
             qty_raw = (qtys[i] or "").strip()
@@ -3539,10 +3536,10 @@ def it_support_company_stock_update():
                 continue
             try:
                 iid = int(iid_raw)
-                q = int(float(qty_raw))
+                q = normalize_stock_move_qty(qty_raw)
             except Exception:
                 continue
-            if q <= 0:
+            if q is None:
                 continue
             if iid not in allowed_ids:
                 continue
@@ -4815,15 +4812,17 @@ def shop_pos_stock_in(shop_id: int):
     created_by_employee_id = int(emp_row["id"])
 
     try:
+        from database import normalize_stock_move_qty
+
         item_id = int(item_id_raw)
-        qty = int(float(qty_raw))
+        qty = normalize_stock_move_qty(qty_raw)
     except Exception:
         if wants_json:
             return jsonify({"ok": False, "error": "Invalid stock-in values."}), 400
         flash("Invalid stock-in values.", "error")
         return redirect(url_for("shop_pos", shop_id=shop_id))
 
-    if qty <= 0:
+    if qty is None:
         if wants_json:
             return jsonify({"ok": False, "error": "Quantity must be greater than zero."}), 400
         flash("Quantity must be greater than zero.", "error")
@@ -4945,7 +4944,7 @@ def shop_pos_catalog_json(shop_id: int):
         items.append(
             {
                 "id": int(it.get("id") or 0),
-                "shop_stock_qty": int(it.get("shop_stock_qty") or 0),
+                "shop_stock_qty": round(float(it.get("shop_stock_qty") or 0), 4),
                 "kitchen_portions": int(it.get("kitchen_portions") or 0),
                 "stock_update_enabled": int(it.get("stock_update_enabled") or 0),
                 "price": round(price, 2),
@@ -4985,9 +4984,9 @@ def shop_pos_incoming_stock_requests_json(shop_id: int):
             ca = ca.isoformat(sep=" ", timespec="seconds")
         else:
             ca = str(ca) if ca is not None else None
-        rq = int(r.get("qty") or 0)
-        src_avail = int(r.get("source_shop_stock_qty") or 0)
-        max_ap = max(0, min(rq, src_avail))
+        rq = round(float(r.get("qty") or 0), 4)
+        src_avail = round(float(r.get("source_shop_stock_qty") or 0), 4)
+        max_ap = max(0.0, min(rq, src_avail))
         out.append(
             {
                 "id": int(r.get("id") or 0),
@@ -5025,10 +5024,12 @@ def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
 
     fulfill_qty = data.get("qty")
     if fulfill_qty is not None and str(fulfill_qty).strip() != "":
-        try:
-            fulfill_qty = int(fulfill_qty)
-        except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "Quantity must be a whole number."}), 400
+        from database import normalize_stock_move_qty
+
+        fulfill_qty_norm = normalize_stock_move_qty(fulfill_qty)
+        if fulfill_qty_norm is None:
+            return jsonify({"ok": False, "error": "Quantity must be a positive number (decimals allowed)."}), 400
+        fulfill_qty = fulfill_qty_norm
     else:
         fulfill_qty = None
 
@@ -5292,11 +5293,11 @@ def shop_pos_record_sale(shop_id: int):
         return jsonify({"ok": False, "error": "Invalid total amount."}), 400
 
     try:
-        item_count = int(data.get("item_count") or 0)
+        item_count = float(data.get("item_count") or 0)
     except Exception:
         return jsonify({"ok": False, "error": "Invalid item count."}), 400
     if item_count < 0:
-        item_count = 0
+        item_count = 0.0
 
     emp = data.get("employee") or {}
     credit_due_raw = (data.get("credit_due_date") or "").strip() or None
@@ -7056,7 +7057,7 @@ def shop_stock_management_source_stock_json(shop_id: int):
         {
             "ok": True,
             "label": label,
-            "stock_by_item_id": {str(k): int(v) for k, v in (stock_map or {}).items()},
+            "stock_by_item_id": {str(k): float(v) for k, v in (stock_map or {}).items()},
         }
     )
 
@@ -7222,9 +7223,9 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         flash("Choose a valid other shop to request stock from.", "error")
                         return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
                 batch_note = (request.form.get("batch_note") or "").strip().upper() or None
-                try:
-                    from database import get_request_source_stock_snapshot
+                from database import get_request_source_stock_snapshot, normalize_stock_move_qty
 
+                try:
                     _, stock_map = get_request_source_stock_snapshot(
                         requesting_shop_id=shop_id,
                         batch_request_source=source_target,
@@ -7241,15 +7242,12 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     q_raw = (request.form.get(key) or "").strip()
                     if not q_raw:
                         continue
-                    try:
-                        q = int(float(q_raw))
-                    except Exception:
+                    q = normalize_stock_move_qty(q_raw)
+                    if q is None:
                         fail_count += 1
                         continue
-                    if q <= 0:
-                        continue
-                    avail = int((stock_map or {}).get(iid) or 0)
-                    if q > avail:
+                    avail = float((stock_map or {}).get(iid) or 0)
+                    if q > avail + 1e-9:
                         fail_count += 1
                         continue
                     per_note = (request.form.get(f"note_{iid}") or "").strip().upper() or None
@@ -7298,7 +7296,12 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
         if action == "batch_manual_in":
             try:
-                from database import ensure_shop_items_for_shop, resolve_seller_name_and_phone, shop_manual_stock_in
+                from database import (
+                    ensure_shop_items_for_shop,
+                    normalize_stock_move_qty,
+                    resolve_seller_name_and_phone,
+                    shop_manual_stock_in,
+                )
 
                 ensure_shop_items_for_shop(shop_id)
                 payment_status = "pending_payment"
@@ -7316,12 +7319,9 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     q_raw = (request.form.get(key) or "").strip()
                     if not q_raw:
                         continue
-                    try:
-                        q = int(float(q_raw))
-                    except Exception:
+                    q = normalize_stock_move_qty(q_raw)
+                    if q is None:
                         fail_count += 1
-                        continue
-                    if q <= 0:
                         continue
                     bp = (request.form.get(f"buying_price_{iid}") or "").strip()
                     sp = (request.form.get(f"seller_phone_{iid}") or "").strip() or apply_sp
@@ -7388,15 +7388,10 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
         try:
-            qty = int(float(qty_raw))
-        except Exception:
-            flash("Quantity must be a whole number.", "error")
-            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
-
-        try:
             from database import (
-                ensure_shop_items_for_shop,
                 create_shop_stock_request,
+                ensure_shop_items_for_shop,
+                normalize_stock_move_qty,
                 resolve_seller_name_and_phone,
                 shop_manual_stock_in,
                 shop_manual_stock_out,
@@ -7405,6 +7400,11 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             )
 
             ensure_shop_items_for_shop(shop_id)
+
+            qty = normalize_stock_move_qty(qty_raw)
+            if qty is None:
+                flash("Quantity must be a positive number (decimals allowed, e.g. 0.15).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
             if action == "request_stock":
                 source_target = (request.form.get("request_source_target") or "company").strip().lower()
@@ -7558,7 +7558,9 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
         ensure_shop_items_for_shop(shop_id)
         items = list_shop_stock_manage_items(shop_id=shop_id, limit=500)
         store_reg_candidates = list_shop_store_stock_registration_candidates(shop_id=shop_id, limit=500)
-        txs = list_shop_stock_transactions(shop_id=shop_id, item_id=None, limit=200)
+        txs = []
+        if view_arg != "manual":
+            txs = list_shop_stock_transactions(shop_id=shop_id, item_id=None, limit=200)
         request_rows = list_stock_requests_for_session(
             role_key=(session.get("employee_role") or "employee"),
             viewer_shop_id=shop_id,
@@ -8179,9 +8181,14 @@ def shop_stock_audits(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    row_limit = request.args.get("limit", type=int)
+    if row_limit is None or row_limit < 1:
+        row_limit = 25000
+    row_limit = min(row_limit, 50000)
+
     _audit_all = {
         "mode": "all",
-        "range_label": "All dates (newest first, up to 2000 rows)",
+        "range_label": f"All dates (newest first, up to {row_limit:,} rows)",
     }
     mode_arg = (request.args.get("mode") or "").strip().lower()
     if not request.args or mode_arg == "all":
@@ -8194,7 +8201,7 @@ def shop_stock_audits(shop_id: int):
     if direction not in ("", "in", "out"):
         direction = ""
     source_f = (request.args.get("source") or "").strip().lower()
-    if source_f not in ("", "company", "manual"):
+    if source_f not in ("", "company", "manual", "transfer"):
         source_f = ""
     item_id = request.args.get("item_id", type=int)
     q = (request.args.get("q") or "").strip()
@@ -8207,7 +8214,7 @@ def shop_stock_audits(shop_id: int):
         filter_items = list_shop_items(shop_id=shop_id, limit=3000) or []
         txs = list_shop_stock_audit_rows(
             shop_id=shop_id,
-            limit=2000,
+            limit=row_limit,
             analytics_filter=analytics_filter,
             direction=direction or None,
             source=source_f or None,
@@ -8225,6 +8232,7 @@ def shop_stock_audits(shop_id: int):
         audit_source=source_f,
         audit_item_id=item_id if item_id and item_id > 0 else None,
         audit_q=q,
+        audit_row_limit=row_limit,
         filter_items=filter_items,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
