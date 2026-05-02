@@ -531,6 +531,60 @@
         padding-top: 3.25rem;
       }
 
+      /* Simple auth pages — centered card, no marketing hero */
+      .auth-simple-page.form-auth-bg {
+        background-color: rgb(var(--rc-page-bg));
+        background-image: none;
+      }
+      html[data-theme="light"] .auth-simple-page.form-auth-bg {
+        background-color: rgb(var(--rc-page-bg));
+        background-image: none;
+      }
+      .auth-simple-page .form-auth-grid {
+        display: none;
+      }
+      .auth-simple-page .auth-simple-inner {
+        position: relative;
+        z-index: 1;
+        min-height: calc(100vh - 3.25rem);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem 1rem 2.5rem;
+      }
+      .auth-simple-page .form-card-modern {
+        border-radius: 0.75rem;
+        background: rgb(var(--rc-surface));
+        border: 1px solid rgb(var(--rc-border));
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+      html[data-theme="dark"] .auth-simple-page .form-card-modern {
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+      }
+      .auth-simple-page .form-card-modern::before {
+        display: none;
+      }
+      .auth-simple-page.auth-simple-page--signup .auth-simple-inner {
+        align-items: flex-start;
+        padding-top: 2rem;
+      }
+      @media (min-width: 1024px) {
+        .auth-simple-page.auth-simple-page--signup .auth-simple-inner {
+          align-items: center;
+          padding-top: 1.5rem;
+        }
+      }
+      .auth-simple-page .form-card-modern--wide {
+        max-width: 26rem;
+      }
+      @media (min-width: 640px) {
+        .auth-simple-page .form-card-modern--wide {
+          max-width: 36rem;
+        }
+      }
+
       /* Modern auth & forms */
       .form-auth-bg {
         position: relative;
