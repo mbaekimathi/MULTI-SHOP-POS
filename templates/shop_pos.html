@@ -2898,6 +2898,11 @@
 
           <div id="pos-printer-panel-bluetooth" class="hidden space-y-3 rounded-2xl border border-sky-400/25 bg-gradient-to-b from-sky-500/[0.08] to-[rgb(var(--rc-surface-2))]/25 p-3.5 shadow-sm ring-1 ring-sky-400/10 dark:from-sky-500/12 dark:to-[rgb(var(--rc-surface-2))]/30">
             <button type="button" class="pos-printer-back text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">← Change type</button>
+            <p class="rounded-xl border border-amber-400/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-snug text-[rgb(var(--rc-muted))]">
+              <strong class="text-[rgb(var(--rc-page-fg))]">Windows “paired” is not the same as POS linked.</strong>
+              This screen uses Chrome/Edge <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth Low Energy</strong>. Keep the printer powered on and in range, then use
+              <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Connect printer</strong>. If it never turns green, use <strong class="font-medium text-[rgb(var(--rc-page-fg))]">USB</strong> or print from the browser dialog instead.
+            </p>
             <div
               id="pos-printer-bt-status"
               class="flex items-start gap-2.5 rounded-xl border border-sky-500/25 bg-[rgb(var(--rc-surface))]/70 px-3 py-2.5 text-xs leading-snug text-[rgb(var(--rc-muted))]"
@@ -7040,7 +7045,59 @@
         "49535343-fe7d-4ae5-8fa9-9fafd205e455",
         "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
         "000018f0-0000-1000-8000-00805f9b34fb",
+        /* Nordic/UART-style clones */
+        "0000fdf5-0000-1000-8000-00805f9b34fb",
+        "0000ffe5-0000-1000-8000-00805f9b34fb",
       ];
+
+      /** Lower score = better candidate TX characteristic for ESC/POS raw bytes. */
+      function scoreCharacteristicForEscPos(ch) {
+        if (!ch || !ch.uuid) return 99;
+        var u = String(ch.uuid).toLowerCase().replace(/-/g, "");
+        if (u.indexOf("0000ffe1") !== -1 || u.slice(-8) === "0000ffe1") return 0;
+        if (u.indexOf("6e400002") !== -1) return 1;
+        if (u.indexOf("0000fff1") !== -1 || u.indexOf("0000fff2") !== -1) return 2;
+        if (u.indexOf("0000ae01") !== -1) return 3;
+        return 50;
+      }
+
+      /**
+       * Chrome on Windows often throws DOMException "GATT Error Unknown" on the first connect after OS pairing.
+       * Disconnect + delay + retry usually clears it for BLE thermal printers.
+       */
+      function bluetoothGattConnect(device) {
+        if (!device || !device.gatt) return Promise.reject(new Error("Bluetooth GATT unavailable."));
+        if (device.gatt.connected) return Promise.resolve();
+        function attempt() {
+          return Promise.resolve(device.gatt.connect());
+        }
+        return attempt().catch(function () {
+          try {
+            if (device.gatt.connected) device.gatt.disconnect();
+          } catch (e0) {}
+          return new Promise(function (resolve) {
+            window.setTimeout(resolve, 450);
+          }).then(function () {
+            return attempt().catch(function () {
+              try {
+                if (device.gatt.connected) device.gatt.disconnect();
+              } catch (e1) {}
+              return new Promise(function (resolve) {
+                window.setTimeout(resolve, 900);
+              }).then(attempt);
+            });
+          });
+        });
+      }
+
+      function bluetoothGattUserHint(err) {
+        var name = (err && err.name) || "";
+        var m = String((err && err.message) || err || "").toLowerCase();
+        if (m.indexOf("unknown") !== -1 || name === "NetworkError") {
+          return "Bluetooth GATT failed (often Windows + Chrome). Turn the printer off/on, stay within 1 m, tap Connect printer again, or use USB / browser Print.";
+        }
+        return "";
+      }
       var BLE_PICKER_NAME_PREFIX_FILTERS = [
         "POS",
         "PRINTER",
@@ -7441,7 +7498,7 @@
       }
 
       function posBtConnectDevice(device, timeoutMs) {
-        timeoutMs = timeoutMs || 12000;
+        timeoutMs = timeoutMs || 20000;
         if (!device) return Promise.reject(new Error("Bluetooth device missing."));
         if (!device.gatt) return Promise.reject(new Error("Bluetooth GATT unavailable."));
         if (device.gatt.connected) return Promise.resolve(device);
@@ -7452,7 +7509,7 @@
             done = true;
             reject(new Error("Bluetooth connection timed out."));
           }, timeoutMs);
-          Promise.resolve(device.gatt.connect()).then(
+          Promise.resolve(bluetoothGattConnect(device)).then(
             function () {
               if (done) return;
               done = true;
@@ -7521,17 +7578,26 @@
         posBtAutoConnectFromSavedRow(printerRow);
       };
       window.posBtAttachPairedThermal = function (device) {
-        if (!device) return;
+        if (!device) return Promise.resolve(null);
         posBtBusy = true;
         posBtPublishUiFlags();
         posBtRememberDevice(device);
-        posBtConnectDevice(device, 15000)
-          .catch(function () {
-            return device;
-          })
-          .then(function () {
+        if (!device.gatt) {
+          posBtBusy = false;
+          posBtPublishUiFlags();
+          return Promise.reject(new Error("Bluetooth GATT unavailable on this device."));
+        }
+        return posBtConnectDevice(device, 25000)
+          .then(function (d) {
             posBtBusy = false;
-            posBtWireDevice(device);
+            posBtWireDevice(d);
+            posBtPublishUiFlags();
+            return d;
+          })
+          .catch(function (err) {
+            posBtBusy = false;
+            posBtPublishUiFlags();
+            return Promise.reject(err || new Error("Bluetooth connection failed."));
           });
       };
       window.posBtForgetSavedThermal = function () {
@@ -7583,9 +7649,12 @@
 
       function pickWritableCharacteristic(svc) {
         return svc.getCharacteristics().then(function (chars) {
+          var list = (chars || []).slice().sort(function (a, b) {
+            return scoreCharacteristicForEscPos(a) - scoreCharacteristicForEscPos(b);
+          });
           var wnr = null;
           var wr = null;
-          chars.forEach(function (c) {
+          list.forEach(function (c) {
             if (c.properties.writeWithoutResponse) wnr = wnr || c;
             else if (c.properties.write) wr = wr || c;
           });
@@ -7654,21 +7723,40 @@
         /* BLE default ATT payload is 20 bytes; keep this unless MTU is negotiated (not exposed everywhere). */
         var chunkSize = 20;
         var offset = 0;
-        function writeChunk(slice) {
-          if (typeof char.writeValueWithoutResponse === "function") {
-            return char.writeValueWithoutResponse(slice);
-          }
-          if (char.properties.writeWithoutResponse && typeof char.writeValueWithoutResponse === "function") {
-            return char.writeValueWithoutResponse(slice);
-          }
-          if (typeof char.writeValue === "function") {
-            return char.writeValue(slice);
-          }
-          if (char.properties.write && typeof char.writeValue === "function") {
-            return char.writeValue(slice);
-          }
-          return Promise.reject(new Error("Characteristic is not writable"));
+        var Pr = char.properties;
+        var hasWo =
+          typeof char.writeValueWithoutResponse === "function" &&
+          (!Pr || !!Pr.writeWithoutResponse);
+        var hasW = typeof char.writeValue === "function" && (!Pr || !!Pr.write);
+        if (!Pr) {
+          hasWo = typeof char.writeValueWithoutResponse === "function";
+          hasW = typeof char.writeValue === "function";
         }
+        function writeChunk(slice) {
+          function viaWoResp() {
+            if (!hasWo) return Promise.reject(new Error("no woResp"));
+            return char.writeValueWithoutResponse(slice);
+          }
+          function viaWithResp() {
+            if (!hasW) return Promise.reject(new Error("no write"));
+            return char.writeValue(slice);
+          }
+          var primary = hasWo ? viaWoResp : viaWithResp;
+          var fallback = hasWo && hasW ? viaWithResp : hasW && hasWo ? viaWoResp : null;
+          return primary().catch(function (err) {
+            var msg = String((err && err.message) || "").toLowerCase();
+            var nm = (err && err.name) || "";
+            var flaky =
+              fallback &&
+              (msg.indexOf("unknown") !== -1 ||
+                msg.indexOf("gatt") !== -1 ||
+                nm === "NetworkError" ||
+                nm === "InvalidStateError");
+            if (flaky) return fallback();
+            throw err;
+          });
+        }
+        var interChunkMs = hasW && !hasWo ? 22 : 15;
         function step() {
           if (offset >= bytes.length) return Promise.resolve();
           var end = Math.min(offset + chunkSize, bytes.length);
@@ -7679,7 +7767,7 @@
               return new Promise(function (resolve) {
                 setTimeout(function () {
                   resolve(step());
-                }, 15);
+                }, interChunkMs);
               });
             }
           });
@@ -7698,7 +7786,7 @@
           return Promise.reject(new Error("No GATT"));
         }
         var variants = printOpts.singleReceiptCopy ? ["customer"] : receiptVariantsForCheckout();
-        var connectP = device.gatt.connected ? Promise.resolve() : device.gatt.connect();
+        var connectP = device.gatt.connected ? Promise.resolve() : bluetoothGattConnect(device);
         return connectP
           .then(function () {
             return delayPrintMs(device.gatt.connected ? 15 : 40);
@@ -7755,7 +7843,9 @@
             return sendVariant(0);
           })
           .catch(function (e) {
-            setAuthStatus((e && e.message) ? e.message : "Bluetooth thermal print failed.", "error");
+            var hint = bluetoothGattUserHint(e);
+            var line = hint || ((e && e.message) ? e.message : "Bluetooth thermal print failed.");
+            setAuthStatus(line, "error");
             return Promise.reject(e);
           });
       }
@@ -9167,6 +9257,12 @@
         e.preventDefault();
         e.returnValue = "";
       });
+
+      /* Printer setup modal is loaded from the next <script> IIFE — same symbols are out of scope there. */
+      window.KNOWN_BLE_PRINT_SERVICE_UUIDS = KNOWN_BLE_PRINT_SERVICE_UUIDS;
+      window.bluetoothGattConnect = bluetoothGattConnect;
+      window.bluetoothGattUserHint = bluetoothGattUserHint;
+      window.findWritableEscPosCharacteristic = findWritableEscPosCharacteristic;
     })();
   </script>
   <script>
@@ -9312,9 +9408,10 @@
           }
           // Keep requestDevice synchronous inside the user click gesture.
           try {
+            var svcList = (window.KNOWN_BLE_PRINT_SERVICE_UUIDS || []).slice();
             return navigator.bluetooth.requestDevice({
               acceptAllDevices: true,
-              optionalServices: ["generic_access", "device_information"].concat(KNOWN_BLE_PRINT_SERVICE_UUIDS),
+              optionalServices: ["generic_access", "device_information"].concat(svcList),
             });
           } catch (e) {
             // Fallback for browsers that reject large/strict service lists.
@@ -9352,13 +9449,17 @@
               // Best-effort: enrich saved config with BLE endpoint for faster prints.
               // Do not fail setup if endpoint discovery fails here.
               if (!device.gatt) return;
-              return Promise.resolve(device.gatt.connected ? null : device.gatt.connect())
+              var btConn =
+                typeof window.bluetoothGattConnect === "function" ? window.bluetoothGattConnect : null;
+              var connectP =
+                device.gatt.connected ? Promise.resolve() : btConn ? btConn(device) : Promise.resolve();
+              return connectP
                 .catch(function () {})
                 .then(function () {
                   if (!device.gatt || !device.gatt.connected) return;
                   var discoverWritable =
-                    typeof findWritableEscPosCharacteristic === "function"
-                      ? findWritableEscPosCharacteristic
+                    typeof window.findWritableEscPosCharacteristic === "function"
+                      ? window.findWritableEscPosCharacteristic
                       : null;
                   if (!discoverWritable) return;
                   return discoverWritable(device.gatt).then(function (endpoint) {
@@ -9382,19 +9483,50 @@
           .then(function () {
             var d = btPending;
             btPending = null;
-            if (d && typeof window.posBtAttachPairedThermal === "function") {
-              window.posBtAttachPairedThermal(d);
-            }
-            reflectBluetoothPrinterModal();
-            // Close setup popup after successful app save.
-            setPrinterOpen(false);
-            msg("Printer saved.");
             if (pickedEl && d) {
               pickedEl.textContent = "Saved: " + (d.name || d.id || "Bluetooth printer");
               pickedEl.classList.remove("hidden");
             }
-            refreshSaved();
-            setPrinterOpen(false);
+
+            function afterRefresh(note, closeModal) {
+              reflectBluetoothPrinterModal();
+              msg(note);
+              refreshSaved();
+              if (closeModal) setPrinterOpen(false);
+            }
+
+            if (!d) {
+              afterRefresh("Printer saved.", true);
+              return;
+            }
+            if (!d.gatt) {
+              afterRefresh(
+                "Profile saved, but this hardware has no BLE session for Chrome. Use USB or network, or print via the browser Print dialog.",
+                false
+              );
+              return;
+            }
+
+            var attach = typeof window.posBtAttachPairedThermal === "function" ? window.posBtAttachPairedThermal(d) : Promise.resolve(d);
+            return Promise.resolve(attach).then(
+              function () {
+                var sg = window.__POS_BT || {};
+                if (sg.gattConnected) {
+                  afterRefresh("Printer saved and linked for silent receipts.", true);
+                } else {
+                  afterRefresh(
+                    "Printer saved. BLE link did not complete — keep the printer on and tap Connect printer.",
+                    false
+                  );
+                }
+              },
+              function () {
+                afterRefresh(
+                  "Printer saved. Bluetooth link failed — stay close to the printer and tap Connect printer, or switch to USB/network.",
+                  false
+                );
+              }
+            );
           })
           .catch(function (e) {
             btPending = null;
@@ -10131,7 +10263,7 @@
         dot.className =
           "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500 ring-2 ring-[rgb(var(--rc-surface))]";
         label.textContent =
-          'Printer saved but not connected. Tap Connect printer when you need to print.';
+          'Saved — no BLE link yet. Tap Connect printer (printer on, nearby). OS pairing alone is not enough.';
       }
 
       document.addEventListener("richcom-pos-bluetooth-changed", function () {
