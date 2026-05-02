@@ -2325,6 +2325,7 @@
               aria-label="Online. Open today's offline queue."
               aria-haspopup="dialog"
               aria-controls="pos-today-offline-modal"
+              onclick="try{if(window.__openPosTodayOfflineQueue){window.__openPosTodayOfflineQueue();}}catch(e){}"
             >
               <span class="h-2.5 w-2.5 rounded-full bg-current" aria-hidden="true"></span>
             </button>
@@ -4725,7 +4726,7 @@
           var online = navigator.onLine;
           if (offlineSyncNowBtn) offlineSyncNowBtn.classList.toggle("hidden", count === 0);
           if (offlineSyncDiagBtn) offlineSyncDiagBtn.classList.toggle("hidden", count === 0);
-          if (offlineSyncNowBtn) offlineSyncNowBtn.disabled = offlineSyncBusy || !online || count === 0;
+          if (offlineSyncNowBtn) offlineSyncNowBtn.disabled = offlineSyncBusy || count === 0;
           if (offlineSyncDiagBtn) offlineSyncDiagBtn.disabled = count === 0;
           if (!count && online) {
             offlineSyncBadgeEl.classList.add("hidden");
@@ -4942,6 +4943,19 @@
           "</div></div></div>";
         document.body.appendChild(wrap);
         wrap.addEventListener("click", function (e) {
+          var inl = e.target && e.target.closest && e.target.closest("#pos-today-offline-sync-inline");
+          if (inl) {
+            e.preventDefault();
+            if (offlineSyncBusy) return;
+            setAuthStatus(
+              navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
+              "muted"
+            );
+            syncOfflineSalesQueue({ notify: true }).then(function () {
+              return refreshTodayOfflineQueueModal();
+            });
+            return;
+          }
           if (e.target === wrap) wrap.classList.add("hidden");
         });
         var closeBtn = document.getElementById("pos-today-offline-close");
@@ -5009,6 +5023,18 @@
         }
 
         var parts = [];
+        var pendingTotal = rows.length;
+        if (pendingTotal > 0) {
+          parts.push(
+            '<div class="mb-3 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-3 dark:border-sky-500/35 dark:bg-sky-500/15">' +
+              '<p class="text-[11px] font-black uppercase tracking-wider text-sky-950 dark:text-sky-100">Manual sync</p>' +
+              '<p class="mt-1 text-xs leading-snug text-[rgb(var(--rc-muted))]">' +
+              escapeHtml(String(pendingTotal)) +
+              " checkout(s) are queued on this device and still need to be saved to the database. Tap below when you have a connection.</p>" +
+              '<button type="button" id="pos-today-offline-sync-inline" class="btn-rc btn-rc-primary mt-2 w-full rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider">Insert queued orders into database</button>' +
+              "</div>"
+          );
+        }
 
         if (pendingOlder > 0) {
           parts.push(
@@ -9853,7 +9879,135 @@
       window.addEventListener("online", function () {
         refreshEmployeeAuthCacheFromServer();
         syncLocalReceiptSeqFromServerQuiet();
+        updateNetworkStateIndicator();
+        updateOfflineSyncBadge();
+        setAuthStatus("Back online. Syncing offline sales…", "muted");
+        syncOfflineSalesQueue({ notify: false })
+          .then(function (s1) {
+            return new Promise(function (res) {
+              setTimeout(function () {
+                res(s1 || {});
+              }, 900);
+            });
+          })
+          .then(function (s1) {
+            return syncOfflineSalesQueue({ notify: false }).then(function (s2) {
+              return mergeOfflineSyncStats(s1 || {}, s2 || {});
+            });
+          })
+          .then(function (merged) {
+            merged = merged || { synced: 0, failed: 0, errors: [] };
+            if ((merged.synced || 0) > 0 || (merged.failed || 0) > 0) {
+              showOfflineSyncResultToast(merged);
+            }
+            return getPendingOfflineSalesCount().then(function (pending) {
+              var didWork = (merged.synced || 0) + (merged.failed || 0) > 0;
+              if (didWork && (merged.failed || 0) === 0 && pending === 0) {
+                setAuthStatus("Offline sales synced.", "ok");
+              } else if ((merged.failed || 0) > 0) {
+                setAuthStatus("Some offline sales failed to sync. Open Diagnostics for details.", "error");
+              } else if (didWork && pending > 0) {
+                setAuthStatus("Still uploading " + String(pending) + " offline sale(s)…", "muted");
+              }
+              updateOfflineSyncBadge();
+            });
+          })
+          .catch(function () {
+            updateOfflineSyncBadge();
+          });
       });
+      window.addEventListener("offline", function () {
+        updateNetworkStateIndicator();
+        updateOfflineSyncBadge();
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) return;
+        syncOfflineSalesQueue({ notify: false }).then(function (stats) {
+          if (stats && !stats.skipped && ((stats.synced || 0) > 0 || (stats.failed || 0) > 0)) {
+            showOfflineSyncResultToast(stats);
+          }
+        });
+      });
+      if (offlineSyncTimer) clearInterval(offlineSyncTimer);
+      offlineSyncTimer = setInterval(function () {
+        syncOfflineSalesQueue({ notify: false });
+      }, 20000);
+      document.addEventListener(
+        "click",
+        function (ev) {
+          var t = ev.target;
+          if (!t || !t.closest) return;
+          var btn = t.closest("#pos-network-state-indicator");
+          if (!btn) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (typeof window.__openPosTodayOfflineQueue === "function") {
+            window.__openPosTodayOfflineQueue();
+          }
+        },
+        true
+      );
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Escape") return;
+        var tom = document.getElementById("pos-today-offline-modal");
+        if (tom && !tom.classList.contains("hidden")) tom.classList.add("hidden");
+      });
+      if (offlineSyncNowBtn) {
+        offlineSyncNowBtn.addEventListener("click", function () {
+          if (offlineSyncBusy) return;
+          setAuthStatus(
+            navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
+            "muted"
+          );
+          syncOfflineSalesQueue({ notify: true }).then(function () {
+            return getPendingOfflineSalesCount();
+          }).then(function (pending) {
+            if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
+            else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
+            updateOfflineSyncBadge();
+          });
+        });
+      }
+      if (offlineSyncDiagBtn) {
+        offlineSyncDiagBtn.addEventListener("click", function () {
+          var diagModal = ensureOfflineSyncDiagnosticsModal();
+          diagModal.classList.remove("hidden");
+          refreshOfflineDiagnostics();
+          var refreshBtn = document.getElementById("pos-offline-diag-refresh");
+          var syncBtn = document.getElementById("pos-offline-diag-sync");
+          if (refreshBtn) {
+            refreshBtn.onclick = function () {
+              refreshOfflineDiagnostics();
+            };
+          }
+          if (syncBtn) {
+            syncBtn.onclick = function () {
+              setAuthStatus(
+                navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
+                "muted"
+              );
+              syncOfflineSalesQueue({ notify: true }).then(function () {
+                return refreshOfflineDiagnostics();
+              }).then(function () {
+                return getPendingOfflineSalesCount();
+              }).then(function (pending) {
+                if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
+                else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
+              });
+            };
+          }
+        });
+      }
+      updateNetworkStateIndicator();
+      updateOfflineSyncBadge();
+      syncOfflineSalesQueue({ notify: false });
+      window.__openPosTodayOfflineQueue = function () {
+        try {
+          var qm = ensureTodayOfflineQueueModal();
+          qm.classList.remove("hidden");
+          refreshTodayOfflineQueueModal();
+        } catch (eOpenQ) {}
+      };
       render();
       applyPosCartUiSettings();
 
@@ -11229,7 +11383,6 @@
       var declineBtn = document.getElementById("pos-incoming-sr-decline");
       var dismissBtn = document.getElementById("pos-incoming-sr-dismiss");
       var backdrop = document.getElementById("pos-incoming-sr-backdrop");
-      if (!modal || !detailEl || !qtyEl || !codeEl) return;
 
       /** null = auto-submit approve on 6 digits; "reject" = auto-submit decline on 6 digits (after Decline click). */
       var incomingSrIntent = null;
@@ -11248,6 +11401,7 @@
       }
 
       function setOpen(on) {
+        if (!modal) return;
         if (on) {
           modal.classList.remove("hidden");
           modal.setAttribute("aria-hidden", "false");
@@ -11270,6 +11424,7 @@
       }
 
       function applyDetail(r, total) {
+        if (!detailEl) return;
         incomingSrIntent = null;
         window.__posIncomingSrCurrent = r;
         detailEl.innerHTML = "";
@@ -11339,6 +11494,7 @@
       }
 
       function poll(force) {
+        if (!modal || !detailEl || !qtyEl || !codeEl) return;
         fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" } })
           .then(function (res) {
             return res.json();
@@ -11371,6 +11527,7 @@
 
       function submitReview(action) {
         if (window.__posIncomingSrSubmitting) return;
+        if (!codeEl || !qtyEl) return;
         showErr("");
         var r = window.__posIncomingSrCurrent;
         if (!r) return;
@@ -11472,129 +11629,6 @@
         if (!modal || modal.classList.contains("hidden")) return;
         if (dismissBtn) dismissBtn.click();
       });
-
-      window.addEventListener("online", function () {
-        updateNetworkStateIndicator();
-        updateOfflineSyncBadge();
-        setAuthStatus("Back online. Syncing offline sales…", "muted");
-        syncOfflineSalesQueue({ notify: false })
-          .then(function (s1) {
-            return new Promise(function (res) {
-              setTimeout(function () {
-                res(s1 || {});
-              }, 900);
-            });
-          })
-          .then(function (s1) {
-            return syncOfflineSalesQueue({ notify: false }).then(function (s2) {
-              return mergeOfflineSyncStats(s1 || {}, s2 || {});
-            });
-          })
-          .then(function (merged) {
-            merged = merged || { synced: 0, failed: 0, errors: [] };
-            if ((merged.synced || 0) > 0 || (merged.failed || 0) > 0) {
-              showOfflineSyncResultToast(merged);
-            }
-            return getPendingOfflineSalesCount().then(function (pending) {
-              var didWork = (merged.synced || 0) + (merged.failed || 0) > 0;
-              if (didWork && (merged.failed || 0) === 0 && pending === 0) {
-                setAuthStatus("Offline sales synced.", "ok");
-              } else if ((merged.failed || 0) > 0) {
-                setAuthStatus("Some offline sales failed to sync. Open Diagnostics for details.", "error");
-              } else if (didWork && pending > 0) {
-                setAuthStatus("Still uploading " + String(pending) + " offline sale(s)…", "muted");
-              }
-              updateOfflineSyncBadge();
-            });
-          })
-          .catch(function () {
-            updateOfflineSyncBadge();
-          });
-      });
-      window.addEventListener("offline", function () {
-        updateNetworkStateIndicator();
-        updateOfflineSyncBadge();
-      });
-      document.addEventListener("visibilitychange", function () {
-        if (document.hidden) return;
-        syncOfflineSalesQueue({ notify: false }).then(function (stats) {
-          if (stats && !stats.skipped && ((stats.synced || 0) > 0 || (stats.failed || 0) > 0)) {
-            showOfflineSyncResultToast(stats);
-          }
-        });
-      });
-      if (offlineSyncTimer) clearInterval(offlineSyncTimer);
-      offlineSyncTimer = setInterval(function () {
-        syncOfflineSalesQueue({ notify: false });
-      }, 20000);
-      document.addEventListener(
-        "click",
-        function (ev) {
-          var t = ev.target;
-          if (!t || !t.closest) return;
-          var btn = t.closest("#pos-network-state-indicator");
-          if (!btn) return;
-          ev.preventDefault();
-          var modal = ensureTodayOfflineQueueModal();
-          modal.classList.remove("hidden");
-          refreshTodayOfflineQueueModal();
-        },
-        false
-      );
-      document.addEventListener("keydown", function (ev) {
-        if (ev.key !== "Escape") return;
-        var tom = document.getElementById("pos-today-offline-modal");
-        if (tom && !tom.classList.contains("hidden")) tom.classList.add("hidden");
-      });
-      if (offlineSyncNowBtn) {
-        offlineSyncNowBtn.addEventListener("click", function () {
-          if (offlineSyncBusy) return;
-          setAuthStatus(
-            navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
-            "muted"
-          );
-          syncOfflineSalesQueue({ notify: true }).then(function () {
-            return getPendingOfflineSalesCount();
-          }).then(function (pending) {
-            if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
-            else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
-            updateOfflineSyncBadge();
-          });
-        });
-      }
-      if (offlineSyncDiagBtn) {
-        offlineSyncDiagBtn.addEventListener("click", function () {
-          var modal = ensureOfflineSyncDiagnosticsModal();
-          modal.classList.remove("hidden");
-          refreshOfflineDiagnostics();
-          var refreshBtn = document.getElementById("pos-offline-diag-refresh");
-          var syncBtn = document.getElementById("pos-offline-diag-sync");
-          if (refreshBtn) {
-            refreshBtn.onclick = function () {
-              refreshOfflineDiagnostics();
-            };
-          }
-          if (syncBtn) {
-            syncBtn.onclick = function () {
-              setAuthStatus(
-                navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
-                "muted"
-              );
-              syncOfflineSalesQueue({ notify: true }).then(function () {
-                return refreshOfflineDiagnostics();
-              }).then(function () {
-                return getPendingOfflineSalesCount();
-              }).then(function (pending) {
-                if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
-                else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
-              });
-            };
-          }
-        });
-      }
-      updateNetworkStateIndicator();
-      updateOfflineSyncBadge();
-      syncOfflineSalesQueue({ notify: false });
 
       setTimeout(function () { poll(false); }, 1200);
       setInterval(function () { poll(false); }, 25000);
