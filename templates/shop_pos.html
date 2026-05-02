@@ -2317,14 +2317,17 @@
               <span class="hidden sm:inline">Receipts</span>
               <span class="sm:hidden">R</span>
             </button>
-            <span
+            <button
+              type="button"
               id="pos-network-state-indicator"
-              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 sm:h-8 sm:w-8"
-              title="Online"
-              aria-label="Online"
+              class="relative z-[45] inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-700 transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--rc-primary))] dark:text-emerald-300 sm:h-8 sm:w-8"
+              title="Online — today's offline queue"
+              aria-label="Online. Open today's offline queue."
+              aria-haspopup="dialog"
+              aria-controls="pos-today-offline-modal"
             >
-              <span class="h-2.5 w-2.5 rounded-full bg-current"></span>
-            </span>
+              <span class="h-2.5 w-2.5 rounded-full bg-current" aria-hidden="true"></span>
+            </button>
             <span
               id="pos-offline-sync-badge"
               class="hidden shrink-0 rounded-xl border border-amber-500/35 bg-amber-500/15 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-800 dark:text-amber-200 sm:px-2.5 sm:text-[10px]"
@@ -3470,6 +3473,55 @@
       var offlineSyncRecentLog = [];
       var offlineSyncToastHideTimer = null;
       var OFFLINE_SYNC_LOG_CAP = 30;
+      var OFFLINE_SYNC_LOG_LS_KEY = "richcom-shop-pos-offline-sync-log-day-" + SHOP_ID;
+
+      function pad2(n) {
+        return (n < 10 ? "0" : "") + n;
+      }
+
+      function localDayKeyFromMs(ms) {
+        var d = new Date(ms);
+        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+      }
+
+      function isIsoLocalToday(iso) {
+        var t = Date.parse(String(iso || ""));
+        if (!isFinite(t)) return false;
+        return localDayKeyFromMs(t) === localDayKeyFromMs(Date.now());
+      }
+
+      function hydrateOfflineSyncLogFromStorage() {
+        try {
+          var raw = localStorage.getItem(OFFLINE_SYNC_LOG_LS_KEY);
+          if (!raw) return;
+          var doc = JSON.parse(raw);
+          var today = localDayKeyFromMs(Date.now());
+          if (!doc || typeof doc !== "object") return;
+          if (doc.day !== today) {
+            localStorage.removeItem(OFFLINE_SYNC_LOG_LS_KEY);
+            return;
+          }
+          if (!Array.isArray(doc.entries)) return;
+          offlineSyncRecentLog = doc.entries.slice(0, OFFLINE_SYNC_LOG_CAP);
+        } catch (e) {
+          try {
+            localStorage.removeItem(OFFLINE_SYNC_LOG_LS_KEY);
+          } catch (e2) {}
+        }
+      }
+
+      function persistOfflineSyncLogDay() {
+        try {
+          var today = localDayKeyFromMs(Date.now());
+          localStorage.setItem(
+            OFFLINE_SYNC_LOG_LS_KEY,
+            JSON.stringify({ day: today, entries: offlineSyncRecentLog.slice(0, 50) })
+          );
+        } catch (e) {}
+      }
+
+      hydrateOfflineSyncLogFromStorage();
+
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
           navigator.serviceWorker.register("/pos-sw.js").catch(function () {});
@@ -4582,12 +4634,12 @@
         );
         if (online) {
           networkStateIndicatorEl.classList.add("border-emerald-500/40", "bg-emerald-500/15", "text-emerald-700", "dark:text-emerald-300");
-          networkStateIndicatorEl.setAttribute("title", "Online");
-          networkStateIndicatorEl.setAttribute("aria-label", "Online");
+          networkStateIndicatorEl.setAttribute("title", "Online — tap for today's offline queue");
+          networkStateIndicatorEl.setAttribute("aria-label", "Online. Open today's offline queue.");
         } else {
           networkStateIndicatorEl.classList.add("border-rose-500/40", "bg-rose-500/15", "text-rose-700", "dark:text-rose-300");
-          networkStateIndicatorEl.setAttribute("title", "Offline");
-          networkStateIndicatorEl.setAttribute("aria-label", "Offline");
+          networkStateIndicatorEl.setAttribute("title", "Offline — tap for today's offline queue");
+          networkStateIndicatorEl.setAttribute("aria-label", "Offline. Open today's offline queue.");
         }
       }
 
@@ -4598,8 +4650,11 @@
           receipt: rec,
           ok: !!(entry && entry.ok),
           detail: String((entry && entry.detail) || "").trim(),
+          kind: String((entry && entry.kind) || "").trim(),
+          client_txn_id: String((entry && entry.client_txn_id) || "").trim(),
         });
         while (offlineSyncRecentLog.length > OFFLINE_SYNC_LOG_CAP) offlineSyncRecentLog.pop();
+        persistOfflineSyncLogDay();
       }
 
       function showOfflineSyncResultToast(stats) {
@@ -4692,6 +4747,20 @@
         var t = Date.parse(s);
         if (!isFinite(t)) return s;
         return new Date(t).toLocaleString();
+      }
+
+      function offlineKindLabel(kind, row) {
+        var k = String(kind || "").toLowerCase();
+        if (k === "quote") return "Quote";
+        if (k === "credit") return "Credit";
+        if (k === "sale") return "Sale";
+        if (row) {
+          var rk = String(row.pos_offline_record_kind || "").toLowerCase();
+          if (rk === "quote") return "Quote";
+          if (rk === "sale") return "Sale";
+          if (String(row.sale_type || "").toLowerCase() === "credit") return "Credit";
+        }
+        return "Sale";
       }
 
       function ensureOfflineSyncDiagnosticsModal() {
@@ -4841,6 +4910,199 @@
         });
       }
 
+      function ensureTodayOfflineQueueModal() {
+        var existing = document.getElementById("pos-today-offline-modal");
+        if (existing) return existing;
+        var wrap = document.createElement("div");
+        wrap.id = "pos-today-offline-modal";
+        /* Same pattern as pos-compulsory-printer-modal: keep `flex` with `hidden` so removing hidden reliably shows a flex overlay (Tailwind hidden uses !important). */
+        wrap.className =
+          "fixed inset-0 z-[146] hidden flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4";
+        wrap.setAttribute("role", "dialog");
+        wrap.setAttribute("aria-modal", "true");
+        wrap.setAttribute("aria-labelledby", "pos-today-offline-title");
+        wrap.innerHTML =
+          '<div class="w-full max-w-lg overflow-hidden rounded-t-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl sm:max-w-md sm:rounded-2xl">' +
+          '<div class="flex items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))]/70 px-4 py-3">' +
+          '<div class="min-w-0">' +
+          '<h3 id="pos-today-offline-title" class="truncate text-sm font-black uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))]">Today\'s offline queue</h3>' +
+          '<p id="pos-today-offline-sub" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Loading…</p>' +
+          "</div>" +
+          '<button type="button" id="pos-today-offline-close" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>' +
+          "</div>" +
+          '<div class="max-h-[min(70vh,28rem)] overflow-auto p-4">' +
+          '<p class="mb-3 text-[11px] leading-relaxed text-[rgb(var(--rc-muted))]">Checked = saved to the database today. Unchecked = still waiting or last attempt failed.</p>' +
+          '<div id="pos-today-offline-list" class="space-y-2 text-xs text-[rgb(var(--rc-page-fg))]"></div>' +
+          "</div>" +
+          '<div class="flex flex-wrap items-center justify-between gap-2 border-t border-[rgb(var(--rc-border))]/70 px-4 py-3">' +
+          '<button type="button" id="pos-today-offline-open-diag" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Full diagnostics</button>' +
+          '<div class="flex flex-wrap gap-2">' +
+          '<button type="button" id="pos-today-offline-refresh" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Refresh</button>' +
+          '<button type="button" id="pos-today-offline-sync" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Sync now</button>' +
+          "</div></div></div>";
+        document.body.appendChild(wrap);
+        wrap.addEventListener("click", function (e) {
+          if (e.target === wrap) wrap.classList.add("hidden");
+        });
+        var closeBtn = document.getElementById("pos-today-offline-close");
+        if (closeBtn) closeBtn.addEventListener("click", function () { wrap.classList.add("hidden"); });
+        var diagJump = document.getElementById("pos-today-offline-open-diag");
+        if (diagJump) {
+          diagJump.addEventListener("click", function () {
+            wrap.classList.add("hidden");
+            if (offlineSyncDiagBtn) offlineSyncDiagBtn.click();
+          });
+        }
+        var rf = document.getElementById("pos-today-offline-refresh");
+        if (rf) rf.addEventListener("click", function () { refreshTodayOfflineQueueModal(); });
+        var sy = document.getElementById("pos-today-offline-sync");
+        if (sy) {
+          sy.addEventListener("click", function () {
+            if (offlineSyncBusy) return;
+            setAuthStatus(
+              navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
+              "muted"
+            );
+            syncOfflineSalesQueue({ notify: true }).then(function () {
+              return refreshTodayOfflineQueueModal();
+            });
+          });
+        }
+        return wrap;
+      }
+
+      function renderTodayOfflineQueue(rows) {
+        var listEl = document.getElementById("pos-today-offline-list");
+        var subEl = document.getElementById("pos-today-offline-sub");
+        if (!listEl) return;
+        rows = Array.isArray(rows) ? rows : [];
+        var pendingToday = rows.filter(function (r) {
+          return isIsoLocalToday(r && r.queued_at);
+        });
+        var pendingOlder = rows.length - pendingToday.length;
+        var logsToday = offlineSyncRecentLog.filter(function (l) {
+          return isIsoLocalToday(l && l.at);
+        });
+
+        if (subEl) {
+          var d = new Date();
+          subEl.textContent =
+            d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) +
+            " · " +
+            (navigator.onLine ? "Online" : "Offline") +
+            " · " +
+            String(pendingToday.length) +
+            " pending today · " +
+            String(logsToday.length) +
+            " sync event(s) today";
+        }
+
+        function cbHtml(on, title) {
+          return (
+            '<span class="inline-flex shrink-0 items-center pt-0.5" title="' +
+            escapeHtml(title) +
+            '">' +
+            '<input type="checkbox" disabled class="pointer-events-none h-4 w-4 rounded border-[rgb(var(--rc-border))] accent-emerald-600" ' +
+            (on ? "checked " : "") +
+            "/></span>"
+          );
+        }
+
+        var parts = [];
+
+        if (pendingOlder > 0) {
+          parts.push(
+            '<div class="mb-3 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-900 dark:text-amber-100">' +
+              escapeHtml(String(pendingOlder)) +
+              " older checkout(s) are still in the queue (queued before today). Use Full diagnostics to see them." +
+              "</div>"
+          );
+        }
+
+        if (pendingToday.length) {
+          parts.push(
+            '<p class="mb-2 text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Waiting to upload (today)</p>' +
+              '<div class="mb-4 space-y-2">' +
+              pendingToday
+                .map(function (row) {
+                  var ref = escapeHtml(String((row && row.local_receipt_number) || (row && row.client_txn_id) || "—"));
+                  var total = Number((row && row.total_amount) || 0).toFixed(2);
+                  var kl = offlineKindLabel(row && row.pos_offline_record_kind, row);
+                  return (
+                    '<div class="flex gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-3 py-2">' +
+                    cbHtml(false, "Not saved to the database yet") +
+                    '<div class="min-w-0 flex-1">' +
+                    '<p class="font-bold text-[rgb(var(--rc-page-fg))]">' +
+                    ref +
+                    ' · <span class="font-semibold text-[rgb(var(--rc-muted))]">' +
+                    escapeHtml(kl) +
+                    "</span></p>" +
+                    '<p class="mt-0.5 text-[rgb(var(--rc-muted))]">Queued ' +
+                    escapeHtml(fmtDiagDate(row && row.queued_at)) +
+                    " · Total " +
+                    total +
+                    "</p>" +
+                    "</div></div>"
+                  );
+                })
+                .join("") +
+              "</div>"
+          );
+        }
+
+        if (logsToday.length) {
+          parts.push(
+            '<p class="mb-2 text-[11px] font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Upload results (today)</p>' +
+              '<div class="space-y-2">' +
+              logsToday
+                .map(function (log) {
+                  var ref = escapeHtml(String(log.receipt || "").trim() || "—");
+                  var ok = !!log.ok;
+                  var kl = offlineKindLabel(log.kind, null);
+                  return (
+                    '<div class="flex gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/30 px-3 py-2">' +
+                    cbHtml(ok, ok ? "Saved to the database" : "Not saved — sync failed") +
+                    '<div class="min-w-0 flex-1">' +
+                    '<p class="font-bold text-[rgb(var(--rc-page-fg))]">' +
+                    ref +
+                    ' · <span class="font-semibold text-[rgb(var(--rc-muted))]">' +
+                    escapeHtml(kl) +
+                    "</span></p>" +
+                    '<p class="mt-0.5 text-[rgb(var(--rc-muted))]">' +
+                    escapeHtml(String(log.detail || "").trim() || (ok ? "OK" : "Failed")) +
+                    "</p>" +
+                    '<p class="mt-0.5 text-[10px] text-[rgb(var(--rc-muted))]">' +
+                    escapeHtml(fmtDiagDate(log.at)) +
+                    "</p>" +
+                    "</div></div>"
+                  );
+                })
+                .join("") +
+              "</div>"
+          );
+        }
+
+        if (!parts.length) {
+          listEl.innerHTML =
+            '<div class="rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-3 text-sm font-semibold text-emerald-800 dark:text-emerald-200">No offline queue activity for today.</div>';
+          return;
+        }
+
+        listEl.innerHTML = parts.join("");
+      }
+
+      function refreshTodayOfflineQueueModal() {
+        return listOfflineSales().then(function (rows) {
+          renderTodayOfflineQueue(rows || []);
+          updateOfflineSyncBadge();
+        });
+      }
+
+      function refreshTodayOfflineQueueModalIfOpen() {
+        var m = document.getElementById("pos-today-offline-modal");
+        if (m && !m.classList.contains("hidden")) refreshTodayOfflineQueueModal();
+      }
+
       function formatCatalogAge(ms) {
         var mins = Math.max(1, Math.round(ms / 60000));
         if (mins < 60) return String(mins) + "m ago";
@@ -4981,10 +5243,12 @@
       function syncOfflineSalesQueue(opts) {
         opts = opts || {};
         var notify = !!opts.notify;
-        if (offlineSyncBusy || !navigator.onLine) {
+        /* Do not gate on navigator.onLine — it often stays false after reconnect or lies behind VPN/captive portals.
+           We attempt POST and rely on fetch + per-entry next_retry_at backoff when there is no route to the server. */
+        if (offlineSyncBusy) {
           return Promise.resolve({
             skipped: true,
-            reason: offlineSyncBusy ? "busy" : "offline",
+            reason: "busy",
             synced: 0,
             failed: 0,
             errors: [],
@@ -5008,7 +5272,6 @@
             var cursor = Promise.resolve();
             queue.forEach(function (entry) {
               cursor = cursor.then(function () {
-                if (!navigator.onLine) return;
                 var kind = String((entry && entry.pos_offline_record_kind) || "sale").toLowerCase();
                 var api = kind === "quote" ? RECORD_QUOTE_API : RECORD_SALE_API;
                 var syncBody = offlinePayloadForRecordSync(entry);
@@ -5040,6 +5303,8 @@
                       receipt: (entry && entry.local_receipt_number) || "Quote",
                       ok: true,
                       detail: j.quote_id ? "Quote #" + String(j.quote_id) : "Saved to server",
+                      kind: "quote",
+                      client_txn_id: (entry && entry.client_txn_id) || "",
                     });
                   } else {
                     mergeReceiptSeqMaxFromReceiptString((j && j.receipt_number) || "");
@@ -5048,6 +5313,8 @@
                       receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
                       ok: true,
                       detail: (j && j.receipt_number) ? "Saved as " + String(j.receipt_number) : "Saved to server",
+                      kind: String((entry && entry.sale_type) || "").toLowerCase() === "credit" ? "credit" : "sale",
+                      client_txn_id: (entry && entry.client_txn_id) || "",
                     });
                   }
                   return deleteOfflineSale(entry.client_txn_id);
@@ -5062,6 +5329,13 @@
                     receipt: (entry && entry.local_receipt_number) || (entry && entry.client_txn_id) || "",
                     ok: false,
                     detail: msg,
+                    kind:
+                      kind === "quote"
+                        ? "quote"
+                        : String((entry && entry.sale_type) || "").toLowerCase() === "credit"
+                          ? "credit"
+                          : "sale",
+                    client_txn_id: (entry && entry.client_txn_id) || "",
                   });
                   var attempts = (parseInt(entry.attempts || 0, 10) || 0) + 1;
                   var capped = Math.min(attempts, 8);
@@ -5081,6 +5355,7 @@
           .finally(function () {
             offlineSyncBusy = false;
             updateOfflineSyncBadge();
+            refreshTodayOfflineQueueModalIfOpen();
           })
           .then(function () {
             if (notify && !stats.skipped && (stats.synced > 0 || stats.failed > 0)) {
@@ -6163,11 +6438,6 @@
               showToast(wasQuote ? "Quotation saved and printed" : (mode === "credit" ? "Credit" : "Sale") + " completed");
             }
             if (qEl) qEl.checked = false;
-            if (!wasQuote && typeof window.refreshPosCatalogStock === "function") {
-              setTimeout(function () {
-                window.refreshPosCatalogStock();
-              }, 500);
-            }
             var drawer = document.getElementById("pos-cart-drawer");
             if (drawer && drawer.classList.contains("is-open")) {
               var close = document.getElementById("pos-cart-close");
@@ -6317,6 +6587,11 @@
         payload.clientTxnId = randomTxnId();
         return recordSaleForAnalytics(payload).then(function (res) {
           mergeReceiptSeqMaxFromReceiptString((res && res.receipt_number) || "");
+          try {
+            if (typeof window.refreshPosCatalogStock === "function") {
+              window.refreshPosCatalogStock();
+            }
+          } catch (eStockRf) {}
           return {
             queued: false,
             receipt_number: (res && res.receipt_number) ? String(res.receipt_number) : "",
@@ -11241,7 +11516,7 @@
         updateOfflineSyncBadge();
       });
       document.addEventListener("visibilitychange", function () {
-        if (document.hidden || !navigator.onLine) return;
+        if (document.hidden) return;
         syncOfflineSalesQueue({ notify: false }).then(function (stats) {
           if (stats && !stats.skipped && ((stats.synced || 0) > 0 || (stats.failed || 0) > 0)) {
             showOfflineSyncResultToast(stats);
@@ -11252,14 +11527,32 @@
       offlineSyncTimer = setInterval(function () {
         syncOfflineSalesQueue({ notify: false });
       }, 20000);
+      document.addEventListener(
+        "click",
+        function (ev) {
+          var t = ev.target;
+          if (!t || !t.closest) return;
+          var btn = t.closest("#pos-network-state-indicator");
+          if (!btn) return;
+          ev.preventDefault();
+          var modal = ensureTodayOfflineQueueModal();
+          modal.classList.remove("hidden");
+          refreshTodayOfflineQueueModal();
+        },
+        false
+      );
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Escape") return;
+        var tom = document.getElementById("pos-today-offline-modal");
+        if (tom && !tom.classList.contains("hidden")) tom.classList.add("hidden");
+      });
       if (offlineSyncNowBtn) {
         offlineSyncNowBtn.addEventListener("click", function () {
           if (offlineSyncBusy) return;
-          if (!navigator.onLine) {
-            setAuthStatus("You are offline. Connect to internet, then tap Sync now.", "error");
-            return;
-          }
-          setAuthStatus("Syncing offline sales...", "muted");
+          setAuthStatus(
+            navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
+            "muted"
+          );
           syncOfflineSalesQueue({ notify: true }).then(function () {
             return getPendingOfflineSalesCount();
           }).then(function (pending) {
@@ -11283,11 +11576,10 @@
           }
           if (syncBtn) {
             syncBtn.onclick = function () {
-              if (!navigator.onLine) {
-                setAuthStatus("You are offline. Connect to internet, then sync.", "error");
-                return;
-              }
-              setAuthStatus("Syncing offline sales...", "muted");
+              setAuthStatus(
+                navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
+                "muted"
+              );
               syncOfflineSalesQueue({ notify: true }).then(function () {
                 return refreshOfflineDiagnostics();
               }).then(function () {
