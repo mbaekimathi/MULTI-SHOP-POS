@@ -9338,33 +9338,45 @@
             render();
           }
         }
+        function normalizeCatalogInventoryMode(m) {
+          var s = String(m == null ? "" : m)
+            .toLowerCase()
+            .trim();
+          if (s === "shop" || s === "kitchen" || s === "both" || s === "none") return s;
+          return null;
+        }
+
         function fetchCatalogStock() {
           if (!CATALOG_STOCK_API) return;
-          fetch(CATALOG_STOCK_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
+          fetch(CATALOG_STOCK_API, {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { Accept: "application/json" },
+          })
             .then(function (r) {
+              if (!r.ok) throw new Error("catalog_bad_status");
               return r.json();
             })
             .then(function (j) {
-              if (j && j.ok) {
-                if (j.inventory_mode) {
-                  window.POS_INVENTORY_MODE = j.inventory_mode;
-                }
-                if (j.items) {
-                  applyCatalogStockRows(j.items);
-                  saveCatalogSnapshot({
-                    inventory_mode: window.POS_INVENTORY_MODE || "shop",
-                    items: Array.isArray(j.items) ? j.items : [],
-                    source: "network",
-                    saved_at: new Date().toISOString(),
-                  }).catch(function () {});
-                  setCatalogStaleBanner("", "warn");
-                }
+              if (!j || !j.ok) return;
+              var nm = normalizeCatalogInventoryMode(j.inventory_mode);
+              if (nm) window.POS_INVENTORY_MODE = nm;
+              if (j.items && j.items.length) {
+                applyCatalogStockRows(j.items);
+                saveCatalogSnapshot({
+                  inventory_mode: window.POS_INVENTORY_MODE || "shop",
+                  items: Array.isArray(j.items) ? j.items : [],
+                  source: "network",
+                  saved_at: new Date().toISOString(),
+                }).catch(function () {});
+                setCatalogStaleBanner("", "warn");
               }
             })
             .catch(function () {
               loadCatalogSnapshot().then(function (snap) {
                 if (!snap || !Array.isArray(snap.items) || !snap.items.length) return;
-                if (snap.inventory_mode) window.POS_INVENTORY_MODE = snap.inventory_mode;
+                var sn = normalizeCatalogInventoryMode(snap.inventory_mode);
+                if (sn) window.POS_INVENTORY_MODE = sn;
                 applyCatalogStockRows(snap.items);
                 var savedAtMs = Date.parse(String(snap.saved_at || ""));
                 var ageMs = isFinite(savedAtMs) ? Math.max(0, Date.now() - savedAtMs) : 0;
@@ -9394,7 +9406,8 @@
             // Only merge cached catalog when offline. If online, fetchCatalogStock() is authoritative;
             // applying a stale snapshot here races with that fetch and can overwrite correct stock with 0.
             if (!navigator.onLine) {
-              if (snap.inventory_mode) window.POS_INVENTORY_MODE = snap.inventory_mode;
+              var sn0 = normalizeCatalogInventoryMode(snap.inventory_mode);
+              if (sn0) window.POS_INVENTORY_MODE = sn0;
               applyCatalogStockRows(snap.items);
               var savedAtMs = Date.parse(String(snap.saved_at || ""));
               var ageMs = isFinite(savedAtMs) ? Math.max(0, Date.now() - savedAtMs) : 0;
@@ -9465,6 +9478,9 @@
         updateCustomerSectionState();
         updatePosCompulsoryPrinterWorkspaceLock();
         updateProceedState();
+        try {
+          if (typeof window.refreshPosCatalogStock === "function") window.refreshPosCatalogStock();
+        } catch (eR) {}
       };
 
       document.addEventListener("submit", function (ev) {

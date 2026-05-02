@@ -4952,13 +4952,17 @@ def shop_pos_catalog_json(shop_id: int):
                 "original_selling_price": round(orig, 2),
             }
         )
-    return jsonify(
+    response = jsonify(
         {
             "ok": True,
             "inventory_mode": _pos_inventory_mode(shop),
             "items": items,
         }
     )
+    # Live stock + inventory_mode must not be cached (browser SW previously served stale catalog).
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/incoming-stock-requests.json")

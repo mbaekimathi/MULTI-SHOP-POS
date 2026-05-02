@@ -1,4 +1,4 @@
-const POS_SW_VERSION = "pos-sw-v1";
+const POS_SW_VERSION = "pos-sw-v2";
 const APP_SHELL_CACHE = `app-shell-${POS_SW_VERSION}`;
 const RUNTIME_CACHE = `runtime-${POS_SW_VERSION}`;
 
@@ -27,6 +27,14 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+/**
+ * Dynamic POS JSON (catalog, auth cache, stock requests) must be network-first.
+ * Cache-first caused stale shop_stock / wrong inventory_mode after printer flows or polling.
+ */
+function isShopPosDynamicJson(url) {
+  return /^\/shops\/\d+\/shop-pos\/[^?]+\.json$/.test(url.pathname);
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -36,9 +44,9 @@ self.addEventListener("fetch", (event) => {
 
   const isPosPage = req.mode === "navigate" && /\/shops\/\d+\/shop-pos/.test(url.pathname);
   const isStaticAsset = url.pathname.startsWith("/static/");
-  const isCatalogOrReadApi = /\/shop-pos\/catalog\.json$/.test(url.pathname);
+  const isPosJson = isShopPosDynamicJson(url);
 
-  if (!(isPosPage || isStaticAsset || isCatalogOrReadApi)) return;
+  if (!(isPosPage || isStaticAsset || isPosJson)) return;
 
   if (isPosPage) {
     event.respondWith(
@@ -51,6 +59,21 @@ self.addEventListener("fetch", (event) => {
         .catch(() =>
           caches.match(req).then((cached) => cached || caches.match("/"))
         )
+    );
+    return;
+  }
+
+  if (isPosJson) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
     );
     return;
   }
