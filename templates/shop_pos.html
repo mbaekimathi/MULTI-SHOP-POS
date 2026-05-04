@@ -4320,9 +4320,9 @@
           return;
         }
         var valid10 = /^((07|01)\d{8})$/.test(digits);
-        var valid12 = /^((2547|2541)\d{8})$/.test(digits);
+        var valid12 = /^(254\d{9})$/.test(digits);
         if (!valid10 && !valid12) {
-          if (stockInSellerHint) stockInSellerHint.textContent = "Use 07/01 (10 digits) or 2547/2541 (12 digits).";
+          if (stockInSellerHint) stockInSellerHint.textContent = "Use 07… or 01… (10 digits) or 254… (12 digits).";
           return;
         }
         var fd = new FormData();
@@ -5870,12 +5870,14 @@
       function printingCompulsoryOnSaleEnabled() {
         var p = window.POS_PRINTING || {};
         var f = p.print_compulsory_sale;
-        if (f === true || f === 1) return true;
+        if (f === false || f === 0 || f === "0") return false;
+        if (f == null || f === "") return false;
         if (typeof f === "string") {
           var t = f.trim().toLowerCase();
-          return t === "true" || t === "1";
+          if (t === "false" || t === "0" || t === "no" || t === "off") return false;
+          return t === "true" || t === "1" || t === "yes" || t === "on";
         }
-        return false;
+        return !!f;
       }
 
       /** Retail sale (not quote/credit): compulsory printing needs printer ready — BT must have GATT link, network/USB need saved pairing. */
@@ -9162,6 +9164,13 @@
         var pp = window.POS_PRINTING || {};
         return loadSavedPrinterProfile().then(function (saved) {
           var pt = saved ? String(saved.printer_type || "").toLowerCase() : "";
+          /* Optional printing: checkout works without a saved profile; still offer OS/browser print when USB is allowed. */
+          if (!printingCompulsoryOnSaleEnabled() && (!saved || !pt)) {
+            if (pp.printer_allow_usb !== false) {
+              return printBrowserThermalDialog(payload);
+            }
+            return Promise.resolve();
+          }
           var cfg = saved ? normalizePrinterConfig(saved.config) : null;
           var host = cfg && String(cfg.host || "").trim();
 

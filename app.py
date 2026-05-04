@@ -1141,6 +1141,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     if not data:
         return base
     merged = {**base, **data}
+    _normalize_print_compulsory_key(merged)
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
@@ -1316,6 +1317,13 @@ def _sync_print_compulsory_with_printer_allow_list(merged: dict) -> None:
         merged["print_compulsory_sale"] = False
 
 
+def _normalize_print_compulsory_key(merged: dict) -> None:
+    """Fold form-style alias ``printing_compulsory_sale`` into canonical ``print_compulsory_sale`` (saved JSON)."""
+    if merged.get("printing_compulsory_sale") is not None:
+        merged["print_compulsory_sale"] = merged.get("printing_compulsory_sale")
+    merged.pop("printing_compulsory_sale", None)
+
+
 def _shop_pos_payment_method_allowed(shop: dict, method: str) -> bool:
     m = (method or "").strip().lower()
     ps = _effective_printing_settings_for_shop(shop)
@@ -1381,6 +1389,7 @@ def _load_printing_settings() -> dict:
     if not isinstance(data, dict):
         data = {}
     merged = {**defaults, **data}
+    _normalize_print_compulsory_key(merged)
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
@@ -7304,13 +7313,17 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 )
 
                 ensure_shop_items_for_shop(shop_id)
-                payment_status = "pending_payment"
-                # Shared seller/note: only merged into lines that are actually stocked in (qty > 0 below).
+                allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
+                # Shared seller: merged into lines that are actually stocked in (qty > 0 below).
                 apply_sp = (request.form.get("apply_all_seller_phone") or "").strip()
                 apply_sn = (request.form.get("apply_all_seller_name") or "").strip().upper()
                 apply_note = (request.form.get("apply_all_note") or "").strip().upper() or None
                 ok_count = 0
                 fail_count = 0
+                fail_qty = 0
+                fail_seller = 0
+                fail_manual = 0
+                lines_attempted = 0
                 for key in request.form:
                     m = re.match(r"^qty_(\d+)$", key)
                     if not m:
@@ -7319,25 +7332,31 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     q_raw = (request.form.get(key) or "").strip()
                     if not q_raw:
                         continue
+                    lines_attempted += 1
                     q = normalize_stock_move_qty(q_raw)
                     if q is None:
+                        fail_qty += 1
                         fail_count += 1
                         continue
                     bp = (request.form.get(f"buying_price_{iid}") or "").strip()
                     sp = (request.form.get(f"seller_phone_{iid}") or "").strip() or apply_sp
                     sn = (request.form.get(f"seller_name_{iid}") or "").strip().upper() or apply_sn
-                    row_note = (request.form.get(f"note_{iid}") or "").strip().upper()
+                    pay_raw = (request.form.get(f"payment_status_{iid}") or "").strip().lower()
+                    payment_status = pay_raw if pay_raw in allowed_pay else "pending_payment"
+                    row_note = (request.form.get(f"note_{iid}") or "").strip().upper() or None
                     line_note = row_note or apply_note
                     resolved_name, resolved_phone = resolve_seller_name_and_phone(
                         seller_phone=sp,
                         seller_name=sn,
                     )
                     if not resolved_name or not resolved_phone:
+                        fail_seller += 1
                         fail_count += 1
                         continue
                     # Same value as legacy single-field flow: place on the receipt matches registered seller name.
                     place_final = (resolved_name or "").strip()
                     if not place_final:
+                        fail_seller += 1
                         fail_count += 1
                         continue
                     ok = shop_manual_stock_in(
@@ -7354,17 +7373,41 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     if ok:
                         ok_count += 1
                     else:
+                        fail_manual += 1
                         fail_count += 1
                 if ok_count and not fail_count:
                     flash(f"Recorded {ok_count} manual stock-in line(s).", "success")
                 elif ok_count:
+                    extras = []
+                    if fail_qty:
+                        extras.append(f"bad qty {fail_qty}")
+                    if fail_seller:
+                        extras.append(f"seller {fail_seller}")
+                    if fail_manual:
+                        extras.append(f"not saved {fail_manual}")
+                    tail = f" Details: {', '.join(extras)}." if extras else ""
                     flash(
-                        f"Recorded {ok_count} line(s). {fail_count} line(s) failed (check seller phone/name and inputs).",
+                        f"Recorded {ok_count} line(s). {fail_count} line(s) failed.{tail}",
                         "warning",
                     )
                 else:
+                    bits = []
+                    if lines_attempted == 0:
+                        bits.append("No lines had a quantity entered.")
+                    if fail_qty:
+                        bits.append(f"{fail_qty} line(s) had an invalid quantity.")
+                    if fail_seller:
+                        bits.append(
+                            f"{fail_seller} line(s) had seller issues — use phone 07… or 254… (12 digits); "
+                            "for a new seller enter at least 2 letters of name; for registered sellers with a blank name, fill seller name once."
+                        )
+                    if fail_manual:
+                        bits.append(
+                            f"{fail_manual} line(s) could not be saved — item may be missing shelf registration (POS “Both”), "
+                            "or shop stock updates may be off for that item (company / branch settings)."
+                        )
                     flash(
-                        "No manual stock-ins recorded. Enter quantities and valid seller details for each line.",
+                        "No manual stock-ins recorded. " + " ".join(bits),
                         "error",
                     )
             except Exception as e:

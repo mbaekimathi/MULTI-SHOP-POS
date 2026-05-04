@@ -109,9 +109,9 @@
           return;
         }
         var valid10 = /^((07|01)\d{8})$/.test(digits);
-        var valid12 = /^((2547|2541)\d{8})$/.test(digits);
+        var valid12 = /^(254\d{9})$/.test(digits);
         if (!valid10 && !valid12) {
-          if (hint) hint.textContent = "Use 07/01 (10 digits) or 2547/2541 (12 digits).";
+          if (hint) hint.textContent = "Use 07… or 01… (10 digits) or 254… (12 digits).";
           return;
         }
         var fd = new FormData();

@@ -53,9 +53,11 @@
       <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
         <p class="text-sm text-[rgb(var(--rc-muted))]">
           {% if pos_inventory_mode == 'both' %}
-            No registered store stock items were found for this shop yet. Ask IT to add stock items from Register stock item.
+            No shelf-registered catalogue lines for this branch yet. Register catalogue items for shelf stock (POS kitchen + shelf / “Both”), or ask IT for help.
           {% elif pos_inventory_mode == 'kitchen' %}
             Store/shelf stock is disabled because this branch is using kitchen portions only.
+          {% elif pos_inventory_mode == 'shop' or pos_inventory_mode == 'none' %}
+            No active catalogue lines have shop stock updates enabled at this branch. Turn on stock tracking for those items in company / branch settings, then refresh.
           {% else %}
             No items available.
           {% endif %}
@@ -176,7 +178,7 @@
           <div class="mb-4 rounded-xl border border-teal-400/25 bg-teal-500/5 px-4 py-3">
             <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Manual stock in</h3>
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-              Enter quantity and buy price on the rows you are stocking in. Below the list, use <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">One seller &amp; note for all lines</strong> (before submit) to fill seller fields on lines with quantity &gt; 0. Per-row values override the shared defaults.
+              Enter quantity (whole or decimal, e.g. <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">10</strong> or <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">1.25</strong> / <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">1,25</strong>) and buy price on each row you stock in (buy price can be left blank for 0). Choose <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">payment</strong> per row; <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">note</strong> is optional. Seller phone: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">07…</strong> (10 digits) or <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">254…</strong> (12 digits). Below, use <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">One seller, payment &amp; note</strong> to copy onto rows that already have quantity &gt; 0.
             </p>
           </div>
           <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}" class="space-y-4">
@@ -200,7 +202,7 @@
               </div>
             </div>
             <div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
-              <table class="min-w-[960px] w-full text-sm">
+              <table class="min-w-[1100px] w-full text-sm">
                 <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
                   <tr>
                     <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
@@ -210,7 +212,8 @@
                     <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Buy price</th>
                     <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller phone <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
                     <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller name / place <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
-                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Note <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(override)</span></th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
+                    <th class="px-2 py-2 text-left text-xs font-bold uppercase tracking-wider">Note <span class="font-normal normal-case text-[rgb(var(--rc-muted))]">(optional)</span></th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -224,7 +227,7 @@
                       <td class="px-2 py-2 align-top whitespace-nowrap">{{ it.shop_stock_qty }}</td>
                       <td class="px-2 py-2 align-top whitespace-nowrap">{{ it.company_stock_qty }}</td>
                       <td class="px-2 py-2 align-top whitespace-nowrap">
-                        <input name="qty_{{ it.id }}" type="number" min="0" step="any" class="js-manual-qty js-stock-qty-input w-20 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-sm" placeholder="0" />
+                        <input name="qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="js-manual-qty js-stock-qty-input w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-sm" placeholder="0 or 1.25" title="Whole or decimal quantity (use . or , as decimal separator)" />
                       </td>
                       <td class="px-2 py-2 align-top whitespace-nowrap">
                         <input
@@ -239,14 +242,21 @@
                         />
                       </td>
                       <td class="px-2 py-2 align-top min-w-[120px]">
-                        <input name="seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="js-seller-phone w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs" placeholder="+254…" />
+                        <input name="seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="js-seller-phone w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs" placeholder="07… or 254…" title="Kenyan mobile: 07xxxxxxxx (10 digits) or 254xxxxxxxxxx (12 digits)" />
                       </td>
                       <td class="px-2 py-2 align-top min-w-[140px]">
                         <input name="seller_name_{{ it.id }}" data-seller-name="{{ it.id }}" class="js-seller-name w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="NAME / PLACE" />
                         <p class="js-seller-hint mt-1 text-[10px] text-[rgb(var(--rc-muted))]" data-seller-hint="{{ it.id }}"></p>
                       </td>
+                      <td class="px-2 py-2 align-top min-w-[130px]">
+                        <select name="payment_status_{{ it.id }}" class="js-manual-payment w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-xs text-[rgb(var(--rc-page-fg))]">
+                          <option value="pending_payment" selected>Not paid</option>
+                          <option value="partially_paid">Partially paid</option>
+                          <option value="paid">Paid</option>
+                        </select>
+                      </td>
                       <td class="px-2 py-2 align-top min-w-[100px]">
-                        <input name="note_{{ it.id }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="NOTE" />
+                        <input name="note_{{ it.id }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1 text-xs uppercase" placeholder="—" autocomplete="off" />
                       </td>
                     </tr>
                   {% endfor %}
@@ -254,11 +264,11 @@
               </table>
             </div>
             <div class="rounded-2xl border border-teal-400/35 bg-[rgb(var(--rc-surface-2))] p-4">
-              <p class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">One seller &amp; note for all lines</p>
+              <p class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">One seller, payment &amp; note for all lines</p>
               <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-                On submit, these values are used only for items with <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">quantity greater than zero</strong> (where row fields are empty). Row-specific values always win.
+                Click copy to push seller phone, name, payment, and optional note to every row that already has <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">quantity greater than zero</strong>. Adjust individual rows afterward if needed.
               </p>
-              <div class="mt-3 grid gap-3 sm:grid-cols-3">
+              <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <label class="block min-w-0">
                   <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Seller phone</span>
                   <input
@@ -267,7 +277,7 @@
                     id="js-apply-all-phone"
                     autocomplete="off"
                     class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
-                    placeholder="+254…"
+                    placeholder="07… or 254…"
                   />
                 </label>
                 <label class="block min-w-0">
@@ -282,6 +292,18 @@
                   />
                 </label>
                 <label class="block min-w-0">
+                  <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment</span>
+                  <select
+                    name="apply_all_payment_status"
+                    id="js-apply-all-payment"
+                    class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                  >
+                    <option value="pending_payment" selected>Not paid</option>
+                    <option value="partially_paid">Partially paid</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </label>
+                <label class="block min-w-0 sm:col-span-2 xl:col-span-1">
                   <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Note (optional)</span>
                   <input
                     type="text"
@@ -618,7 +640,7 @@
           return;
         }
         var valid10 = /^((07|01)\d{8})$/.test(digits);
-        var valid12 = /^((2547|2541)\d{8})$/.test(digits);
+        var valid12 = /^(254\d{9})$/.test(digits);
         if (!valid10 && !valid12) {
           onResult("badformat", null);
           return;
@@ -649,7 +671,7 @@
                 return;
               }
               if (kind === "badformat") {
-                hint.textContent = "Use 07/01 (10 digits) or 2547/2541 (12 digits).";
+                hint.textContent = "Use 07… or 01… (10 digits) or 254… (12 digits).";
                 return;
               }
               if (kind === "ok" && data && data.ok && data.registered && data.seller) {
@@ -678,13 +700,15 @@
       });
 
       var copyBtn = document.getElementById("js-apply-all-copy-rows");
+      var applyPayment = document.getElementById("js-apply-all-payment");
       var applyNote = document.getElementById("js-apply-all-note");
       var copyFeedback = document.getElementById("js-apply-all-copy-feedback");
       if (copyBtn && applyPhone && applyName) {
         copyBtn.addEventListener("click", function () {
           var pv = (applyPhone.value || "").trim();
           var nv = (applyName.value || "").trim();
-          var notev = applyNote ? (applyNote.value || "").trim() : "";
+          var payVal = applyPayment && applyPayment.value ? applyPayment.value : "pending_payment";
+          var notev = applyNote ? (applyNote.value || "").trim().toUpperCase() : "";
           var n = 0;
           document.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
             var id = row.getAttribute("data-item-id");
@@ -700,10 +724,12 @@
             n += 1;
             var rp = row.querySelector('[name="seller_phone_' + id + '"]');
             var rn = row.querySelector('[name="seller_name_' + id + '"]');
+            var rpay = row.querySelector('[name="payment_status_' + id + '"]');
             var rnote = row.querySelector('[name="note_' + id + '"]');
             if (rp) rp.value = pv;
             if (rn) rn.value = nv.toUpperCase();
-            if (rnote && applyNote) rnote.value = notev.toUpperCase();
+            if (rpay) rpay.value = payVal;
+            if (rnote && applyNote) rnote.value = notev;
           });
           if (copyFeedback) {
             copyFeedback.textContent = n

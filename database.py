@@ -31,10 +31,22 @@ STOCK_QTY_DECIMAL_PLACES = 4
 
 def normalize_stock_move_qty(qty) -> Optional[float]:
     """Parse quantity for stock in/out; returns positive float rounded to STOCK_QTY_DECIMAL_PLACES or None."""
-    try:
-        q = float(qty)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(qty, str):
+        t = qty.strip().replace("\u00a0", "").replace(" ", "")
+        if not t:
+            return None
+        # Accept "1,25" / "0,5" when no '.' is present (common decimal comma locales).
+        if "," in t and "." not in t:
+            t = t.replace(",", ".")
+        try:
+            q = float(t)
+        except ValueError:
+            return None
+    else:
+        try:
+            q = float(qty)
+        except (TypeError, ValueError):
+            return None
     if not math.isfinite(q) or q <= 0:
         return None
     q = round(q, STOCK_QTY_DECIMAL_PLACES)
@@ -1863,9 +1875,34 @@ def _is_valid_seller_phone(phone: str) -> bool:
     digits = re.sub(r"\D", "", p)
     if len(digits) == 10:
         return digits.startswith("07") or digits.startswith("01")
+    # Kenyan international: 254 + 9-digit national number (mobile often 7…).
     if len(digits) == 12:
-        return digits.startswith("2547") or digits.startswith("2541")
+        return digits.startswith("254")
     return False
+
+
+def _seller_phone_lookup_keys(phone: str) -> list[str]:
+    """Possible ``sellers.phone`` values for the same Kenyan subscriber (DB rows vary)."""
+    p = _normalize_phone(phone or "")
+    digits = re.sub(r"\D", "", p)
+    keys: list[str] = []
+
+    def add(x: str) -> None:
+        x = (x or "").strip()
+        if x and x not in keys:
+            keys.append(x)
+
+    if len(digits) == 10 and digits.startswith(("07", "01")):
+        intl = "254" + digits[1:]
+        add(intl)
+        add(digits)
+        add("+" + intl)
+    elif len(digits) == 12 and digits.startswith("254"):
+        add(digits)
+        add("0" + digits[3:])
+        add("+" + digits)
+    add(p)
+    return keys
 
 
 def get_seller_by_phone(phone: str):
@@ -1875,8 +1912,12 @@ def get_seller_by_phone(phone: str):
     sql = "SELECT id, seller_name, phone, created_at, updated_at FROM sellers WHERE phone=%s LIMIT 1"
     try:
         with get_cursor() as cur:
-            cur.execute(sql, (p,))
-            return cur.fetchone()
+            for key in _seller_phone_lookup_keys(p):
+                cur.execute(sql, (key,))
+                row = cur.fetchone()
+                if row:
+                    return row
+            return None
     except pymysql.Error:
         return None
 
@@ -1912,7 +1953,14 @@ def resolve_seller_name_and_phone(seller_phone: str, seller_name: str) -> tuple[
         return (None, None)
     existing = get_seller_by_phone(p) or {}
     if existing:
-        return ((existing.get("seller_name") or "").strip(), (existing.get("phone") or p))
+        nm = (existing.get("seller_name") or "").strip()
+        if len(nm) < 2:
+            alt = (seller_name or "").strip().upper()
+            if len(alt) >= 2 and upsert_seller(alt, p):
+                nm = alt
+        if len(nm) < 2:
+            return (None, None)
+        return (nm, (existing.get("phone") or p))
     n = (seller_name or "").strip().upper()
     if len(n) < 2:
         return (None, None)
@@ -7362,45 +7410,23 @@ def get_shop_item_stock_movement_summary(shop_id: int, lookback_days: int = 30) 
 
 
 def list_shop_stock_manage_items(shop_id: int, limit: int = 500):
+    """Rows keyed by ``items.id`` / ``shop_items.item_id`` (matches manual stock-in / POS shelf flows).
+
+    In POS inventory mode ``both`` (kitchen + shelf), only items flagged ``store_stock_registered``
+    are listed — ``store_stock_items`` SKUs are a separate catalog and cannot be saved via
+    ``shop_manual_stock_in``, which always targets ``shop_items``.
+    """
     inv_mode = resolve_shop_pos_inventory_mode(int(shop_id))
     if inv_mode == "kitchen":
         return []
-    if inv_mode == "both":
-        init_store_stock_items_table()
-        sql = """
-        SELECT
-            ssi.id,
-            ssi.category,
-            ssi.name,
-            NULL AS image_path,
-            0 AS company_stock_qty,
-            0 AS shop_stock_qty,
-            1 AS stock_update_enabled,
-            1 AS displayed,
-            1 AS store_stock_registered,
-            ssi.description,
-            ssi.measure_unit,
-            NULL AS last_buying_price
-        FROM store_stock_items ssi
-        WHERE ssi.shop_id = %s AND ssi.status = 'active'
-        ORDER BY ssi.category ASC, ssi.name ASC
-        LIMIT %s
-        """
-        with get_cursor() as cur:
-            cur.execute(sql, (int(shop_id), int(limit)))
-            rows = cur.fetchall() or []
-        for r in rows:
-            r["company_stock_qty"] = round(float(r.get("company_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
-            r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
-            r["stock_update_enabled"] = int(r.get("stock_update_enabled") or 0)
-            r["displayed"] = int(r.get("displayed") or 0)
-            r["store_stock_registered"] = int(r.get("store_stock_registered") or 0)
-            lp = r.get("last_buying_price")
-            r["last_buying_price"] = float(lp) if lp is not None else None
-        return rows
+    if inv_mode == "both" and not column_exists("shop_items", "store_stock_registered"):
+        return []
     reg_filter = ""
+    shop_tracking_filter = ""
     if inv_mode == "both" and column_exists("shop_items", "store_stock_registered"):
         reg_filter = " AND COALESCE(si.store_stock_registered,0) = 1 "
+    elif inv_mode in ("shop", "none"):
+        shop_tracking_filter = " AND COALESCE(si.stock_update_enabled,0) = 1 "
     reg_col = ""
     if column_exists("shop_items", "store_stock_registered"):
         reg_col = ", COALESCE(si.store_stock_registered,0) AS store_stock_registered"
@@ -7430,7 +7456,7 @@ def list_shop_stock_manage_items(shop_id: int, limit: int = 500):
     FROM items i
     JOIN shop_items si ON si.item_id=i.id AND si.shop_id=%s
     WHERE i.status='active'
-    {reg_filter}
+    {reg_filter}{shop_tracking_filter}
     ORDER BY i.category ASC, i.name ASC
     LIMIT %s
     """
@@ -7450,7 +7476,7 @@ def list_shop_stock_manage_items(shop_id: int, limit: int = 500):
 
 def list_shop_store_stock_registration_candidates(shop_id: int, limit: int = 500):
     """Active items on the shop not yet registered for shelf stock (dual kitchen + store mode)."""
-    if resolve_shop_pos_inventory_mode(int(shop_id)) == "both":
+    if resolve_shop_pos_inventory_mode(int(shop_id)) != "both":
         return []
     if not column_exists("shop_items", "store_stock_registered"):
         return []
@@ -7477,12 +7503,9 @@ def list_shop_store_stock_registration_candidates(shop_id: int, limit: int = 500
 
 
 def set_shop_store_stock_registered(shop_id: int, item_id: int, enabled: bool) -> bool:
-    if resolve_shop_pos_inventory_mode(int(shop_id)) == "both":
-        # Dedicated store stock items are already scoped to the shop and treated as registered.
+    if resolve_shop_pos_inventory_mode(int(shop_id)) != "both":
         return False
     if not column_exists("shop_items", "store_stock_registered"):
-        return False
-    if resolve_shop_pos_inventory_mode(int(shop_id)) != "both":
         return False
     sql = """
     UPDATE shop_items si
@@ -9248,11 +9271,29 @@ def shop_manual_stock_in(
     n = normalize_stock_move_qty(qty)
     if n is None:
         return False
-    try:
-        buying_price = float(buying_price)
-        if buying_price < 0:
+    if buying_price is None:
+        buying_price = 0.0
+    elif isinstance(buying_price, str):
+        s = buying_price.strip().replace("\u00a0", "").replace(" ", "")
+        if not s:
+            buying_price = 0.0
+        else:
+            if "," in s and "." not in s:
+                s = s.replace(",", ".")
+            try:
+                buying_price = float(s)
+            except ValueError:
+                return False
+            if not math.isfinite(buying_price):
+                return False
+    else:
+        try:
+            buying_price = float(buying_price)
+        except (TypeError, ValueError):
             return False
-    except Exception:
+        if not math.isfinite(buying_price):
+            return False
+    if buying_price < 0:
         return False
     place_brought_from = (place_brought_from or "").strip()
     if not place_brought_from:
