@@ -9163,13 +9163,22 @@
         });
       }
 
+      /** True when IT allows any POS printer path — browser thermal dialog is allowed as fallback (not only “USB printer”). */
+      function posPrintingAllowsBrowserThermalFallback() {
+        var pp = window.POS_PRINTING || {};
+        return (
+          pp.printer_allow_usb !== false ||
+          pp.printer_allow_network !== false ||
+          pp.printer_allow_bluetooth !== false
+        );
+      }
+
       /**
-       * Opens the system/browser print dialog for thermal HTML receipts (typical USB POS driver path).
-       * Respects IT POS → Printer “USB printer”: when disabled, does nothing (no dialog).
+       * Opens the system/browser print dialog for thermal HTML receipts (OS printer / Save as PDF).
+       * Skipped only when IT has turned off all printer connection types.
        */
       function printBrowserThermalDialog(payload) {
-        var pp = window.POS_PRINTING || {};
-        if (pp.printer_allow_usb === false) {
+        if (!posPrintingAllowsBrowserThermalFallback()) {
           return Promise.resolve();
         }
         return printReceiptCopies(payload, printThermalReceipt);
@@ -9178,19 +9187,15 @@
       /**
        * After checkout: try silent ESC/POS (network / USB / Bluetooth) using the saved profile first.
        * Preflight TCP/USB/BT probes were removed — they often false-negative while the real print path works.
-       * Opens the browser print dialog only when USB printing is allowed in system settings
-       * and every direct ESC/POS attempt fails.
+       * Opens the browser print dialog when direct ESC/POS fails or no saved profile, if any printer type is allowed.
        */
       function runConfiguredPrinterAction(payload) {
         var pp = window.POS_PRINTING || {};
         return loadSavedPrinterProfile().then(function (saved) {
           var pt = saved ? String(saved.printer_type || "").toLowerCase() : "";
-          /* Optional printing: checkout works without a saved profile; still offer OS/browser print when USB is allowed. */
+          /* Optional printing: checkout works without a saved profile; still offer OS/browser thermal print when allowed. */
           if (!printingCompulsoryOnSaleEnabled() && (!saved || !pt)) {
-            if (pp.printer_allow_usb !== false) {
-              return printBrowserThermalDialog(payload);
-            }
-            return Promise.resolve();
+            return printBrowserThermalDialog(payload);
           }
           var cfg = saved ? normalizePrinterConfig(saved.config) : null;
           var host = cfg && String(cfg.host || "").trim();
