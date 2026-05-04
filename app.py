@@ -1142,6 +1142,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
         return base
     merged = {**base, **data}
     _normalize_print_compulsory_key(merged)
+    _coalesce_printer_allow_nulls(merged)
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",
@@ -1324,6 +1325,19 @@ def _normalize_print_compulsory_key(merged: dict) -> None:
     merged.pop("printing_compulsory_sale", None)
 
 
+def _coalesce_printer_allow_nulls(merged: dict) -> None:
+    """
+    JSON null / Python None for printer_allow_* must inherit defaults (allowed).
+
+    Otherwise ``merged.get(k) in (True, ...)`` treats None as falsy and disables every
+    connection type on hosted DBs — hiding USB in POS setup and forcing compulsory off in sync.
+    """
+    defaults = _default_printing_settings()
+    for k in ("printer_allow_bluetooth", "printer_allow_network", "printer_allow_usb"):
+        if merged.get(k) is None:
+            merged[k] = defaults[k]
+
+
 def _shop_pos_payment_method_allowed(shop: dict, method: str) -> bool:
     m = (method or "").strip().lower()
     ps = _effective_printing_settings_for_shop(shop)
@@ -1390,6 +1404,7 @@ def _load_printing_settings() -> dict:
         data = {}
     merged = {**defaults, **data}
     _normalize_print_compulsory_key(merged)
+    _coalesce_printer_allow_nulls(merged)
     for k in (
         "print_compulsory_sale",
         "allow_line_price_edit",

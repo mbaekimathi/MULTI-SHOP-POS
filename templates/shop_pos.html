@@ -3423,6 +3423,27 @@
       var NETWORK_ESC_POS_API = {{ url_for('shop_pos_printer_send_escpos', shop_id=shop.id)|tojson }};
       var PRINTER_LS_KEY = "richcom-shop-pos-printer-local-" + SHOP_ID;
       window.POS_PRINTING = {{ pos_printing_settings|tojson }};
+      /* Hosted DBs sometimes store JSON null for printer flags — coerce before allow-list UI runs. */
+      (function () {
+        var p = window.POS_PRINTING;
+        if (!p || typeof p !== "object") return;
+        function triAllow(v) {
+          if (v === null || v === undefined) return true;
+          if (v === false || v === 0 || v === "0") return false;
+          if (typeof v === "string") {
+            var s = v.trim().toLowerCase();
+            if (s === "false" || s === "no" || s === "off") return false;
+            if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
+          }
+          return !!v;
+        }
+        p.printer_allow_bluetooth = triAllow(p.printer_allow_bluetooth);
+        p.printer_allow_network = triAllow(p.printer_allow_network);
+        p.printer_allow_usb = triAllow(p.printer_allow_usb);
+        if (p.print_compulsory_sale === null || p.print_compulsory_sale === undefined) {
+          p.print_compulsory_sale = false;
+        }
+      })();
       window.POS_RECEIPT_SETTINGS = {{ pos_receipt_settings|tojson }};
       {% if shop.shop_logo %}
         {% set receipt_logo_url = url_for('static', filename=shop.shop_logo) %}
