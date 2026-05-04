@@ -101,11 +101,11 @@ def is_hosted_deployment() -> bool:
     return v in ("1", "true", "yes")
 
 
-DEFAULT_MYSQL_DATABASE = "MERUPORK-HOTEL"
+DEFAULT_MYSQL_DATABASE = "SCARLET-BAR"
 
 
 def _safe_database_name(raw: Optional[str]) -> str:
-    """Allow only safe MySQL identifier characters; default MERUPORK-HOTEL."""
+    """Allow only safe MySQL identifier characters; default SCARLET-BAR."""
     name = (raw or DEFAULT_MYSQL_DATABASE).strip()
     if not name or not re.match(r"^[a-zA-Z0-9_-]+$", name):
         return DEFAULT_MYSQL_DATABASE
@@ -146,7 +146,19 @@ def _config(include_database: bool = True):
 
 
 def get_connection():
-    return pymysql.connect(**_config())
+    """Open a connection to the configured database (default ``SCARLET-BAR``).
+
+    If the schema does not exist yet (MySQL 1049), create it with
+    :func:`ensure_database_exists` and retry once.
+    """
+    try:
+        return pymysql.connect(**_config())
+    except pymysql.Error as e:
+        errno = e.args[0] if getattr(e, "args", None) else None
+        if errno == 1049:
+            ensure_database_exists()
+            return pymysql.connect(**_config())
+        raise
 
 
 def _analytics_where_clause(analytics_filter: dict, alias: str = ""):

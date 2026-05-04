@@ -486,32 +486,36 @@
           display: inline-flex;
         }
       }
-      body:has(.form-auth-bg--accent-purple) .auth-top-bar {
+      /* Home: always visible, top-right after theme toggle */
+      .auth-top-bar__nav .auth-top-bar__home {
+        display: inline-flex;
+      }
+      body:has(.form-auth-bg--has-topbar) .auth-top-bar {
         border-bottom-color: rgba(124, 58, 237, 0.28);
         background: rgba(9, 9, 11, 0.92);
       }
-      html[data-theme="light"] body:has(.form-auth-bg--accent-purple) .auth-top-bar {
+      html[data-theme="light"] body:has(.form-auth-bg--has-topbar) .auth-top-bar {
         border-bottom-color: rgba(124, 58, 237, 0.22);
         background: rgba(255, 255, 255, 0.94);
       }
-      body:has(.form-auth-bg--accent-purple) .auth-top-bar__brand {
+      body:has(.form-auth-bg--has-topbar) .auth-top-bar__brand {
         color: rgb(250 250 250);
       }
-      html[data-theme="light"] body:has(.form-auth-bg--accent-purple) .auth-top-bar__brand {
+      html[data-theme="light"] body:has(.form-auth-bg--has-topbar) .auth-top-bar__brand {
         color: rgb(24 24 27);
       }
-      body:has(.form-auth-bg--accent-purple) .auth-top-bar__brand-mark {
+      body:has(.form-auth-bg--has-topbar) .auth-top-bar__brand-mark {
         background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
       }
-      body:has(.form-auth-bg--accent-purple) .auth-top-bar__nav a:hover {
+      body:has(.form-auth-bg--has-topbar) .auth-top-bar__nav a:hover {
         color: rgb(196 181 253);
         background: rgba(124, 58, 237, 0.14);
       }
-      html[data-theme="light"] body:has(.form-auth-bg--accent-purple) .auth-top-bar__nav a:hover {
+      html[data-theme="light"] body:has(.form-auth-bg--has-topbar) .auth-top-bar__nav a:hover {
         color: rgb(91 33 182);
         background: rgba(124, 58, 237, 0.1);
       }
-      html[data-theme="dark"] body:has(.form-auth-bg--accent-purple) .auth-top-bar__nav a:hover {
+      html[data-theme="dark"] body:has(.form-auth-bg--has-topbar) .auth-top-bar__nav a:hover {
         color: rgb(221 214 254);
         background: rgba(124, 58, 237, 0.16);
       }
@@ -583,6 +587,69 @@
         .auth-simple-page .form-card-modern--wide {
           max-width: 36rem;
         }
+      }
+
+      /* /login vs /shop-login — different page wash + card accent (simple auth only) */
+      .auth-simple-page.form-auth-bg--accent-purple.form-auth-bg--employee {
+        background-color: rgb(var(--rc-page-bg));
+        background-image: radial-gradient(ellipse 120% 85% at 50% -25%, rgba(124, 58, 237, 0.16), transparent 58%),
+          radial-gradient(ellipse 90% 55% at 100% 100%, rgba(91, 33, 182, 0.09), transparent 52%);
+      }
+      html[data-theme="light"] .auth-simple-page.form-auth-bg--accent-purple.form-auth-bg--employee {
+        background-image: radial-gradient(ellipse 120% 85% at 50% -20%, rgba(124, 58, 237, 0.11), transparent 55%),
+          radial-gradient(ellipse 85% 50% at 100% 100%, rgba(167, 139, 250, 0.06), transparent 48%);
+      }
+      html[data-theme="dark"] .auth-simple-page.form-auth-bg--accent-purple.form-auth-bg--employee {
+        background-image: radial-gradient(ellipse 120% 85% at 50% -25%, rgba(124, 58, 237, 0.22), transparent 58%),
+          radial-gradient(ellipse 90% 55% at 100% 100%, rgba(91, 33, 182, 0.14), transparent 52%);
+      }
+      .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) {
+        background-color: rgb(var(--rc-page-bg));
+        background-image: radial-gradient(ellipse 120% 85% at 50% -25%, rgba(13, 148, 136, 0.14), transparent 58%),
+          radial-gradient(ellipse 90% 50% at 0% 100%, rgba(45, 212, 191, 0.1), transparent 52%);
+      }
+      html[data-theme="light"] .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) {
+        background-image: radial-gradient(ellipse 120% 85% at 50% -18%, rgba(13, 148, 136, 0.1), transparent 52%),
+          radial-gradient(ellipse 80% 45% at 0% 100%, rgba(45, 212, 191, 0.07), transparent 48%);
+      }
+      html[data-theme="dark"] .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) {
+        background-image: radial-gradient(ellipse 120% 85% at 50% -25%, rgba(45, 212, 191, 0.16), transparent 58%),
+          radial-gradient(ellipse 90% 50% at 0% 100%, rgba(13, 148, 136, 0.12), transparent 52%);
+      }
+      .auth-simple-page.form-auth-bg--employee .form-card-modern--employee-login {
+        border-top: 3px solid rgb(124 58 237);
+      }
+      .auth-simple-page.form-auth-bg--shop .form-card-modern--shop-login {
+        border-top: 3px solid rgb(20 184 166);
+      }
+      .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .form-input-wrap:focus-within {
+        border-color: rgb(13 148 136);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(13, 148, 136, 0.18),
+          0 12px 28px rgba(13, 148, 136, 0.08);
+      }
+      .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .form-input-wrap:focus-within .form-input-icon {
+        color: rgb(13 148 136);
+      }
+      .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .form-input-rich:focus {
+        border-color: rgb(13 148 136);
+        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 4px rgba(13, 148, 136, 0.16);
+      }
+      .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .toggle-password:hover {
+        color: rgb(13 148 136);
+        background: rgba(13, 148, 136, 0.1);
+      }
+      .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .toggle-password:focus-visible {
+        outline: 2px solid rgb(13 148 136);
+        outline-offset: 2px;
+      }
+      html[data-theme="dark"] .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .form-input-rich:focus {
+        border-color: rgb(45 212 191);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(45, 212, 191, 0.18);
+      }
+      html[data-theme="dark"] .auth-simple-page.form-auth-bg--shop:not(.form-auth-bg--accent-purple) .form-input-wrap:focus-within {
+        border-color: rgb(45 212 191);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 4px rgba(45, 212, 191, 0.14),
+          0 12px 28px rgba(0, 0, 0, 0.35);
       }
 
       /* Modern auth & forms */
@@ -1526,16 +1593,25 @@
         color: rgb(221 214 254);
       }
 
-      /* Auth — charcoal + purple (matches public marketing) */
-      .form-auth-bg--accent-purple.form-auth-bg--employee,
-      .form-auth-bg--accent-purple.form-auth-bg--shop {
+      /* Auth — charcoal + purple (matches public marketing); shop simple page omits accent for teal identity */
+      .form-auth-bg--accent-purple.form-auth-bg--employee {
         background-color: #09090b;
         background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(124, 58, 237, 0.14), transparent 55%),
           radial-gradient(ellipse 70% 50% at 100% 0%, rgba(124, 58, 237, 0.08), transparent 52%),
           linear-gradient(180deg, #09090b 0%, #18181b 100%);
       }
-      html[data-theme="light"] .form-auth-bg--accent-purple.form-auth-bg--employee,
-      html[data-theme="light"] .form-auth-bg--accent-purple.form-auth-bg--shop {
+      html[data-theme="light"] .form-auth-bg--accent-purple.form-auth-bg--employee {
+        background-color: #fafafa;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(124, 58, 237, 0.09), transparent 55%),
+          linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%);
+      }
+      .form-auth-bg--accent-purple.form-auth-bg--shop:not(.auth-simple-page) {
+        background-color: #09090b;
+        background-image: radial-gradient(ellipse 100% 80% at 50% -30%, rgba(124, 58, 237, 0.14), transparent 55%),
+          radial-gradient(ellipse 70% 50% at 100% 0%, rgba(124, 58, 237, 0.08), transparent 52%),
+          linear-gradient(180deg, #09090b 0%, #18181b 100%);
+      }
+      html[data-theme="light"] .form-auth-bg--accent-purple.form-auth-bg--shop:not(.auth-simple-page) {
         background-color: #fafafa;
         background-image: radial-gradient(ellipse 100% 80% at 50% -20%, rgba(124, 58, 237, 0.09), transparent 55%),
           linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%);
@@ -1623,16 +1699,19 @@
       }
 
       /* Shop login card — business-friendly copy hierarchy & calmer type */
-      .form-auth-bg--accent-purple.form-auth-bg--shop .form-card-modern--shop-login .form-label {
+      .form-auth-bg--accent-purple.form-auth-bg--shop .form-card-modern--shop-login .form-label,
+      .auth-simple-page.form-auth-bg--shop .form-card-modern--shop-login .form-label {
         text-transform: none;
         letter-spacing: 0.02em;
         font-size: 0.8125rem;
         font-weight: 600;
       }
-      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .form-card-modern--shop-login .form-label {
+      html[data-theme="dark"] .form-auth-bg--accent-purple.form-auth-bg--shop .form-card-modern--shop-login .form-label,
+      html[data-theme="dark"] .auth-simple-page.form-auth-bg--shop .form-card-modern--shop-login .form-label {
         color: rgb(226 232 240);
       }
-      .form-auth-bg--accent-purple.form-auth-bg--shop .btn-modern--shop {
+      .form-auth-bg--accent-purple.form-auth-bg--shop .btn-modern--shop,
+      .auth-simple-page.form-auth-bg--shop .btn-modern--shop {
         text-transform: none;
         letter-spacing: 0.03em;
         font-size: 0.9375rem;

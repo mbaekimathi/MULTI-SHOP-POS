@@ -1,25 +1,29 @@
 {% extends "shop_layout.html" %}
 {% block title %}Receipts — {{ shop.shop_name }}{% endblock %}
 {% block shop_page_title %}Receipts{% endblock %}
-{% block shop_sidebar_links %}
-  {% set _shop_nav_role = portal_employee.role_key if portal_employee else (session.get('employee_role') or '') %}
-  {% set pos_show_kitchen_nav = (pos_inventory_mode|default('')) in ('kitchen', 'both') %}
-  {% if pos_show_kitchen_nav %}
-  <a href="{{ url_for('shop_kitchen_portions', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Kitchen portions</a>
-  {% endif %}
-  <a href="{{ url_for('shop_dashboard', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop dashboard</a>
-  <a href="{{ url_for('shop_pos', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Point of sale</a>
+{% block shop_sidebar_primary_nav %}
   <a
-    href="{{ url_for('shop_receipts', shop_id=shop.id) }}"
-    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25"
-    aria-current="page"
+    href="{{ url_for('shop_pos', shop_id=shop.id) }}"
+    class="flex items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+    aria-label="Back to point of sale"
+    title="Back to POS"
   >
-    Receipts
+    <svg class="h-5 w-5 shrink-0 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
   </a>
-  {% if _shop_nav_role in ('admin', 'manager', 'super_admin', 'it_support') %}
-  <a href="{{ url_for('shop_settings_receipt', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Receipt settings</a>
-  {% endif %}
+  <a
+    href="{{ url_for('shop_dashboard', shop_id=shop.id) }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+    </svg>
+    Dashboard
+  </a>
 {% endblock %}
+
+{% block shop_sidebar_util_links %}{% endblock %}
 
 {% block shop_content %}
   {% set _shop_nav_role = portal_employee.role_key if portal_employee else (session.get('employee_role') or '') %}
