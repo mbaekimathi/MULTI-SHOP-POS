@@ -85,7 +85,7 @@
         </button>
       </div>
       <p class="text-xs text-[rgb(var(--rc-muted))]">
-        Tip: leave quantity blank to skip a row. Stock out requires reason and refund choice per filled row over zero qty.
+        Tip: leave quantity blank to skip a row. Quantities may be decimals (e.g. 0.25 kg). Stock out requires reason and refund choice per filled row over zero qty.
       </p>
     </div>
     <div class="mb-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
@@ -161,12 +161,12 @@
                   <td class="px-3 py-2.5">
                     <input
                       name="in_qty_{{ it.id }}"
-                      type="number"
-                      min="0"
-                      step="any"
+                      type="text"
+                      inputmode="decimal"
                       autocomplete="off"
                       class="w-24 max-w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-emerald-500/25"
-                      placeholder="—"
+                      placeholder="0 or 1.25"
+                      title="Whole or decimal quantity (use . or , as decimal separator)"
                     />
                   </td>
                   <td class="px-3 py-2.5">
@@ -267,12 +267,12 @@
                   <td class="px-3 py-2.5">
                     <input
                       name="out_qty_{{ it.id }}"
-                      type="number"
-                      min="0"
-                      step="any"
+                      type="text"
+                      inputmode="decimal"
                       autocomplete="off"
                       class="w-24 max-w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-rose-500/25"
-                      placeholder="—"
+                      placeholder="0 or 1.25"
+                      title="Whole or decimal quantity (use . or , as decimal separator)"
                     />
                   </td>
                   <td class="px-3 py-2.5">

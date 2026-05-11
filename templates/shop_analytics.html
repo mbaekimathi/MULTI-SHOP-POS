@@ -21,7 +21,6 @@
 {% block shop_page_title %}{{ _report_label }}{% endblock %}
 {% block shop_sidebar_links %}
   {% set av = analytics_view or 'revenue' %}
-  {% set _shop_nav_role = portal_employee.role_key if portal_employee else (session.get('employee_role') or '') %}
   {% set _ascope = request.args.get('analytics_scope') or 'general' %}
   <a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id, analytics_scope=_ascope) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'revenue' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -67,7 +66,7 @@
     </svg>
     Stock status
   </a>
-  {% if _shop_nav_role in ('admin', 'manager') %}
+  {% if shop_shell_can('receipts_nav') %}
   <a href="{{ url_for('shop_receipts', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />

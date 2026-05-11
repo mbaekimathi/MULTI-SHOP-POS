@@ -100,7 +100,7 @@
                     </td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ "%.2f"|format(item.price) }}</td>
                     <td class="px-4 py-3 align-top">
-                      {% if (session.get('shop_id')|default(-1)|int == shop.id|int) or ((session.get('employee_role') or '') in ['super_admin', 'it_support']) %}
+                      {% if shop_shell_can('manage_items') %}
                         <form
                           method="post"
                           action="{{ url_for('shop_item_update_selling_price', shop_id=shop.id, item_id=item.id) }}"
@@ -124,7 +124,7 @@
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.shop_stock_qty }}</td>
 
                     <td class="px-4 py-3">
-                      {% if (session.get('shop_id')|default(-1)|int == shop.id|int) or ((session.get('employee_role') or '') in ['super_admin', 'it_support']) %}
+                      {% if shop_shell_can('manage_items') %}
                         <form method="post" action="{{ url_for('shop_item_toggle_displayed', shop_id=shop.id, item_id=item.id) }}">
                           <div class="flex items-center justify-start gap-3">
                             <button
@@ -176,7 +176,7 @@
                     </td>
 
                     <td class="px-4 py-3">
-                      {% if (session.get('shop_id')|default(-1)|int == shop.id|int) or ((session.get('employee_role') or '') in ['super_admin', 'it_support']) %}
+                      {% if shop_shell_can('manage_items') %}
                         <form method="post" action="{{ url_for('shop_item_toggle_stock_update_enabled', shop_id=shop.id, item_id=item.id) }}">
                           <div class="flex items-center justify-start gap-3">
                             <button

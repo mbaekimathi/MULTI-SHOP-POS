@@ -3181,7 +3181,7 @@
           </div>
           <div>
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
-            <input name="qty" type="number" min="0.0001" step="any" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
+            <input name="qty" type="number" min="0.0001" step="any" inputmode="decimal" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
           </div>
           <div>
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Buying price</label>
@@ -3340,8 +3340,9 @@
           <input
             id="pos-incoming-sr-qty"
             type="number"
-            min="1"
-            step="1"
+            min="0.0001"
+            step="any"
+            inputmode="decimal"
             class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm font-semibold tabular-nums text-[rgb(var(--rc-page-fg))] outline-none"
           />
           <p id="pos-incoming-sr-qty-hint" class="text-[11px] text-[rgb(var(--rc-muted))]"></p>
@@ -9707,8 +9708,8 @@
             return isNaN(kk) ? 0 : kk;
           }
           if (mode === "none") return 999999999;
-          var ss = parseInt(row.shop_stock_qty, 10);
-          return isNaN(ss) ? 0 : ss;
+          var ss = parseFloat(row.shop_stock_qty);
+          return isFinite(ss) ? ss : 0;
         }
         function applyCatalogStockRows(list) {
           if (!list || !list.length) return;
@@ -9722,13 +9723,13 @@
             var row = map[id];
             if (!row) return;
             var q = posEffectiveQtyFromCatalogRow(row, mode);
-            var prev = parseInt(btn.getAttribute("data-stock"), 10);
-            if (isNaN(prev)) prev = 0;
+            var prev = parseFloat(btn.getAttribute("data-stock"));
+            if (!isFinite(prev)) prev = 0;
             btn.setAttribute("data-stock", String(q));
             var kp = parseInt(row.kitchen_portions, 10);
-            var sq = parseInt(row.shop_stock_qty, 10);
+            var sq = parseFloat(row.shop_stock_qty);
             if (isNaN(kp)) kp = 0;
-            if (isNaN(sq)) sq = 0;
+            if (!isFinite(sq)) sq = 0;
             btn.setAttribute("data-kitchen-portions", String(kp));
             btn.setAttribute("data-shop-stock", String(sq));
             if (row.price != null && !isNaN(parseFloat(row.price))) {
@@ -11482,9 +11483,11 @@
           pn.textContent = r.note;
           detailEl.appendChild(pn);
         }
-        var rq = parseInt(String(r.qty || 0), 10) || 0;
+        var rq = Number(r.qty);
+        if (!isFinite(rq) || rq <= 0) rq = 0;
         var mx = typeof r.max_approve_qty === "number" ? r.max_approve_qty : 0;
         var src = typeof r.source_shop_stock_qty === "number" ? r.source_shop_stock_qty : 0;
+        var qtyEps = 1e-9;
         if (queueHint) {
           queueHint.textContent =
             total > 1
@@ -11501,8 +11504,8 @@
             rq +
             ").";
         }
-        var cap = mx > 0 ? Math.min(rq, mx) : 0;
-        if (cap < 1) {
+        var cap = mx > qtyEps ? Math.min(rq, mx) : 0;
+        if (!(cap > qtyEps)) {
           qtyEl.disabled = true;
           qtyEl.value = "";
           if (approveBtn) approveBtn.disabled = true;
@@ -11512,7 +11515,8 @@
           }
         } else {
           qtyEl.disabled = false;
-          qtyEl.min = 1;
+          qtyEl.min = "0.0001";
+          qtyEl.step = "any";
           qtyEl.max = cap;
           qtyEl.value = String(cap);
           if (approveBtn) approveBtn.disabled = false;
@@ -11573,14 +11577,21 @@
         }
         var body = { action: action, employee_code: code };
         if (action === "approve") {
-          var q = parseInt(String(qtyEl.value || "0"), 10);
-          var cap = typeof r.max_approve_qty === "number" ? r.max_approve_qty : 0;
-          var rq = parseInt(String(r.qty || 0), 10) || 0;
-          if (!(q >= 1) || q > rq) {
-            showErr("Enter a valid quantity (1–" + rq + ").");
+          var qEps = 1e-9;
+          var rawQ = String(qtyEl.value || "").replace(",", ".").trim();
+          var q = parseFloat(rawQ);
+          if (!isFinite(q) || !(q > qEps)) {
+            showErr("Enter a valid quantity greater than zero.");
             return;
           }
-          if (cap >= 1 && q > cap) {
+          var cap = typeof r.max_approve_qty === "number" ? r.max_approve_qty : 0;
+          var rq = Number(r.qty);
+          if (!isFinite(rq) || rq <= 0) rq = 0;
+          if (q - rq > qEps) {
+            showErr("Quantity cannot exceed the requested amount (" + rq + ").");
+            return;
+          }
+          if (cap > qEps && q - cap > qEps) {
             showErr("Quantity cannot exceed available stock here (" + cap + ").");
             return;
           }

@@ -147,12 +147,13 @@
                       <td class="px-3 py-2 whitespace-nowrap">
                         <input
                           name="qty_{{ it.id }}"
-                          type="number"
-                          min="0"
-                          step="any"
+                          type="text"
+                          inputmode="decimal"
+                          autocomplete="off"
                           value=""
                           class="js-stock-qty-input js-request-stock-qty w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm"
-                          placeholder="0"
+                          placeholder="0 or 1.25"
+                          title="Whole or decimal quantity (use . or , as decimal separator)"
                         />
                       </td>
                       <td class="px-3 py-2 min-w-[140px]">

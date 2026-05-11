@@ -73,6 +73,87 @@ STATUS_LABELS = {
 
 VALID_ROLES = frozenset(ROLE_LABELS)
 
+# Branch roles super_admin / IT support can simulate in the shop shell (UI preview only; APIs keep real session role).
+SHOP_UI_PREVIEW_ROLES: Tuple[str, ...] = ("manager", "admin", "sales", "finance", "employee", "rider")
+SHOP_UI_PREVIEW_ROLE_SET = frozenset(SHOP_UI_PREVIEW_ROLES)
+
+
+def _shop_role_preview_template_ctx(role_key: str) -> dict[str, Any]:
+    rk = (role_key or "employee").strip().lower()
+    if rk not in VALID_ROLES:
+        rk = "employee"
+    preview_raw = (session.get("shop_role_preview") or "").strip().lower()
+    preview_allowed = rk in ("super_admin", "it_support")
+    active = bool(preview_allowed and preview_raw in SHOP_UI_PREVIEW_ROLE_SET)
+    ui_role = preview_raw if active else rk
+    if ui_role not in VALID_ROLES:
+        ui_role = rk
+    return {
+        "shop_ui_role": ui_role,
+        "shop_role_preview_active": active,
+        "shop_role_preview_label": ROLE_LABELS.get(ui_role, ui_role) if active else None,
+        "shop_show_it_branch_controls": preview_allowed and not active,
+        "shop_role_preview_options": SHOP_UI_PREVIEW_ROLES,
+    }
+
+
+# Shop shell sidebar / pages (respects super-admin & IT "view as" preview via session.shop_role_preview).
+SHOP_SHELL_CAN_ROLES: dict[str, frozenset[str]] = {
+    "manage_items": frozenset({"manager", "admin"}),
+    "stock": frozenset({"manager", "admin"}),
+    "kitchen_portions": frozenset({"manager", "admin"}),
+    "hr": frozenset({"manager", "admin"}),
+    "audits": frozenset({"manager", "admin"}),
+    "analytics": frozenset({"manager", "admin", "sales", "finance", "employee", "rider"}),
+    "receipts_nav": frozenset({"manager", "admin", "finance"}),
+    "receipt_mark": frozenset({"manager", "admin", "finance"}),
+    "credit_payments": frozenset({"manager", "admin", "finance", "sales"}),
+    "settings": frozenset({"manager", "admin"}),
+}
+
+
+def _session_shop_shell_role_key() -> str:
+    """Effective branch UI role for shop-shell RBAC (preview-aware)."""
+    uid = session.get("employee_id")
+    if not uid:
+        return "manager" if session.get("shop_id") else ""
+    try:
+        from database import get_employee_by_id
+
+        emp = get_employee_by_id(int(uid))
+        rk = (emp.get("role") if emp else None) or session.get("employee_role") or "employee"
+        rk = str(rk or "employee").strip().lower()
+        if rk not in VALID_ROLES:
+            rk = "employee"
+    except Exception:
+        rk = str(session.get("employee_role") or "employee").strip().lower()
+        if rk not in VALID_ROLES:
+            rk = "employee"
+    ctx = _shop_role_preview_template_ctx(rk)
+    return str(ctx.get("shop_ui_role") or rk)
+
+
+def _session_shop_shell_it_without_preview() -> bool:
+    er = str(session.get("employee_role") or "").strip().lower()
+    if er not in ("super_admin", "it_support"):
+        return False
+    preview_raw = str(session.get("shop_role_preview") or "").strip().lower()
+    return preview_raw not in SHOP_UI_PREVIEW_ROLE_SET
+
+
+@app.template_global()
+def shop_shell_can(op: str) -> bool:
+    """Return True if the current session may see/use shop-shell capability ``op`` (honours role preview)."""
+    if _session_shop_shell_it_without_preview():
+        return True
+    rk = _session_shop_shell_role_key()
+    if not rk:
+        return False
+    allowed = SHOP_SHELL_CAN_ROLES.get(str(op or "").strip().lower())
+    if allowed is None:
+        return False
+    return rk in allowed
+
 
 def _redirect_to_employee_dashboard():
     """Redirect super_admin / it_support to company portal; others to allocated shop if set."""
@@ -96,6 +177,59 @@ def _redirect_to_employee_dashboard():
         except Exception:
             pass
     return redirect(url_for("employee_dashboard", role=role_key))
+
+
+def _safe_login_next(next_url: str) -> bool:
+    """Reject open redirects (``//evil``) while allowing same-origin paths."""
+    u = (next_url or "").strip()
+    return u.startswith("/") and not u.startswith("//")
+
+
+def _parse_next_shop_id(next_url: str) -> Optional[int]:
+    """If ``next_url`` targets ``/shops/<id>/...``, return that shop id."""
+    if not _safe_login_next(next_url):
+        return None
+    path = urlparse(next_url).path.strip("/")
+    parts = path.split("/")
+    if len(parts) >= 2 and parts[0] == "shops" and parts[1].isdigit():
+        try:
+            sid = int(parts[1])
+            return sid if sid > 0 else None
+        except ValueError:
+            return None
+    return None
+
+
+def _redirect_login_preserving_next():
+    """After failed POST /login, preserve optional continuation ``next`` query."""
+    nxt = (request.form.get("next") or "").strip()
+    if _safe_login_next(nxt):
+        return redirect(url_for("employee_login", next=nxt))
+    return redirect(url_for("employee_login"))
+
+
+def _session_may_follow_login_next(next_url: str):
+    """
+    Logged-in portal user visits GET /login?next=...
+    Honor branch URLs when IT/support or employee may use that shop (multi-branch aware).
+    """
+    if not _safe_login_next(next_url):
+        return None
+    target_sid = _parse_next_shop_id(next_url)
+    if target_sid is None:
+        return None
+    role_key = session.get("employee_role") or "employee"
+    if role_key in ("super_admin", "it_support"):
+        return redirect(next_url)
+    try:
+        from database import get_employee_by_id, employee_may_use_shop_branch
+
+        emp = get_employee_by_id(int(session.get("employee_id") or 0))
+        if emp and employee_may_use_shop_branch(emp, target_sid):
+            return redirect(next_url)
+    except Exception:
+        pass
+    return None
 
 
 def _is_role_dashboard_path(path: str) -> bool:
@@ -335,6 +469,13 @@ def static_upload_url(path) -> str:
     return url_for("static", filename=s)
 
 
+@app.template_global()
+def role_label(key: str) -> str:
+    """Human-readable role title for templates (e.g. shop role preview dropdown)."""
+    k = (key or "").strip().lower()
+    return str(ROLE_LABELS.get(k, key or ""))
+
+
 @app.context_processor
 def inject_site_settings():
     defaults = {
@@ -366,7 +507,19 @@ def inject_portal_context():
     """Nav + portal shell: profile, role, links (DB row when logged in)."""
     uid = session.get("employee_id")
     if not uid:
-        return {"nav_employee": None, "portal_employee": None}
+        out = {
+            "nav_employee": None,
+            "portal_employee": None,
+            "shop_ui_role": None,
+            "shop_role_preview_active": False,
+            "shop_role_preview_label": None,
+            "shop_show_it_branch_controls": False,
+            "shop_role_preview_options": SHOP_UI_PREVIEW_ROLES,
+        }
+        # Shop-password session (no employee portal): treat UI like branch lead for legacy POS/tablet flows.
+        if session.get("shop_id"):
+            out["shop_ui_role"] = "manager"
+        return out
     try:
         from database import get_employee_by_id
 
@@ -382,6 +535,7 @@ def inject_portal_context():
                 "dashboard_url": url_for("employee_dashboard", role=role_key),
             },
             "portal_employee": None,
+            **_shop_role_preview_template_ctx(role_key),
         }
     role_key = emp.get("role") or "employee"
     if role_key not in VALID_ROLES:
@@ -410,6 +564,7 @@ def inject_portal_context():
             "dashboard_url": pe["dashboard_url"],
         },
         "portal_employee": pe,
+        **_shop_role_preview_template_ctx(role_key),
         **extra,
     }
 
@@ -691,15 +846,20 @@ def public_shop_login():
 @app.route("/login", methods=["GET", "POST"])
 def employee_login():
     if session.get("employee_id"):
+        next_q = (request.args.get("next") or "").strip()
+        follow = _session_may_follow_login_next(next_q)
+        if follow is not None:
+            return follow
         return _redirect_to_employee_dashboard()
 
     if request.method == "POST":
+        next_url = (request.form.get("next") or "").strip()
         code = (request.form.get("employee_code") or "").strip()
         password = request.form.get("password") or ""
 
         if not CODE_RE.match(code) or not password:
             flash("Enter your 6-digit code and password.", "error")
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
 
         try:
             from database import get_employee_by_code
@@ -707,22 +867,22 @@ def employee_login():
             row = get_employee_by_code(code)
         except Exception:
             flash("Unable to sign in right now. Try again later.", "error")
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
 
         if not row or not check_password_hash(row["password_hash"], password):
             flash("Invalid employee code or password.", "error")
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
 
         status = row["status"]
         if status == "pending_approval":
             flash("Your account is pending approval. You will be notified when it is active.", "warning")
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
         if status == "suspended":
             flash("Your account is suspended. Contact your administrator.", "warning")
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
         if status != "active":
             flash("You cannot sign in with this account.", "warning")
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
 
         # Replace any shop-password session; employee login owns the session from here.
         session.pop("shop_id", None)
@@ -732,7 +892,6 @@ def employee_login():
         session["employee_name"] = row["full_name"]
         session["employee_role"] = row.get("role") or "employee"
         role_key = session.get("employee_role") or "employee"
-        next_url = (request.form.get("next") or "").strip()
 
         if role_key in ("super_admin", "it_support"):
             if next_url.startswith("/") and not next_url.startswith("//"):
@@ -757,7 +916,7 @@ def employee_login():
             session.pop("employee_id", None)
             session.pop("employee_name", None)
             session.pop("employee_role", None)
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
 
         try:
             from database import get_shop_by_id
@@ -770,7 +929,7 @@ def employee_login():
             session.pop("employee_id", None)
             session.pop("employee_name", None)
             session.pop("employee_role", None)
-            return redirect(url_for("employee_login"))
+            return _redirect_login_preserving_next()
 
         session["shop_id"] = int(alloc_shop["id"])
         session["shop_name"] = alloc_shop.get("shop_name")
@@ -781,6 +940,17 @@ def employee_login():
             # not be sent back to the POS screen immediately.
             if next_path == f"/shops/{alloc_shop_id}/shop-pos":
                 return redirect(url_for("shop_dashboard", shop_id=alloc_shop_id))
+            target_next_sid = _parse_next_shop_id(next_url)
+            if target_next_sid is not None:
+                try:
+                    from database import employee_may_use_shop_branch
+
+                    if not employee_may_use_shop_branch(row, target_next_sid):
+                        flash("You don't have access to that branch.", "error")
+                        return redirect(url_for("shop_dashboard", shop_id=alloc_shop_id))
+                except Exception:
+                    flash("You don't have access to that branch.", "error")
+                    return redirect(url_for("shop_dashboard", shop_id=alloc_shop_id))
             return redirect(next_url)
         return redirect(url_for("shop_dashboard", shop_id=alloc_shop_id))
 
@@ -795,6 +965,7 @@ def employee_logout():
     session.pop("employee_role", None)
     session.pop("shop_id", None)
     session.pop("shop_name", None)
+    session.pop("shop_role_preview", None)
     flash("You have been signed out.", "success")
     if had_employee:
         return redirect(url_for("employee_login"))
@@ -1979,13 +2150,36 @@ def _require_shop_access(shop: dict):
         session["shop_name"] = shop.get("shop_name")
         return None
 
-    # Shop users must have authenticated session for this exact shop.
-    if int(session.get("shop_id") or 0) != int(shop["id"]):
-        return redirect(url_for("shop_login", shop_id=shop["id"]))
+    shop_id_int = int(shop["id"])
+
+    # Employee portal (manager, admin, staff): may use primary shop_id or linked branches
+    # (employee_shop_access). Session shop_id alone is not enough — it stays on the primary branch.
+    emp_id = session.get("employee_id")
+    if emp_id:
+        try:
+            from database import get_employee_by_id, employee_may_use_shop_branch
+
+            emp = get_employee_by_id(int(emp_id))
+        except Exception:
+            emp = None
+        if emp and employee_may_use_shop_branch(emp, shop_id_int):
+            session["shop_id"] = shop_id_int
+            session["shop_name"] = shop.get("shop_name")
+            if shop.get("status") != "active":
+                flash("This shop is suspended. Contact IT support.", "error")
+                return _redirect_to_employee_dashboard()
+            return None
+        if emp:
+            flash("You don't have access to this shop.", "error")
+            return _redirect_to_employee_dashboard()
+
+    # Shop password sessions (no employee portal): must match branch exactly.
+    if int(session.get("shop_id") or 0) != shop_id_int:
+        return redirect(url_for("shop_login", shop_id=shop_id_int))
 
     if shop.get("status") != "active":
         flash("This shop is suspended. Contact IT support.", "error")
-        return redirect(url_for("shop_login", shop_id=shop["id"]))
+        return redirect(url_for("shop_login", shop_id=shop_id_int))
 
     return None
 
@@ -6602,6 +6796,29 @@ def shop_pos_printer_qr_escpos(shop_id: int):
         logger.exception("shop_pos_printer_qr_escpos failed")
         return jsonify({"ok": False, "error": "Could not build QR"}), 500
     return Response(raw, mimetype="application/octet-stream")
+
+
+@app.route("/shops/<int:shop_id>/role-preview", methods=["POST"])
+def shop_role_preview_set(shop_id: int):
+    """Super admin / IT: simulate a branch role in the shop UI (session flag; APIs remain elevated)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    actual = session.get("employee_role") or ""
+    if actual not in ("super_admin", "it_support"):
+        abort(403)
+    role = (request.form.get("role") or "").strip().lower()
+    next_url = (request.form.get("next") or "").strip()
+    if role in ("", "clear", "actual", "none"):
+        session.pop("shop_role_preview", None)
+    elif role in SHOP_UI_PREVIEW_ROLE_SET:
+        session["shop_role_preview"] = role
+    else:
+        flash("Invalid preview role.", "error")
+    if _safe_login_next(next_url):
+        return redirect(next_url)
+    return redirect(url_for("shop_dashboard", shop_id=shop_id))
 
 
 @app.route("/shops/<int:shop_id>/shop-dashboard")

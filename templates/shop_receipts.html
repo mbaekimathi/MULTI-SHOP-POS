@@ -26,9 +26,8 @@
 {% block shop_sidebar_util_links %}{% endblock %}
 
 {% block shop_content %}
-  {% set _shop_nav_role = portal_employee.role_key if portal_employee else (session.get('employee_role') or '') %}
   {% set f = analytics_filter or {} %}
-  {% set can_mark_receipts = _shop_nav_role in ('admin', 'manager', 'super_admin', 'it_support') %}
+  {% set can_mark_receipts = shop_shell_can('receipt_mark') %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Receipt register</h2>
     <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
