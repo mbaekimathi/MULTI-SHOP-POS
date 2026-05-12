@@ -10,7 +10,7 @@
     </svg>
     Dashboard
   </a>
-  {% if portal_employee.role_key in ('it_support', 'super_admin') and request.endpoint in ('it_support_stock_management', 'it_support_company_stock_analytics') %}
+  {% if portal_employee.role_key in ('it_support', 'super_admin', 'company_manager') and request.endpoint in ('it_support_stock_management', 'it_support_company_stock_analytics') %}
     <a
       href="{{ url_for('it_support_company_stock_analytics') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"

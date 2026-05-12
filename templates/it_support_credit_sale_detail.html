@@ -2,10 +2,6 @@
 {% block title %}Credit sale details — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Credit sale details{% endblock %}
 
-{% block sidebar_links %}
-  <a href="{{ url_for('it_support_credit_payments') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments (all shops)</a>
-{% endblock %}
-
 {% block employee_content %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
     <div class="flex flex-wrap items-start justify-between gap-3">

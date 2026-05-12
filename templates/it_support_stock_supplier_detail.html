@@ -1,9 +1,7 @@
 {% extends "employee_layout.html" %}
 {% block title %}Supplier statement — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Supplier statement{% endblock %}
-{% block sidebar_links %}
-  <a href="{{ url_for('it_support_stock_suppliers') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Back to suppliers</a>
-{% endblock %}
+{% block sidebar_links %}{% endblock %}
 
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
@@ -79,6 +77,7 @@
                     type="button"
                     class="js-payment-open inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
                     data-tx-id="{{ r.tx_id }}"
+                    data-tx-scope="{{ r.tx_scope or 'shop' }}"
                     data-item-name="{{ r.item_name }}"
                     data-qty="{{ r.qty }}"
                     data-buying-price="{{ r.buying_price }}"
@@ -230,6 +229,7 @@
       var qtyEl = document.getElementById("pay-qty");
       var totalEl = document.getElementById("pay-total");
       var alreadyEl = document.getElementById("pay-already");
+      var currentTxScope = "shop";
 
       function fmt(v) { return Number(v || 0).toFixed(2); }
       function parseNum(el) {
@@ -244,6 +244,8 @@
       openBtns.forEach(function (btn) {
         btn.addEventListener("click", function () {
           txIdEl.value = btn.getAttribute("data-tx-id") || "";
+          currentTxScope = (btn.getAttribute("data-tx-scope") || "shop").trim().toLowerCase();
+          if (currentTxScope !== "company") currentTxScope = "shop";
           itemEl.textContent = btn.getAttribute("data-item-name") || "-";
           buyingEl.textContent = fmt(btn.getAttribute("data-buying-price"));
           qtyEl.textContent = btn.getAttribute("data-qty") || "0";
@@ -268,6 +270,7 @@
         var fd = new FormData();
         fd.append("additional_payment", String(add));
         fd.append("fifo", "1");
+        fd.append("tx_scope", currentTxScope);
         fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/payment", {
           method: "POST",
           body: fd

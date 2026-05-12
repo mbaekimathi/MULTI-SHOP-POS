@@ -1,8 +1,8 @@
 """PyMySQL helpers for Richcom Technologies.
 
-All MySQL access uses PyMySQL (`pymysql`). Credentials come from environment variables;
-`.env` is loaded from the project root (same folder as this file) so `MYSQL_*` work even
-if this module is imported before `app.py` runs.
+All MySQL access uses PyMySQL (`pymysql`). Credentials come from the environment:
+``project_env`` loads tracked ``.env.example`` first, then optional ``.env`` (overrides),
+from the project root so ``MYSQL_*`` work even if this module is imported before ``app.py`` runs.
 """
 
 import json
@@ -19,9 +19,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import pymysql
 from pymysql.cursors import DictCursor
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+import project_env  # noqa: F401 — loads .env.example then .env
 
 logger = logging.getLogger(__name__)
 
@@ -113,11 +112,11 @@ def is_hosted_deployment() -> bool:
     return v in ("1", "true", "yes")
 
 
-DEFAULT_MYSQL_DATABASE = "SCARLET-BAR"
+DEFAULT_MYSQL_DATABASE = "richcom"
 
 
 def _safe_database_name(raw: Optional[str]) -> str:
-    """Allow only safe MySQL identifier characters; default SCARLET-BAR."""
+    """Allow only safe MySQL identifier characters; default richcom."""
     name = (raw or DEFAULT_MYSQL_DATABASE).strip()
     if not name or not re.match(r"^[a-zA-Z0-9_-]+$", name):
         return DEFAULT_MYSQL_DATABASE
@@ -158,7 +157,7 @@ def _config(include_database: bool = True):
 
 
 def get_connection():
-    """Open a connection to the configured database (default ``SCARLET-BAR``).
+    """Open a connection to the configured database (default ``richcom``).
 
     If the schema does not exist yet (MySQL 1049), create it with
     :func:`ensure_database_exists` and retry once.
@@ -351,7 +350,7 @@ def init_employees_table():
         password_hash VARCHAR(255) NOT NULL,
         status ENUM('pending_approval', 'active', 'suspended') NOT NULL DEFAULT 'pending_approval',
         role ENUM(
-            'super_admin', 'it_support', 'admin', 'manager',
+            'super_admin', 'it_support', 'company_manager', 'admin', 'manager',
             'sales', 'finance', 'employee', 'rider'
         ) NOT NULL DEFAULT 'employee',
         shop_id INT NULL,
@@ -402,6 +401,18 @@ def init_employees_table():
                 )
             except pymysql.Error:
                 pass
+            cur.execute("SHOW COLUMNS FROM employees LIKE 'role'")
+            role_col = cur.fetchone() or {}
+            role_type = str(role_col.get("Type") or "")
+            if "company_manager" not in role_type.lower():
+                cur.execute(
+                    """
+                    ALTER TABLE employees MODIFY COLUMN role ENUM(
+                        'super_admin', 'it_support', 'company_manager', 'admin', 'manager',
+                        'sales', 'finance', 'employee', 'rider'
+                    ) NOT NULL DEFAULT 'employee'
+                    """
+                )
         logger.info("Table employees is ready.")
         return True
     except pymysql.Error as e:
@@ -946,6 +957,8 @@ def init_stock_transactions_table():
         stock_out_reason VARCHAR(50) NULL,
         refunded TINYINT(1) NOT NULL DEFAULT 0,
         refund_amount DECIMAL(12,2) NULL,
+        payment_status ENUM('pending_payment','partially_paid','paid') NOT NULL DEFAULT 'pending_payment',
+        amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00,
         note VARCHAR(255) NULL,
         created_by_employee_id INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -968,6 +981,17 @@ def init_stock_transactions_table():
                 cur.execute("ALTER TABLE stock_transactions ADD COLUMN refunded TINYINT(1) NOT NULL DEFAULT 0 AFTER stock_out_reason")
             if not column_exists("stock_transactions", "refund_amount"):
                 cur.execute("ALTER TABLE stock_transactions ADD COLUMN refund_amount DECIMAL(12,2) NULL AFTER refunded")
+            if not column_exists("stock_transactions", "payment_status"):
+                cur.execute(
+                    "ALTER TABLE stock_transactions ADD COLUMN payment_status "
+                    "ENUM('pending_payment','partially_paid','paid') NOT NULL DEFAULT 'pending_payment' "
+                    "AFTER refund_amount"
+                )
+            if not column_exists("stock_transactions", "amount_paid"):
+                cur.execute(
+                    "ALTER TABLE stock_transactions ADD COLUMN amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00 "
+                    "AFTER payment_status"
+                )
         logger.info("Table stock_transactions is ready.")
         return True
     except pymysql.Error as e:
@@ -978,31 +1002,17 @@ def init_stock_transactions_table():
 def list_stock_manage_items(limit: int = 500, inventory_mode: Optional[str] = None):
     """Items eligible for stock management: active + stock updates enabled."""
     m = (inventory_mode or "").strip().lower()
-    if m == "kitchen":
-        return []
     if m == "both":
-        init_store_stock_items_table()
-        sql = """
-        SELECT
-            ssi.id,
-            ssi.category,
-            ssi.name,
-            NULL AS image_path,
-            0 AS stock_qty,
-            1 AS stock_update_enabled,
-            ssi.status,
-            0 AS low_stock_threshold,
-            0 AS reorder_level,
-            NULL AS last_buying_price
-        FROM store_stock_items ssi
-        WHERE ssi.status='active'
-        ORDER BY COALESCE(NULLIF(TRIM(ssi.category), ''), 'Uncategorized') ASC, ssi.name ASC
-        LIMIT %s
-        """
-        with get_cursor() as cur:
-            cur.execute(sql, (int(limit),))
-            return cur.fetchall() or []
-    mode_filter = ""
+        if not column_exists("shop_items", "store_stock_registered"):
+            return []
+        mode_filter = """
+    AND EXISTS (
+      SELECT 1 FROM shop_items si0
+      WHERE si0.item_id = i.id AND COALESCE(si0.store_stock_registered,0) = 1
+      LIMIT 1
+    )"""
+    else:
+        mode_filter = ""
     has_levels = column_exists("items", "low_stock_threshold") and column_exists("items", "reorder_level")
     levels_cols = "i.low_stock_threshold, i.reorder_level," if has_levels else ""
     sql = """
@@ -1010,6 +1020,8 @@ def list_stock_manage_items(limit: int = 500, inventory_mode: Optional[str] = No
         i.id,
         i.category,
         i.name,
+        i.price,
+        i.selling_price,
         i.image_path,
         i.stock_qty,
         i.stock_update_enabled,
@@ -1032,6 +1044,77 @@ def list_stock_manage_items(limit: int = 500, inventory_mode: Optional[str] = No
     """.format(levels_cols=levels_cols, mode_filter=mode_filter)
     with get_cursor() as cur:
         cur.execute(sql, (int(limit),))
+        rows = cur.fetchall() or []
+    if has_levels:
+        for r in rows:
+            r["low_stock_threshold"] = int(r.get("low_stock_threshold") or 0)
+            r["reorder_level"] = int(r.get("reorder_level") or 0)
+    else:
+        for r in rows:
+            r["low_stock_threshold"] = 0
+            r["reorder_level"] = 0
+    return rows
+
+
+# IT profitability / reports: include every catalog row the business treats as sellable,
+# not only items flagged for stock management updates.
+IT_SUPPORT_ANALYTICS_ITEMS_MAX = 100_000
+
+
+def list_active_catalog_items_for_it_analytics(
+    limit: int = IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+    inventory_mode: Optional[str] = None,
+):
+    """Active catalog items for IT analytics views (margin, velocity, stock reports).
+
+    Same shape as ``list_stock_manage_items`` but does not require
+    ``stock_update_enabled=1``. Respects ``inventory_mode='both'`` when set.
+    """
+    m = (inventory_mode or "").strip().lower()
+    if m == "both":
+        if not column_exists("shop_items", "store_stock_registered"):
+            return []
+        mode_filter = """
+    AND EXISTS (
+      SELECT 1 FROM shop_items si0
+      WHERE si0.item_id = i.id AND COALESCE(si0.store_stock_registered,0) = 1
+      LIMIT 1
+    )"""
+    else:
+        mode_filter = ""
+    has_levels = column_exists("items", "low_stock_threshold") and column_exists("items", "reorder_level")
+    levels_cols = "i.low_stock_threshold, i.reorder_level," if has_levels else ""
+    lim = int(limit) if limit is not None else IT_SUPPORT_ANALYTICS_ITEMS_MAX
+    lim = max(1, min(lim, IT_SUPPORT_ANALYTICS_ITEMS_MAX))
+    sql = """
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        i.stock_qty,
+        i.stock_update_enabled,
+        i.status,
+        {levels_cols}
+        (
+            SELECT st.buying_price
+            FROM stock_transactions st
+            WHERE st.item_id = i.id
+              AND st.direction = 'in'
+              AND st.buying_price IS NOT NULL
+            ORDER BY st.id DESC
+            LIMIT 1
+        ) AS last_buying_price
+    FROM items i
+    WHERE i.status='active'
+    {mode_filter}
+    ORDER BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') ASC, i.name ASC
+    LIMIT %s
+    """.format(levels_cols=levels_cols, mode_filter=mode_filter)
+    with get_cursor() as cur:
+        cur.execute(sql, (lim,))
         rows = cur.fetchall() or []
     if has_levels:
         for r in rows:
@@ -1068,6 +1151,57 @@ def search_seller_names(prefix: str, limit: int = 8):
     return out
 
 
+def list_registered_sellers_for_report(
+    *,
+    name_or_phone_contains: Optional[str] = None,
+    limit: int = 5000,
+) -> list[dict]:
+    """Every row in ``sellers`` (optional substring on name or phone) for supplier directory UIs."""
+    try:
+        lim = max(1, min(int(limit), 20000))
+    except Exception:
+        lim = 5000
+    q = (name_or_phone_contains or "").strip()
+    if q:
+        like = f"%{q}%"
+        sql = """
+        SELECT id, seller_name, phone
+        FROM sellers
+        WHERE (seller_name LIKE %s OR phone LIKE %s)
+        ORDER BY seller_name ASC, phone ASC
+        LIMIT %s
+        """
+        params = (like, like, lim)
+    else:
+        sql = """
+        SELECT id, seller_name, phone
+        FROM sellers
+        ORDER BY seller_name ASC, phone ASC
+        LIMIT %s
+        """
+        params = (lim,)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        return []
+    out: list[dict] = []
+    for r in rows:
+        nm = (r.get("seller_name") or "").strip() or "-"
+        ph = (r.get("phone") or "").strip() or "-"
+        if nm == "-" and ph == "-":
+            continue
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "seller_name": nm,
+                "seller_phone": ph,
+            }
+        )
+    return out
+
+
 def list_stock_transactions(item_id: int, direction: Optional[str] = None, limit: int = 100):
     if direction in ("in", "out"):
         sql = """
@@ -1083,6 +1217,8 @@ def list_stock_transactions(item_id: int, direction: Optional[str] = None, limit
             st.stock_out_reason,
             st.refunded,
             st.refund_amount,
+            st.payment_status,
+            st.amount_paid,
             st.note,
             st.created_at,
             COALESCE(e.full_name, 'UNKNOWN') AS stocked_by
@@ -1107,6 +1243,8 @@ def list_stock_transactions(item_id: int, direction: Optional[str] = None, limit
             st.stock_out_reason,
             st.refunded,
             st.refund_amount,
+            st.payment_status,
+            st.amount_paid,
             st.note,
             st.created_at,
             COALESCE(e.full_name, 'UNKNOWN') AS stocked_by
@@ -1248,6 +1386,8 @@ def _apply_stock_transaction_on_cursor(
     refund_amount: Optional[float] = None,
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
+    payment_status: Optional[str] = None,
+    amount_paid: Optional[float] = None,
 ) -> bool:
     """Apply one stock movement using an existing cursor (caller manages transaction)."""
     if direction not in ("in", "out"):
@@ -1280,15 +1420,36 @@ def _apply_stock_transaction_on_cursor(
             return False
 
     cur.execute("UPDATE items SET stock_qty=%s WHERE id=%s", (after, int(item_id)))
+    if direction == "in":
+        ps = (payment_status or "pending_payment").strip().lower()
+        if ps not in {"pending_payment", "partially_paid", "paid"}:
+            ps = "pending_payment"
+        if amount_paid is not None:
+            try:
+                ap = max(0.0, float(amount_paid))
+                if not math.isfinite(ap):
+                    ap = 0.0
+            except (TypeError, ValueError):
+                ap = 0.0
+        elif ps == "paid":
+            bp = float(buying_price or 0.0)
+            ap = max(0.0, round(float(n) * bp, 2))
+        else:
+            ap = 0.0
+    else:
+        ps = "pending_payment"
+        ap = 0.0
+
     cur.execute(
         """
         INSERT INTO stock_transactions
             (
                 item_id, direction, qty, stock_before, stock_after,
                 buying_price, place_brought_from, seller_phone, stock_out_reason, refunded, refund_amount,
+                payment_status, amount_paid,
                 note, created_by_employee_id
             )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             int(item_id),
@@ -1302,6 +1463,8 @@ def _apply_stock_transaction_on_cursor(
             stock_out_reason or None,
             1 if refunded else 0,
             refund_amount if refund_amount is not None else None,
+            ps,
+            ap,
             note or None,
             created_by_employee_id,
         ),
@@ -1322,6 +1485,8 @@ def create_stock_transaction(
     refund_amount: Optional[float] = None,
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
+    payment_status: Optional[str] = None,
+    amount_paid: Optional[float] = None,
 ) -> bool:
     """
     Create a stock in/out transaction and update item stock atomically.
@@ -1341,6 +1506,8 @@ def create_stock_transaction(
             refund_amount=refund_amount,
             note=note,
             created_by_employee_id=created_by_employee_id,
+            payment_status=payment_status,
+            amount_paid=amount_paid,
         )
 
 
@@ -1371,6 +1538,8 @@ def create_stock_transactions_batch(
                     refund_amount=op.get("refund_amount"),
                     note=op.get("note"),
                     created_by_employee_id=created_by_employee_id,
+                    payment_status=op.get("payment_status"),
+                    amount_paid=op.get("amount_paid"),
                 )
                 if not ok:
                     return False, (
@@ -2839,6 +3008,307 @@ def list_all_shops_credit_sales(
                     "item_count": int(r.get("item_count") or 0),
                     "employee_name": r.get("employee_name") or "Unknown",
                     "employee_code": r.get("employee_code") or "-",
+                    "created_at": r.get("created_at"),
+                }
+            )
+        return out
+    except pymysql.Error:
+        return []
+
+
+def list_all_shops_credit_sales_with_payments_audit(
+    limit: int = 5000,
+    analytics_filter: Optional[dict] = None,
+    shop_id: Optional[int] = None,
+    customer_q: Optional[str] = None,
+    payment_scope: str = "all",
+):
+    """Credit sales where at least some payment was applied (credit_paid_amount > 0).
+
+    payment_scope:
+      - ``all``: any sale with a payment recorded toward it (partial or fully paid).
+      - ``partial``: still outstanding but some amount paid.
+      - ``paid``: fully settled (zero balance).
+
+    Rows are ordered with partially paid first, then fully paid; within each group by newest sale.
+    """
+    ensure_shop_credit_payments_schema()
+    scope = (payment_scope or "all").strip().lower()
+    if scope not in ("all", "partial", "paid"):
+        scope = "all"
+
+    where_parts = [
+        "sps.sale_type = 'credit'",
+        "COALESCE(sps.credit_paid_amount, 0) > 0.0001",
+    ]
+    if scope == "partial":
+        where_parts.append("(sps.total_amount - COALESCE(sps.credit_paid_amount, 0)) > 0.0001")
+    elif scope == "paid":
+        where_parts.append("(sps.total_amount - COALESCE(sps.credit_paid_amount, 0)) <= 0.0001")
+
+    params: list[Any] = []
+
+    if analytics_filter:
+        rw, rp = _analytics_where_clause(analytics_filter, "sps")
+        where_parts.append(f"({rw})")
+        params.extend(rp)
+
+    if shop_id is not None:
+        where_parts.append("sps.shop_id = %s")
+        params.append(int(shop_id))
+
+    cq = (customer_q or "").strip()
+    if cq:
+        like = f"%{cq}%"
+        where_parts.append(
+            "(COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN') LIKE %s OR COALESCE(NULLIF(sps.customer_phone, ''), '-') LIKE %s)"
+        )
+        params.extend([like, like])
+
+    where_sql = " AND ".join(where_parts)
+    sql = f"""
+    SELECT
+        sps.id,
+        sps.shop_id,
+        sh.shop_name,
+        sh.shop_code,
+        COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN') AS customer_name,
+        COALESCE(NULLIF(sps.customer_phone, ''), '-') AS customer_phone,
+        sps.total_amount,
+        sps.credit_paid_amount,
+        COALESCE(sps.credit_status, 'not_paid') AS credit_status,
+        sps.credit_due_date,
+        sps.item_count,
+        COALESCE(NULLIF(sps.employee_name, ''), 'Unknown') AS employee_name,
+        COALESCE(NULLIF(sps.employee_code, ''), '-') AS employee_code,
+        sps.created_at
+    FROM shop_pos_sales sps
+    LEFT JOIN shops sh ON sh.id = sps.shop_id
+    WHERE {where_sql}
+    ORDER BY
+        CASE WHEN (sps.total_amount - COALESCE(sps.credit_paid_amount, 0)) > 0.0001 THEN 0 ELSE 1 END ASC,
+        sps.created_at DESC,
+        sps.id DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        out = []
+        for r in rows:
+            total = float(r.get("total_amount") or 0)
+            paid = float(r.get("credit_paid_amount") or 0)
+            remaining = max(total - paid, 0.0)
+            status = (r.get("credit_status") or "not_paid").strip().lower()
+            if remaining <= 0.0001:
+                status = "paid"
+            elif paid > 0:
+                status = "partially_paid"
+            else:
+                status = "not_paid"
+            out.append(
+                {
+                    "id": int(r.get("id") or 0),
+                    "shop_id": int(r.get("shop_id") or 0),
+                    "shop_name": r.get("shop_name") or "Shop",
+                    "shop_code": r.get("shop_code") or "",
+                    "customer_name": r.get("customer_name") or "WALK IN",
+                    "customer_phone": r.get("customer_phone") or "-",
+                    "total_amount": total,
+                    "paid_amount": paid,
+                    "remaining_amount": remaining,
+                    "credit_status": status,
+                    "credit_due_date": r.get("credit_due_date"),
+                    "item_count": int(r.get("item_count") or 0),
+                    "employee_name": r.get("employee_name") or "Unknown",
+                    "employee_code": r.get("employee_code") or "-",
+                    "created_at": r.get("created_at"),
+                }
+            )
+        return out
+    except pymysql.Error:
+        return []
+
+
+def list_all_shops_company_credit_payment_receipts(
+    limit: int = 5000,
+    analytics_filter: Optional[dict] = None,
+    shop_id: Optional[int] = None,
+    customer_q: Optional[str] = None,
+):
+    """All shops: rows from shop_credit_payments (inbound payments toward credit balances)."""
+    ensure_shop_credit_payments_schema()
+    where_parts: list[str] = ["1=1"]
+    params: list[Any] = []
+
+    if analytics_filter:
+        rw, rp = _analytics_where_clause(analytics_filter, "scp")
+        where_parts.append(f"({rw})")
+        params.extend(rp)
+
+    if shop_id is not None:
+        where_parts.append("scp.shop_id = %s")
+        params.append(int(shop_id))
+
+    cq = (customer_q or "").strip()
+    if cq:
+        like = f"%{cq}%"
+        where_parts.append(
+            "(COALESCE(NULLIF(scp.customer_name, ''), 'WALK IN') LIKE %s OR COALESCE(NULLIF(scp.customer_phone, ''), '-') LIKE %s)"
+        )
+        params.extend([like, like])
+
+    where_sql = " AND ".join(where_parts)
+    sql = f"""
+    SELECT
+        scp.id,
+        scp.shop_id,
+        sh.shop_name,
+        sh.shop_code,
+        COALESCE(NULLIF(scp.customer_name, ''), 'WALK IN') AS customer_name,
+        COALESCE(NULLIF(scp.customer_phone, ''), '-') AS customer_phone,
+        scp.amount,
+        scp.note,
+        scp.created_at
+    FROM shop_credit_payments scp
+    LEFT JOIN shops sh ON sh.id = scp.shop_id
+    WHERE {where_sql}
+    ORDER BY scp.created_at DESC, scp.id DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        out = []
+        for r in rows:
+            raw_note = (r.get("note") or "").strip()
+            note_lower = raw_note.lower()
+            method = "other"
+            marker = "method="
+            if marker in note_lower:
+                parsed = note_lower.split(marker, 1)[1].split()[0].strip(" ,.;:|")
+                if parsed in ("cash", "mpesa", "bank", "other"):
+                    method = parsed
+            elif "mpesa" in note_lower:
+                method = "mpesa"
+            elif "cash" in note_lower:
+                method = "cash"
+            elif "bank" in note_lower:
+                method = "bank"
+            out.append(
+                {
+                    "id": int(r.get("id") or 0),
+                    "shop_id": int(r.get("shop_id") or 0),
+                    "shop_name": r.get("shop_name") or "Shop",
+                    "shop_code": r.get("shop_code") or "",
+                    "customer_name": r.get("customer_name") or "WALK IN",
+                    "customer_phone": r.get("customer_phone") or "-",
+                    "amount": float(r.get("amount") or 0),
+                    "note": raw_note,
+                    "payment_method": method,
+                    "created_at": r.get("created_at"),
+                }
+            )
+        return out
+    except pymysql.Error:
+        return []
+
+
+def list_all_shops_credit_due_reminders(
+    limit: int = 3000,
+    days_ahead: int = 90,
+    shop_id: Optional[int] = None,
+    customer_q: Optional[str] = None,
+):
+    """Outstanding credit sales with a due date on or before today + days_ahead (includes overdue)."""
+    ensure_shop_credit_payments_schema()
+    try:
+        horizon = max(1, min(int(days_ahead), 730))
+    except Exception:
+        horizon = 90
+
+    where_parts = [
+        "sps.sale_type = 'credit'",
+        "sps.credit_due_date IS NOT NULL",
+        "(sps.total_amount - COALESCE(sps.credit_paid_amount, 0)) > 0.0001",
+        "sps.credit_due_date <= DATE_ADD(CURDATE(), INTERVAL %s DAY)",
+    ]
+    params: list[Any] = [horizon]
+
+    if shop_id is not None:
+        where_parts.append("sps.shop_id = %s")
+        params.append(int(shop_id))
+
+    cq = (customer_q or "").strip()
+    if cq:
+        like = f"%{cq}%"
+        where_parts.append(
+            "(COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN') LIKE %s OR COALESCE(NULLIF(sps.customer_phone, ''), '-') LIKE %s)"
+        )
+        params.extend([like, like])
+
+    where_sql = " AND ".join(where_parts)
+    sql = f"""
+    SELECT
+        sps.id,
+        sps.shop_id,
+        sh.shop_name,
+        sh.shop_code,
+        COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN') AS customer_name,
+        COALESCE(NULLIF(sps.customer_phone, ''), '-') AS customer_phone,
+        sps.total_amount,
+        sps.credit_paid_amount,
+        sps.credit_due_date,
+        sps.item_count,
+        sps.created_at
+    FROM shop_pos_sales sps
+    LEFT JOIN shops sh ON sh.id = sps.shop_id
+    WHERE {where_sql}
+    ORDER BY sps.credit_due_date ASC, sps.shop_id ASC, sps.id ASC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        today = date.today()
+        out = []
+        for r in rows:
+            total = float(r.get("total_amount") or 0)
+            paid = float(r.get("credit_paid_amount") or 0)
+            remaining = max(total - paid, 0.0)
+            due = r.get("credit_due_date")
+            overdue = False
+            if due is not None:
+                try:
+                    if isinstance(due, datetime):
+                        dcmp = due.date()
+                    elif isinstance(due, date):
+                        dcmp = due
+                    else:
+                        dcmp = date.fromisoformat(str(due)[:10])
+                    overdue = dcmp < today
+                except Exception:
+                    overdue = False
+            out.append(
+                {
+                    "id": int(r.get("id") or 0),
+                    "shop_id": int(r.get("shop_id") or 0),
+                    "shop_name": r.get("shop_name") or "Shop",
+                    "shop_code": r.get("shop_code") or "",
+                    "customer_name": r.get("customer_name") or "WALK IN",
+                    "customer_phone": r.get("customer_phone") or "-",
+                    "total_amount": total,
+                    "paid_amount": paid,
+                    "remaining_amount": remaining,
+                    "credit_due_date": due,
+                    "overdue": overdue,
+                    "item_count": int(r.get("item_count") or 0),
                     "created_at": r.get("created_at"),
                 }
             )
@@ -4772,14 +5242,62 @@ def get_it_support_revenue_analytics(
 
 
 def get_it_support_item_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict, analytics_scope: str = "general", top_items_limit: int = 100
 ):
-    """Item analytics across all shops for IT support/super admin."""
+    """Item analytics across all shops for IT support/super admin.
+
+    ``top_items_limit`` caps the grouped SKU list (defaults to 100 for dashboards).
+    Pass ``0`` or a negative value to omit ``LIMIT`` (all SKUs). Use a high cap (e.g. 8000)
+    when you need a bounded but large list.
+    """
+    try:
+        tl_raw = int(top_items_limit) if top_items_limit is not None else 100
+    except (TypeError, ValueError):
+        tl_raw = 100
+    no_limit = tl_raw <= 0
+    lim = max(1, min(50000, tl_raw)) if not no_limit else 0
     range_where, range_params = _analytics_where_clause(analytics_filter, "s")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
     where_sql = f"{range_where} AND {scope_where}"
     params = list(range_params) + list(scope_params)
 
+    # Two aggregations merged in Python: avoids a single GROUP BY + LEFT JOIN shape that can
+    # fail or mis-aggregate under strict SQL modes; matches lines with catalog id directly,
+    # then adds lines with NULL item_id resolved by normalized item name.
+    join_name_catalog = """
+    INNER JOIN (
+        SELECT MIN(i.id) AS id, LOWER(TRIM(i.name)) AS nm
+        FROM items i
+        WHERE i.status = 'active' AND COALESCE(i.stock_update_enabled, 0) = 1
+        GROUP BY LOWER(TRIM(i.name))
+    ) im ON im.nm = LOWER(TRIM(COALESCE(si.item_name, '')))
+        AND LENGTH(TRIM(COALESCE(si.item_name, ''))) > 0
+    """
+    top_by_id_sql = f"""
+    SELECT
+        si.item_id AS item_id,
+        MAX(COALESCE(si.item_name, '')) AS item_name,
+        COALESCE(SUM(si.qty), 0) AS qty_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue,
+        COUNT(*) AS line_count
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    WHERE {where_sql} AND si.item_id IS NOT NULL AND si.item_id > 0
+    GROUP BY si.item_id
+    """
+    top_by_resolved_name_sql = f"""
+    SELECT
+        im.id AS item_id,
+        MAX(COALESCE(si.item_name, '')) AS item_name,
+        COALESCE(SUM(si.qty), 0) AS qty_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue,
+        COUNT(*) AS line_count
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    {join_name_catalog}
+    WHERE {where_sql} AND (si.item_id IS NULL OR si.item_id = 0)
+    GROUP BY im.id
+    """
     totals_sql = f"""
     SELECT
         COALESCE(SUM(si.qty), 0) AS total_qty,
@@ -4789,20 +5307,6 @@ def get_it_support_item_analytics(
     FROM shop_pos_sale_items si
     JOIN shop_pos_sales s ON s.id = si.sale_id
     WHERE {where_sql}
-    """
-    top_items_sql = f"""
-    SELECT
-        si.item_id,
-        si.item_name,
-        COALESCE(SUM(si.qty), 0) AS qty_sold,
-        COALESCE(SUM(si.line_total), 0) AS revenue,
-        COUNT(*) AS line_count
-    FROM shop_pos_sale_items si
-    JOIN shop_pos_sales s ON s.id = si.sale_id
-    WHERE {where_sql}
-    GROUP BY si.item_id, si.item_name
-    ORDER BY qty_sold DESC, revenue DESC
-    LIMIT 100
     """
     by_shop_sql = f"""
     SELECT
@@ -4863,17 +5367,46 @@ def get_it_support_item_analytics(
             out["line_count"] = int(t.get("line_count") or 0)
             out["distinct_items"] = int(t.get("distinct_items") or 0)
 
-            cur.execute(top_items_sql, tuple(params))
-            out["top_items"] = [
-                {
-                    "item_id": r.get("item_id"),
-                    "item_name": r.get("item_name") or "Item",
-                    "qty_sold": int(r.get("qty_sold") or 0),
-                    "revenue": float(r.get("revenue") or 0),
-                    "line_count": int(r.get("line_count") or 0),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            merged: Dict[int, Dict[str, Any]] = {}
+
+            def _merge_top_row(row: dict) -> None:
+                try:
+                    iid = int(row.get("item_id") or 0)
+                except Exception:
+                    return
+                if iid <= 0:
+                    return
+                qty = int(row.get("qty_sold") or 0)
+                rev = float(row.get("revenue") or 0)
+                lc = int(row.get("line_count") or 0)
+                nm = (row.get("item_name") or "").strip() or "Item"
+                if iid not in merged:
+                    merged[iid] = {
+                        "item_id": iid,
+                        "item_name": nm,
+                        "qty_sold": 0,
+                        "revenue": 0.0,
+                        "line_count": 0,
+                    }
+                merged[iid]["qty_sold"] += qty
+                merged[iid]["revenue"] += rev
+                merged[iid]["line_count"] += lc
+                if nm and nm != "Item":
+                    merged[iid]["item_name"] = nm
+
+            cur.execute(top_by_id_sql, tuple(params))
+            for rr in cur.fetchall() or []:
+                _merge_top_row(rr)
+            cur.execute(top_by_resolved_name_sql, tuple(params))
+            for rr in cur.fetchall() or []:
+                _merge_top_row(rr)
+            rows_sorted = sorted(
+                merged.values(),
+                key=lambda x: (-int(x.get("qty_sold") or 0), -float(x.get("revenue") or 0.0)),
+            )
+            if not no_limit:
+                rows_sorted = rows_sorted[:lim]
+            out["top_items"] = rows_sorted
 
             cur.execute(by_shop_sql, tuple(params))
             out["shops"] = [
@@ -5379,26 +5912,21 @@ def get_it_support_employee_analytics(
     ORDER BY revenue DESC, tx_count DESC
     LIMIT 1000
     """
-    transactions_sql = f"""
+    transactions_by_employee_sql = f"""
     SELECT
-        sps.id,
-        sps.shop_id,
-        sh.shop_name,
-        sh.shop_code,
-        sps.sale_type,
-        sps.total_amount,
-        sps.item_count,
-        sps.customer_name,
-        sps.customer_phone,
         sps.employee_id,
         COALESCE(NULLIF(sps.employee_name, ''), 'Unknown') AS employee_name,
         sps.employee_code,
-        sps.created_at
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(sps.item_count), 0) AS item_count,
+        COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount,
+        COALESCE(SUM(sps.total_amount), 0) AS total_amount
     FROM shop_pos_sales sps
-    LEFT JOIN shops sh ON sh.id = sps.shop_id
     WHERE {where_sql}
-    ORDER BY sps.created_at DESC, sps.id DESC
-    LIMIT 3000
+    GROUP BY sps.employee_id, sps.employee_code, sps.employee_name
+    ORDER BY COALESCE(SUM(sps.total_amount), 0) DESC, COUNT(*) DESC, COALESCE(NULLIF(sps.employee_name, ''), 'Unknown') ASC
+    LIMIT 500
     """
 
     out = {
@@ -5452,25 +5980,27 @@ def get_it_support_employee_analytics(
                 for r in (cur.fetchall() or [])
             ]
 
-            cur.execute(transactions_sql, tuple(params))
-            out["transactions"] = [
-                {
-                    "id": int(r.get("id") or 0),
-                    "shop_id": r.get("shop_id"),
-                    "shop_name": r.get("shop_name") or "Shop",
-                    "shop_code": r.get("shop_code") or "",
-                    "sale_type": (r.get("sale_type") or "").strip().lower(),
-                    "total_amount": float(r.get("total_amount") or 0),
-                    "item_count": int(r.get("item_count") or 0),
-                    "customer_name": (r.get("customer_name") or "").strip(),
-                    "customer_phone": (r.get("customer_phone") or "").strip(),
-                    "employee_id": r.get("employee_id"),
-                    "employee_name": (r.get("employee_name") or "").strip(),
-                    "employee_code": (r.get("employee_code") or "").strip(),
-                    "created_at": r.get("created_at"),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            try:
+                cur.execute(transactions_by_employee_sql, tuple(params))
+                out["transactions"] = []
+                for r in cur.fetchall() or []:
+                    en = r.get("employee_name")
+                    ec = r.get("employee_code")
+                    out["transactions"].append(
+                        {
+                            "employee_id": r.get("employee_id"),
+                            "employee_name": (str(en).strip() if en is not None else "") or "Unknown",
+                            "employee_code": str(ec).strip() if ec is not None else "",
+                            "tx_count": int(r.get("tx_count") or 0),
+                            "item_count": float(r.get("item_count") or 0),
+                            "sale_amount": float(r.get("sale_amount") or 0),
+                            "credit_amount": float(r.get("credit_amount") or 0),
+                            "total_amount": float(r.get("total_amount") or 0),
+                        }
+                    )
+            except pymysql.Error as e:
+                logger.warning("get_it_support_employee_analytics transactions aggregate skipped: %s", e)
+                out["transactions"] = []
     except pymysql.Error:
         return out
     return out
@@ -5539,24 +6069,20 @@ def get_it_support_sales_analytics(
     ORDER BY revenue DESC, tx_count DESC
     LIMIT 500
     """
-    transactions_sql = f"""
+    transactions_by_shop_sql = f"""
     SELECT
-        sps.id,
         sps.shop_id,
-        sh.shop_name,
-        sh.shop_code,
-        sps.total_amount,
-        sps.item_count,
-        sps.customer_name,
-        sps.customer_phone,
-        sps.employee_name,
-        sps.employee_code,
-        sps.created_at
+        COALESCE(sh.shop_name, 'Unknown') AS shop_name,
+        COALESCE(sh.shop_code, '') AS shop_code,
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(sps.total_amount), 0) AS total_amount,
+        COALESCE(SUM(sps.item_count), 0) AS item_count
     FROM shop_pos_sales sps
     LEFT JOIN shops sh ON sh.id = sps.shop_id
     WHERE {where_sql}
-    ORDER BY sps.created_at DESC, sps.id DESC
-    LIMIT 3000
+    GROUP BY sps.shop_id, sh.shop_name, sh.shop_code
+    ORDER BY SUM(sps.total_amount) DESC, COUNT(*) DESC, sh.shop_name ASC
+    LIMIT 500
     """
 
     out = {
@@ -5625,20 +6151,15 @@ def get_it_support_sales_analytics(
                 for r in (cur.fetchall() or [])
             ]
 
-            cur.execute(transactions_sql, tuple(params))
+            cur.execute(transactions_by_shop_sql, tuple(params))
             out["transactions"] = [
                 {
-                    "id": int(r.get("id") or 0),
                     "shop_id": r.get("shop_id"),
                     "shop_name": r.get("shop_name") or "Shop",
                     "shop_code": r.get("shop_code") or "",
+                    "tx_count": int(r.get("tx_count") or 0),
                     "total_amount": float(r.get("total_amount") or 0),
-                    "item_count": int(r.get("item_count") or 0),
-                    "customer_name": (r.get("customer_name") or "").strip(),
-                    "customer_phone": (r.get("customer_phone") or "").strip(),
-                    "employee_name": (r.get("employee_name") or "").strip(),
-                    "employee_code": (r.get("employee_code") or "").strip(),
-                    "created_at": r.get("created_at"),
+                    "item_count": float(r.get("item_count") or 0),
                 }
                 for r in (cur.fetchall() or [])
             ]
@@ -5722,24 +6243,20 @@ def get_it_support_credit_analytics(
     ORDER BY revenue DESC, tx_count DESC
     LIMIT 500
     """
-    transactions_sql = f"""
+    transactions_by_shop_sql = f"""
     SELECT
-        sps.id,
         sps.shop_id,
-        sh.shop_name,
-        sh.shop_code,
-        sps.total_amount,
-        sps.item_count,
-        sps.customer_name,
-        sps.customer_phone,
-        sps.employee_name,
-        sps.employee_code,
-        sps.created_at
+        COALESCE(sh.shop_name, 'Unknown') AS shop_name,
+        COALESCE(sh.shop_code, '') AS shop_code,
+        COUNT(*) AS tx_count,
+        COALESCE(SUM(sps.total_amount), 0) AS total_amount,
+        COALESCE(SUM(sps.item_count), 0) AS item_count
     FROM shop_pos_sales sps
     LEFT JOIN shops sh ON sh.id = sps.shop_id
     WHERE {where_sql}
-    ORDER BY sps.created_at DESC, sps.id DESC
-    LIMIT 3000
+    GROUP BY sps.shop_id, sh.shop_name, sh.shop_code
+    ORDER BY SUM(sps.total_amount) DESC, COUNT(*) DESC, sh.shop_name ASC
+    LIMIT 500
     """
 
     out = {
@@ -5820,20 +6337,15 @@ def get_it_support_credit_analytics(
                 for r in (cur.fetchall() or [])
             ]
 
-            cur.execute(transactions_sql, tuple(params))
+            cur.execute(transactions_by_shop_sql, tuple(params))
             out["transactions"] = [
                 {
-                    "id": int(r.get("id") or 0),
                     "shop_id": r.get("shop_id"),
                     "shop_name": r.get("shop_name") or "Shop",
                     "shop_code": r.get("shop_code") or "",
+                    "tx_count": int(r.get("tx_count") or 0),
                     "total_amount": float(r.get("total_amount") or 0),
-                    "item_count": int(r.get("item_count") or 0),
-                    "customer_name": (r.get("customer_name") or "").strip(),
-                    "customer_phone": (r.get("customer_phone") or "").strip(),
-                    "employee_name": (r.get("employee_name") or "").strip(),
-                    "employee_code": (r.get("employee_code") or "").strip(),
-                    "created_at": r.get("created_at"),
+                    "item_count": float(r.get("item_count") or 0),
                 }
                 for r in (cur.fetchall() or [])
             ]
@@ -7833,6 +8345,73 @@ def update_shop_manual_stock_in_payment(
         }
 
 
+def update_company_stock_in_payment(
+    tx_id: int,
+    amount_paid: Optional[float] = None,
+    *,
+    additional_payment: Optional[float] = None,
+) -> Optional[dict]:
+    """Update ``amount_paid`` / ``payment_status`` on a company ``stock_transactions`` stock-in row."""
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            SELECT id, qty, buying_price, COALESCE(amount_paid, 0) AS amount_paid
+            FROM stock_transactions
+            WHERE id=%s AND direction='in'
+            FOR UPDATE
+            """,
+            (int(tx_id),),
+        )
+        row = cur.fetchone() or {}
+        if not row:
+            return None
+        qty = int(row.get("qty") or 0)
+        buying_price = float(row.get("buying_price") or 0.0)
+        total_cost = float(qty * buying_price)
+        current_paid = float(row.get("amount_paid") or 0.0)
+
+        if additional_payment is not None:
+            try:
+                add = float(additional_payment)
+            except Exception:
+                return None
+            if add < 0:
+                return None
+            new_paid = round(current_paid + add, 2)
+        else:
+            try:
+                new_paid = round(float(amount_paid or 0), 2)
+            except Exception:
+                return None
+            if new_paid < 0:
+                return None
+
+        if total_cost <= 0:
+            status = "paid"
+        elif new_paid <= 0:
+            status = "pending_payment"
+        elif new_paid < total_cost:
+            status = "partially_paid"
+        else:
+            status = "paid"
+        cur.execute(
+            """
+            UPDATE stock_transactions
+            SET amount_paid=%s, payment_status=%s
+            WHERE id=%s
+            """,
+            (new_paid, status, int(tx_id)),
+        )
+        return {
+            "id": int(tx_id),
+            "qty": qty,
+            "buying_price": buying_price,
+            "total_cost": total_cost,
+            "amount_paid": new_paid,
+            "payment_status": status,
+        }
+
+
 def apply_supplier_payment_fifo_from_tx(tx_id: int, additional_payment: float) -> Optional[dict]:
     """Apply payment to selected supplier tx, then spill excess to next supplier tx rows."""
     try:
@@ -7922,6 +8501,110 @@ def apply_supplier_payment_fifo_from_tx(tx_id: int, additional_payment: float) -
             cur.execute(
                 """
                 UPDATE shop_stock_transactions
+                SET amount_paid=%s, payment_status=%s
+                WHERE id=%s
+                """,
+                (new_paid, status, rid),
+            )
+            allocated.append({"tx_id": rid, "applied": float(apply_amt)})
+            remaining -= apply_amt
+
+        return {
+            "base_tx_id": base_id,
+            "seller_name": seller_name,
+            "seller_phone": seller_phone,
+            "allocated": allocated,
+            "unused": float(max(remaining, 0.0)),
+        }
+
+
+def apply_supplier_payment_fifo_company_from_tx(tx_id: int, additional_payment: float) -> Optional[dict]:
+    """FIFO apply payment across company warehouse stock-ins for the same seller (``stock_transactions``)."""
+    try:
+        pay_amt = float(additional_payment)
+    except Exception:
+        return None
+    if pay_amt <= 0:
+        return None
+
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            SELECT
+              id,
+              created_at,
+              COALESCE(NULLIF(place_brought_from, ''), '-') AS seller_name,
+              COALESCE(NULLIF(seller_phone, ''), '-') AS seller_phone
+            FROM stock_transactions
+            WHERE id=%s
+              AND direction='in'
+            LIMIT 1
+            FOR UPDATE
+            """,
+            (int(tx_id),),
+        )
+        base = cur.fetchone() or {}
+        if not base:
+            return None
+
+        seller_name = (base.get("seller_name") or "-").strip() or "-"
+        seller_phone = (base.get("seller_phone") or "-").strip() or "-"
+        base_created_at = base.get("created_at")
+        base_id = int(base.get("id") or 0)
+
+        cur.execute(
+            """
+            SELECT
+              id,
+              qty,
+              buying_price,
+              COALESCE(amount_paid, 0) AS amount_paid,
+              created_at
+            FROM stock_transactions
+            WHERE direction='in'
+              AND COALESCE(NULLIF(place_brought_from, ''), '-')=%s
+              AND COALESCE(NULLIF(seller_phone, ''), '-')=%s
+              AND (
+                created_at > %s
+                OR (created_at = %s AND id >= %s)
+              )
+            ORDER BY created_at ASC, id ASC
+            FOR UPDATE
+            """,
+            (seller_name, seller_phone, base_created_at, base_created_at, base_id),
+        )
+        rows = cur.fetchall() or []
+        if not rows:
+            return None
+
+        allocated = []
+        remaining = pay_amt
+        for r in rows:
+            if remaining <= 0.0001:
+                break
+            rid = int(r.get("id") or 0)
+            qty = int(r.get("qty") or 0)
+            buying_price = float(r.get("buying_price") or 0.0)
+            total_cost = float(qty * buying_price)
+            old_paid = float(r.get("amount_paid") or 0.0)
+            due = max(total_cost - old_paid, 0.0)
+            if due <= 0.0001:
+                continue
+
+            apply_amt = min(due, remaining)
+            new_paid = round(old_paid + apply_amt, 2)
+            if total_cost <= 0:
+                status = "paid"
+            elif new_paid <= 0:
+                status = "pending_payment"
+            elif new_paid < total_cost:
+                status = "partially_paid"
+            else:
+                status = "paid"
+
+            cur.execute(
+                """
+                UPDATE stock_transactions
                 SET amount_paid=%s, payment_status=%s
                 WHERE id=%s
                 """,
@@ -8298,7 +8981,12 @@ def get_company_stock_analytics(analytics_filter: dict):
     return out
 
 
-def get_company_stock_status(*, limit_items: int = 1000, inventory_mode: Optional[str] = None):
+def get_company_stock_status(
+    *,
+    limit_items: int = 1000,
+    inventory_mode: Optional[str] = None,
+    only_active: bool = False,
+):
     """
     Return company stock matrix:
       - company_stock: items.stock_qty
@@ -8312,43 +9000,19 @@ def get_company_stock_status(*, limit_items: int = 1000, inventory_mode: Optiona
         shops = list_shops(limit=500) or []
     except Exception:
         shops = []
-    if m == "kitchen":
-        return shops, []
-    if m == "both":
-        init_store_stock_items_table()
-        shop_ids = []
-        for s in shops:
-            try:
-                shop_ids.append(int(s.get("id")))
-            except Exception:
-                continue
-        sql = """
-        SELECT ssi.id, ssi.shop_id, ssi.category, ssi.name
-        FROM store_stock_items ssi
-        WHERE ssi.status='active'
-        ORDER BY ssi.name ASC
-        LIMIT %s
-        """
-        try:
-            with get_cursor() as cur:
-                cur.execute(sql, (int(limit_items),))
-                raw = cur.fetchall() or []
-        except pymysql.Error:
-            return shops, []
-        rows = []
-        for r in raw:
-            rr = dict(r)
-            sid = int(rr.get("shop_id") or 0)
-            per_shop = {}
-            for x in shop_ids:
-                per_shop[str(x)] = 0
-            if sid > 0 and str(sid) in per_shop:
-                per_shop[str(sid)] = 0
-            rr["company_stock_qty"] = 0
-            rr["per_shop"] = per_shop
-            rr["total_stock_qty"] = 0
-            rows.append(rr)
-        return shops, rows
+    active_clause = " AND i.status = 'active' " if only_active else ""
+    # Shelf / company matrix always uses catalog ``items`` + ``shop_items`` (correct ids for
+    # company ↔ shop movements). "Both" mode counts only rows flagged ``store_stock_registered``.
+    shop_join_extra = ""
+    items_where_extra = ""
+    if m == "both" and column_exists("shop_items", "store_stock_registered"):
+        shop_join_extra = " AND COALESCE(si.store_stock_registered,0) = 1 "
+        items_where_extra = """
+    AND EXISTS (
+      SELECT 1 FROM shop_items sreg
+      WHERE sreg.item_id = i.id AND COALESCE(sreg.store_stock_registered,0) = 1
+      LIMIT 1
+    )"""
     shop_ids = []
     for s in shops:
         try:
@@ -8373,7 +9037,8 @@ def get_company_stock_status(*, limit_items: int = 1000, inventory_mode: Optiona
         COALESCE(i.stock_qty, 0) AS company_stock_qty,
         {pivot_sql}
     FROM items i
-    LEFT JOIN shop_items si ON si.item_id = i.id
+    LEFT JOIN shop_items si ON si.item_id = i.id{shop_join_extra}
+    WHERE 1=1{active_clause}{items_where_extra}
     {mode_filter}
     GROUP BY i.id, i.category, i.name, i.stock_qty
     ORDER BY i.name ASC
@@ -8890,13 +9555,23 @@ def list_company_supplier_stock_ins(
     moved_by_contains: Optional[str] = None,
     limit: int = 5000,
 ):
-    """Company-level supplier stock-ins (shop manual in) with payment totals."""
-    sst_where, sst_params = _analytics_where_clause((analytics_filter or {}), "sst")
+    """Supplier stock-ins: company warehouse (``stock_transactions`` in) plus shop manual receipts."""
+    af = analytics_filter or {}
+
+    st_where, st_params = _analytics_where_clause(af, "st")
+    st_where = f"({st_where}) AND st.direction='in'"
+
+    sst_where, sst_params = _analytics_where_clause(af, "sst")
     sst_where = f"({sst_where}) AND sst.source='manual' AND sst.direction='in'"
 
     sup = (supplier_search or "").strip()
     if sup:
         like = f"%{sup}%"
+        st_where = (
+            f"({st_where}) AND "
+            "(COALESCE(st.place_brought_from,'') LIKE %s OR COALESCE(st.seller_phone,'') LIKE %s)"
+        )
+        st_params = list(st_params) + [like, like]
         sst_where = (
             f"({sst_where}) AND "
             "(COALESCE(sst.place_brought_from,'') LIKE %s OR COALESCE(sst.seller_phone,'') LIKE %s)"
@@ -8906,14 +9581,40 @@ def list_company_supplier_stock_ins(
     mb = (moved_by_contains or "").strip()
     if mb:
         like_mb = f"%{mb}%"
-        sst_where = f"({sst_where}) AND COALESCE(e.full_name,'') LIKE %s"
+        st_where = f"({st_where}) AND COALESCE(e_st.full_name,'') LIKE %s"
+        st_params = list(st_params) + [like_mb]
+        sst_where = f"({sst_where}) AND COALESCE(e_sst.full_name,'') LIKE %s"
         sst_params = list(sst_params) + [like_mb]
 
     if shop_id is not None:
+        st_where = f"({st_where}) AND 1=0"
         sst_where = f"({sst_where}) AND sst.shop_id=%s"
         sst_params = list(sst_params) + [int(shop_id)]
 
-    sql = f"""
+    company_sql = f"""
+    SELECT
+      st.id AS tx_id,
+      st.created_at,
+      0 AS shop_id,
+      'Company' AS shop_name,
+      i.id AS item_id,
+      i.name AS item_name,
+      st.qty,
+      st.buying_price,
+      COALESCE(NULLIF(st.place_brought_from, ''), '-') AS seller_name,
+      COALESCE(NULLIF(st.seller_phone, ''), '-') AS seller_phone,
+      COALESCE(st.payment_status, 'pending_payment') AS payment_status,
+      COALESCE(st.amount_paid, 0) AS amount_paid,
+      COALESCE(e_st.full_name, 'UNKNOWN') AS moved_by,
+      COALESCE(st.note, '') AS note,
+      'company' AS tx_scope
+    FROM stock_transactions st
+    JOIN items i ON i.id = st.item_id
+    LEFT JOIN employees e_st ON e_st.id = st.created_by_employee_id
+    WHERE {st_where}
+    """
+
+    shop_sql = f"""
     SELECT
       sst.id AS tx_id,
       sst.created_at,
@@ -8927,17 +9628,26 @@ def list_company_supplier_stock_ins(
       COALESCE(NULLIF(sst.seller_phone, ''), '-') AS seller_phone,
       COALESCE(sst.payment_status, 'pending_payment') AS payment_status,
       COALESCE(sst.amount_paid, 0) AS amount_paid,
-      COALESCE(e.full_name, 'UNKNOWN') AS moved_by,
-      COALESCE(sst.note, '') AS note
+      COALESCE(e_sst.full_name, 'UNKNOWN') AS moved_by,
+      COALESCE(sst.note, '') AS note,
+      'shop' AS tx_scope
     FROM shop_stock_transactions sst
     JOIN items i ON i.id = sst.item_id
     JOIN shops sh ON sh.id = sst.shop_id
-    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    LEFT JOIN employees e_sst ON e_sst.id = sst.created_by_employee_id
     WHERE {sst_where}
-    ORDER BY sst.created_at DESC, sst.id DESC
+    """
+
+    sql = f"""
+    SELECT * FROM (
+      {company_sql}
+      UNION ALL
+      {shop_sql}
+    ) u
+    ORDER BY u.created_at DESC, u.tx_id DESC
     LIMIT %s
     """
-    params = list(sst_params) + [int(limit)]
+    params = list(st_params) + list(sst_params) + [int(limit)]
     try:
         with get_cursor() as cur:
             cur.execute(sql, tuple(params))
@@ -8951,9 +9661,13 @@ def list_company_supplier_stock_ins(
         buying_price = float(r.get("buying_price") or 0)
         total_cost = max(0.0, float(qty * buying_price))
         amount_paid = max(0.0, float(r.get("amount_paid") or 0))
+        scope = (r.get("tx_scope") or "shop").strip().lower()
+        if scope not in ("company", "shop"):
+            scope = "shop"
         out.append(
             {
                 "tx_id": int(r.get("tx_id") or 0),
+                "tx_scope": scope,
                 "created_at": r.get("created_at"),
                 "shop_id": int(r.get("shop_id") or 0),
                 "shop_name": (r.get("shop_name") or "Shop").strip() or "Shop",
@@ -9013,9 +9727,68 @@ def get_shop_manual_stock_in_transaction(tx_id: int):
         amount_paid = max(0.0, float(r.get("amount_paid") or 0))
         return {
             "tx_id": int(r.get("tx_id") or 0),
+            "tx_scope": "shop",
             "created_at": r.get("created_at"),
             "shop_id": int(r.get("shop_id") or 0),
             "shop_name": (r.get("shop_name") or "Shop").strip() or "Shop",
+            "item_id": int(r.get("item_id") or 0),
+            "item_name": (r.get("item_name") or "Item").strip() or "Item",
+            "qty": qty,
+            "buying_price": buying_price,
+            "total_cost": total_cost,
+            "seller_name": (r.get("seller_name") or "-").strip() or "-",
+            "seller_phone": (r.get("seller_phone") or "-").strip() or "-",
+            "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
+            "amount_paid": amount_paid,
+            "balance": max(total_cost - amount_paid, 0.0),
+            "moved_by": (r.get("moved_by") or "UNKNOWN").strip() or "UNKNOWN",
+            "note": (r.get("note") or "").strip(),
+        }
+    except pymysql.Error:
+        return None
+
+
+def get_company_stock_in_transaction(tx_id: int):
+    """Return one company warehouse stock-in (``stock_transactions`` direction in)."""
+    sql = """
+    SELECT
+      st.id AS tx_id,
+      st.created_at,
+      0 AS shop_id,
+      'Company' AS shop_name,
+      i.id AS item_id,
+      i.name AS item_name,
+      st.qty,
+      st.buying_price,
+      COALESCE(NULLIF(st.place_brought_from, ''), '-') AS seller_name,
+      COALESCE(NULLIF(st.seller_phone, ''), '-') AS seller_phone,
+      COALESCE(st.payment_status, 'pending_payment') AS payment_status,
+      COALESCE(st.amount_paid, 0) AS amount_paid,
+      COALESCE(e.full_name, 'UNKNOWN') AS moved_by,
+      COALESCE(st.note, '') AS note
+    FROM stock_transactions st
+    JOIN items i ON i.id = st.item_id
+    LEFT JOIN employees e ON e.id = st.created_by_employee_id
+    WHERE st.id=%s
+      AND st.direction='in'
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(tx_id),))
+            r = cur.fetchone()
+        if not r:
+            return None
+        qty = round(float(r.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        buying_price = float(r.get("buying_price") or 0)
+        total_cost = max(0.0, float(qty * buying_price))
+        amount_paid = max(0.0, float(r.get("amount_paid") or 0))
+        return {
+            "tx_id": int(r.get("tx_id") or 0),
+            "tx_scope": "company",
+            "created_at": r.get("created_at"),
+            "shop_id": 0,
+            "shop_name": "Company",
             "item_id": int(r.get("item_id") or 0),
             "item_name": (r.get("item_name") or "Item").strip() or "Item",
             "qty": qty,
@@ -9955,7 +10728,7 @@ def list_notifications_for_session(
     limit: int = 100,
 ):
     role_key = (role_key or "").strip().lower()
-    is_admin = role_key in ("it_support", "super_admin")
+    is_admin = role_key in ("it_support", "super_admin", "company_manager")
     limit = max(1, min(int(limit), 500))
     try:
         with get_cursor() as cur:
@@ -9998,7 +10771,7 @@ def list_notifications_for_session(
 
 def count_notifications_for_session(*, employee_id: Optional[int], shop_id: Optional[int], role_key: str) -> int:
     role_key = (role_key or "").strip().lower()
-    is_admin = role_key in ("it_support", "super_admin")
+    is_admin = role_key in ("it_support", "super_admin", "company_manager")
     try:
         with get_cursor() as cur:
             if is_admin:
@@ -10165,7 +10938,7 @@ def list_stock_requests_for_session(
     limit: int = 200,
 ):
     role_key = (role_key or "").strip().lower()
-    is_admin = role_key in ("it_support", "super_admin")
+    is_admin = role_key in ("it_support", "super_admin", "company_manager")
     limit = max(1, min(int(limit), 1000))
     try:
         with get_cursor() as cur:
@@ -10248,7 +11021,7 @@ def list_incoming_pending_stock_requests_for_shop(*, source_shop_id: int, limit:
 
 def _can_review_request(row: dict, *, approver_role: str, approver_shop_id: Optional[int]) -> bool:
     approver_role = (approver_role or "").strip().lower()
-    if approver_role in ("it_support", "super_admin"):
+    if approver_role in ("it_support", "super_admin", "company_manager"):
         return True
     if (row.get("request_type") or "").lower() == "return_to_company":
         return False
@@ -10883,7 +11656,7 @@ def get_employee_accessible_shop_ids(emp_id: int) -> list:
 def employee_may_use_shop_branch(employee_row: dict, branch_shop_id: int) -> bool:
     """True if employee may authorize POS at ``branch_shop_id`` (respects HR single/multi shop mode)."""
     role_key = (employee_row.get("role") or "employee").lower()
-    if role_key in ("super_admin", "it_support"):
+    if role_key in ("super_admin", "it_support", "company_manager"):
         return True
     try:
         sid = int(branch_shop_id)
@@ -11572,13 +12345,23 @@ def approve_employee(
     linked_shop_ids: Optional[list] = None,
 ) -> bool:
     role = (role or "").strip().lower()
-    allowed = {"super_admin", "it_support", "admin", "manager", "sales", "finance", "employee", "rider"}
+    allowed = {
+        "super_admin",
+        "it_support",
+        "company_manager",
+        "admin",
+        "manager",
+        "sales",
+        "finance",
+        "employee",
+        "rider",
+    }
     if role not in allowed:
         return False
     eid = int(emp_id)
     multi = get_hr_employee_shop_link_mode() == "multi"
 
-    if role in {"super_admin", "it_support"}:
+    if role in {"super_admin", "it_support", "company_manager"}:
         sql = "UPDATE employees SET status='active', role=%s, shop_id=NULL WHERE id=%s"
         try:
             with get_cursor(commit=True) as cur:
@@ -11651,7 +12434,17 @@ def update_employee_by_it_hr(
         return False
 
     role = (role or "").strip().lower()
-    allowed = {"super_admin", "it_support", "admin", "manager", "sales", "finance", "employee", "rider"}
+    allowed = {
+        "super_admin",
+        "it_support",
+        "company_manager",
+        "admin",
+        "manager",
+        "sales",
+        "finance",
+        "employee",
+        "rider",
+    }
     if role not in allowed:
         return False
 
@@ -11660,7 +12453,7 @@ def update_employee_by_it_hr(
     prev_access_sorted = tuple(sorted(get_employee_accessible_shop_ids(eid_int)))
 
     junction_for_write: list = []
-    if role in {"super_admin", "it_support"}:
+    if role in {"super_admin", "it_support", "company_manager"}:
         shop_id = None
     elif multi:
         junction_for_write = _normalize_linked_shop_ids(linked_shop_ids)

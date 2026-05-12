@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
+import project_env  # noqa: F401 — loads .env.example then .env before os.getenv below
 from flask import (
     Flask,
     jsonify,
@@ -36,8 +36,6 @@ from flask import (
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-
-load_dotenv(Path(__file__).resolve().parent / ".env")
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +55,7 @@ CODE_RE = re.compile(r"^\d{6}$")
 ROLE_LABELS = {
     "super_admin": "Super admin",
     "it_support": "IT support",
+    "company_manager": "Company manager",
     "admin": "Admin",
     "manager": "Manager",
     "sales": "Sales",
@@ -73,7 +72,11 @@ STATUS_LABELS = {
 
 VALID_ROLES = frozenset(ROLE_LABELS)
 
-# Branch roles super_admin / IT support can simulate in the shop shell (UI preview only; APIs keep real session role).
+# Company portal login (no branch allocation): IT, super admin, company HR manager.
+# Full company portal + IT routes: super admin, IT support, and company manager (same access tier).
+COMPANY_PORTAL_ROLES = frozenset({"super_admin", "it_support", "company_manager"})
+
+# Company exec roles (super admin / IT / company manager) can preview branch roles in the shop shell (UI only).
 SHOP_UI_PREVIEW_ROLES: Tuple[str, ...] = ("manager", "admin", "sales", "finance", "employee", "rider")
 SHOP_UI_PREVIEW_ROLE_SET = frozenset(SHOP_UI_PREVIEW_ROLES)
 
@@ -83,7 +86,7 @@ def _shop_role_preview_template_ctx(role_key: str) -> dict[str, Any]:
     if rk not in VALID_ROLES:
         rk = "employee"
     preview_raw = (session.get("shop_role_preview") or "").strip().lower()
-    preview_allowed = rk in ("super_admin", "it_support")
+    preview_allowed = rk in COMPANY_PORTAL_ROLES
     active = bool(preview_allowed and preview_raw in SHOP_UI_PREVIEW_ROLE_SET)
     ui_role = preview_raw if active else rk
     if ui_role not in VALID_ROLES:
@@ -135,7 +138,7 @@ def _session_shop_shell_role_key() -> str:
 
 def _session_shop_shell_it_without_preview() -> bool:
     er = str(session.get("employee_role") or "").strip().lower()
-    if er not in ("super_admin", "it_support"):
+    if er not in COMPANY_PORTAL_ROLES:
         return False
     preview_raw = str(session.get("shop_role_preview") or "").strip().lower()
     return preview_raw not in SHOP_UI_PREVIEW_ROLE_SET
@@ -156,9 +159,9 @@ def shop_shell_can(op: str) -> bool:
 
 
 def _redirect_to_employee_dashboard():
-    """Redirect super_admin / it_support to company portal; others to allocated shop if set."""
+    """Redirect company-portal roles to /role/dashboard; others to allocated shop if set."""
     role_key = session.get("employee_role") or "employee"
-    if role_key in ("super_admin", "it_support"):
+    if role_key in COMPANY_PORTAL_ROLES:
         return redirect(url_for("employee_dashboard", role=role_key))
     uid = session.get("employee_id")
     if uid:
@@ -219,7 +222,7 @@ def _session_may_follow_login_next(next_url: str):
     if target_sid is None:
         return None
     role_key = session.get("employee_role") or "employee"
-    if role_key in ("super_admin", "it_support"):
+    if role_key in COMPANY_PORTAL_ROLES:
         return redirect(next_url)
     try:
         from database import get_employee_by_id, employee_may_use_shop_branch
@@ -549,7 +552,7 @@ def inject_portal_context():
         "profile_settings_url": url_for("employee_profile_settings"),
     }
     extra: dict[str, object] = {}
-    if role_key in ("it_support", "super_admin"):
+    if role_key in COMPANY_PORTAL_ROLES:
         try:
             ps = _load_printing_settings()
             extra["company_pos_inventory_exclusive"] = _printing_pos_inventory_exclusive_choice(ps)
@@ -893,7 +896,7 @@ def employee_login():
         session["employee_role"] = row.get("role") or "employee"
         role_key = session.get("employee_role") or "employee"
 
-        if role_key in ("super_admin", "it_support"):
+        if role_key in COMPANY_PORTAL_ROLES:
             if next_url.startswith("/") and not next_url.startswith("//"):
                 path = urlparse(next_url).path.rstrip("/")
                 if (
@@ -1723,8 +1726,8 @@ def _printing_settings_pos_panel_client_payload(merged: dict) -> Dict[str, Any]:
 @login_required
 def it_support_printing_pos_patch():
     """Merge POS-tab printing toggles without posting the whole system-settings form."""
-    role_key = session.get("employee_role") or "employee"
-    if role_key not in ("it_support", "super_admin"):
+    role_key = str(session.get("employee_role") or "employee").strip().lower()
+    if role_key not in COMPANY_PORTAL_ROLES:
         return jsonify({"ok": False, "error": "Forbidden."}), 403
     payload = request.get_json(silent=True)
     patch = payload.get("patch") if isinstance(payload, dict) else None
@@ -1750,8 +1753,8 @@ def it_support_printing_pos_patch():
 @app.route("/it_support/system-settings", methods=["GET", "POST"])
 @login_required
 def it_support_system_settings():
-    role_key = session.get("employee_role") or "employee"
-    if role_key not in ("it_support", "super_admin"):
+    role_key = str(session.get("employee_role") or "employee").strip().lower()
+    if role_key not in COMPANY_PORTAL_ROLES:
         abort(403)
     if request.method == "POST":
         wants_json = (
@@ -2120,9 +2123,9 @@ def it_support_kitchen_portion_analytics():
 
 
 def _it_support_only():
-    """IT support portal routes: allowed for IT support and super admin (same access)."""
-    role_key = session.get("employee_role") or "employee"
-    if role_key not in ("it_support", "super_admin"):
+    """Company portal admin routes: IT support, super admin, and company manager (same access tier)."""
+    role_key = str(session.get("employee_role") or "employee").strip().lower()
+    if role_key not in COMPANY_PORTAL_ROLES:
         abort(403)
 
 
@@ -2144,8 +2147,8 @@ def _get_shop_or_404(shop_id: int):
 
 
 def _require_shop_access(shop: dict):
-    # IT support / super admin can open any shop session view directly.
-    if session.get("employee_role") in ("it_support", "super_admin"):
+    # IT support / super admin / company manager can open any shop session view directly.
+    if str(session.get("employee_role") or "").strip().lower() in COMPANY_PORTAL_ROLES:
         session["shop_id"] = int(shop["id"])
         session["shop_name"] = shop.get("shop_name")
         return None
@@ -2399,7 +2402,12 @@ def _it_support_stock_management_post():
         flash("Invalid action.", "error")
         return redirect(url_for("it_support_stock_management"))
     try:
-        from database import create_stock_transactions_batch, list_stock_manage_items, normalize_stock_move_qty
+        from database import (
+            create_stock_transactions_batch,
+            list_stock_manage_items,
+            normalize_stock_move_qty,
+            resolve_seller_name_and_phone,
+        )
 
         items = list_stock_manage_items(limit=500)
     except Exception:
@@ -2409,6 +2417,7 @@ def _it_support_stock_management_post():
         return redirect(url_for("it_support_stock_management"))
 
     allowed_reasons = {"return", "waste", "display"}
+    allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
     errors: list[str] = []
     operations: list[dict] = []
 
@@ -2419,21 +2428,46 @@ def _it_support_stock_management_post():
             continue
         if direction == "in":
             qty_raw = (request.form.get(f"in_qty_{iid}") or "").strip()
+            bp_raw = (request.form.get(f"in_buying_price_{iid}") or "").strip()
+            place = (request.form.get(f"in_place_{iid}") or "").strip()
+            phone_raw = (request.form.get(f"in_seller_phone_{iid}") or "").strip()
+            pay_raw = (request.form.get(f"in_payment_status_{iid}") or "").strip().lower()
+            label = it.get("name") or f"Item #{iid}"
+            pay_selected = pay_raw in allowed_pay
+            partial_without_qty = bool(bp_raw or place or phone_raw or pay_selected)
+
             if not qty_raw:
+                if partial_without_qty:
+                    errors.append(
+                        f"{label}: enter a stock-in quantity or clear buying price, seller, phone, and payment."
+                    )
                 continue
             qty = normalize_stock_move_qty(qty_raw)
             if qty is None:
                 errors.append(f"{it.get('name') or ('Item #' + str(iid))}: invalid quantity.")
                 continue
-            bp_raw = (request.form.get(f"in_buying_price_{iid}") or "").strip()
-            place = (request.form.get(f"in_place_{iid}") or "").strip()
-            label = it.get("name") or f"Item #{iid}"
             if not bp_raw:
                 errors.append(f"{label}: buying price is required when quantity is set.")
                 continue
             if not place:
                 errors.append(f"{label}: place bought is required when quantity is set.")
                 continue
+            if pay_raw not in allowed_pay:
+                errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
+                continue
+            payment_status = pay_raw
+            place_final = place.upper()
+            resolved_phone = None
+            if phone_raw:
+                rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+                if not rn or not rp:
+                    errors.append(
+                        f"{label}: seller phone must be valid (07… or 254…). "
+                        "If new, enter seller name in the seller field."
+                    )
+                    continue
+                place_final = (rn or place).strip().upper()
+                resolved_phone = rp
             try:
                 buying_price = float(bp_raw)
                 if buying_price < 0:
@@ -2447,23 +2481,33 @@ def _it_support_stock_management_post():
                     "direction": "in",
                     "qty": qty,
                     "buying_price": buying_price,
-                    "place_brought_from": place.upper(),
+                    "place_brought_from": place_final,
+                    "seller_phone": resolved_phone,
                     "stock_out_reason": None,
                     "refunded": False,
                     "refund_amount": None,
                     "note": None,
+                    "payment_status": payment_status,
+                    "amount_paid": None,
                 }
             )
         else:
             qty_raw = (request.form.get(f"out_qty_{iid}") or "").strip()
+            reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
+            ram = (request.form.get(f"out_refund_amount_{iid}") or "").strip()
+            label = it.get("name") or f"Item #{iid}"
+            partial_out = reason in allowed_reasons or bool(ram)
+
             if not qty_raw:
+                if partial_out:
+                    errors.append(
+                        f"{label}: enter a quantity out or clear reason and refund amount for this row."
+                    )
                 continue
             qty = normalize_stock_move_qty(qty_raw)
             if qty is None:
                 errors.append(f"{it.get('name') or ('Item #' + str(iid))}: invalid quantity.")
                 continue
-            label = it.get("name") or f"Item #{iid}"
-            reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
             if reason not in allowed_reasons:
                 errors.append(f"{label}: choose a stock out reason.")
                 continue
@@ -2474,7 +2518,6 @@ def _it_support_stock_management_post():
             refunded = refunded_raw == "yes"
             refund_amount = None
             if refunded:
-                ram = (request.form.get(f"out_refund_amount_{iid}") or "").strip()
                 if not ram:
                     errors.append(f"{label}: refund amount is required when refunded is yes.")
                     continue
@@ -2730,6 +2773,9 @@ def it_support_manual_stock_in_payment_update(tx_id: int):
     _it_support_or_super_admin_only()
     add_raw = (request.form.get("additional_payment") or "").strip()
     use_fifo = (request.form.get("fifo") or "").strip().lower() in ("1", "true", "yes", "on")
+    tx_scope = (request.form.get("tx_scope") or "shop").strip().lower()
+    if tx_scope not in ("shop", "company"):
+        tx_scope = "shop"
     if add_raw != "":
         try:
             additional_payment = float(add_raw)
@@ -2738,7 +2784,26 @@ def it_support_manual_stock_in_payment_update(tx_id: int):
         if additional_payment < 0:
             return jsonify({"ok": False, "error": "Additional payment cannot be negative."}), 400
         try:
-            if use_fifo:
+            if tx_scope == "company":
+                if use_fifo:
+                    from database import apply_supplier_payment_fifo_company_from_tx
+
+                    fifo_res = apply_supplier_payment_fifo_company_from_tx(tx_id, additional_payment)
+                    if not fifo_res:
+                        row = None
+                    else:
+                        row = {
+                            "id": int(tx_id),
+                            "payment_status": "updated",
+                            "amount_paid": None,
+                            "fifo_allocated_count": len(fifo_res.get("allocated") or []),
+                            "fifo_unused": float(fifo_res.get("unused") or 0.0),
+                        }
+                else:
+                    from database import update_company_stock_in_payment
+
+                    row = update_company_stock_in_payment(tx_id, additional_payment=additional_payment)
+            elif use_fifo:
                 from database import apply_supplier_payment_fifo_from_tx
 
                 fifo_res = apply_supplier_payment_fifo_from_tx(tx_id, additional_payment)
@@ -2769,9 +2834,14 @@ def it_support_manual_stock_in_payment_update(tx_id: int):
         if amount_paid < 0:
             return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
         try:
-            from database import update_shop_manual_stock_in_payment
+            if tx_scope == "company":
+                from database import update_company_stock_in_payment
 
-            row = update_shop_manual_stock_in_payment(tx_id, amount_paid=amount_paid)
+                row = update_company_stock_in_payment(tx_id, amount_paid=amount_paid)
+            else:
+                from database import update_shop_manual_stock_in_payment
+
+                row = update_shop_manual_stock_in_payment(tx_id, amount_paid=amount_paid)
         except Exception:
             row = None
     if not row:
@@ -2910,6 +2980,136 @@ def it_support_stock_movement_analysis():
     )
 
 
+_PROFIT_SORT_LABELS = {
+    "name": "Item name",
+    "margin_pct": "Margin %",
+    "margin_amount": "Margin / unit",
+    "qty_sold": "Qty sold",
+    "revenue": "Revenue",
+    "selling_price": "Selling price",
+    "avg_buying_price": "Avg buying price",
+    "stock_qty": "Stock qty",
+    "stock_value": "Stock value",
+    "velocity": "Turnover rate",
+    "company_stock_qty": "Company stock",
+}
+
+_PROFIT_SORT_COLUMNS_BY_VIEW = {
+    "margin": (
+        "margin_pct",
+        "qty_sold",
+        "revenue",
+        "margin_amount",
+        "selling_price",
+        "avg_buying_price",
+        "stock_qty",
+        "name",
+    ),
+    "stock_value": (
+        "stock_value",
+        "stock_qty",
+        "qty_sold",
+        "revenue",
+        "avg_buying_price",
+        "name",
+    ),
+    "velocity": ("velocity", "qty_sold", "stock_qty", "revenue", "name"),
+    "leakage": ("revenue", "qty_sold", "stock_qty", "company_stock_qty", "name"),
+    "low_margin_high_volume": (
+        "margin_pct",
+        "qty_sold",
+        "revenue",
+        "margin_amount",
+        "name",
+    ),
+    "low_stock": ("stock_qty", "qty_sold", "velocity", "revenue", "name"),
+}
+
+# Primary column + ascending flag for each tab (matches the purpose of the view).
+_PROFIT_DEFAULT_SORT = {
+    "margin": ("margin_pct", False),  # highest margin % first
+    "stock_value": ("stock_value", False),  # highest stock value first
+    "velocity": ("velocity", False),  # highest turnover first
+    "leakage": ("revenue", False),  # largest revenue-at-risk first
+    "low_margin_high_volume": ("margin_pct", True),  # worst margin % first
+    "low_stock": ("stock_qty", True),  # lowest on-hand first
+}
+
+
+def _sort_profitability_rows(rows, col, ascending):
+    """Stable sort for profitability sub-tables (numeric + name). Missing numbers sort last."""
+    if col == "name":
+        return sorted(
+            rows,
+            key=lambda r: (r.get("name") or "").strip().lower(),
+            reverse=not ascending,
+        )
+
+    def num_tuple(r):
+        v = r.get(col)
+        if v is None or v == "":
+            return (1, 0.0)
+        try:
+            return (0, float(v))
+        except (TypeError, ValueError):
+            return (1, 0.0)
+
+    if ascending:
+        return sorted(rows, key=num_tuple)
+
+    def desc_tuple(r):
+        g, x = num_tuple(r)
+        if g == 1:
+            return (1, 0.0)
+        return (0, -x)
+
+    return sorted(rows, key=desc_tuple)
+
+
+_REPORT_SORT_LABELS = {
+    "name": "Item name",
+    "stock_qty": "Stock qty",
+    "tx_count": "Moves",
+    "stock_value": "Stock value",
+    "avg_buying_price": "Avg buy",
+    "updated_at": "Updated",
+    "low_stock_threshold": "Alert level",
+}
+
+_REPORT_SORT_COLUMNS_BY_VIEW = {
+    "low_stock": ("stock_qty", "low_stock_threshold", "tx_count", "stock_value", "name", "avg_buying_price"),
+    "fast_moving": ("tx_count", "stock_qty", "stock_value", "updated_at", "name"),
+    "valuation": ("stock_value", "stock_qty", "tx_count", "avg_buying_price", "name"),
+    "highest_value": ("stock_value", "stock_qty", "tx_count", "name", "avg_buying_price"),
+    "stagnant": ("stock_value", "stock_qty", "tx_count", "updated_at", "name"),
+}
+
+_REPORT_DEFAULT_SORT = {
+    "low_stock": ("stock_qty", True),  # lowest on-hand first
+    "fast_moving": ("tx_count", False),  # most moves first
+    "valuation": ("stock_value", False),  # highest value first
+    "highest_value": ("stock_value", False),
+    "stagnant": ("stock_value", False),  # largest idle value first
+}
+
+
+def _sort_stock_report_rows(rows, col, ascending):
+    """Sort IT stock report rows (name / updated_at / numeric columns)."""
+    if col == "name":
+        return sorted(
+            rows,
+            key=lambda r: (r.get("name") or "").strip().lower(),
+            reverse=not ascending,
+        )
+    if col == "updated_at":
+        return sorted(
+            rows,
+            key=lambda r: str(r.get("updated_at") or ""),
+            reverse=not ascending,
+        )
+    return _sort_profitability_rows(rows, col, ascending)
+
+
 @app.route("/it_support/stock-profitability-analysis")
 @login_required
 def it_support_stock_profitability_analysis():
@@ -2927,6 +3127,21 @@ def it_support_stock_profitability_analysis():
     }
     if selected_view not in allowed_views:
         selected_view = "margin"
+    profit_sort_allowed = set(_PROFIT_SORT_COLUMNS_BY_VIEW.get(selected_view, ()))
+    dacol, daasc = _PROFIT_DEFAULT_SORT.get(selected_view, ("name", True))
+    raw_sort = (request.args.get("profit_sort") or "").strip().lower()
+    if raw_sort in profit_sort_allowed:
+        eff_col = raw_sort
+        por = (request.args.get("profit_order") or "desc").strip().lower()
+        eff_asc = por == "asc"
+    else:
+        eff_col = dacol
+        eff_asc = daasc
+    profit_order = "asc" if eff_asc else "desc"
+    profit_sort_options = [
+        (c, _PROFIT_SORT_LABELS.get(c, c.replace("_", " ").title()))
+        for c in _PROFIT_SORT_COLUMNS_BY_VIEW.get(selected_view, ())
+    ]
     item_rows = []
     avg_margin_pct = 0.0
     total_stock_value = 0.0
@@ -2937,29 +3152,41 @@ def it_support_stock_profitability_analysis():
     low_stock_items = []
     top_velocity_items = []
     margin_rows = []
-    stock_value_rows = []
 
     from database import (
+        IT_SUPPORT_ANALYTICS_ITEMS_MAX,
         get_company_stock_status,
         get_it_support_item_analytics,
         get_cursor,
-        list_stock_manage_items,
+        list_active_catalog_items_for_it_analytics,
     )
 
     try:
-        items = list_stock_manage_items(limit=3000, inventory_mode=inv_mode) or []
+        items = list_active_catalog_items_for_it_analytics(
+            limit=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+            inventory_mode=inv_mode,
+        ) or []
     except Exception:
         items = []
     try:
-        _, stock_rows = get_company_stock_status(limit_items=3000, inventory_mode=inv_mode)
+        _, stock_rows = get_company_stock_status(
+            limit_items=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+            inventory_mode=inv_mode,
+            only_active=True,
+        )
     except Exception:
         stock_rows = []
     try:
-        item_sales = get_it_support_item_analytics(analytics_filter=analytics_filter) or {}
+        item_sales = get_it_support_item_analytics(
+            analytics_filter=analytics_filter,
+            analytics_scope=_analytics_scope_from_request(),
+            top_items_limit=0,
+        ) or {}
     except Exception:
         item_sales = {}
 
     stock_map = {}
+    company_stock_map = {}
     for r in stock_rows or []:
         try:
             iid = int(r.get("id") or 0)
@@ -2967,6 +3194,7 @@ def it_support_stock_profitability_analysis():
             continue
         if iid > 0:
             stock_map[iid] = int(r.get("total_stock_qty") or 0)
+            company_stock_map[iid] = int(r.get("company_stock_qty") or 0)
 
     sales_map = {}
     for r in (item_sales or {}).get("top_items") or []:
@@ -3026,9 +3254,17 @@ def it_support_stock_profitability_analysis():
         except Exception:
             selling_price = 0.0
         avg_buying_price = avg_buy_map.get(iid)
+        if avg_buying_price is None:
+            lp = it.get("last_buying_price")
+            if lp is not None:
+                try:
+                    avg_buying_price = float(lp)
+                except Exception:
+                    avg_buying_price = None
         qty_sold = int((sales_map.get(iid) or {}).get("qty_sold") or 0)
         revenue = float((sales_map.get(iid) or {}).get("revenue") or 0)
-        stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
+        company_qty = int(company_stock_map.get(iid, int(it.get("stock_qty") or 0)))
+        stock_qty = int(stock_map.get(iid, company_qty))
         row_low_stock_threshold = max(0, int(it.get("low_stock_threshold") or 0))
         row_reorder_level = max(0, int(it.get("reorder_level") or 0))
 
@@ -3052,6 +3288,7 @@ def it_support_stock_profitability_analysis():
             "margin_amount": margin_amount,
             "margin_pct": margin_pct,
             "stock_qty": stock_qty,
+            "company_stock_qty": company_qty,
             "stock_value": stock_value,
             "qty_sold": qty_sold,
             "revenue": revenue,
@@ -3065,27 +3302,45 @@ def it_support_stock_profitability_analysis():
         if stock_qty > 0 and qty_sold == 0:
             dead_stock_count += 1
             dead_stock_value += stock_value
-        if stock_qty <= 0 and revenue > 0:
+        if revenue > 0 and (stock_qty <= 0 or company_qty <= 0):
             high_value_zero_stock.append(row)
         if row_low_stock_threshold > 0 and stock_qty <= row_low_stock_threshold:
             low_stock_items.append(row)
-        if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
+        if margin_pct is not None and margin_pct <= 18.0 and qty_sold >= 5:
             low_margin_high_volume.append(row)
         if margin_pct is not None:
             margin_rows.append(row)
 
     avg_margin_pct = (margin_sum / margin_n) if margin_n else 0.0
-    margin_rows.sort(key=lambda r: (r.get("margin_pct") if r.get("margin_pct") is not None else -9999))
-    stock_value_rows = sorted(item_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
-    high_value_zero_stock.sort(key=lambda r: r.get("revenue") or 0, reverse=True)
-    low_margin_high_volume.sort(key=lambda r: ((r.get("qty_sold") or 0), -(r.get("margin_pct") or 0)), reverse=True)
-    low_stock_items.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("qty_sold") or 0)))
-    top_velocity_items = sorted(item_rows, key=lambda r: r.get("velocity") or 0, reverse=True)
+    # Intrinsic ordering for off-tab lists; current tab uses eff_col / eff_asc (defaults match tab purpose).
+    margin_rows = _sort_profitability_rows(margin_rows, "margin_pct", False)
+    stock_value_rows = _sort_profitability_rows(list(item_rows), "stock_value", False)
+    high_value_zero_stock = _sort_profitability_rows(high_value_zero_stock, "revenue", False)
+    low_margin_high_volume = _sort_profitability_rows(low_margin_high_volume, "margin_pct", True)
+    low_stock_items = _sort_profitability_rows(low_stock_items, "stock_qty", True)
+    top_velocity_items = _sort_profitability_rows(list(item_rows), "velocity", False)
+
+    if selected_view == "margin":
+        margin_rows = _sort_profitability_rows(margin_rows, eff_col, eff_asc)
+    elif selected_view == "stock_value":
+        stock_value_rows = _sort_profitability_rows(list(item_rows), eff_col, eff_asc)
+    elif selected_view == "velocity":
+        top_velocity_items = _sort_profitability_rows(list(item_rows), eff_col, eff_asc)
+    elif selected_view == "leakage":
+        high_value_zero_stock = _sort_profitability_rows(high_value_zero_stock, eff_col, eff_asc)
+    elif selected_view == "low_margin_high_volume":
+        low_margin_high_volume = _sort_profitability_rows(low_margin_high_volume, eff_col, eff_asc)
+    elif selected_view == "low_stock":
+        low_stock_items = _sort_profitability_rows(low_stock_items, eff_col, eff_asc)
 
     return render_template(
         "it_support_stock_profitability_analysis.html",
         analytics_filter=analytics_filter,
+        analytics_scope=_analytics_scope_from_request(),
         selected_view=selected_view,
+        profit_sort=eff_col,
+        profit_order=profit_order,
+        profit_sort_options=profit_sort_options,
         item_rows=item_rows,
         avg_margin_pct=avg_margin_pct,
         total_stock_value=total_stock_value,
@@ -3105,6 +3360,7 @@ def it_support_stock_profitability_analysis():
 def it_support_stock_reports():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
+    inv_mode = _global_pos_inventory_mode()
     selected_view = (request.args.get("view") or "low_stock").strip().lower()
     allowed_views = {
         "low_stock",
@@ -3115,10 +3371,21 @@ def it_support_stock_reports():
     }
     if selected_view not in allowed_views:
         selected_view = "low_stock"
-    reorder_threshold = request.args.get("reorder_threshold", type=int)
-    if reorder_threshold is None:
-        reorder_threshold = 5
-    reorder_threshold = max(0, min(500, int(reorder_threshold)))
+
+    report_sort_allowed = set(_REPORT_SORT_COLUMNS_BY_VIEW.get(selected_view, ()))
+    rdacol, rdaasc = _REPORT_DEFAULT_SORT.get(selected_view, ("name", True))
+    raw_rs = (request.args.get("report_sort") or "").strip().lower()
+    if raw_rs in report_sort_allowed:
+        rep_col = raw_rs
+        rep_asc = (request.args.get("report_order") or "desc").strip().lower() == "asc"
+    else:
+        rep_col = rdacol
+        rep_asc = rdaasc
+    report_order = "asc" if rep_asc else "desc"
+    report_sort_options = [
+        (c, _REPORT_SORT_LABELS.get(c, c.replace("_", " ").title()))
+        for c in _REPORT_SORT_COLUMNS_BY_VIEW.get(selected_view, ())
+    ]
 
     low_stock_rows = []
     fast_moving_rows = []
@@ -3129,14 +3396,23 @@ def it_support_stock_reports():
 
     try:
         from database import (
+            IT_SUPPORT_ANALYTICS_ITEMS_MAX,
             _analytics_where_clause,
             get_company_stock_status,
             get_cursor,
-            list_stock_manage_items,
+            list_active_catalog_items_for_it_analytics,
         )
 
-        items = list_stock_manage_items(limit=3000) or []
-        _, stock_rows = get_company_stock_status(limit_items=3000)
+        items = list_active_catalog_items_for_it_analytics(
+            limit=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+            inventory_mode=inv_mode,
+        ) or []
+
+        _, stock_rows = get_company_stock_status(
+            limit_items=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+            inventory_mode=inv_mode,
+            only_active=True,
+        )
         stock_map = {}
         for r in stock_rows or []:
             try:
@@ -3210,6 +3486,8 @@ def it_support_stock_reports():
             stock_value = max(stock_qty, 0) * avg_buy
             total_valuation += stock_value
 
+            row_low = max(0, int(it.get("low_stock_threshold") or 0))
+            row_reorder = max(0, int(it.get("reorder_level") or 0))
             row = {
                 "item_id": iid,
                 "name": (it.get("name") or "").strip() or f"Item #{iid}",
@@ -3219,22 +3497,34 @@ def it_support_stock_reports():
                 "updated_at": it.get("updated_at"),
                 "avg_buying_price": avg_buy,
                 "stock_value": stock_value,
+                "low_stock_threshold": row_low,
+                "reorder_level": row_reorder,
             }
             valuation_rows.append(row)
-            if stock_qty <= reorder_threshold:
+            if row_low > 0 and stock_qty <= row_low:
                 low_stock_rows.append(row)
             if stock_qty > 0 and tx_count == 0:
                 stagnant_rows.append(row)
 
-        fast_moving_rows = sorted(
-            [r for r in valuation_rows if (r.get("tx_count") or 0) > 0],
-            key=lambda r: ((r.get("tx_count") or 0), str(r.get("updated_at") or "")),
-            reverse=True,
-        )
-        valuation_rows.sort(key=lambda r: (r.get("name") or "").lower())
-        highest_value_rows = sorted(valuation_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
-        low_stock_rows.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("tx_count") or 0)))
-        stagnant_rows.sort(key=lambda r: (r.get("stock_value") or 0), reverse=True)
+        val_snap = list(valuation_rows)
+        fast_moving_rows = [r for r in val_snap if (r.get("tx_count") or 0) > 0]
+
+        low_stock_rows = _sort_stock_report_rows(low_stock_rows, "stock_qty", True)
+        fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, "tx_count", False)
+        valuation_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
+        highest_value_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
+        stagnant_rows = _sort_stock_report_rows(stagnant_rows, "stock_value", False)
+
+        if selected_view == "low_stock":
+            low_stock_rows = _sort_stock_report_rows(low_stock_rows, rep_col, rep_asc)
+        elif selected_view == "fast_moving":
+            fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, rep_col, rep_asc)
+        elif selected_view == "valuation":
+            valuation_rows = _sort_stock_report_rows(valuation_rows, rep_col, rep_asc)
+        elif selected_view == "highest_value":
+            highest_value_rows = _sort_stock_report_rows(highest_value_rows, rep_col, rep_asc)
+        elif selected_view == "stagnant":
+            stagnant_rows = _sort_stock_report_rows(stagnant_rows, rep_col, rep_asc)
     except Exception:
         pass
 
@@ -3242,7 +3532,9 @@ def it_support_stock_reports():
         "it_support_stock_reports.html",
         analytics_filter=analytics_filter,
         selected_view=selected_view,
-        reorder_threshold=reorder_threshold,
+        report_sort=rep_col,
+        report_order=report_order,
+        report_sort_options=report_sort_options,
         total_valuation=total_valuation,
         low_stock_rows=low_stock_rows[:120],
         fast_moving_rows=fast_moving_rows[:120],
@@ -3458,6 +3750,35 @@ def _compute_shop_reorder_suggestion(stock_qty: int, movement_row: dict) -> int:
     return int(round(suggested))
 
 
+def _filter_supplier_stock_ins_rows_by_payment(rows: list, payment_filter: str) -> list:
+    """Filter company/shop supplier stock-in rows by payment settlement state (current row snapshot)."""
+    filt = (payment_filter or "pending").strip().lower()
+    if filt not in ("pending", "partial", "paid", "all"):
+        filt = "pending"
+    out: list = []
+    for r in rows:
+        try:
+            tc = float(r.get("total_cost") or 0)
+            paid = float(r.get("amount_paid") or 0)
+            bal = float(r.get("balance") or max(0.0, tc - paid))
+        except (TypeError, ValueError):
+            continue
+        if tc <= 1e-6:
+            continue
+        if filt == "all":
+            out.append(r)
+        elif filt == "pending":
+            if paid <= 1e-6 and bal > 1e-6:
+                out.append(r)
+        elif filt == "partial":
+            if paid > 1e-6 and bal > 1e-6:
+                out.append(r)
+        elif filt == "paid":
+            if bal <= 1e-6:
+                out.append(r)
+    return out
+
+
 @app.route("/it_support/stock-reports/suppliers")
 @login_required
 def it_support_stock_suppliers():
@@ -3473,7 +3794,7 @@ def it_support_stock_suppliers():
     if filter_shop_id is not None and filter_shop_id <= 0:
         filter_shop_id = None
     try:
-        from database import list_company_supplier_stock_ins, list_shops
+        from database import list_company_supplier_stock_ins, list_registered_sellers_for_report, list_shops
 
         rows = list_company_supplier_stock_ins(
             analytics_filter=analytics_filter,
@@ -3512,6 +3833,33 @@ def it_support_stock_suppliers():
         if (r.get("created_at") or "") > (g.get("last_activity") or ""):
             g["last_activity"] = r.get("created_at")
 
+    # Registered sellers with no matching stock-ins still appear (unless shop / moved-by filters apply).
+    if filter_shop_id is None and not moved_by_q:
+        try:
+            from database import list_registered_sellers_for_report
+
+            for s in list_registered_sellers_for_report(
+                name_or_phone_contains=supplier_q or None,
+                limit=8000,
+            ):
+                nm = (s.get("seller_name") or "-").strip() or "-"
+                ph = (s.get("seller_phone") or "-").strip() or "-"
+                key = f"{nm}||{ph}"
+                if key in by_supplier:
+                    continue
+                by_supplier[key] = {
+                    "seller_name": nm,
+                    "seller_phone": ph,
+                    "tx_count": 0,
+                    "total_qty": 0,
+                    "total_cost": 0.0,
+                    "amount_paid": 0.0,
+                    "balance": 0.0,
+                    "last_activity": None,
+                }
+        except Exception:
+            pass
+
     supplier_groups = sorted(
         by_supplier.values(),
         key=lambda x: (
@@ -3530,6 +3878,71 @@ def it_support_stock_suppliers():
         moved_by_q=moved_by_q,
         filter_shop_id=filter_shop_id,
         stock_shops=stock_shops,
+    )
+
+
+@app.route("/it_support/stock-reports/supplier-payment-transactions")
+@login_required
+def it_support_supplier_payment_transactions():
+    """Per-line supplier stock-in payment state: pending, partially paid, or settled."""
+    _it_support_or_super_admin_only()
+    payment_filter = (request.args.get("filter") or "pending").strip().lower()
+    if payment_filter not in ("pending", "partial", "paid", "all"):
+        payment_filter = "pending"
+    has_date_filter = any(
+        (request.args.get(k) or "").strip()
+        for k in ("mode", "single_day", "start_date", "end_date", "month", "year")
+    )
+    analytics_filter = _build_analytics_filter() if has_date_filter else {"range_label": "All dates"}
+    supplier_q = (request.args.get("supplier_q") or "").strip()
+    moved_by_q = (request.args.get("moved_by") or "").strip()
+    filter_shop_id = request.args.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
+    rows: list = []
+    stock_shops: list = []
+    try:
+        from database import list_company_supplier_stock_ins, list_shops
+
+        raw = (
+            list_company_supplier_stock_ins(
+                analytics_filter=analytics_filter,
+                shop_id=filter_shop_id,
+                supplier_search=supplier_q or None,
+                moved_by_contains=moved_by_q or None,
+                limit=10000,
+            )
+            or []
+        )
+        raw = [r for r in raw if float(r.get("total_cost") or 0) > 1e-6]
+        rows = _filter_supplier_stock_ins_rows_by_payment(raw, payment_filter)
+        stock_shops = list_shops(limit=500) or []
+    except Exception:
+        rows, stock_shops = [], []
+
+    sum_total = sum(float(r.get("total_cost") or 0) for r in rows)
+    sum_paid = sum(float(r.get("amount_paid") or 0) for r in rows)
+    sum_balance = sum(float(r.get("balance") or 0) for r in rows)
+    filter_titles = {
+        "pending": "Pending payment (nothing paid yet)",
+        "partial": "Partially paid (payment started, balance remaining)",
+        "paid": "Paid in full (no balance)",
+        "all": "All lines with supplier cost",
+    }
+    return render_template(
+        "it_support_supplier_payment_transactions.html",
+        analytics_filter=analytics_filter,
+        has_date_filter=has_date_filter,
+        payment_filter=payment_filter,
+        payment_filter_title=filter_titles.get(payment_filter, filter_titles["pending"]),
+        payment_rows=rows,
+        supplier_q=supplier_q,
+        moved_by_q=moved_by_q,
+        filter_shop_id=filter_shop_id,
+        stock_shops=stock_shops,
+        sum_total=sum_total,
+        sum_paid=sum_paid,
+        sum_balance=sum_balance,
     )
 
 
@@ -3597,10 +4010,19 @@ def it_support_stock_supplier_transaction_detail():
         abort(404)
     seller_name = (request.args.get("seller_name") or "").strip() or "-"
     seller_phone = (request.args.get("seller_phone") or "").strip() or "-"
+    tx_scope = (request.args.get("tx_scope") or "shop").strip().lower()
+    if tx_scope not in ("shop", "company"):
+        tx_scope = "shop"
+    row = None
     try:
-        from database import get_shop_manual_stock_in_transaction
+        if tx_scope == "company":
+            from database import get_company_stock_in_transaction
 
-        row = get_shop_manual_stock_in_transaction(tx_id)
+            row = get_company_stock_in_transaction(tx_id)
+        else:
+            from database import get_shop_manual_stock_in_transaction
+
+            row = get_shop_manual_stock_in_transaction(tx_id)
     except Exception:
         row = None
     if not row:
@@ -3734,6 +4156,13 @@ def it_support_company_stock_update():
         shops, items, stock_rows = [], [], []
 
     if request.method == "POST":
+        if inv_mode == "kitchen":
+            flash(
+                "Company stock transfers are not available while POS is set to kitchen portions only. "
+                "Turn on shop stock sales in company printing settings, or use branch stock management where shelf inventory applies.",
+                "warning",
+            )
+            return redirect(url_for("it_support_company_stock_update"))
         if inv_mode == "both":
             flash("Company stock update actions here use sales catalog items. In Both mode, manage shelf stock from shop stock management.", "warning")
             return redirect(url_for("it_support_company_stock_update"))
@@ -3875,6 +4304,7 @@ def it_support_company_stock_update():
         shops=shops,
         items=items,
         stock_rows=stock_rows,
+        pos_inventory_mode=inv_mode,
     )
 
 
@@ -4490,6 +4920,119 @@ def it_support_credit_payments():
     )
 
 
+@app.route("/it_support/credit-payments/audit")
+@login_required
+def it_support_credit_payments_audit():
+    _it_support_or_super_admin_only()
+    analytics_filter = _build_analytics_filter()
+    all_time_arg = (request.args.get("all_time") or "").strip().lower()
+    all_time = all_time_arg in ("1", "true", "yes", "on")
+    mode = (request.args.get("mode") or "").strip()
+    single_day = (request.args.get("single_day") or "").strip()
+    start_date = (request.args.get("start_date") or "").strip()
+    end_date = (request.args.get("end_date") or "").strip()
+    month = (request.args.get("month") or "").strip()
+    year = (request.args.get("year") or "").strip()
+    filter_shop_id = request.args.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
+    customer_q = (request.args.get("customer_q") or "").strip()
+    payment_scope = (request.args.get("payment_scope") or "all").strip().lower()
+    if payment_scope not in ("all", "partial", "paid"):
+        payment_scope = "all"
+
+    has_explicit_filter = bool(
+        all_time
+        or mode
+        or single_day
+        or start_date
+        or end_date
+        or month
+        or year
+        or filter_shop_id
+        or customer_q
+    )
+    if not has_explicit_filter:
+        all_time = True
+
+    audit_sales = []
+    payment_receipts = []
+    shops = []
+    try:
+        from database import (
+            list_all_shops_company_credit_payment_receipts,
+            list_all_shops_credit_sales_with_payments_audit,
+            list_shops,
+        )
+
+        shops = list_shops(limit=500) or []
+        af = None if all_time else analytics_filter
+        audit_sales = list_all_shops_credit_sales_with_payments_audit(
+            limit=5000,
+            analytics_filter=af,
+            shop_id=filter_shop_id,
+            customer_q=customer_q or None,
+            payment_scope=payment_scope,
+        )
+        payment_receipts = list_all_shops_company_credit_payment_receipts(
+            limit=5000,
+            analytics_filter=af,
+            shop_id=filter_shop_id,
+            customer_q=customer_q or None,
+        )
+    except Exception:
+        audit_sales, payment_receipts, shops = [], [], []
+    return render_template(
+        "it_support_credit_payments_audit.html",
+        audit_sales=audit_sales,
+        payment_receipts=payment_receipts,
+        shops=shops,
+        analytics_filter=analytics_filter,
+        filter_shop_id=filter_shop_id,
+        customer_q=customer_q,
+        payment_scope=payment_scope,
+        credit_all_time=all_time,
+    )
+
+
+@app.route("/it_support/credit-payments/upcoming-due")
+@login_required
+def it_support_credit_payments_upcoming_due():
+    _it_support_or_super_admin_only()
+    days_ahead = request.args.get("days", type=int) or 90
+    if days_ahead < 1:
+        days_ahead = 1
+    if days_ahead > 730:
+        days_ahead = 730
+    filter_shop_id = request.args.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
+    customer_q = (request.args.get("customer_q") or "").strip()
+
+    due_rows = []
+    shops = []
+    try:
+        from database import list_all_shops_credit_due_reminders, list_shops
+
+        shops = list_shops(limit=500) or []
+        due_rows = list_all_shops_credit_due_reminders(
+            limit=5000,
+            days_ahead=days_ahead,
+            shop_id=filter_shop_id,
+            customer_q=customer_q or None,
+        )
+    except Exception:
+        due_rows, shops = [], []
+    return render_template(
+        "it_support_credit_upcoming_due.html",
+        due_rows=due_rows,
+        shops=shops,
+        filter_shop_id=filter_shop_id,
+        customer_q=customer_q,
+        due_days_ahead=days_ahead,
+    )
+
+
 @app.route("/it_support/credit-payments/customer")
 @login_required
 def it_support_credit_payments_customer():
@@ -4527,7 +5070,7 @@ def it_support_credit_payments_customer():
 @login_required
 def company_credit_payments_customer():
     role_key = (session.get("employee_role") or "").strip().lower()
-    if role_key not in ("admin", "it_support", "super_admin"):
+    if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
         abort(403)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
@@ -4585,7 +5128,7 @@ def company_credit_payments_customer():
 @login_required
 def company_credit_payments_pay():
     role_key = (session.get("employee_role") or "").strip().lower()
-    if role_key not in ("admin", "it_support", "super_admin"):
+    if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
         abort(403)
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
@@ -4731,7 +5274,7 @@ def it_support_credit_sale_detail():
 @login_required
 def company_credit_sale_detail():
     role_key = (session.get("employee_role") or "").strip().lower()
-    if role_key not in ("admin", "it_support", "super_admin"):
+    if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
         abort(403)
     shop_id = request.args.get("shop_id", type=int)
     sale_id = request.args.get("sale_id", type=int)
@@ -5295,7 +5838,7 @@ def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[
         return None, "Employee is not active. Enter another active employee code.", 403
 
     role_key = (row.get("role") or "employee").lower()
-    if role_key not in ("super_admin", "it_support") and not employee_may_use_shop_branch(
+    if role_key not in COMPANY_PORTAL_ROLES and not employee_may_use_shop_branch(
         dict(row),
         int(shop_id),
     ):
@@ -5355,7 +5898,7 @@ def shop_pos_employee_auth_cache(shop_id: int):
         if status != "active":
             continue
         role_key = str((row or {}).get("role") or "employee").strip().lower()
-        if role_key not in ("super_admin", "it_support"):
+        if role_key not in COMPANY_PORTAL_ROLES:
             try:
                 if not employee_may_use_shop_branch(dict(row), int(shop_id)):
                     continue
@@ -6805,8 +7348,8 @@ def shop_role_preview_set(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
-    actual = session.get("employee_role") or ""
-    if actual not in ("super_admin", "it_support"):
+    actual = str(session.get("employee_role") or "").strip().lower()
+    if actual not in COMPANY_PORTAL_ROLES:
         abort(403)
     role = (request.form.get("role") or "").strip().lower()
     next_url = (request.form.get("next") or "").strip()
@@ -6918,7 +7461,7 @@ def shop_receipts_mark(shop_id: int):
     if gate is not None:
         return gate
     role_key = (session.get("employee_role") or "").strip().lower()
-    if role_key not in ("admin", "manager", "super_admin", "it_support"):
+    if role_key not in ("admin", "manager", "super_admin", "it_support", "company_manager"):
         return jsonify({"ok": False, "error": "Only admin or manager can mark receipts."}), 403
     data = request.get_json(force=True, silent=True) or {}
     raw_ids = data.get("sale_ids")
@@ -6969,7 +7512,7 @@ def shop_receipts_return_lines(shop_id: int):
     if gate is not None:
         return gate
     role_key = (session.get("employee_role") or "").strip().lower()
-    if role_key not in ("admin", "manager", "super_admin", "it_support"):
+    if role_key not in ("admin", "manager", "super_admin", "it_support", "company_manager"):
         return jsonify({"ok": False, "error": "Only admin or manager can return items."}), 403
     data = request.get_json(force=True, silent=True) or {}
     sale_id = int(data.get("sale_id") or 0)
@@ -7897,7 +8440,7 @@ def shop_stock_management_item(shop_id: int, mode: str, item_id: int):
 
 def _can_user_review_stock_request(row: dict, *, role_key: str, viewer_shop_id: int | None) -> bool:
     role_key = (role_key or "employee").strip().lower()
-    if role_key in ("it_support", "super_admin"):
+    if role_key in COMPANY_PORTAL_ROLES:
         return True
     # Company-only approvals for return-to-company requests.
     if (row.get("request_type") or "").lower() == "return_to_company":
@@ -7920,7 +8463,7 @@ def _effective_viewer_shop_id(role_key: str) -> int | None:
             return int(sid)
         except Exception:
             return None
-    if role_key in ("it_support", "super_admin"):
+    if role_key in COMPANY_PORTAL_ROLES:
         return None
     uid = session.get("employee_id")
     if not uid:
@@ -8362,7 +8905,7 @@ def shop_stock_profitability_analysis(shop_id: int):
                 high_value_zero_stock.append(row)
             if row_low_stock_threshold > 0 and stock_qty <= row_low_stock_threshold:
                 low_stock_items.append(row)
-            if margin_pct is not None and margin_pct <= 15.0 and qty_sold >= 20:
+            if margin_pct is not None and margin_pct <= 18.0 and qty_sold >= 5:
                 low_margin_high_volume.append(row)
             if margin_pct is not None:
                 margin_rows.append(row)
@@ -9147,6 +9690,7 @@ def it_support_hr_management():
 HR_AUTH_ROLE_ORDER = (
     ("super_admin", "Super admin"),
     ("it_support", "IT support"),
+    ("company_manager", "Company manager"),
     ("admin", "Admin"),
     ("manager", "Manager"),
     ("sales", "Sales"),
@@ -9454,10 +9998,10 @@ _PORTAL_MODULES_STAFF: tuple[dict, ...] = (
 def _portal_module_playbook(*, role_key: str, is_pending: bool) -> tuple[list, str]:
     """Return (modules_list, scope_note) describing typical portal areas for a role."""
     rk = (role_key or "employee").strip().lower()
-    if rk in ("super_admin", "it_support"):
+    if rk in COMPANY_PORTAL_ROLES:
         modules = [dict(m) for m in _PORTAL_MODULES_COMPANY_IT]
         note = (
-            "Full company management portal: IT support and super admin accounts use the same "
+            "Full company management portal: super admin, IT support, and company manager accounts use the same "
             "employee dashboard shortcuts (items, stores, kitchen, HR, analytics, leads, website, credit)."
         )
     elif rk == "admin":

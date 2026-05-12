@@ -90,7 +90,7 @@
         </div>
         {% if portal_employee %}
           <div class="mt-2 flex shrink-0 flex-col gap-1 border-t border-[rgb(var(--rc-border))] pt-2">
-            {% if portal_employee.role_key in ('it_support', 'super_admin') %}
+            {% if portal_employee.role_key in ('it_support', 'super_admin', 'company_manager') %}
               <a
                 href="{{ url_for('it_support_system_settings') }}"
                 class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() in ('', 'system') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -118,7 +118,7 @@
                 Point of sale settings
               </a>
             {% endif %}
-            {% if portal_employee.role_key not in ('it_support', 'super_admin') %}
+            {% if portal_employee.role_key not in ('it_support', 'super_admin', 'company_manager') %}
             <a
               href="{{ notifications_url if notifications_url else url_for('notifications') }}"
               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint in ('notifications', 'shop_notifications') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -184,7 +184,7 @@
           {% include "partials/employee_portal_header_user.html" %}
         </div>
       </header>
-      <main class="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <main class="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {% include "partials/flashes.html" %}
         {% block employee_content %}{% endblock %}
       </main>

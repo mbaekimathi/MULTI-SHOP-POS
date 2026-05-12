@@ -52,101 +52,101 @@
   {% set shops = stock_shops or [] %}
   {% set rows = stock_rows or [] %}
   {% set tx_rows = transaction_rows or [] %}
-  <div class="mx-auto max-w-6xl">
+  <div class="mx-auto min-w-0 max-w-6xl max-md:-mx-4 sm:max-md:-mx-6">
     <span id="stock-status"></span>
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-6 md:shadow-sm">
       <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div class="min-w-0">
           <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock analytics</h2>
           <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
             Showing stock movement for <span class="font-semibold">{{ f.range_label or 'selected period' }}</span>.
           </p>
         </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        <div class="shrink-0 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] max-md:border-0 max-md:bg-transparent md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:px-4 md:py-2">
           {{ d.tx_count or 0 }} transactions
         </div>
       </div>
 
-      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Quantity in</div>
-          <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.qty_in or 0 }}</div>
+      <div class="mt-4 grid grid-cols-1 gap-0 divide-y divide-[rgb(var(--rc-border))] md:grid-cols-2 md:gap-3 md:divide-y-0 xl:grid-cols-5">
+        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] md:block">Quantity in</div>
+          <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))] md:mt-2">{{ d.qty_in or 0 }}</div>
         </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Quantity out</div>
-          <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.qty_out or 0 }}</div>
+        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] md:block">Quantity out</div>
+          <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))] md:mt-2">{{ d.qty_out or 0 }}</div>
         </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Net movement</div>
-          <div class="mt-2 text-2xl font-extrabold {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">
+        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] md:block">Net movement</div>
+          <div class="text-2xl font-extrabold tabular-nums md:mt-2 {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">
             {% if (d.net_qty or 0) > 0 %}+{% endif %}{{ d.net_qty or 0 }}
           </div>
         </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Items moved</div>
-          <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.distinct_items or 0 }}</div>
+        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] md:block">Items moved</div>
+          <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))] md:mt-2">{{ d.distinct_items or 0 }}</div>
         </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shops involved</div>
-          <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.distinct_shops or 0 }}</div>
+        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] md:block">Shops involved</div>
+          <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))] md:mt-2">{{ d.distinct_shops or 0 }}</div>
         </div>
       </div>
     </div>
 
-    <div class="mt-4 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
-        <div>
+    <div class="mt-4 overflow-hidden border-b border-[rgb(var(--rc-border))] max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-5 md:py-4">
+        <div class="min-w-0">
           <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock status (company + shops)</h3>
           <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">
             Company stock is shown first (main store), followed by each shop’s current stock.
           </p>
         </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        <div class="shrink-0 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] max-md:border-0 max-md:bg-transparent md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:px-3 md:py-1.5">
           {{ rows|length }} items
         </div>
       </div>
-      <div class="border-t border-[rgb(var(--rc-border))] px-5 py-3">
+      <div class="border-t border-[rgb(var(--rc-border))] px-4 py-3 md:px-5">
         <input
           id="stock-status-live-search"
           type="search"
           autocomplete="off"
           placeholder="Search by item, category or description..."
-          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
+          class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm"
         />
       </div>
       {% if not rows %}
-        <p class="px-5 pb-5 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
+        <p class="px-4 pb-5 text-sm text-[rgb(var(--rc-muted))] md:px-5">No items found.</p>
       {% else %}
-        <div class="overflow-x-auto border-t border-[rgb(var(--rc-border))]">
-          <table class="min-w-[980px] w-full text-sm">
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
+          <table class="min-w-[52rem] w-full text-xs sm:min-w-[64rem] md:min-w-[980px] md:text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Item</th>
-                <th class="px-3 py-2 text-left text-xs font-black uppercase tracking-wider">Category</th>
-                <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Company</th>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th>
+                <th class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Category</th>
+                <th class="px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Co.</th>
                 {% for sh in shops %}
-                  <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">
-                    <span class="block">{{ sh.shop_name or ("Shop " ~ sh.id) }}</span>
-                    {% if sh.shop_code %}<span class="block text-[10px] font-bold uppercase tracking-wider opacity-70">{{ sh.shop_code }}</span>{% endif %}
+                  <th class="max-w-[5rem] px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:max-w-none sm:px-3 sm:text-xs">
+                    <span class="block truncate sm:whitespace-normal">{{ sh.shop_name or ("Shop " ~ sh.id) }}</span>
+                    {% if sh.shop_code %}<span class="block truncate text-[9px] font-bold uppercase tracking-wider opacity-70 sm:text-[10px]">{{ sh.shop_code }}</span>{% endif %}
                   </th>
                 {% endfor %}
-                <th class="px-3 py-2 text-right text-xs font-black uppercase tracking-wider">Total</th>
+                <th class="px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Total</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for r in rows %}
                 <tr class="align-middle stock-status-row" data-stock-status-search="{{ ((r.name or '') ~ ' ' ~ (r.category or '') ~ ' ' ~ (r.description or ''))|lower }}">
-                  <td class="px-3 py-2">
-                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</div>
-                    <div class="text-xs text-[rgb(var(--rc-muted))]">ITEM #{{ r.id }}</div>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3">
+                    <div class="max-w-[10rem] truncate font-semibold text-[rgb(var(--rc-page-fg))] sm:max-w-[14rem] md:max-w-none">{{ r.name }}</div>
+                    <div class="text-[10px] text-[rgb(var(--rc-muted))] sm:text-xs">ITEM #{{ r.id }}</div>
                   </td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.category or "—" }}</td>
-                  <td class="px-3 py-2 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ r.company_stock_qty or 0 }}</td>
+                  <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3 sm:whitespace-normal">{{ r.category or "—" }}</td>
+                  <td class="px-2 py-2 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.company_stock_qty or 0 }}</td>
                   {% for sh in shops %}
                     {% set _q = (r.per_shop or {}).get(sh.id|string, 0) %}
-                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ _q }}</td>
+                    <td class="px-2 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">{{ _q }}</td>
                   {% endfor %}
-                  <td class="px-3 py-2 text-right font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ r.total_stock_qty or 0 }}</td>
+                  <td class="px-2 py-2 text-right font-black tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.total_stock_qty or 0 }}</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -238,10 +238,10 @@
       </div>
     </div>
 
-    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <div class="mt-4 border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Transactions</h3>
-        <span class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] max-md:border-0 max-md:bg-transparent md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:px-3 md:py-1.5">
           {{ tx_rows|length }} rows
         </span>
       </div>
@@ -249,41 +249,41 @@
       {% if not tx_rows %}
         <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions found.</p>
       {% else %}
-        <div class="mt-3 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">
-          <table class="min-w-[980px] w-full text-sm">
+        <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))] pt-3 max-md:rounded-none max-md:border-x-0 max-md:border-b-0 md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:pt-0">
+          <table class="min-w-[52rem] w-full text-xs sm:min-w-[72rem] md:min-w-[980px] md:text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">From</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">To</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller name</th>
-                <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Moved by</th>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Time</th>
+                <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Item</th>
+                <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">From</th>
+                <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">To</th>
+                <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Seller</th>
+                <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Qty</th>
+                <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Pay</th>
+                <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">By</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for r in tx_rows %}
                 <tr>
-                  <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
-                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.from_where }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.to_where }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.place_brought_from or '-' }}</td>
-                  <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.qty }}</td>
-                  <td class="px-3 py-2">
+                  <td class="sticky left-0 z-10 whitespace-nowrap bg-[rgb(var(--rc-surface))] px-2 py-2 text-[rgb(var(--rc-muted))] shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3">{{ r.created_at }}</td>
+                  <td class="max-w-[9rem] truncate px-2 py-2 font-semibold text-[rgb(var(--rc-page-fg))] sm:max-w-[12rem] sm:px-3 md:max-w-none">{{ r.item_name }}</td>
+                  <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.from_where }}</td>
+                  <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.to_where }}</td>
+                  <td class="max-w-[5rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.place_brought_from or '-' }}</td>
+                  <td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.qty }}</td>
+                  <td class="min-w-[4.5rem] px-2 py-2 text-[10px] font-semibold uppercase leading-snug sm:min-w-0 sm:px-3 sm:text-xs">
                     {% if r.payment_status == 'paid' %}
                       PAID
                     {% elif r.payment_status == 'partially_paid' %}
-                      PARTIALLY PAID
+                      <span class="md:hidden">PARTIAL</span><span class="hidden md:inline">PARTIALLY PAID</span>
                     {% elif r.payment_status == 'pending_payment' %}
-                      PENDING PAYMENT
+                      <span class="md:hidden">PENDING</span><span class="hidden md:inline">PENDING PAYMENT</span>
                     {% else %}
                       -
                     {% endif %}
                   </td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ r.moved_by }}</td>
+                  <td class="max-w-[5rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.moved_by }}</td>
                 </tr>
               {% endfor %}
             </tbody>

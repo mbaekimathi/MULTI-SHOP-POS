@@ -2,8 +2,8 @@
 {% block title %}Dashboard — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Dashboard{% endblock %}
 {% block sidebar_links %}
-  {% if request.view_args and request.view_args.get('role') in ('it_support', 'super_admin') %}
-    {% set _hide_receipt_links_on_super_admin_dashboard = request.endpoint == 'employee_dashboard' and (request.view_args.get('role') or '') == 'super_admin' %}
+  {% if request.view_args and request.view_args.get('role') in ('it_support', 'super_admin', 'company_manager') %}
+    {% set _hide_receipt_links_on_super_admin_dashboard = request.endpoint == 'employee_dashboard' and (request.view_args.get('role') or '') in ('super_admin', 'company_manager') %}
     <a
       href="{{ url_for('it_support_register_shop') }}"
       class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"

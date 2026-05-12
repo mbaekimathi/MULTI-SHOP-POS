@@ -3,7 +3,7 @@
 Apply database schema: create DB if missing, create tables, run column migrations.
 
 Run after `git pull` on the server (cPanel/SSH), or via GitHub Actions deploy workflow.
-Loads the same .env as app.py (project root next to this file).
+Loads the same ``.env.example`` then ``.env`` as ``app.py`` (via ``project_env``).
 
 Usage:
   python3 migrate_db.py
@@ -18,11 +18,9 @@ ROOT = Path(__file__).resolve().parent
 
 
 def main() -> int:
-    # Match app.py: load .env before database config is read
+    # Match app/database: .env.example defaults, then .env overrides
     try:
-        from dotenv import load_dotenv
-
-        load_dotenv(ROOT / ".env")
+        import project_env  # noqa: F401
     except ImportError:
         pass
 

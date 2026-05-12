@@ -24,34 +24,43 @@
     <span id="receipt-mark-msg" class="ml-auto text-[11px] text-[rgb(var(--rc-muted))]"></span>
   </div>
 
-  <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-    <div class="border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+  <div class="mt-6 min-w-0 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+    <div class="border-b border-[rgb(var(--rc-border))]/80 px-3 py-3 sm:px-4">
       <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Transactions</h3>
       <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Sorted newest first · up to 8,000 rows per request</p>
     </div>
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-xs">
+    <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+      <table class="w-full min-w-[20rem] table-fixed text-[11px] sm:text-xs">
+        <colgroup>
+          <col class="w-9 sm:w-10" />
+          <col class="w-[26%] sm:w-[22%]" />
+          <col class="w-[34%] sm:w-[32%]" />
+          <col class="w-[14%]" />
+          <col class="w-[22%] sm:w-[24%]" />
+          <col class="w-9 sm:w-10" />
+        </colgroup>
         <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
           <tr>
-            <th class="px-3 py-2.5 text-center font-bold uppercase tracking-wider">
-              <input id="receipt-select-all" type="checkbox" class="h-4 w-4 rounded border-[rgb(var(--rc-border))]" />
+            <th class="px-1.5 py-2 text-center font-bold uppercase tracking-wider sm:px-2.5 sm:py-2.5">
+              <input id="receipt-select-all" type="checkbox" class="h-4 w-4 rounded border-[rgb(var(--rc-border))]" aria-label="Select all receipts" />
             </th>
-            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Receipt</th>
-            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Shop</th>
-            <th class="px-3 py-2.5 text-right font-bold uppercase tracking-wider">Amount</th>
-            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Recorded by</th>
-            <th class="px-3 py-2.5 text-left font-bold uppercase tracking-wider">Date and time</th>
-            <th class="px-3 py-2.5 text-center font-bold uppercase tracking-wider">View</th>
+            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5 sm:py-2.5">Receipt</th>
+            <th class="min-w-0 px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5 sm:py-2.5">
+              <span class="leading-tight">Shop / staff</span>
+            </th>
+            <th class="px-1.5 py-2 text-right font-bold uppercase tracking-wider sm:px-2.5 sm:py-2.5">Total</th>
+            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5 sm:py-2.5">When</th>
+            <th class="px-1.5 py-2 text-center text-[10px] font-bold uppercase tracking-wider sm:px-2.5 sm:py-2.5 sm:text-xs">View</th>
           </tr>
         </thead>
         <tbody id="receipt-register-tbody" class="divide-y divide-[rgb(var(--rc-border))]/70">
           {% for row in receipt_rows or [] %}
             <tr data-sale-id="{{ row.sale_id }}" data-shop-id="{{ row.shop_id }}" data-receipt-no="{{ row.receipt_number or '' }}" data-total-amount="{{ '%.2f'|format(row.total_amount or 0) }}" data-mark-status="{{ row.receipt_mark_status or 'pending' }}" class="hover:bg-[rgb(var(--rc-surface-2))]/30">
-              <td class="px-3 py-2 text-center">
+              <td class="px-1.5 py-2 text-center align-top sm:px-2.5">
                 <input type="checkbox" class="receipt-select-one h-4 w-4 rounded border-[rgb(var(--rc-border))]" value="{{ row.sale_id }}" />
               </td>
-              <td class="px-3 py-2 font-mono font-bold text-[rgb(var(--rc-page-fg))]">
-                <div>{{ row.receipt_number or ('#' ~ row.sale_id) }}</div>
+              <td class="min-w-0 px-1.5 py-2 align-top font-mono font-bold text-[rgb(var(--rc-page-fg))] sm:px-2.5">
+                <div class="truncate">{{ row.receipt_number or ('#' ~ row.sale_id) }}</div>
                 {% set mark = row.receipt_mark_status or 'pending' %}
                 {% if mark == 'confirmed' %}
                   <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300" data-mark-status="confirmed">confirmed</span>
@@ -65,11 +74,16 @@
                   <span class="receipt-mark-badge mt-1 inline-flex rounded-md bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300" data-mark-status="pending">pending</span>
                 {% endif %}
               </td>
-              <td class="px-3 py-2 text-[rgb(var(--rc-muted))]" title="{{ row.shop_code or '' }}">{{ row.shop_name or ('#' ~ row.shop_id) }}</td>
-              <td class="px-3 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.total_amount or 0) }}</td>
-              <td class="max-w-[7rem] truncate px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_name or '—' }}</td>
-              <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{% if row.created_at %}{{ row.created_at }}{% else %}—{% endif %}</td>
-              <td class="px-3 py-2 text-center">
+              <td
+                class="min-w-0 px-1.5 py-2 align-top sm:px-2.5"
+                title="{{ row.shop_name or ('#' ~ row.shop_id) }}{% if row.shop_code %} ({{ row.shop_code }}){% endif %} · {{ row.employee_name or '—' }}"
+              >
+                <div class="truncate text-[rgb(var(--rc-page-fg))]">{{ row.shop_name or ('#' ~ row.shop_id) }}</div>
+                <div class="truncate text-[10px] font-medium text-[rgb(var(--rc-muted))] sm:text-[11px]">{{ row.employee_name or '—' }}</div>
+              </td>
+              <td class="px-1.5 py-2 text-right align-top tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-2.5">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+              <td class="min-w-0 px-1.5 py-2 align-top break-words text-[rgb(var(--rc-muted))] sm:px-2.5 sm:whitespace-nowrap">{% if row.created_at %}{{ row.created_at }}{% else %}—{% endif %}</td>
+              <td class="px-1.5 py-2 text-center align-top sm:px-2.5">
                 <button
                   type="button"
                   class="receipt-view-btn inline-flex h-7 w-7 items-center justify-center rounded-lg text-[rgb(var(--rc-primary))] transition hover:bg-[rgb(var(--rc-surface-2))]"
@@ -87,7 +101,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No receipts in this date range.</td>
+              <td colspan="6" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No receipts in this date range.</td>
             </tr>
           {% endfor %}
         </tbody>

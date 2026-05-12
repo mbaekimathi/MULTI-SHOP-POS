@@ -415,6 +415,7 @@
                 <option value="">SELECT ROLE</option>
                 <option value="super_admin">SUPER ADMIN</option>
                 <option value="it_support">IT SUPPORT</option>
+                <option value="company_manager">COMPANY MANAGER</option>
                 <option value="admin">ADMIN</option>
                 <option value="manager">MANAGER</option>
                 <option value="sales">SALES</option>
@@ -437,7 +438,7 @@
                 {% endfor %}
               </select>
               <p class="mt-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
-                Branch is required for roles other than SUPER ADMIN / IT SUPPORT.
+                Branch is required for roles other than SUPER ADMIN / IT SUPPORT / COMPANY MANAGER.
               </p>
             </div>
             <div id="approve-shop-multi-wrap" class="md:col-span-2 hidden">
@@ -458,7 +459,7 @@
                 {% endfor %}
               </div>
               <p class="mt-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
-                Select one or more branches. POS will accept this login code at those branches only (not SUPER ADMIN / IT SUPPORT).
+                Select one or more branches. POS will accept this login code at those branches only (not SUPER ADMIN / IT SUPPORT / COMPANY MANAGER).
               </p>
             </div>
 
@@ -614,6 +615,7 @@
               >
                 <option value="super_admin">SUPER ADMIN</option>
                 <option value="it_support">IT SUPPORT</option>
+                <option value="company_manager">COMPANY MANAGER</option>
                 <option value="admin">ADMIN</option>
                 <option value="manager">MANAGER</option>
                 <option value="sales">SALES</option>
@@ -634,7 +636,7 @@
                   <option value="{{ s.id }}">{{ s.shop_name }}{% if s.shop_code %} ({{ s.shop_code }}){% endif %}</option>
                 {% endfor %}
               </select>
-              <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Required for roles other than SUPER ADMIN / IT SUPPORT.</p>
+              <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Required for roles other than SUPER ADMIN / IT SUPPORT / COMPANY MANAGER.</p>
             </div>
             <div id="edit-shop-multi-wrap" class="hidden space-y-2">
               <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Branches (POS access)</label>
@@ -781,7 +783,7 @@
       }
 
       function approveRoleNeedsBranch(r) {
-        return !!(r && r !== "super_admin" && r !== "it_support");
+        return !!(r && r !== "super_admin" && r !== "it_support" && r !== "company_manager");
       }
 
       function syncShop() {
@@ -872,7 +874,7 @@
 
       function editRoleNeedsBranch(rv) {
         var r = (rv || "").toLowerCase();
-        return !!(r && r !== "super_admin" && r !== "it_support");
+        return !!(r && r !== "super_admin" && r !== "it_support" && r !== "company_manager");
       }
 
       function clearEditMultiChecks() {
