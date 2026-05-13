@@ -3983,6 +3983,861 @@ def init_shop_pos_quotations_table():
         return False
 
 
+def init_pos_held_orders_table() -> bool:
+    """Withhold-POS held orders (running tabs): cart snapshot + committed qty map for incremental stock deduction."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS pos_held_orders (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NOT NULL,
+        created_by_employee_id INT NULL,
+        employee_code CHAR(6) NULL,
+        employee_name VARCHAR(190) NULL,
+        customer_name VARCHAR(190) NULL,
+        customer_phone VARCHAR(40) NULL,
+        label VARCHAR(120) NOT NULL DEFAULT '',
+        status ENUM('open', 'finalized', 'voided') NOT NULL DEFAULT 'open',
+        inventory_mode VARCHAR(16) NOT NULL DEFAULT 'shop',
+        cart_json LONGTEXT NOT NULL,
+        committed_json LONGTEXT NOT NULL,
+        total_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        item_count DECIMAL(12,4) NOT NULL DEFAULT 0,
+        saves_count INT NOT NULL DEFAULT 0,
+        last_save_at DATETIME NULL,
+        finalized_sale_id BIGINT NULL,
+        finalized_at DATETIME NULL,
+        voided_at DATETIME NULL,
+        voided_by_employee_id INT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_pho_shop_status (shop_id, status),
+        KEY idx_pho_emp (created_by_employee_id),
+        KEY idx_pho_shop_last_save (shop_id, last_save_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table pos_held_orders is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init pos_held_orders: %s", e)
+        return False
+
+
+def _pho_parse_lines(raw_lines) -> list:
+    """Normalize a held-order cart payload into the same shape `create_shop_pos_sale` expects."""
+    parsed: list = []
+    for ln in (raw_lines or []):
+        if not isinstance(ln, dict):
+            continue
+        item_id_ln = ln.get("id")
+        try:
+            item_id_ln = int(item_id_ln) if item_id_ln is not None else None
+        except Exception:
+            item_id_ln = None
+        try:
+            qf = float(ln.get("qty") or 0)
+        except Exception:
+            qf = 0.0
+        nm = (ln.get("name") or "").strip()
+        if not nm:
+            if not (item_id_ln and abs(qf) < 1e-12):
+                continue
+            nm = "Item"
+        if qf < 0:
+            continue
+        if qf == 0 and item_id_ln is None:
+            continue
+        try:
+            unit_price = float(ln.get("price") or 0)
+        except Exception:
+            unit_price = 0.0
+        try:
+            line_total = float(ln.get("total") or 0)
+        except Exception:
+            line_total = unit_price * qf
+        parsed.append(
+            {
+                "name": nm[:200],
+                "qty": qf,
+                "unit_price": unit_price,
+                "line_total": line_total,
+                "item_id": item_id_ln,
+            }
+        )
+    return parsed
+
+
+def _pho_committed_totals(parsed: list, mode: str) -> Dict[int, float]:
+    """Sum committed qty per item_id (only items with a real item_id contribute to stock movement)."""
+    out: Dict[int, float] = {}
+    use_int = mode in ("kitchen", "both")
+    for p in parsed:
+        iid = p.get("item_id")
+        if iid is None:
+            continue
+        q = float(p.get("qty") or 0)
+        if use_int:
+            qr = round(q, STOCK_QTY_DECIMAL_PLACES)
+            if abs(qr - int(qr)) > 1e-9:
+                raise ValueError("Kitchen inventory uses whole portions only; adjust quantities.")
+            q = int(qr)
+        out[int(iid)] = round(float(out.get(int(iid), 0)) + float(q), STOCK_QTY_DECIMAL_PLACES)
+    return out
+
+
+_HOLD_REDUCTION_APPROVER_ROLES = frozenset(
+    {"manager", "admin", "super_admin", "company_manager", "it_support"}
+)
+
+
+def _pho_validate_hold_reduction_approver(shop_id: int, code: str) -> Tuple[Optional[dict], Optional[str]]:
+    """POS held-order qty decrease: require active manager / admin / company manager / IT / super admin code."""
+    code = (code or "").strip()
+    if not code:
+        return None, "A manager, admin, company manager, IT support, or super admin must enter their 6-digit code to approve reducing committed quantities."
+    if not re.fullmatch(r"\d{6}", code):
+        return None, "Approver code must be exactly 6 digits."
+    row = get_employee_by_code(code)
+    if not row:
+        return None, "Approval code not recognised."
+    if (row.get("status") or "").lower() != "active":
+        return None, "That approver account is not active."
+    role_key = (row.get("role") or "employee").lower()
+    if role_key not in _HOLD_REDUCTION_APPROVER_ROLES:
+        return None, "Approver must be a manager, admin, company manager, IT support, or super admin."
+    if not employee_may_use_shop_branch(dict(row), int(shop_id)):
+        return None, "That approver is not allowed for this shop."
+    return dict(row), None
+
+
+def pos_held_order_save(
+    *,
+    shop_id: int,
+    hold_id: Optional[int],
+    lines: list,
+    inventory_mode: str = "shop",
+    label: Optional[str] = None,
+    customer_name: Optional[str] = None,
+    customer_phone: Optional[str] = None,
+    total_amount: Optional[float] = None,
+    item_count: Optional[float] = None,
+    employee_id: Optional[int] = None,
+    employee_code: Optional[str] = None,
+    employee_name: Optional[str] = None,
+    reduction_approver_code: Optional[str] = None,
+) -> Tuple[bool, Optional[str], Optional[int], list, Dict[str, float], list]:
+    """
+    Create or update a held order; deduct stock / portions for positive *delta* lines only.
+
+    Decreasing committed quantities is allowed when ``reduction_approver_code`` validates to a
+    manager, admin, company manager, IT support, or super admin for this shop; stock / kitchen portions are
+    restored accordingly.
+
+    Returns ``(ok, err, hold_id, delta_lines, committed_after, reduction_lines)``.
+    """
+    mode = (inventory_mode or "shop").strip().lower()
+    if mode not in ("shop", "kitchen", "none", "both"):
+        mode = "shop"
+    if mode in ("kitchen", "both"):
+        ensure_shop_kitchen_portions_schema()
+
+    try:
+        parsed = _pho_parse_lines(lines)
+    except ValueError as e:
+        return False, str(e), None, [], {}, []
+    if not parsed:
+        return False, "Add at least one item before saving (holding) the order.", None, [], {}, []
+
+    try:
+        committed_after_map = _pho_committed_totals(parsed, mode)
+    except ValueError as e:
+        return False, str(e), None, [], {}, []
+
+    try:
+        total_amount_v = float(total_amount or 0)
+    except Exception:
+        total_amount_v = 0.0
+    if total_amount_v < 0:
+        total_amount_v = 0.0
+    try:
+        item_count_v = float(item_count or 0)
+    except Exception:
+        item_count_v = 0.0
+    if item_count_v < 0:
+        item_count_v = 0.0
+
+    label_v = (label or "").strip()[:120]
+    customer_name_v = (customer_name or "").strip()[:190] or None
+    customer_phone_v = (customer_phone or "").strip()[:40] or None
+    emp_code_v = (employee_code or "").strip()[:6] or None
+    emp_name_v = (employee_name or "").strip()[:190] or None
+
+    cart_json_str = json.dumps([{
+        "id": p.get("item_id"),
+        "name": p.get("name"),
+        "qty": p.get("qty"),
+        "price": p.get("unit_price"),
+        "total": p.get("line_total"),
+    } for p in parsed], separators=(",", ":"))
+    committed_json_str = json.dumps({str(k): v for k, v in committed_after_map.items()}, separators=(",", ":"))
+
+    stock_tx_sql = """
+    INSERT INTO shop_stock_transactions
+        (shop_id, item_id, direction, source, qty, shop_stock_before, shop_stock_after,
+         company_stock_before, company_stock_after,
+         reason, refunded, refund_amount, payment_status, note, created_by_employee_id)
+    VALUES (%s,%s,'out','manual',%s,%s,%s,NULL,NULL,'POS_HOLD',0,NULL,'paid',%s,%s)
+    """
+
+    stock_tx_sql_in = """
+    INSERT INTO shop_stock_transactions
+        (shop_id, item_id, direction, source, qty, shop_stock_before, shop_stock_after,
+         company_stock_before, company_stock_after,
+         reason, refunded, refund_amount, payment_status, note, created_by_employee_id)
+    VALUES (%s,%s,'in','manual',%s,%s,%s,NULL,NULL,'POS_HOLD_RET',0,NULL,'paid',%s,%s)
+    """
+
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute("SELECT id FROM shops WHERE id=%s LIMIT 1 FOR UPDATE", (int(shop_id),))
+            if not cur.fetchone():
+                return False, "Shop not found.", None, [], {}, []
+
+            committed_before_map: Dict[int, float] = {}
+            existing_hold_id: Optional[int] = None
+            saves_count_before = 0
+            row = None
+            if hold_id is not None:
+                try:
+                    hid = int(hold_id)
+                except Exception:
+                    hid = 0
+                if hid > 0:
+                    cur.execute(
+                        """
+                        SELECT id, status, committed_json, saves_count, inventory_mode,
+                               created_by_employee_id, employee_code
+                        FROM pos_held_orders
+                        WHERE id=%s AND shop_id=%s
+                        FOR UPDATE
+                        """,
+                        (hid, int(shop_id)),
+                    )
+                    row = cur.fetchone()
+                    if not row:
+                        return False, "Held order not found.", None, [], {}, []
+                    if (row.get("status") or "open") != "open":
+                        return False, "Held order is no longer open.", None, [], {}, []
+                    # Only the cashier who created this held order is allowed to update it.
+                    # Validate by employee id (strong identity), falling back to the stored
+                    # employee_code only when the id wasn't recorded on creation.
+                    creator_id_raw = row.get("created_by_employee_id")
+                    creator_code_raw = (row.get("employee_code") or "").strip()
+                    try:
+                        creator_id = int(creator_id_raw) if creator_id_raw is not None else 0
+                    except (TypeError, ValueError):
+                        creator_id = 0
+                    try:
+                        incoming_id = int(employee_id) if employee_id is not None else 0
+                    except (TypeError, ValueError):
+                        incoming_id = 0
+                    incoming_code = (employee_code or "").strip()
+                    matched = False
+                    if creator_id > 0 and incoming_id > 0:
+                        matched = creator_id == incoming_id
+                    elif creator_code_raw and incoming_code:
+                        matched = creator_code_raw == incoming_code
+                    if not matched:
+                        return (
+                            False,
+                            "Not your order — only the cashier who created it can update it.",
+                            None,
+                            [],
+                            {},
+                            [],
+                        )
+                    try:
+                        committed_before_map = {
+                            int(k): float(v) for k, v in (json.loads(row.get("committed_json") or "{}") or {}).items()
+                        }
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        committed_before_map = {}
+                    existing_hold_id = int(row.get("id") or 0)
+                    saves_count_before = int(row.get("saves_count") or 0)
+                    # Inventory mode is locked to the first save's mode so stock arithmetic stays consistent.
+                    stored_mode = (row.get("inventory_mode") or mode).strip().lower()
+                    if stored_mode in ("shop", "kitchen", "none", "both"):
+                        mode = stored_mode
+
+            name_by_id: Dict[int, str] = {}
+            for p in parsed:
+                iid_nm = p.get("item_id")
+                if iid_nm is None:
+                    continue
+                try:
+                    iid_i = int(iid_nm)
+                except (TypeError, ValueError):
+                    continue
+                name_by_id[iid_i] = str(p.get("name") or "Item")[:200]
+
+            reduction_lines: list = []
+            for iid_b, before_v in committed_before_map.items():
+                try:
+                    ik = int(iid_b)
+                except (TypeError, ValueError):
+                    continue
+                before_qty = float(before_v)
+                after_qty = float(committed_after_map.get(ik, 0.0))
+                delta = round(after_qty - before_qty, STOCK_QTY_DECIMAL_PLACES)
+                if delta >= -1e-12:
+                    continue
+                rq = abs(delta)
+                reduction_lines.append(
+                    {
+                        "id": ik,
+                        "name": name_by_id.get(ik, "Item"),
+                        "qty": int(rq) if mode in ("kitchen", "both") else rq,
+                        "price": 0.0,
+                        "total": 0.0,
+                    }
+                )
+
+            approver_row: Optional[dict] = None
+            if reduction_lines:
+                approver_row, appr_err = _pho_validate_hold_reduction_approver(
+                    int(shop_id), reduction_approver_code or ""
+                )
+                if appr_err:
+                    return False, appr_err, None, [], {}, []
+
+            delta_lines: list = []
+            seen_for_delta: set = set()
+            for p in parsed:
+                iid = p.get("item_id")
+                if iid is None:
+                    continue
+                if int(iid) in seen_for_delta:
+                    continue
+                seen_for_delta.add(int(iid))
+                before_qty = float(committed_before_map.get(int(iid), 0.0))
+                after_qty = float(committed_after_map.get(int(iid), 0.0))
+                delta = round(after_qty - before_qty, STOCK_QTY_DECIMAL_PLACES)
+                if delta <= 0:
+                    continue
+                delta_lines.append(
+                    {
+                        "id": int(iid),
+                        "name": p.get("name"),
+                        "qty": int(delta) if mode in ("kitchen", "both") else delta,
+                        "price": float(p.get("unit_price") or 0),
+                        "total": round(float(p.get("unit_price") or 0) * float(delta), 2),
+                    }
+                )
+
+            if mode == "shop":
+                for iid in sorted(d["id"] for d in delta_lines):
+                    cur.execute(
+                        """
+                        SELECT shop_stock_qty, stock_update_enabled
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), int(iid)),
+                    )
+                    si = cur.fetchone()
+                    if not si:
+                        return False, "POS item is not linked to this shop.", None, [], {}, []
+                    if int(si.get("stock_update_enabled") or 0) != 1:
+                        continue
+                    need = next((d["qty"] for d in delta_lines if d["id"] == iid), 0)
+                    before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    if before < float(need):
+                        return False, "Not enough stock at the shop for one or more new items. Adjust quantities or stock.", None, [], {}, []
+            elif mode in ("kitchen", "both"):
+                for iid in sorted(d["id"] for d in delta_lines):
+                    cur.execute(
+                        """
+                        SELECT COALESCE(stock_update_enabled,0) AS sue
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), int(iid)),
+                    )
+                    si = cur.fetchone()
+                    if not si:
+                        return False, "POS item is not linked to this shop.", None, [], {}, []
+                    if int(si.get("sue") or 0) != 1:
+                        continue
+                    cur.execute(
+                        """
+                        SELECT portions_remaining
+                        FROM shop_kitchen_portions
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), int(iid)),
+                    )
+                    kr = cur.fetchone()
+                    rem = int(kr.get("portions_remaining") or 0) if kr else 0
+                    need = int(next((d["qty"] for d in delta_lines if d["id"] == iid), 0))
+                    if rem < need:
+                        return False, "Not enough kitchen portions for one or more new items. Adjust quantities or kitchen portions.", None, [], {}, []
+
+            if existing_hold_id is None:
+                cur.execute(
+                    """
+                    INSERT INTO pos_held_orders
+                        (shop_id, created_by_employee_id, employee_code, employee_name,
+                         customer_name, customer_phone, label, status, inventory_mode,
+                         cart_json, committed_json, total_amount, item_count, saves_count, last_save_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'open', %s, %s, %s, %s, %s, 1, NOW())
+                    """,
+                    (
+                        int(shop_id),
+                        int(employee_id) if employee_id is not None else None,
+                        emp_code_v,
+                        emp_name_v,
+                        customer_name_v,
+                        customer_phone_v,
+                        label_v,
+                        mode,
+                        cart_json_str,
+                        committed_json_str,
+                        round(total_amount_v, 2),
+                        round(item_count_v, STOCK_QTY_DECIMAL_PLACES),
+                    ),
+                )
+                existing_hold_id = int(cur.lastrowid or 0)
+            else:
+                cur.execute(
+                    """
+                    UPDATE pos_held_orders
+                    SET cart_json=%s,
+                        committed_json=%s,
+                        total_amount=%s,
+                        item_count=%s,
+                        customer_name=COALESCE(%s, customer_name),
+                        customer_phone=COALESCE(%s, customer_phone),
+                        label=CASE WHEN %s = '' THEN label ELSE %s END,
+                        saves_count=%s,
+                        last_save_at=NOW()
+                    WHERE id=%s AND shop_id=%s
+                    """,
+                    (
+                        cart_json_str,
+                        committed_json_str,
+                        round(total_amount_v, 2),
+                        round(item_count_v, STOCK_QTY_DECIMAL_PLACES),
+                        customer_name_v,
+                        customer_phone_v,
+                        label_v,
+                        label_v,
+                        saves_count_before + 1,
+                        int(existing_hold_id),
+                        int(shop_id),
+                    ),
+                )
+
+            note_base = "POS HOLD #%s" % (existing_hold_id,)
+            if mode == "shop":
+                for d in delta_lines:
+                    iid = int(d["id"])
+                    qshop = round(float(d["qty"]), STOCK_QTY_DECIMAL_PLACES)
+                    if qshop <= 0:
+                        continue
+                    cur.execute(
+                        """
+                        SELECT shop_stock_qty, stock_update_enabled
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), iid),
+                    )
+                    si = cur.fetchone()
+                    if not si or int(si.get("stock_update_enabled") or 0) != 1:
+                        continue
+                    shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    if shop_before < qshop:
+                        return False, "Not enough stock at the shop for one or more new items. Adjust quantities or stock.", None, [], {}, []
+                    shop_after = round(shop_before - qshop, STOCK_QTY_DECIMAL_PLACES)
+                    cur.execute(
+                        "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+                        (shop_after, int(shop_id), iid),
+                    )
+                    note = note_base + " · " + (str(d.get("name") or "")[:160])
+                    cur.execute(
+                        stock_tx_sql,
+                        (
+                            int(shop_id),
+                            iid,
+                            qshop,
+                            shop_before,
+                            shop_after,
+                            note,
+                            int(employee_id) if employee_id is not None else None,
+                        ),
+                    )
+            elif mode in ("kitchen", "both"):
+                for d in delta_lines:
+                    iid = int(d["id"])
+                    qk = int(d["qty"])
+                    if qk <= 0:
+                        continue
+                    cur.execute(
+                        """
+                        SELECT COALESCE(stock_update_enabled,0) AS sue
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), iid),
+                    )
+                    si = cur.fetchone()
+                    if not si or int(si.get("sue") or 0) != 1:
+                        continue
+                    cur.execute(
+                        """
+                        UPDATE shop_kitchen_portions
+                        SET portions_remaining = portions_remaining - %s
+                        WHERE shop_id=%s AND item_id=%s AND portions_remaining >= %s
+                        """,
+                        (qk, int(shop_id), iid, qk),
+                    )
+                    if int(cur.rowcount or 0) < 1:
+                        return False, "Not enough kitchen portions for one or more new items. Adjust quantities or kitchen portions.", None, [], {}, []
+
+            appr_note_uid = int(approver_row["id"]) if approver_row else (
+                int(employee_id) if employee_id is not None else None
+            )
+            if reduction_lines and mode == "shop":
+                for d in reduction_lines:
+                    iid = int(d["id"])
+                    qret = round(float(d["qty"]), STOCK_QTY_DECIMAL_PLACES)
+                    if qret <= 0:
+                        continue
+                    cur.execute(
+                        """
+                        SELECT shop_stock_qty, stock_update_enabled
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), iid),
+                    )
+                    si = cur.fetchone()
+                    if not si or int(si.get("stock_update_enabled") or 0) != 1:
+                        continue
+                    shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    shop_after = round(shop_before + qret, STOCK_QTY_DECIMAL_PLACES)
+                    cur.execute(
+                        "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+                        (shop_after, int(shop_id), iid),
+                    )
+                    note = note_base + " return · " + (str(d.get("name") or "")[:140])
+                    cur.execute(
+                        stock_tx_sql_in,
+                        (
+                            int(shop_id),
+                            iid,
+                            qret,
+                            shop_before,
+                            shop_after,
+                            note,
+                            appr_note_uid,
+                        ),
+                    )
+            elif reduction_lines and mode in ("kitchen", "both"):
+                for d in reduction_lines:
+                    iid = int(d["id"])
+                    qk = int(d["qty"])
+                    if qk <= 0:
+                        continue
+                    cur.execute(
+                        """
+                        SELECT COALESCE(stock_update_enabled,0) AS sue
+                        FROM shop_items
+                        WHERE shop_id=%s AND item_id=%s
+                        FOR UPDATE
+                        """,
+                        (int(shop_id), iid),
+                    )
+                    si = cur.fetchone()
+                    if not si or int(si.get("sue") or 0) != 1:
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO shop_kitchen_portions (shop_id, item_id, portions_remaining)
+                        VALUES (%s, %s, %s)
+                        ON DUPLICATE KEY UPDATE portions_remaining = portions_remaining + VALUES(portions_remaining)
+                        """,
+                        (int(shop_id), iid, qk),
+                    )
+
+            return True, None, int(existing_hold_id), delta_lines, {str(k): v for k, v in committed_after_map.items()}, reduction_lines
+    except pymysql.Error as e:
+        logger.warning("pos_held_order_save error: %s", e)
+        return False, "Could not save the held order.", None, [], {}, []
+    except ValueError as e:
+        return False, str(e) or "Could not save the held order.", None, [], {}, []
+
+
+def pos_held_order_get(shop_id: int, hold_id: int) -> Optional[dict]:
+    """Fetch one held order plus its parsed cart_json. Returns None if not found."""
+    sql = """
+    SELECT id, shop_id, created_by_employee_id, employee_code, employee_name,
+           customer_name, customer_phone, label, status, inventory_mode,
+           cart_json, committed_json, total_amount, item_count, saves_count,
+           last_save_at, finalized_sale_id, finalized_at, voided_at, created_at, updated_at
+    FROM pos_held_orders
+    WHERE id=%s AND shop_id=%s
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(hold_id), int(shop_id)))
+            row = cur.fetchone()
+    except pymysql.Error:
+        return None
+    if not row:
+        return None
+    try:
+        row["cart_lines"] = json.loads(row.get("cart_json") or "[]") or []
+    except (json.JSONDecodeError, TypeError):
+        row["cart_lines"] = []
+    if not isinstance(row.get("cart_lines"), list):
+        row["cart_lines"] = []
+    try:
+        row["committed_map"] = json.loads(row.get("committed_json") or "{}") or {}
+    except (json.JSONDecodeError, TypeError):
+        row["committed_map"] = {}
+    if not isinstance(row.get("committed_map"), dict):
+        row["committed_map"] = {}
+    return row
+
+
+def pos_held_order_list_open(
+    shop_id: int,
+    limit: int = 200,
+    *,
+    employee_id: Optional[int] = None,
+    employee_code: Optional[str] = None,
+) -> list:
+    """List open held orders for a shop (most recently saved first).
+
+    Optional ``employee_id`` / ``employee_code`` filters restrict the result to held orders
+    created by that specific cashier — the POS uses this so a cashier only sees their own
+    in-flight tabs once they've authenticated with a 6-digit code in the held-orders modal.
+    """
+    try:
+        lim = max(1, min(int(limit or 200), 500))
+    except Exception:
+        lim = 200
+    conditions = ["shop_id=%s", "status='open'"]
+    params: list = [int(shop_id)]
+    if employee_id is not None:
+        try:
+            eid = int(employee_id)
+        except (TypeError, ValueError):
+            eid = 0
+        if eid > 0:
+            conditions.append("(created_by_employee_id=%s OR employee_code=%s)")
+            params.append(eid)
+            params.append((employee_code or "").strip()[:6])
+    elif employee_code:
+        code = (employee_code or "").strip()[:6]
+        if code:
+            conditions.append("employee_code=%s")
+            params.append(code)
+    sql = (
+        "SELECT id, customer_name, customer_phone, label, total_amount, item_count, saves_count,\n"
+        "       last_save_at, employee_code, employee_name, inventory_mode, created_at\n"
+        "FROM pos_held_orders\n"
+        "WHERE " + " AND ".join(conditions) + "\n"
+        "ORDER BY COALESCE(last_save_at, created_at) DESC, id DESC\n"
+        "LIMIT %s"
+    )
+    params.append(int(lim))
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            return list(cur.fetchall() or [])
+    except pymysql.Error:
+        return []
+
+
+def list_all_pos_held_orders_register_rows(
+    analytics_filter: Optional[dict] = None,
+    *,
+    shop_id: Optional[int] = None,
+    limit: int = 8000,
+) -> list:
+    """All branches: held-order tabs for IT register (open / finalized / voided)."""
+    init_pos_held_orders_table()
+    af = analytics_filter if isinstance(analytics_filter, dict) else {}
+    rng_sql, rng_params = _analytics_where_clause(af, "h")
+    params: list = []
+    where_parts = [rng_sql]
+    params.extend(rng_params)
+    if shop_id is not None and int(shop_id) > 0:
+        where_parts.append("h.shop_id = %s")
+        params.append(int(shop_id))
+    where_sql = " AND ".join(where_parts)
+    lim = max(1, min(int(limit or 8000), 30000))
+    sql = f"""
+    SELECT
+        h.id AS hold_id,
+        h.shop_id,
+        COALESCE(sh.shop_name, '') AS shop_name,
+        COALESCE(sh.shop_code, '') AS shop_code,
+        h.status,
+        h.customer_name,
+        h.customer_phone,
+        h.label,
+        h.total_amount,
+        h.item_count,
+        h.saves_count,
+        h.last_save_at,
+        h.created_at,
+        h.updated_at,
+        h.finalized_sale_id,
+        h.finalized_at,
+        h.voided_at,
+        h.employee_code,
+        h.employee_name,
+        h.inventory_mode,
+        COALESCE(s.receipt_number, '') AS finalized_receipt_number
+    FROM pos_held_orders h
+    LEFT JOIN shops sh ON sh.id = h.shop_id
+    LEFT JOIN shop_pos_sales s
+        ON s.id = h.finalized_sale_id AND s.shop_id = h.shop_id
+    WHERE {where_sql}
+    ORDER BY COALESCE(h.last_save_at, h.updated_at, h.created_at) DESC, h.id DESC
+    LIMIT %s
+    """
+    params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+    out: list = []
+    for r in rows:
+        rr = dict(r)
+        try:
+            rr["hold_id"] = int(rr.get("hold_id") or 0)
+        except (TypeError, ValueError):
+            rr["hold_id"] = 0
+        try:
+            rr["shop_id"] = int(rr.get("shop_id") or 0)
+        except (TypeError, ValueError):
+            rr["shop_id"] = 0
+        st = str(rr.get("status") or "open").strip().lower()
+        if st == "finalized":
+            rr["register_status"] = "completed"
+        elif st == "voided":
+            rr["register_status"] = "returned"
+        else:
+            rr["register_status"] = "pending"
+        for k in ("total_amount", "item_count"):
+            try:
+                rr[k] = float(rr.get(k) or 0)
+            except (TypeError, ValueError):
+                rr[k] = 0.0
+        try:
+            rr["saves_count"] = int(rr.get("saves_count") or 0)
+        except (TypeError, ValueError):
+            rr["saves_count"] = 0
+        try:
+            rr["finalized_sale_id"] = int(rr["finalized_sale_id"]) if rr.get("finalized_sale_id") is not None else None
+        except (TypeError, ValueError):
+            rr["finalized_sale_id"] = None
+        for dk in ("last_save_at", "created_at", "updated_at", "finalized_at", "voided_at"):
+            cat = rr.get(dk)
+            if hasattr(cat, "isoformat"):
+                rr[dk + "_iso"] = cat.isoformat(timespec="seconds")
+            elif cat is None:
+                rr[dk + "_iso"] = ""
+            else:
+                rr[dk + "_iso"] = str(cat)
+        out.append(rr)
+    return out
+
+
+def pos_held_order_void(
+    shop_id: int,
+    hold_id: int,
+    *,
+    employee_id: Optional[int] = None,
+) -> Tuple[bool, Optional[str]]:
+    """Void an open held order. Disallowed once any qty has been committed (stock already deducted)."""
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, status, committed_json
+                FROM pos_held_orders
+                WHERE id=%s AND shop_id=%s
+                FOR UPDATE
+                """,
+                (int(hold_id), int(shop_id)),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False, "Held order not found."
+            if (row.get("status") or "open") != "open":
+                return False, "Held order is no longer open."
+            try:
+                committed = json.loads(row.get("committed_json") or "{}") or {}
+            except (json.JSONDecodeError, TypeError):
+                committed = {}
+            if isinstance(committed, dict) and any(float(v or 0) > 0 for v in committed.values()):
+                return False, "This held order already has committed items; finalize the sale instead of voiding."
+            cur.execute(
+                """
+                UPDATE pos_held_orders
+                SET status='voided', voided_at=NOW(), voided_by_employee_id=%s
+                WHERE id=%s AND shop_id=%s
+                """,
+                (int(employee_id) if employee_id is not None else None, int(hold_id), int(shop_id)),
+            )
+        return True, None
+    except pymysql.Error as e:
+        logger.warning("pos_held_order_void error: %s", e)
+        return False, "Could not void the held order."
+
+
+def pos_held_order_mark_finalized(
+    shop_id: int,
+    hold_id: int,
+    finalized_sale_id: Optional[int],
+) -> bool:
+    """Mark a held order as finalized once its sale receipt has been recorded."""
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE pos_held_orders
+                SET status='finalized', finalized_sale_id=%s, finalized_at=NOW()
+                WHERE id=%s AND shop_id=%s AND status='open'
+                """,
+                (
+                    int(finalized_sale_id) if finalized_sale_id is not None else None,
+                    int(hold_id),
+                    int(shop_id),
+                ),
+            )
+            return int(cur.rowcount or 0) > 0
+    except pymysql.Error as e:
+        logger.warning("pos_held_order_mark_finalized error: %s", e)
+        return False
+
+
 def ensure_shop_kitchen_portions_schema() -> bool:
     """Per-shop kitchen portion counts for POS when inventory mode is kitchen (not shop stock)."""
     sql = """
@@ -4287,6 +5142,7 @@ def create_shop_pos_sale(
     lines: Optional[list] = None,
     inventory_mode: str = "shop",
     client_txn_id: Optional[str] = None,
+    skip_stock_deduction: bool = False,
 ) -> Tuple[bool, Optional[str], Optional[int], Optional[str]]:
     """
     Apply inventory for exactly one pathway per sale (no shelf + portion double-move).
@@ -4294,6 +5150,11 @@ def create_shop_pos_sale(
     ``shop``: decrement ``shop_items.shop_stock_qty``. ``kitchen``: decrement kitchen portions only.
     ``both``: POS checkout uses kitchen portions only; shelf qty is adjusted elsewhere (Stock management).
     ``none``: no quantity movement.
+
+    ``skip_stock_deduction=True`` records the sale receipt and line items but performs no stock
+    pre-check or movement. This is used when finalizing a withhold-POS held order whose stock
+    was already deducted incrementally via :func:`pos_held_order_save`. Default is False so
+    existing Direct-POS callers retain their full inventory-validation behavior.
     """
     ensure_shop_credit_payments_schema()
     mode = (inventory_mode or "shop").strip().lower()
@@ -4468,7 +5329,10 @@ def create_shop_pos_sale(
             receipt_number = f"{prefix}-{next_seq}"
 
             # Exactly one inventory pathway per sale — never validate shelf and portions together.
-            if mode == "shop":
+            # Skipped when stock has already been moved upstream (e.g. withhold-POS held-order finalize).
+            if skip_stock_deduction:
+                pass
+            elif mode == "shop":
                 for iid in sorted(need.keys()):
                     cur.execute(
                         """
@@ -4566,6 +5430,9 @@ def create_shop_pos_sale(
                 if iid is None:
                     continue
                 q = float(p["qty"])
+                # Skip movement when stock has already been moved upstream (held-order finalize).
+                if skip_stock_deduction:
+                    continue
                 # Mutually exclusive: shop shelf decrement OR kitchen portions — never both on one sale.
                 if mode == "shop":
                     cur.execute(
@@ -11506,6 +12373,7 @@ _EXPECTED_SCHEMA_TABLES = (
     "shop_stock_requests",
     "shop_stock_request_events",
     "app_notifications",
+    "pos_held_orders",
 )
 
 
@@ -11549,6 +12417,7 @@ def init_schema() -> bool:
     ok_shop_stock_requests = init_shop_stock_requests_table()
     ok_shop_stock_request_audit = ensure_shop_stock_request_audit_schema()
     ok_notifications = init_notifications_table()
+    ok_pos_held_orders = init_pos_held_orders_table()
     steps_ok = (
         ok_contact
         and ok_employees
@@ -11573,6 +12442,7 @@ def init_schema() -> bool:
         and ok_shop_stock_requests
         and ok_shop_stock_request_audit
         and ok_notifications
+        and ok_pos_held_orders
     )
     if not steps_ok:
         logger.warning("Database schema initialization did not complete successfully.")

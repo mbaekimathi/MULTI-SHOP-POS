@@ -58,6 +58,7 @@
     <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
   </div>
 </form>
+{% if not hide_receipt_live_search|default(false) %}
 <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/50 p-4">
   <label for="receipt-live-search" class="mb-2 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Live search receipt #</label>
   <input
@@ -74,9 +75,11 @@
     <span id="receipt-loaded-count" class="font-bold text-[rgb(var(--rc-page-fg))]">{{ receipt_rows_total or 0 }}</span> loaded row(s).
   </p>
 </div>
+{% endif %}
 
 <script>
   (function () {
+    var hideLive = {{ hide_receipt_live_search|default(false)|tojson }};
     var mode = document.getElementById("receipt-filter-mode");
     var day = document.getElementById("receipt-filter-single-day");
     var period = document.getElementById("receipt-filter-period");
@@ -92,6 +95,9 @@
       }
       mode.addEventListener("change", sync);
       sync();
+    }
+    if (hideLive) {
+      return;
     }
     var live = document.getElementById("receipt-live-search");
     var hidden = document.getElementById("receipt-q-hidden");

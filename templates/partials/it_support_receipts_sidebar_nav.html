@@ -1,0 +1,24 @@
+{# Set receipts_sidebar_active to 'receipts' or 'withheld' in the parent template before including. #}
+{% set _rsa = receipts_sidebar_active|default('receipts') %}
+<a
+  href="{{ url_for('it_support_receipts') }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _rsa == 'receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if _rsa == 'receipts' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+  </svg>
+  POS receipt register
+</a>
+{% if company_pos_cart_mode_withhold|default(false) %}
+  <a
+    href="{{ url_for('it_support_withheld_holds') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _rsa == 'withheld' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+    {% if _rsa == 'withheld' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    Withheld orders (hold)
+  </a>
+{% endif %}

@@ -2,6 +2,11 @@
 {% block title %}Receipts (all shops) — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Receipts{% endblock %}
 
+{% block sidebar_links %}
+  {% set receipts_sidebar_active = 'receipts' %}
+  {% include "partials/it_support_receipts_sidebar_nav.html" %}
+{% endblock %}
+
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">

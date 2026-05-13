@@ -557,9 +557,11 @@ def inject_portal_context():
             ps = _load_printing_settings()
             extra["company_pos_inventory_exclusive"] = _printing_pos_inventory_exclusive_choice(ps)
             extra["company_pos_allow_credit_sale"] = bool(ps.get("pos_allow_credit_sale"))
+            extra["company_pos_cart_mode_withhold"] = _coerce_pos_cart_mode(ps.get("pos_cart_mode")) == "withhold"
         except Exception:
             extra["company_pos_inventory_exclusive"] = "shop"
             extra["company_pos_allow_credit_sale"] = True
+            extra["company_pos_cart_mode_withhold"] = False
     return {
         "nav_employee": {
             "name": pe["name"],
@@ -1328,6 +1330,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
         "pos_payment_both",
         "pos_show_buy_items_link",
         "pos_show_customer_details_sale",
+        "pos_cart_amount_sets_qty",
         "pos_include_tax",
         "pos_inventory_use_both",
         "pos_kitchen_portions",
@@ -1341,6 +1344,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     if rc not in ("1", "2", "3"):
         rc = "1"
     merged["receipt_copies"] = rc
+    merged["pos_cart_mode"] = _coerce_pos_cart_mode(merged.get("pos_cart_mode"))
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
@@ -1542,6 +1546,45 @@ def _shop_has_saved_pos_printer(shop_id: int) -> bool:
     return bool((row.get("printer_type") or "").strip())
 
 
+def _shop_compulsory_printer_record_sale_gate(shop_id: int) -> Tuple[bool, str]:
+    """When compulsory printing is on: require a saved printer; network printers must be TCP-reachable (or LAN print agent)."""
+    if not _shop_has_saved_pos_printer(shop_id):
+        return False, "Printing is compulsory on sale: configure a receipt printer for this shop before checkout."
+    row, cfg = _printer_config_dict(shop_id)
+    if not row:
+        return False, "Printing is compulsory on sale: configure a receipt printer for this shop before checkout."
+    pt = (row.get("printer_type") or "").strip().lower()
+    if pt != "network":
+        return True, ""
+    if cfg.get("print_agent_enabled") and (cfg.get("print_agent_token") or "").strip():
+        return True, ""
+    host = (cfg.get("host") or "").strip()
+    try:
+        port = int(cfg.get("port") or 9100)
+    except (TypeError, ValueError):
+        port = 9100
+    if not host or port < 1 or port > 65535:
+        return False, "Printing is compulsory on sale: invalid network printer address."
+    if _tcp_probe_host_port(host, port, 3.0):
+        return True, ""
+    return (
+        False,
+        "Printing is compulsory on sale: network printer is not reachable from the server. Check it is on and the IP/port are correct.",
+    )
+
+
+_POS_CART_MODES: Tuple[str, ...] = ("direct", "withhold")
+
+
+def _coerce_pos_cart_mode(raw: object) -> str:
+    """Normalize stored / submitted cart-mode value to a known choice; unknown → 'direct'."""
+    if isinstance(raw, str):
+        c = raw.strip().lower()
+        if c in _POS_CART_MODES:
+            return c
+    return "direct"
+
+
 def _default_printing_settings() -> dict:
     return {
         "print_compulsory_sale": False,
@@ -1554,10 +1597,12 @@ def _default_printing_settings() -> dict:
         "pos_payment_both": False,
         "pos_show_buy_items_link": True,
         "pos_show_customer_details_sale": True,
+        "pos_cart_amount_sets_qty": False,
         "pos_include_tax": True,
         "pos_inventory_use_both": False,
         "pos_kitchen_portions": False,
         "pos_shop_stock_sale": True,
+        "pos_cart_mode": "direct",
         "receipt_copies": "1",
         "printer_allow_bluetooth": True,
         "printer_allow_network": True,
@@ -1590,6 +1635,7 @@ def _load_printing_settings() -> dict:
         "pos_payment_both",
         "pos_show_buy_items_link",
         "pos_show_customer_details_sale",
+        "pos_cart_amount_sets_qty",
         "pos_include_tax",
         "pos_inventory_use_both",
         "pos_kitchen_portions",
@@ -1603,6 +1649,7 @@ def _load_printing_settings() -> dict:
     if rc not in ("1", "2", "3"):
         rc = "1"
     merged["receipt_copies"] = rc
+    merged["pos_cart_mode"] = _coerce_pos_cart_mode(merged.get("pos_cart_mode"))
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
@@ -1621,6 +1668,7 @@ def _printing_settings_from_form() -> dict:
     inv_choice = (request.form.get("pos_inventory_exclusive") or "shop").strip().lower()
     if inv_choice not in ("shop", "kitchen", "dual"):
         inv_choice = "shop"
+    cart_mode = _coerce_pos_cart_mode(request.form.get("pos_cart_mode"))
     merged = {
         "print_compulsory_sale": _b("printing_compulsory_sale"),
         "allow_line_price_edit": allow_price,
@@ -1632,10 +1680,12 @@ def _printing_settings_from_form() -> dict:
         "pos_payment_both": _b("pos_payment_both"),
         "pos_show_buy_items_link": _b("pos_show_buy_items_link"),
         "pos_show_customer_details_sale": _b("pos_show_customer_details_sale"),
+        "pos_cart_amount_sets_qty": _b("pos_cart_amount_sets_qty"),
         "pos_include_tax": _b("pos_include_tax"),
         "pos_inventory_use_both": False,
         "pos_kitchen_portions": False,
         "pos_shop_stock_sale": True,
+        "pos_cart_mode": cart_mode,
         "receipt_copies": rc,
         "printer_allow_bluetooth": _b("printing_allow_bluetooth"),
         "printer_allow_network": _b("printing_allow_network"),
@@ -1659,12 +1709,16 @@ _POS_PANEL_PRINTING_PATCH_FIELDS: Tuple[Tuple[str, str], ...] = (
     ("pos_payment_both", "pos_payment_both"),
     ("pos_show_buy_items_link", "pos_show_buy_items_link"),
     ("pos_show_customer_details_sale", "pos_show_customer_details_sale"),
+    ("pos_cart_amount_sets_qty", "pos_cart_amount_sets_qty"),
     ("pos_include_tax", "pos_include_tax"),
     ("pos_inventory_use_both", "pos_inventory_use_both"),
     ("pos_kitchen_portions", "pos_kitchen_portions"),
     ("pos_shop_stock_sale", "pos_shop_stock_sale"),
     ("pos_allow_line_price_edit", "allow_line_price_edit"),
     ("printing_compulsory_sale", "print_compulsory_sale"),
+    ("printing_allow_bluetooth", "printer_allow_bluetooth"),
+    ("printing_allow_network", "printer_allow_network"),
+    ("printing_allow_usb", "printer_allow_usb"),
 )
 
 
@@ -1694,6 +1748,8 @@ def _printing_settings_apply_pos_panel_patch_dict(merged: dict, patch: dict) -> 
             inv_exclusive = c
     if inv_exclusive is not None:
         _apply_pos_inventory_exclusive_form_choice(merged, inv_exclusive)
+    if "pos_cart_mode" in patch:
+        merged["pos_cart_mode"] = _coerce_pos_cart_mode(patch.get("pos_cart_mode"))
     for form_name, mkey in _POS_PANEL_PRINTING_PATCH_FIELDS:
         if inv_exclusive is not None and form_name in (
             "pos_inventory_use_both",
@@ -1719,6 +1775,7 @@ def _printing_settings_pos_panel_client_payload(merged: dict) -> Dict[str, Any]:
     for form_name, mkey in _POS_PANEL_PRINTING_PATCH_FIELDS:
         out[form_name] = bool(merged.get(mkey))
     out["pos_inventory_exclusive"] = _printing_pos_inventory_exclusive_choice(merged)
+    out["pos_cart_mode"] = _coerce_pos_cart_mode(merged.get("pos_cart_mode"))
     return out
 
 
@@ -6071,18 +6128,10 @@ def shop_pos_record_sale(shop_id: int):
         return jsonify({"ok": False, "error": "Select a valid payment method."}), 400
     if sale_type == "sale" and not _shop_pos_payment_method_allowed(shop, payment_method):
         return jsonify({"ok": False, "error": "This payment option is not enabled for this POS."}), 403
-    if (
-        sale_type == "sale"
-        and _shop_print_compulsory_on_sale_enabled(shop)
-        and not _shop_has_saved_pos_printer(shop_id)
-        and not offline_queue_replay
-    ):
-        return jsonify(
-            {
-                "ok": False,
-                "error": "Printing is compulsory on sale: configure a receipt printer for this shop before checkout.",
-            }
-        ), 403
+    if sale_type == "sale" and _shop_print_compulsory_on_sale_enabled(shop) and not offline_queue_replay:
+        gate_ok, gate_err = _shop_compulsory_printer_record_sale_gate(shop_id)
+        if not gate_ok:
+            return jsonify({"ok": False, "error": gate_err}), 403
     try:
         cash_amount = float(data.get("cash_amount") or 0)
     except Exception:
@@ -6105,6 +6154,19 @@ def shop_pos_record_sale(shop_id: int):
     else:
         cash_amount = 0.0
         mpesa_amount = 0.0
+    # Optional: finalizing a withhold-POS held order. When set, the sale receipt is recorded but
+    # stock movement is skipped (already deducted incrementally by /shop-pos/hold/save).
+    held_order_id_raw = data.get("held_order_id")
+    held_order_id: Optional[int] = None
+    if held_order_id_raw not in (None, "", 0, "0"):
+        try:
+            held_order_id = int(held_order_id_raw)
+            if held_order_id <= 0:
+                held_order_id = None
+        except (TypeError, ValueError):
+            held_order_id = None
+    if held_order_id is not None and sale_type != "sale":
+        return jsonify({"ok": False, "error": "Held orders are finalized through standard sale only."}), 400
     try:
         from database import create_shop_pos_sale
 
@@ -6125,6 +6187,7 @@ def shop_pos_record_sale(shop_id: int):
             lines=data.get("lines") if isinstance(data.get("lines"), list) else [],
             inventory_mode=_pos_inventory_mode(shop),
             client_txn_id=client_txn_id,
+            skip_stock_deduction=held_order_id is not None,
         )
     except Exception:
         ok, sale_err = False, None
@@ -6132,13 +6195,244 @@ def shop_pos_record_sale(shop_id: int):
         msg = sale_err or "Could not record sale."
         status = 400 if sale_err else 500
         return jsonify({"ok": False, "error": msg}), status
+    if held_order_id is not None and sale_id:
+        try:
+            from database import pos_held_order_mark_finalized
+
+            pos_held_order_mark_finalized(shop_id, held_order_id, int(sale_id))
+        except Exception:
+            pass
     return jsonify(
         {
             "ok": True,
             "sale_id": int(sale_id or 0),
             "receipt_number": (receipt_number or "").strip(),
+            "held_order_finalized_id": int(held_order_id) if held_order_id is not None else None,
         }
     )
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/hold/save", methods=["POST"])
+def shop_pos_hold_save(shop_id: int):
+    """Withhold-POS: create or update a held order; deducts stock for positive deltas.
+
+    Quantity decreases require ``reduction_approver_code`` (manager / admin / company manager /
+    super admin). On success the POS prints **company copy only** for the saved cart.
+    """
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    data = request.get_json(force=True, silent=True) or {}
+    emp = data.get("employee") or {}
+    employee_code = str(emp.get("employee_code") or "").strip()
+    emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
+    if emp_err:
+        return jsonify({"ok": False, "error": emp_err}), emp_status
+
+    lines = data.get("lines")
+    if not isinstance(lines, list) or not lines:
+        return jsonify({"ok": False, "error": "Cart is empty — nothing to save."}), 400
+
+    hold_id_raw = data.get("hold_id")
+    hold_id: Optional[int] = None
+    if hold_id_raw not in (None, "", 0, "0"):
+        try:
+            hold_id = int(hold_id_raw)
+            if hold_id <= 0:
+                hold_id = None
+        except (TypeError, ValueError):
+            hold_id = None
+
+    try:
+        total_amount = float(data.get("total_amount") or 0)
+    except (TypeError, ValueError):
+        total_amount = 0.0
+    try:
+        item_count = float(data.get("item_count") or 0)
+    except (TypeError, ValueError):
+        item_count = 0.0
+
+    try:
+        from database import pos_held_order_save
+
+        ok, err, hold_id_out, delta_lines, committed_after, reduction_lines = pos_held_order_save(
+            shop_id=shop_id,
+            hold_id=hold_id,
+            lines=lines,
+            inventory_mode=_pos_inventory_mode(shop),
+            label=(data.get("label") or "").strip() or None,
+            customer_name=(data.get("customer_name") or "").strip() or None,
+            customer_phone=(data.get("customer_phone") or "").strip() or None,
+            total_amount=total_amount,
+            item_count=item_count,
+            employee_id=int(emp_row.get("id") or 0) if emp_row else None,
+            employee_code=employee_code or None,
+            employee_name=(emp_row.get("full_name") or "").strip() if emp_row else None,
+            reduction_approver_code=(data.get("reduction_approver_code") or "").strip() or None,
+        )
+    except Exception:
+        ok, err, hold_id_out, delta_lines, committed_after, reduction_lines = (
+            False,
+            None,
+            None,
+            [],
+            {},
+            [],
+        )
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not save the held order."}), 400 if err else 500
+    ps = _effective_printing_settings_for_shop(shop)
+    return jsonify(
+        {
+            "ok": True,
+            "hold_id": int(hold_id_out or 0),
+            "delta_lines": delta_lines or [],
+            "reduction_lines": reduction_lines or [],
+            "committed": committed_after or {},
+            "inventory_mode": _pos_inventory_mode(shop),
+            "should_print_company_copy": bool(ps.get("print_compulsory_sale")),
+        }
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/hold/list", methods=["GET"])
+def shop_pos_hold_list(shop_id: int):
+    """Withhold-POS: open held orders for this shop."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    # Optional per-cashier filter — supplied by the held-orders modal once the cashier
+    # has authenticated with their 6-digit code. When supplied, the code is validated
+    # server-side and only that employee's open held orders are returned.
+    employee_code = (request.args.get("employee_code") or "").strip()
+    employee_payload: Optional[dict] = None
+    if employee_code:
+        if not employee_code.isdigit() or len(employee_code) != 6:
+            return jsonify({"ok": False, "error": "Enter a valid 6-digit code."}), 400
+        emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
+        if emp_err:
+            return jsonify({"ok": False, "error": emp_err}), emp_status
+        employee_payload = {
+            "id": int(emp_row.get("id") or 0) if emp_row else 0,
+            "employee_code": employee_code,
+            "full_name": (emp_row.get("full_name") or "").strip() if emp_row else "",
+        }
+    try:
+        from database import pos_held_order_list_open
+
+        if employee_payload and employee_payload.get("id"):
+            rows = pos_held_order_list_open(
+                shop_id,
+                limit=200,
+                employee_id=int(employee_payload["id"]),
+                employee_code=employee_code,
+            )
+        elif employee_code:
+            rows = pos_held_order_list_open(
+                shop_id, limit=200, employee_code=employee_code
+            )
+        else:
+            rows = pos_held_order_list_open(shop_id, limit=200)
+    except Exception:
+        rows = []
+    out = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        last = r.get("last_save_at") or r.get("created_at")
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "customer_name": r.get("customer_name") or "",
+                "customer_phone": r.get("customer_phone") or "",
+                "label": r.get("label") or "",
+                "total_amount": float(r.get("total_amount") or 0),
+                "item_count": float(r.get("item_count") or 0),
+                "saves_count": int(r.get("saves_count") or 0),
+                "last_save_at": last.isoformat() if hasattr(last, "isoformat") else (str(last) if last else None),
+                "employee_code": r.get("employee_code") or "",
+                "employee_name": r.get("employee_name") or "",
+                "inventory_mode": r.get("inventory_mode") or "shop",
+            }
+        )
+    response: dict = {"ok": True, "held_orders": out}
+    if employee_payload:
+        response["employee"] = employee_payload
+        response["filtered"] = True
+    return jsonify(response)
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/hold/<int:hold_id>", methods=["GET"])
+def shop_pos_hold_get(shop_id: int, hold_id: int):
+    """Withhold-POS: fetch one held order to reopen it on the POS."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    try:
+        from database import pos_held_order_get
+
+        row = pos_held_order_get(shop_id, hold_id)
+    except Exception:
+        row = None
+    if not row:
+        return jsonify({"ok": False, "error": "Held order not found."}), 404
+    if (row.get("status") or "open") != "open":
+        return jsonify({"ok": False, "error": "Held order is no longer open."}), 409
+    last = row.get("last_save_at") or row.get("created_at")
+    return jsonify(
+        {
+            "ok": True,
+            "hold": {
+                "id": int(row.get("id") or 0),
+                "customer_name": row.get("customer_name") or "",
+                "customer_phone": row.get("customer_phone") or "",
+                "label": row.get("label") or "",
+                "total_amount": float(row.get("total_amount") or 0),
+                "item_count": float(row.get("item_count") or 0),
+                "saves_count": int(row.get("saves_count") or 0),
+                "last_save_at": last.isoformat() if hasattr(last, "isoformat") else (str(last) if last else None),
+                "employee_code": row.get("employee_code") or "",
+                "employee_name": row.get("employee_name") or "",
+                "inventory_mode": row.get("inventory_mode") or "shop",
+                "lines": row.get("cart_lines") or [],
+                "committed": row.get("committed_map") or {},
+            },
+        }
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/hold/<int:hold_id>/void", methods=["POST"])
+def shop_pos_hold_void(shop_id: int, hold_id: int):
+    """Withhold-POS: void a held order. Disallowed once any qty has been stock-committed."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    data = request.get_json(force=True, silent=True) or {}
+    emp = data.get("employee") or {}
+    employee_code = str(emp.get("employee_code") or "").strip()
+    emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
+    if emp_err:
+        return jsonify({"ok": False, "error": emp_err}), emp_status
+
+    try:
+        from database import pos_held_order_void
+
+        ok, err = pos_held_order_void(
+            shop_id,
+            hold_id,
+            employee_id=int(emp_row.get("id") or 0) if emp_row else None,
+        )
+    except Exception:
+        ok, err = False, None
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not void the held order."}), 400 if err else 500
+    return jsonify({"ok": True, "hold_id": int(hold_id)})
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/record-quote", methods=["POST"])
@@ -6369,6 +6663,99 @@ def it_support_receipts():
         receipt_q=rq,
         shops=shops,
         shop_filter_id=shop_filter_id or 0,
+    )
+
+
+@app.route("/it_support/withheld-holds")
+@login_required
+def it_support_withheld_holds():
+    _it_support_or_super_admin_only()
+    if _coerce_pos_cart_mode(_load_printing_settings().get("pos_cart_mode")) != "withhold":
+        flash("Withhold POS is not enabled for this company. Enable it under Point of sale settings.", "info")
+        return redirect(url_for("it_support_receipts"))
+    analytics_filter = _build_analytics_filter()
+    shop_filter_arg = request.args.get("shop_id", type=int)
+    shop_filter_id = shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
+    shops = []
+    rows = []
+    try:
+        from database import list_all_pos_held_orders_register_rows, list_shops
+
+        shops = list_shops(limit=5000) or []
+        rows = list_all_pos_held_orders_register_rows(
+            analytics_filter,
+            shop_id=shop_filter_id,
+            limit=8000,
+        )
+    except Exception:
+        logger.exception("it_support_withheld_holds list failed")
+        rows = []
+        try:
+            from database import list_shops
+
+            shops = list_shops(limit=5000) or []
+        except Exception:
+            shops = []
+    return render_template(
+        "it_support_withheld_holds.html",
+        analytics_filter=analytics_filter,
+        hold_rows=rows,
+        hold_rows_total=len(rows),
+        shops=shops,
+        shop_filter_id=shop_filter_id or 0,
+    )
+
+
+@app.route("/it_support/withheld-holds/detail")
+@login_required
+def it_support_withheld_holds_detail():
+    _it_support_or_super_admin_only()
+    shop_id = request.args.get("shop_id", type=int)
+    hold_id = request.args.get("hold_id", type=int)
+    if not shop_id or not hold_id:
+        return jsonify({"ok": False, "error": "Missing hold reference."}), 400
+    try:
+        from database import pos_held_order_get
+
+        row = pos_held_order_get(int(shop_id), int(hold_id))
+    except Exception:
+        logger.exception("it_support_withheld_holds_detail failed shop_id=%s hold_id=%s", shop_id, hold_id)
+        return jsonify({"ok": False, "error": "Could not load held order."}), 500
+    if not row:
+        return jsonify({"ok": False, "error": "Held order not found."}), 404
+    st = (row.get("status") or "open").strip().lower()
+    if st == "finalized":
+        register_status = "completed"
+    elif st == "voided":
+        register_status = "returned"
+    else:
+        register_status = "pending"
+    return jsonify(
+        {
+            "ok": True,
+            "hold": {
+                "id": row.get("id"),
+                "shop_id": row.get("shop_id"),
+                "status": row.get("status"),
+                "register_status": register_status,
+                "customer_name": row.get("customer_name"),
+                "customer_phone": row.get("customer_phone"),
+                "label": row.get("label"),
+                "total_amount": float(row.get("total_amount") or 0),
+                "item_count": float(row.get("item_count") or 0),
+                "saves_count": int(row.get("saves_count") or 0),
+                "last_save_at": str(row.get("last_save_at") or ""),
+                "created_at": str(row.get("created_at") or ""),
+                "finalized_sale_id": row.get("finalized_sale_id"),
+                "finalized_at": str(row.get("finalized_at") or ""),
+                "voided_at": str(row.get("voided_at") or ""),
+                "employee_code": row.get("employee_code"),
+                "employee_name": row.get("employee_name"),
+                "inventory_mode": row.get("inventory_mode"),
+            },
+            "lines": row.get("cart_lines") or [],
+            "committed": row.get("committed_map") or {},
+        }
     )
 
 

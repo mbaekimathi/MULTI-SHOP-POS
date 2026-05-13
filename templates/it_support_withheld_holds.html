@@ -1,0 +1,249 @@
+{% extends "employee_layout.html" %}
+{% block title %}Withheld orders (all shops) — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Withheld orders{% endblock %}
+
+{% block sidebar_links %}
+  {% set receipts_sidebar_active = 'withheld' %}
+  {% include "partials/it_support_receipts_sidebar_nav.html" %}
+{% endblock %}
+
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Withheld POS — saved holds</h2>
+    <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
+      Every <strong class="text-[rgb(var(--rc-page-fg))]">Save &amp; hold</strong> snapshot is listed here. <strong class="text-emerald-700 dark:text-emerald-300">Completed</strong> means the tab was finalized as a sale;
+      <strong class="text-amber-800 dark:text-amber-200">Returned</strong> means the open hold was voided before sale (no committed stock);
+      <strong class="text-slate-700 dark:text-slate-300">Pending</strong> means the order is still open or saved with stock committed and not yet checked out.
+      Range <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or '' }}</span>.
+    </p>
+  </div>
+
+  {% set form_action = url_for('it_support_withheld_holds') %}
+  {% set receipt_q = '' %}
+  {% set receipt_rows_total = hold_rows_total %}
+  {% set show_shop_picker = True %}
+  {% set hide_receipt_live_search = True %}
+  <div class="mt-4">
+    {% include "partials/receipt_register_filters.html" with context %}
+  </div>
+
+  <div class="mt-6 min-w-0 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+    <div class="border-b border-[rgb(var(--rc-border))]/80 px-3 py-3 sm:px-4">
+      <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Held orders</h3>
+      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Sorted by last activity · up to 8,000 rows</p>
+    </div>
+    <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+      <table class="w-full min-w-[22rem] table-fixed text-[11px] sm:text-xs">
+        <colgroup>
+          <col class="w-[14%]" />
+          <col class="w-[18%]" />
+          <col class="w-[12%]" />
+          <col class="w-[26%]" />
+          <col class="w-[12%]" />
+          <col class="w-[12%]" />
+          <col class="w-9 sm:w-10" />
+        </colgroup>
+        <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+          <tr>
+            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Order</th>
+            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Shop</th>
+            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Status</th>
+            <th class="min-w-0 px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Customer / table</th>
+            <th class="px-1.5 py-2 text-right font-bold uppercase tracking-wider sm:px-2.5">Total</th>
+            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Last activity</th>
+            <th class="px-1.5 py-2 text-center text-[10px] font-bold uppercase tracking-wider sm:px-2.5 sm:text-xs">View</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+          {% for row in hold_rows or [] %}
+            <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
+              <td class="px-1.5 py-2 align-top font-mono font-bold text-[rgb(var(--rc-page-fg))] sm:px-2.5">
+                #{{ '%04d'|format(row.hold_id or 0) }}
+                <div class="mt-0.5 text-[10px] font-normal text-[rgb(var(--rc-muted))]">Saves: {{ row.saves_count or 0 }}</div>
+              </td>
+              <td class="min-w-0 px-1.5 py-2 align-top sm:px-2.5" title="{{ row.shop_name or '' }}">
+                <div class="truncate text-[rgb(var(--rc-page-fg))]">{{ row.shop_name or ('#' ~ row.shop_id) }}</div>
+                <div class="truncate text-[10px] text-[rgb(var(--rc-muted))]">{{ row.employee_name or row.employee_code or '—' }}</div>
+              </td>
+              <td class="px-1.5 py-2 align-top sm:px-2.5">
+                {% set rs = row.register_status or 'pending' %}
+                {% if rs == 'completed' %}
+                  <span class="inline-flex rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Completed</span>
+                {% elif rs == 'returned' %}
+                  <span class="inline-flex rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-200">Returned</span>
+                {% else %}
+                  <span class="inline-flex rounded-md bg-slate-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:text-slate-300">Pending</span>
+                {% endif %}
+                {% if row.finalized_receipt_number and rs == 'completed' %}
+                  <div class="mt-1 truncate font-mono text-[10px] text-[rgb(var(--rc-muted))]" title="{{ row.finalized_receipt_number }}">{{ row.finalized_receipt_number }}</div>
+                {% endif %}
+              </td>
+              <td class="min-w-0 px-1.5 py-2 align-top sm:px-2.5">
+                <div class="truncate text-[rgb(var(--rc-page-fg))]">{{ row.customer_name or '—' }}</div>
+                <div class="truncate text-[10px] text-[rgb(var(--rc-muted))]">
+                  {% if row.label %}Table / {{ row.label }}{% elif row.customer_phone %}{{ row.customer_phone }}{% else %}—{% endif %}
+                </div>
+              </td>
+              <td class="px-1.5 py-2 text-right align-top tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-2.5">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+              <td class="min-w-0 px-1.5 py-2 align-top text-[rgb(var(--rc-muted))] sm:px-2.5 sm:whitespace-nowrap">
+                {{ row.last_save_at_iso or row.updated_at_iso or row.created_at_iso or '—' }}
+              </td>
+              <td class="px-1.5 py-2 text-center align-top sm:px-2.5">
+                <button
+                  type="button"
+                  class="hold-view-btn inline-flex h-7 w-7 items-center justify-center rounded-lg text-[rgb(var(--rc-primary))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+                  data-shop-id="{{ row.shop_id }}"
+                  data-hold-id="{{ row.hold_id }}"
+                  title="View saved lines"
+                  aria-label="View saved lines"
+                >
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No held orders in this date range.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="hold-detail-backdrop" class="fixed inset-0 z-50 hidden bg-black/50" aria-hidden="true"></div>
+  <div
+    id="hold-detail-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="hold-detail-title"
+    class="fixed inset-y-0 right-0 z-[60] hidden w-full max-w-lg translate-x-full border-l border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl transition-transform duration-200"
+  >
+    <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))] px-4 py-3">
+      <h3 id="hold-detail-title" class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Held order detail</h3>
+      <button type="button" id="hold-detail-close" class="rounded-lg p-2 text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" aria-label="Close">✕</button>
+    </div>
+    <div id="hold-detail-body" class="max-h-[calc(100vh-3.5rem)] overflow-y-auto p-4 text-sm text-[rgb(var(--rc-page-fg))]"></div>
+  </div>
+
+  <script>
+    (function () {
+      var DETAIL_API = {{ url_for('it_support_withheld_holds_detail')|tojson }};
+      var backdrop = document.getElementById("hold-detail-backdrop");
+      var panel = document.getElementById("hold-detail-panel");
+      var bodyEl = document.getElementById("hold-detail-body");
+      var closeBtn = document.getElementById("hold-detail-close");
+      if (!backdrop || !panel || !bodyEl) return;
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = s == null ? "" : String(s);
+        return d.innerHTML;
+      }
+
+      function closeDetail() {
+        panel.classList.add("hidden", "translate-x-full");
+        backdrop.classList.add("hidden");
+        backdrop.setAttribute("aria-hidden", "true");
+      }
+
+      function openDetail() {
+        backdrop.classList.remove("hidden");
+        panel.classList.remove("hidden");
+        requestAnimationFrame(function () {
+          panel.classList.remove("translate-x-full");
+        });
+        backdrop.setAttribute("aria-hidden", "false");
+      }
+
+      function renderDetail(j) {
+        if (!j || !j.ok || !j.hold) {
+          bodyEl.innerHTML = '<p class="text-rose-600 dark:text-rose-400">Could not load detail.</p>';
+          return;
+        }
+        var h = j.hold;
+        var lines = j.lines || [];
+        var committed = j.committed || {};
+        var st = h.register_status || "pending";
+        var badge =
+          st === "completed"
+            ? '<span class="inline-flex rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">Completed</span>'
+            : st === "returned"
+              ? '<span class="inline-flex rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-200">Returned</span>'
+              : '<span class="inline-flex rounded-md bg-slate-500/15 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">Pending</span>';
+        var parts = [];
+        parts.push("<div class='mb-3 text-xs text-[rgb(var(--rc-muted))]'>Order #" + String(h.id != null ? h.id : "").padStart(4, "0") + " · Shop #" + esc(h.shop_id) + "</div>");
+        parts.push("<div class='mb-2'>" + badge + "</div>");
+        parts.push("<dl class='grid grid-cols-2 gap-x-2 gap-y-1 text-xs'>");
+        parts.push("<dt class='text-[rgb(var(--rc-muted))]'>Customer</dt><dd class='font-medium'>" + esc(h.customer_name || "—") + "</dd>");
+        parts.push("<dt class='text-[rgb(var(--rc-muted))]'>Phone</dt><dd class='font-medium'>" + esc(h.customer_phone || "—") + "</dd>");
+        parts.push("<dt class='text-[rgb(var(--rc-muted))]'>Table / label</dt><dd class='font-medium'>" + esc(h.label || "—") + "</dd>");
+        parts.push("<dt class='text-[rgb(var(--rc-muted))]'>Staff</dt><dd class='font-medium'>" + esc(h.employee_name || h.employee_code || "—") + "</dd>");
+        parts.push("<dt class='text-[rgb(var(--rc-muted))]'>Total</dt><dd class='font-mono font-semibold'>" + esc(Number(h.total_amount || 0).toFixed(2)) + "</dd>");
+        parts.push("<dt class='text-[rgb(var(--rc-muted))]'>Saves</dt><dd>" + esc(h.saves_count) + "</dd>");
+        parts.push("</dl>");
+        if (h.finalized_sale_id) {
+          parts.push(
+            "<p class='mt-3 text-xs text-[rgb(var(--rc-muted))]'>Finalized sale id: <span class='font-mono text-[rgb(var(--rc-page-fg))]'>" +
+              esc(h.finalized_sale_id) +
+              "</span></p>"
+          );
+        }
+        parts.push("<h4 class='mt-4 border-t border-[rgb(var(--rc-border))] pt-3 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]'>Saved cart lines</h4>");
+        parts.push("<ul class='mt-2 space-y-2'>");
+        lines.forEach(function (ln) {
+          var name = (ln && ln.name) || "Item";
+          var qty = parseFloat((ln && ln.qty) || 0) || 0;
+          var price = parseFloat((ln && ln.price) || 0) || 0;
+          parts.push(
+            "<li class='rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-2 py-2 text-xs'><span class='font-medium'>" +
+              esc(name) +
+              "</span><span class='ml-2 tabular-nums text-[rgb(var(--rc-muted))]'>× " +
+              esc(qty) +
+              " @ " +
+              esc(price.toFixed(2)) +
+              "</span></li>"
+          );
+        });
+        parts.push("</ul>");
+        var ckeys = Object.keys(committed);
+        if (ckeys.length) {
+          parts.push("<h4 class='mt-4 border-t border-[rgb(var(--rc-border))] pt-3 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]'>Committed qty (item id → qty)</h4>");
+          parts.push("<ul class='mt-2 font-mono text-[11px]'>");
+          ckeys.forEach(function (k) {
+            parts.push("<li>" + esc(k) + " → " + esc(committed[k]) + "</li>");
+          });
+          parts.push("</ul>");
+        }
+        bodyEl.innerHTML = parts.join("");
+      }
+
+      document.querySelectorAll(".hold-view-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var sid = btn.getAttribute("data-shop-id");
+          var hid = btn.getAttribute("data-hold-id");
+          bodyEl.innerHTML = '<p class="text-xs text-[rgb(var(--rc-muted))]">Loading…</p>';
+          openDetail();
+          var u = DETAIL_API + "?shop_id=" + encodeURIComponent(sid) + "&hold_id=" + encodeURIComponent(hid);
+          fetch(u, { credentials: "same-origin", headers: { Accept: "application/json" } })
+            .then(function (r) {
+              return r.json().catch(function () {
+                return {};
+              });
+            })
+            .then(renderDetail)
+            .catch(function () {
+              bodyEl.innerHTML = '<p class="text-rose-600 dark:text-rose-400">Network error.</p>';
+            });
+        });
+      });
+
+      if (closeBtn) closeBtn.addEventListener("click", closeDetail);
+      backdrop.addEventListener("click", closeDetail);
+    })();
+  </script>
+{% endblock %}
