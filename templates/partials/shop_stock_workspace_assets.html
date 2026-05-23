@@ -1,0 +1,308 @@
+<style>
+  .sa-stock-analytics .sa-stock-workspace {
+    width: 100%;
+    max-width: 64rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .sa-stock-analytics .sa-stock-hero {
+    background:
+      radial-gradient(circle at top right, rgba(249, 115, 22, 0.1), transparent 48%),
+      radial-gradient(circle at bottom left, rgba(56, 189, 248, 0.08), transparent 42%),
+      linear-gradient(180deg, rgba(var(--rc-surface-2), 0.35) 0%, rgb(var(--rc-surface)) 100%);
+  }
+  .sa-stock-analytics .sa-stock-filter input,
+  .sa-stock-analytics .sa-stock-filter select {
+    min-height: 2.5rem;
+  }
+  .sa-stock-analytics .shop-analytics-tab {
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  }
+  .sa-stock-analytics .shop-analytics-tab.shop-analytics-tab-active {
+    background: rgba(var(--rc-primary), 0.14);
+    color: rgb(var(--rc-page-fg));
+    box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.28);
+  }
+  .sa-stock-analytics [data-shop-analytics-report-view="raw"] .sa-visual-only {
+    display: none !important;
+  }
+  .sa-stock-analytics [data-shop-analytics-report-view="visual"] .sa-raw-only {
+    display: none !important;
+  }
+  .sa-stock-analytics .sa-stock-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+  }
+  .sa-stock-analytics .sa-stock-data-table th,
+  .sa-stock-analytics .sa-stock-data-table td {
+    border: 1px solid rgba(var(--rc-border), 0.9);
+    padding: 0.55rem 0.65rem;
+    vertical-align: middle;
+    font-size: 0.8125rem;
+  }
+  .sa-stock-analytics .sa-stock-data-table thead th {
+    background: rgba(var(--rc-surface-2), 0.95);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(var(--rc-muted));
+    white-space: nowrap;
+  }
+  .sa-stock-analytics .sa-stock-data-table tbody tr:nth-child(even) td {
+    background: rgba(var(--rc-surface-2), 0.35);
+  }
+  .sa-stock-analytics .sa-stock-data-table tbody tr:hover td {
+    background: rgba(var(--rc-primary), 0.06);
+  }
+  @media (max-width: 639px) {
+    .sa-stock-analytics .sa-stock-workspace {
+      margin-top: 0.5rem;
+      gap: 0.5rem;
+    }
+    .sa-stock-analytics .sa-stock-hero {
+      border-radius: 0.5rem;
+      box-shadow: none;
+    }
+    .sa-stock-analytics .sa-stock-hero-top {
+      padding: 0.65rem 0.75rem;
+    }
+    .sa-stock-analytics .sa-stock-hero-desc,
+    .sa-stock-analytics .sa-stock-hero-eyebrow,
+    .sa-stock-analytics .sa-stock-filter-intro,
+    .sa-stock-analytics .sa-stock-filter-hint {
+      display: none;
+    }
+    .sa-stock-analytics .sa-stock-hero-title {
+      font-size: 1rem;
+      margin-top: 0;
+    }
+    .sa-stock-analytics .sa-stock-chips span {
+      padding: 0.1rem 0.4rem;
+      font-size: 0.65rem;
+    }
+    .sa-stock-analytics .sa-stock-filter {
+      padding: 0.5rem 0.75rem;
+    }
+    .sa-stock-analytics .sa-stock-filter input,
+    .sa-stock-analytics .sa-stock-filter select {
+      min-height: 2.15rem;
+      font-size: 0.8125rem;
+    }
+    .sa-stock-analytics .sa-stock-kpis {
+      display: grid;
+      gap: 0;
+      border: 1px solid rgba(var(--rc-border), 0.9);
+      border-radius: 0.5rem;
+      overflow: hidden;
+      background: rgb(var(--rc-surface));
+    }
+    .sa-stock-analytics .sa-stock-kpis.mt-3,
+    .sa-stock-analytics .sa-stock-kpis.mt-4,
+    .sa-stock-analytics .sa-stock-kpis.mt-5 {
+      margin-top: 0.5rem;
+    }
+    .sa-stock-analytics .sa-stock-kpis.sm\:grid-cols-2,
+    .sa-stock-analytics .sa-stock-kpis.xl\:grid-cols-5,
+    .sa-stock-analytics .sa-stock-kpis.xl\:grid-cols-4,
+    .sa-stock-analytics .sa-stock-kpis.lg\:grid-cols-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .sa-stock-analytics .sa-stock-kpis.lg\:grid-cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .sa-stock-analytics .sa-stock-kpis.lg\:grid-cols-3 > div {
+      border-bottom: none;
+    }
+    .sa-stock-analytics .sa-stock-kpis > div {
+      padding: 0.45rem 0.35rem;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      text-align: center;
+      border-right: 1px solid rgba(var(--rc-border), 0.85);
+      border-bottom: 1px solid rgba(var(--rc-border), 0.85);
+    }
+    .sa-stock-analytics .sa-stock-kpis > div:nth-child(2n) {
+      border-right: none;
+    }
+    .sa-stock-analytics .sa-stock-kpis > div:nth-last-child(-n+2) {
+      border-bottom: none;
+    }
+    .sa-stock-analytics .sa-stock-kpis > div:only-child {
+      border-right: none;
+      border-bottom: none;
+      grid-column: 1 / -1;
+    }
+    .sa-stock-analytics .sa-stock-kpis p.mt-1.text-xs,
+    .sa-stock-analytics .sa-stock-kpis .text-xs.text-\[rgb\(var\(--rc-muted\)\)\] {
+      display: none;
+    }
+    .sa-stock-analytics .sa-stock-kpis .text-2xl,
+    .sa-stock-analytics .sa-stock-kpis .text-xl {
+      font-size: 0.95rem;
+    }
+    .sa-stock-analytics .sa-stock-kpis .text-sm {
+      font-size: 0.75rem;
+    }
+    .sa-stock-analytics .sa-stock-banner {
+      margin-top: 0.35rem;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.65rem;
+    }
+    .sa-stock-analytics .sa-stock-panel {
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      margin-top: 0.5rem;
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .sa-stock-analytics .sa-stock-panel-head {
+      padding: 0.35rem 0;
+      border-bottom: 1px solid rgba(var(--rc-border), 0.75);
+    }
+    .sa-stock-analytics .sa-stock-panel-head .sa-stock-panel-meta {
+      display: none;
+    }
+    .sa-stock-analytics .sa-stock-data-table th,
+    .sa-stock-analytics .sa-stock-data-table td {
+      padding: 0.4rem 0.35rem;
+      font-size: 0.75rem;
+    }
+    .sa-stock-analytics .sa-stock-section {
+      border-radius: 0.5rem;
+      padding: 0.65rem;
+    }
+  }
+</style>
+<script>
+  (function () {
+    function wireStockDateFilter(form) {
+      var mode = form.querySelector('[name="mode"]');
+      if (!mode) return;
+      var day = form.querySelector('[data-stock-filter="single_day"]');
+      var period = form.querySelector('[data-stock-filter="period"]');
+      var month = form.querySelector('[data-stock-filter="month"]');
+      var year = form.querySelector('[data-stock-filter="year"]');
+      function sync() {
+        var m = mode.value || "single_day";
+        if (m === "all") {
+          if (day) day.classList.add("hidden");
+          if (period) period.classList.add("hidden");
+          if (month) month.classList.add("hidden");
+          if (year) year.classList.add("hidden");
+          return;
+        }
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (period) period.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    }
+
+    function wireStockLiveFilter(form) {
+      if (!form || !form.classList.contains("sa-stock-live-filter")) return;
+      wireStockDateFilter(form);
+      var submitTimer = null;
+      var searchTimer = null;
+      function submitSoon(delay) {
+        if (submitTimer) clearTimeout(submitTimer);
+        submitTimer = setTimeout(function () {
+          submitTimer = null;
+          if (typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+          } else {
+            form.submit();
+          }
+        }, delay == null ? 120 : delay);
+      }
+      form.querySelectorAll("select").forEach(function (el) {
+        el.addEventListener("change", function () {
+          if (el.name === "mode") {
+            submitSoon(80);
+          } else {
+            submitSoon();
+          }
+        });
+      });
+      form.querySelectorAll('input[type="date"], input[type="month"]').forEach(function (el) {
+        el.addEventListener("change", function () {
+          submitSoon();
+        });
+      });
+      var yearInput = form.querySelector('input[type="number"][name="year"]');
+      if (yearInput) {
+        yearInput.addEventListener("change", function () {
+          submitSoon();
+        });
+        yearInput.addEventListener("input", function () {
+          if (searchTimer) clearTimeout(searchTimer);
+          searchTimer = setTimeout(function () {
+            searchTimer = null;
+            var y = parseInt(yearInput.value, 10);
+            if (y >= 2000 && y <= 2100) submitSoon(0);
+          }, 450);
+        });
+      }
+      var reorderInput = form.querySelector('input[name="reorder_threshold"]');
+      if (reorderInput) {
+        reorderInput.addEventListener("change", function () {
+          submitSoon();
+        });
+      }
+      form.querySelectorAll('input[type="search"]').forEach(function (el) {
+        el.addEventListener("input", function () {
+          if (searchTimer) clearTimeout(searchTimer);
+          searchTimer = setTimeout(function () {
+            searchTimer = null;
+            submitSoon(200);
+          }, 500);
+        });
+      });
+    }
+
+    function wireStockTabs(reportRoot, rawBtn, visualBtn, storageKey) {
+      if (!reportRoot || !rawBtn || !visualBtn) return;
+      function setView(view) {
+        var v = view === "visual" ? "visual" : "raw";
+        reportRoot.setAttribute("data-shop-analytics-report-view", v);
+        rawBtn.classList.toggle("shop-analytics-tab-active", v === "raw");
+        visualBtn.classList.toggle("shop-analytics-tab-active", v === "visual");
+        rawBtn.setAttribute("aria-selected", v === "raw" ? "true" : "false");
+        visualBtn.setAttribute("aria-selected", v === "visual" ? "true" : "false");
+        try {
+          localStorage.setItem(storageKey, v);
+        } catch (_e) {}
+        if (v === "visual") {
+          requestAnimationFrame(function () {
+            window.dispatchEvent(new Event("resize"));
+          });
+        }
+      }
+      rawBtn.addEventListener("click", function () {
+        setView("raw");
+      });
+      visualBtn.addEventListener("click", function () {
+        setView("visual");
+      });
+      try {
+        setView(localStorage.getItem(storageKey) || "raw");
+      } catch (_e) {
+        setView("raw");
+      }
+    }
+
+    document.querySelectorAll(".sa-stock-live-filter").forEach(wireStockLiveFilter);
+    wireStockTabs(
+      document.getElementById("shop-stock-report-root"),
+      document.getElementById("shop-stock-tab-raw"),
+      document.getElementById("shop-stock-tab-visual"),
+      "shop-stock-analytics-report-view"
+    );
+  })();
+</script>

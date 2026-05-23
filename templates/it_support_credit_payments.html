@@ -1,196 +1,44 @@
 {% extends "employee_layout.html" %}
-
 {% block title %}Credit payments — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
-
 {% block portal_page_title %}Credit payments{% endblock %}
-
-
-
 {% block sidebar_links %}
-
   {% include "partials/it_support_credit_sidebar_nav.html" %}
-
 {% endblock %}
-
-
-
 {% block employee_content %}
-
   {% set f = analytics_filter or {} %}
-
   {% set shop_list = shops or [] %}
-
-
-
-  <div class="it-credit-page">
-
-    <header class="it-credit-hub-header mb-5 sm:mb-6">
-
-      {% set credit_title = "Company credit customers" %}
-
-      {% set credit_description = "Credit from all shops is combined per customer (same name and phone), so new credits add to existing customer totals." %}
-
-      {% include "partials/it_support_credit_intro.html" %}
-
-
-
-      {% set filter_form_id = "credit-payments-filter-form" %}
-
-      {% set filter_clear_url = url_for('it_support_credit_payments') %}
-
-      {% set show_payment_scope = false %}
-
-      {% set show_print = true %}
-
-      {% set filter_print_url = url_for('it_support_credit_payments', all_time=1, print=1) %}
-
-      {% set status_all_time_html = 'Showing <strong>lifetime</strong> credit sales across all shops.' %}
-
-      {% set status_range_html = 'Showing credit sales dated within <strong>' ~ (f.range_label or 'the selected range') ~ '</strong>. Tap Apply to refresh.' %}
-
-      {% include "partials/it_support_credit_filter_full.html" %}
-
-    </header>
-
-
-
-    {% include "partials/it_support_credit_customers_data.html" %}
-
-  </div>
-
-{% endblock %}
-
-
-
-{% block scripts %}
-
-  {{ super() }}
-
   {% include "partials/it_support_credit_hub_assets.html" %}
-
-  <style>
-
-    @media print {
-
-      #credit-payments-filter-form,
-
-      #credit-payments-filter-form-panel,
-
-      .it-credit-filter,
-
-      nav,
-
-      header,
-
-      aside,
-
-      .btn-rc {
-
-        display: none !important;
-
-      }
-
-      #credit-sales-print-area {
-
-        border: 0 !important;
-
-        box-shadow: none !important;
-
-        padding: 0 !important;
-
-        margin: 0 !important;
-
-      }
-
-      .it-credit-table-desktop .it-credit-table-wrap {
-
-        border: 0 !important;
-
-        overflow: visible !important;
-
-      }
-
-      .it-credit-table-desktop .it-credit-table-wrap__scroll {
-
-        overflow: visible !important;
-
-      }
-
-      table {
-
-        font-size: 11px !important;
-
-        width: 100% !important;
-
-      }
-
-      .it-credit-table-desktop > .it-credit-table-wrap {
-
-        display: block !important;
-
-      }
-
-      .print-only-table {
-
-        display: block !important;
-
-      }
-
-      .col-customer,
-
-      .col-total,
-
-      .col-paid,
-
-      .col-balance {
-
-        display: table-cell !important;
-
-        color: #000 !important;
-
-      }
-
-      .col-total *,
-
-      .col-paid *,
-
-      .col-balance * {
-
-        color: #000 !important;
-
-      }
-
-      .col-shop,
-
-      .col-sale-id,
-
-      .col-items,
-
-      .col-status,
-
-      .col-view {
-
-        display: none !important;
-
-      }
-
-    }
-
-  </style>
-
-  <script>
-
-    {% if credit_should_print %}
-
-    window.addEventListener("load", function () {
-
-      window.print();
-
-    });
-
-    {% endif %}
-
-  </script>
-
+  <div class="it-credit-page it-credit-analytics">
+  <div class="it-credit-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    {% set credit_shell_title = 'Company credit customers' %}
+    {% set credit_shell_desc = 'Credit from all shops is combined per customer (same name and phone), so new credits add to existing customer totals.' %}
+    {% set credit_shell_badge = 'Overview' %}
+    {% set filter_form_id = 'credit-payments-filter-form' %}
+    {% set filter_clear_url = url_for('it_support_credit_payments') %}
+    {% set show_payment_scope = false %}
+    {% set show_print = true %}
+    {% set filter_print_url = url_for('it_support_credit_payments', all_time=1, print=1) %}
+    {% include "partials/it_support_credit_hero_filter.html" %}
+    {% include "partials/it_support_credit_customers_data.html" %}
+  </div>
+  </div>
 {% endblock %}
-
+{% block scripts %}
+  {{ super() }}
+  <style>
+    @media print {
+      #credit-payments-filter-form,
+      .it-credit-hero,
+      nav, header, aside, .btn-rc { display: none !important; }
+      #credit-sales-print-area { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+      .it-credit-table-desktop { display: block !important; }
+      .print-only-table { display: block !important; }
+      .col-shop, .col-view { display: none !important; }
+    }
+  </style>
+  <script>
+    {% if credit_should_print %}
+    window.addEventListener("load", function () { window.print(); });
+    {% endif %}
+  </script>
+{% endblock %}

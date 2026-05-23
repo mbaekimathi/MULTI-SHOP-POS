@@ -28,10 +28,25 @@
           <select
             name="font_family"
             class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            style="font-family: inherit"
           >
-            <option value="Plus Jakarta Sans" {% if (shop.font_family or 'Plus Jakarta Sans') == 'Plus Jakarta Sans' %}selected{% endif %}>Plus Jakarta Sans</option>
-            <option value="Inter" {% if (shop.font_family or '') == 'Inter' %}selected{% endif %}>Inter</option>
-            <option value="System UI" {% if (shop.font_family or '') == 'System UI' %}selected{% endif %}>System UI</option>
+            {% set _shop_font = shop.font_family or 'Plus Jakarta Sans' %}
+            {% set _last_cat = namespace(value='') %}
+            {% for font in appearance_fonts %}
+              {% if font.category != _last_cat.value %}
+                {% if _last_cat.value %}</optgroup>{% endif %}
+                <optgroup label="{{ font.category }}">
+                {% set _last_cat.value = font.category %}
+              {% endif %}
+              <option
+                value="{{ font.id }}"
+                {% if _shop_font == font.id %}selected{% endif %}
+                style="font-family: {{ font.stack }}"
+              >
+                {{ font.id }}{% if font.tagline %} — {{ font.tagline }}{% endif %}
+              </option>
+            {% endfor %}
+            {% if _last_cat.value %}</optgroup>{% endif %}
           </select>
         </div>
 

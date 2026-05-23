@@ -1,3 +1,69 @@
+/* Marketing — site chrome (header / footer / main offset) */
+
+:root {
+  --mk-header-h: 3.5rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --mk-header-h: 3.75rem;
+  }
+}
+
+.mk-main {
+  padding-top: calc(var(--mk-header-h) + env(safe-area-inset-top, 0px));
+  min-height: calc(100vh - var(--mk-header-h));
+  min-height: calc(100dvh - var(--mk-header-h));
+}
+
+.mk-site-header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.mk-site-header__bar {
+  min-height: var(--mk-header-h);
+}
+
+.mk-mobile-nav {
+  top: calc(var(--mk-header-h) + env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - var(--mk-header-h) - env(safe-area-inset-top, 0px));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+.mk-icon-btn {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+body.mk-nav-open {
+  overflow: hidden;
+  touch-action: none;
+}
+
+@media (min-width: 768px) {
+  body.mk-nav-open {
+    overflow: auto;
+    touch-action: auto;
+  }
+}
+
+.mk-site-footer {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-mobile-nav-backdrop,
+  .mk-mobile-nav {
+    transition: none !important;
+  }
+}
+
 /* Marketing — scroll reveals + product stack (hero) */
 
 .mk-reveal {

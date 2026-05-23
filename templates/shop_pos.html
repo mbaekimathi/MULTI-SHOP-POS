@@ -1398,8 +1398,9 @@
     .pos-search-panel {
       position: relative;
       z-index: 20;
-      display: grid;
-      gap: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
       overflow: hidden;
       border-radius: 1rem;
       padding: 0.875rem;
@@ -1456,32 +1457,18 @@
         position: sticky;
         top: calc(4.5rem + env(safe-area-inset-top, 0px));
         z-index: 25;
-        padding: 1rem 1.25rem;
-        gap: 0.85rem;
+        padding: 0;
+        gap: 0;
         border-radius: 1.125rem;
       }
     }
+    /* Catalog command bar: stacked layout (header + body). Legacy 2-col grid removed. */
     @media (min-width: 1024px) {
       .pos-search-panel {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-        grid-template-rows: auto auto;
-        align-items: start;
-        column-gap: 1.25rem;
-        row-gap: 0.65rem;
-        padding: 1.1rem 1.35rem;
-      }
-      .pos-search-panel__search-wrap {
-        grid-column: 1;
-        grid-row: 1 / span 2;
-        align-self: center;
-      }
-      .pos-search-panel__chips-label {
-        grid-column: 2;
-        grid-row: 1;
-      }
-      .pos-search-panel__chips {
-        grid-column: 2;
-        grid-row: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: 0;
       }
     }
     .pos-search-panel__chips-label {
@@ -1505,13 +1492,10 @@
     .pos-search-panel__chips::-webkit-scrollbar {
       display: none;
     }
-    @media (min-width: 1024px) {
-      .pos-search-panel__chips {
-        flex-wrap: wrap;
-        overflow: visible;
-        scroll-snap-type: none;
-        padding-bottom: 0;
-      }
+    .pos-search-panel__chips {
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
     }
     #pos-search {
       border-radius: 0.9rem;
@@ -1553,12 +1537,12 @@
         inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
     .pos-cat-chip {
-      border-radius: 9999px;
+      border-radius: 0.625rem;
       padding: 0.5rem 0.95rem;
       font-size: 0.7rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: none;
       border: 1px solid rgba(var(--rc-border), 0.55);
       color: rgb(var(--rc-muted));
       background:
@@ -2460,6 +2444,10 @@
     .pos-printer-type-btn:active {
       transform: translateY(0);
     }
+    .pos-printer-type-btn.pos-printer-type-blocked,
+    .pos-printer-type-btn.hidden {
+      display: none !important;
+    }
     @media (prefers-reduced-motion: reduce) {
       .pos-printer-type-btn {
         transition: none;
@@ -3019,12 +3007,21 @@
       opacity: 0.38;
       filter: grayscale(0.35);
     }
-    /* Compulsory printer notice (above cart + printer dialogs) */
+    /* Compulsory printer notice (above cart; printer setup rises above when connecting) */
     #pos-compulsory-printer-modal-backdrop {
       z-index: 85;
     }
     #pos-compulsory-printer-modal {
       z-index: 86;
+    }
+    body.pos-compulsory-setup-open #pos-compulsory-printer-modal,
+    body.pos-compulsory-setup-open #pos-compulsory-printer-modal-backdrop {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    body.pos-compulsory-setup-open #pos-printer-dialog,
+    body.pos-compulsory-setup-open #pos-printer-backdrop {
+      z-index: 92 !important;
     }
     /* Cart drawer: form labels + helper copy readable on dark panels */
     #pos-cart-drawer label {
@@ -3705,10 +3702,11 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-pro.css') }}?v=7" />
 {% endblock %}
 
 {% block body %}
-  <div class="pos-surface-page relative isolate flex min-h-screen flex-col overflow-x-hidden">
+  <div class="pos-surface-page pos-ui-pro relative isolate flex min-h-screen flex-col overflow-x-hidden">
     <div class="pos-page-atmosphere pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
       <div class="pos-page-atmosphere__base"></div>
       <div class="pos-page-atmosphere__orb pos-page-atmosphere__orb--a"></div>
@@ -3754,17 +3752,17 @@
       <span class="pos-cart-fab-ripple" aria-hidden="true"></span>
       <span class="pos-cart-icon-wrap relative z-[1] flex h-12 w-12 items-center justify-center sm:h-[3.5rem] sm:w-[3.5rem]">
         <svg
-          class="pos-cart-fab-icon h-6 w-6 text-[rgb(var(--rc-primary))] drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] sm:h-7 sm:w-7"
+          class="pos-cart-fab-icon h-7 w-7 sm:h-8 sm:w-8"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       </span>
       <span
-        class="pos-cart-badge absolute right-0 top-0 z-[2] flex translate-x-1/3 -translate-y-1/3 items-center justify-center text-white transition-opacity"
+        class="pos-cart-badge pos-cart-badge--empty absolute right-0 top-0 z-[2] flex translate-x-1/3 -translate-y-1/3 items-center justify-center transition-[background,color,transform,box-shadow]"
         >0</span
       >
     </button>
@@ -3782,13 +3780,13 @@
       <span class="pos-hold-fab-ripple" aria-hidden="true"></span>
       <span class="pos-hold-icon-wrap relative z-[1] flex h-12 w-12 items-center justify-center sm:h-[3.5rem] sm:w-[3.5rem]">
         <svg
-          class="pos-hold-fab-icon h-6 w-6 text-[rgb(var(--rc-accent))] drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] sm:h-7 sm:w-7"
+          class="pos-hold-fab-icon h-7 w-7 sm:h-8 sm:w-8"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 21h14a2 2 0 002-2V9H3v10a2 2 0 002 2zM3 9V7a2 2 0 012-2h14a2 2 0 012 2v2M9 14l2 2 4-4" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3M5 21h14a2 2 0 002-2V9H3v10a2 2 0 002 2zM3 9V7a2 2 0 012-2h14a2 2 0 012 2v2M9 14l2 2 4-4" />
         </svg>
       </span>
       <span
@@ -3828,13 +3826,13 @@
               <img
                 src="{{ url_for('static', filename=shop.shop_logo) }}"
                 alt=""
-                class="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-[rgb(var(--rc-border))]/80"
-                width="32"
-                height="32"
+                class="h-9 w-9 shrink-0 rounded-xl object-cover shadow-sm ring-2 ring-[rgb(var(--rc-primary))]/15"
+                width="36"
+                height="36"
               />
             {% else %}
               <div
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold text-white shadow-sm ring-2 ring-white/20"
                 style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
                 aria-hidden="true"
               >
@@ -4027,7 +4025,8 @@
         </div>
         <div id="pos-compulsory-printer-modal-desc" class="space-y-3 px-4 py-4 text-sm leading-relaxed text-[rgb(var(--rc-muted))] sm:px-5 sm:py-5">
           <p class="text-[rgb(var(--rc-page-fg))]">
-            This shop has <strong class="font-semibold">compulsory printing</strong> on standard sales. The catalog stays locked until the receipt printer is actually available: Bluetooth linked, network reachable, USB device connected, or (network) LAN print agent ready.
+            This shop has <strong class="font-semibold">compulsory printing</strong> on standard sales. When you open POS, you must
+            <strong class="font-semibold">connect the receipt printer</strong> first — the catalog stays locked until it is ready (Bluetooth linked, network online, or USB allowed in the browser).
           </p>
           <ul class="list-inside list-disc space-y-2 text-[rgb(var(--rc-muted))] marker:text-[rgb(var(--rc-primary))]">
             <li>
@@ -4054,7 +4053,7 @@
             id="pos-compulsory-printer-modal-open-setup"
             class="btn-rc btn-rc-primary w-full rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider sm:w-auto"
           >
-            Open printer setup
+            Connect printer now
           </button>
         </div>
       </div>
@@ -4073,34 +4072,99 @@
             <p class="mt-1 max-w-sm text-sm text-[rgb(var(--rc-muted))]">When items are set to display for this shop, they will appear here.</p>
           </div>
         {% else %}
-          {# Search + category chips (sticky row; two-column on desktop) #}
+          {# Search + category chips (sticky command bar) #}
           <div class="pos-search-panel">
-            <div class="pos-search-panel__search-wrap min-w-0">
-              <label class="sr-only" for="pos-search">Search items</label>
-              <div class="relative w-full min-w-0">
-                <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[rgb(var(--rc-muted))] sm:left-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  id="pos-search"
-                  type="search"
-                  autocomplete="off"
-                  placeholder="Search item name…"
-                  class="w-full min-w-0 py-2.5 pl-10 pr-4 text-base text-[rgb(var(--rc-page-fg))] placeholder:text-[rgb(var(--rc-muted))] outline-none transition sm:py-3 sm:pl-11 sm:text-sm"
-                />
+            <div class="pos-search-panel__inner">
+              <div class="pos-search-panel__top">
+                <div class="pos-catalog-command__head">
+                  <p class="pos-catalog-command__title">
+                    <span class="pos-catalog-command__icon" aria-hidden="true">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                      </svg>
+                    </span>
+                    Product catalog
+                  </p>
+                  <p class="pos-catalog-command__sub">
+                    Tap items to add · <kbd class="pos-inline-kbd">/</kbd> to search
+                  </p>
+                </div>
+                <span id="pos-search-status" class="pos-search-status pos-search-status--badge" aria-live="polite">{{ items|length }} items</span>
               </div>
-            </div>
-            <span class="pos-search-panel__chips-label hidden lg:block">Categories</span>
-            <div id="pos-cat-chips" class="pos-search-panel__chips" role="tablist" aria-label="Jump to category">
-              {% for cat, rows in (items|groupby('category')) %}
-                <button
-                  type="button"
-                  class="pos-cat-chip shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:px-4"
-                  data-target="pos-cat-{{ loop.index0 }}"
-                >
-                  {{ cat }}
-                </button>
-              {% endfor %}
+              <div class="pos-search-panel__search-wrap min-w-0">
+                <label class="sr-only" for="pos-search">Search products</label>
+                <div class="pos-search-field relative w-full min-w-0">
+                  <svg class="pos-search-field__icon pointer-events-none absolute left-3 top-1/2 h-[1.125rem] w-[1.125rem] -translate-y-1/2 text-[rgb(var(--rc-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    id="pos-search"
+                    type="search"
+                    autocomplete="off"
+                    enterkeyhint="search"
+                    placeholder="Name or keyword…"
+                    class="pos-search-field__input w-full min-w-0 pl-9 pr-[4.75rem] text-[rgb(var(--rc-page-fg))] placeholder:text-[rgb(var(--rc-muted))] outline-none transition sm:pl-10 sm:pr-[5.25rem]"
+                  />
+                  <button
+                    type="button"
+                    id="pos-search-clear"
+                    class="pos-search-clear hidden"
+                    aria-label="Clear search"
+                    title="Clear (Esc)"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <kbd class="pos-search-kbd" aria-hidden="true" title="Press / to focus search">/</kbd>
+                </div>
+              </div>
+              <div class="pos-search-panel__categories min-w-0">
+                <div class="pos-search-panel__categories-head">
+                  <span class="pos-search-panel__chips-label">Categories</span>
+                  <button type="button" id="pos-chips-scroll-start" class="pos-chips-jump-top" title="Back to top">
+                    ↑ Top
+                  </button>
+                </div>
+                <div class="pos-search-panel__chips-rail">
+                  <button type="button" class="pos-chips-nav pos-chips-nav--prev" aria-label="Scroll categories left" tabindex="-1">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div id="pos-cat-chips" class="pos-search-panel__chips" role="tablist" aria-label="Jump to category">
+                    <button
+                      type="button"
+                      role="tab"
+                      class="pos-cat-chip pos-cat-chip--all is-active shrink-0"
+                      data-target="pos-catalog"
+                      aria-selected="true"
+                      title="Show all {{ items|length }} items"
+                    >
+                      <span class="pos-cat-chip__label">All</span>
+                      <span class="pos-cat-chip__count">{{ items|length }}</span>
+                    </button>
+                    {% for cat, rows in (items|groupby('category')) %}
+                      <button
+                        type="button"
+                        role="tab"
+                        class="pos-cat-chip shrink-0"
+                        data-target="pos-cat-{{ loop.index0 }}"
+                        aria-selected="false"
+                        title="{{ cat|e }} ({{ rows|length }} items)"
+                      >
+                        <span class="pos-cat-chip__label">{{ cat }}</span>
+                        <span class="pos-cat-chip__count">{{ rows|length }}</span>
+                      </button>
+                    {% endfor %}
+                  </div>
+                  <button type="button" class="pos-chips-nav pos-chips-nav--next" aria-label="Scroll categories right" tabindex="-1">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -4161,7 +4225,11 @@
                             class="pos-item-card__img"
                             loading="lazy"
                             decoding="async"
+                            onerror="this.classList.add('hidden');var _fb=this.parentElement?this.parentElement.querySelector('.pos-item-card__placeholder-fallback'):null;if(_fb)_fb.classList.remove('hidden');"
                           />
+                          <div class="pos-item-card__placeholder pos-item-card__placeholder-fallback hidden" aria-hidden="true">
+                            <span class="select-none">{{ (it.name[:1] or '?')|e }}</span>
+                          </div>
                         {% else %}
                           <div class="pos-item-card__placeholder">
                             <span class="select-none">{{ (it.name[:1] or '?')|e }}</span>
@@ -4608,7 +4676,10 @@
               <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
                 Applies only to <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</strong>. Other shops use their own saved printer.
               </p>
-              <p class="mt-3 hidden rounded-xl border border-sky-500/15 bg-sky-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-[rgb(var(--rc-muted))] dark:border-sky-400/20 dark:bg-sky-500/10 sm:block">
+              <p
+                id="pos-printer-intro-checkout"
+                class="mt-3 hidden rounded-xl border border-sky-500/15 bg-sky-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-[rgb(var(--rc-muted))] dark:border-sky-400/20 dark:bg-sky-500/10 sm:block"
+              >
                 <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Checkout printing:</strong> each sale opens the
                 <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">browser print dialog</strong> (same as Ctrl+P) with a
                 <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">standard thermal-width receipt</strong> (80mm or 58mm per IT receipt settings) and full line items.
@@ -4634,13 +4705,15 @@
             class="hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 px-3.5 py-3 text-sm text-[rgb(var(--rc-page-fg))] shadow-sm ring-1 ring-emerald-500/15 dark:from-emerald-500/15 dark:to-teal-500/15"
           ></div>
 
-          <div id="pos-printer-step-type" class="space-y-3">
+          {% set _pos_printer_kind_count = (1 if pos_printing_settings.printer_allow_bluetooth else 0) + (1 if pos_printing_settings.printer_allow_network else 0) + (1 if pos_printing_settings.printer_allow_usb else 0) %}
+          <div id="pos-printer-step-type" class="space-y-3{% if _pos_printer_kind_count <= 1 %} hidden{% endif %}">
             <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Connection type</p>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-2.5">
               <button
                 type="button"
-                class="pos-printer-type-btn group relative min-h-[5.5rem] w-full overflow-hidden rounded-2xl border-2 border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-3.5 py-3.5 text-left shadow-sm ring-1 ring-sky-400/20 hover:shadow-lg hover:shadow-sky-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-sky-500/30 dark:from-sky-950/55 dark:to-[rgb(var(--rc-surface-2))]/80 dark:ring-sky-400/25 dark:hover:shadow-sky-900/30 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]"
+                class="pos-printer-type-btn group relative min-h-[5.5rem] w-full overflow-hidden rounded-2xl border-2 border-sky-200/80 bg-gradient-to-br from-sky-50/90 to-white px-3.5 py-3.5 text-left shadow-sm ring-1 ring-sky-400/20 hover:shadow-lg hover:shadow-sky-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-sky-500/30 dark:from-sky-950/55 dark:to-[rgb(var(--rc-surface-2))]/80 dark:ring-sky-400/25 dark:hover:shadow-sky-900/30 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]{% if not pos_printing_settings.printer_allow_bluetooth %} hidden pos-printer-type-blocked{% endif %}"
                 data-printer-type="bluetooth"
+                {% if not pos_printing_settings.printer_allow_bluetooth %}hidden disabled aria-hidden="true" tabindex="-1"{% endif %}
               >
                 <div class="flex items-start gap-3">
                   <span
@@ -4660,8 +4733,9 @@
               </button>
               <button
                 type="button"
-                class="pos-printer-type-btn group relative min-h-[5.5rem] w-full overflow-hidden rounded-2xl border-2 border-violet-200/80 bg-gradient-to-br from-violet-50/90 to-white px-3.5 py-3.5 text-left shadow-sm ring-1 ring-violet-400/20 hover:shadow-lg hover:shadow-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-violet-500/35 dark:from-violet-950/50 dark:to-[rgb(var(--rc-surface-2))]/80 dark:ring-violet-400/25 dark:hover:shadow-violet-900/30 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]"
+                class="pos-printer-type-btn group relative min-h-[5.5rem] w-full overflow-hidden rounded-2xl border-2 border-violet-200/80 bg-gradient-to-br from-violet-50/90 to-white px-3.5 py-3.5 text-left shadow-sm ring-1 ring-violet-400/20 hover:shadow-lg hover:shadow-violet-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-violet-500/35 dark:from-violet-950/50 dark:to-[rgb(var(--rc-surface-2))]/80 dark:ring-violet-400/25 dark:hover:shadow-violet-900/30 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]{% if not pos_printing_settings.printer_allow_network %} hidden pos-printer-type-blocked{% endif %}"
                 data-printer-type="network"
+                {% if not pos_printing_settings.printer_allow_network %}hidden disabled aria-hidden="true" tabindex="-1"{% endif %}
               >
                 <div class="flex items-start gap-3">
                   <span
@@ -4682,8 +4756,9 @@
               </button>
               <button
                 type="button"
-                class="pos-printer-type-btn group relative min-h-[5.5rem] w-full overflow-hidden rounded-2xl border-2 border-amber-200/90 bg-gradient-to-br from-amber-50/90 to-white px-3.5 py-3.5 text-left shadow-sm ring-1 ring-amber-400/25 hover:shadow-lg hover:shadow-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-amber-500/35 dark:from-amber-950/45 dark:to-[rgb(var(--rc-surface-2))]/80 dark:ring-amber-400/20 dark:hover:shadow-amber-900/25 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]"
+                class="pos-printer-type-btn group relative min-h-[5.5rem] w-full overflow-hidden rounded-2xl border-2 border-amber-200/90 bg-gradient-to-br from-amber-50/90 to-white px-3.5 py-3.5 text-left shadow-sm ring-1 ring-amber-400/25 hover:shadow-lg hover:shadow-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--rc-surface))] dark:border-amber-500/35 dark:from-amber-950/45 dark:to-[rgb(var(--rc-surface-2))]/80 dark:ring-amber-400/20 dark:hover:shadow-amber-900/25 dark:focus-visible:ring-offset-[rgb(var(--rc-surface))]{% if not pos_printing_settings.printer_allow_usb %} hidden pos-printer-type-blocked{% endif %}"
                 data-printer-type="usb"
+                {% if not pos_printing_settings.printer_allow_usb %}hidden disabled aria-hidden="true" tabindex="-1"{% endif %}
               >
                 <div class="flex items-start gap-3">
                   <span
@@ -4698,7 +4773,7 @@
                   </span>
                   <div class="min-w-0 flex-1 pt-0.5">
                     <span class="block text-sm font-bold text-[rgb(var(--rc-page-fg))]">USB</span>
-                    <span class="mt-0.5 block text-[11px] leading-snug text-[rgb(var(--rc-muted))]">Thermal · print dialog</span>
+                    <span class="mt-0.5 block text-[11px] leading-snug text-[rgb(var(--rc-muted))]">Thermal · silent ESC/POS (Chrome)</span>
                   </div>
                 </div>
               </button>
@@ -4828,11 +4903,54 @@
 
           <div id="pos-printer-panel-usb" class="hidden space-y-3 rounded-2xl border border-amber-400/25 bg-gradient-to-b from-amber-500/[0.08] to-[rgb(var(--rc-surface-2))]/25 p-3.5 shadow-sm ring-1 ring-amber-400/10 dark:from-amber-500/12 dark:to-[rgb(var(--rc-surface-2))]/30">
             <button type="button" class="pos-printer-back text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">← Change type</button>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">
-              Checkout <strong class="text-[rgb(var(--rc-page-fg))]">always</strong> uses the browser print dialog with a thermal-width receipt. Saving USB here is optional (for your records); pairing is not required to print after a sale.
+            <p
+              id="pos-printer-usb-disabled-hint"
+              class="hidden rounded-xl border border-rose-400/35 bg-rose-500/[0.08] px-3 py-2 text-[11px] leading-snug text-[rgb(var(--rc-muted))]"
+            >
+              USB printing is turned off in company/shop settings. Ask IT to enable <strong class="text-[rgb(var(--rc-page-fg))]">USB</strong> under printing options, or use Network / Bluetooth.
             </p>
-            <button type="button" id="pos-printer-usb-retry" class="btn-rc btn-rc-primary hidden w-full rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wider">Try again</button>
+            <p class="rounded-xl border border-amber-400/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-snug text-[rgb(var(--rc-muted))]">
+              Use <strong class="text-[rgb(var(--rc-page-fg))]">Chrome or Edge</strong>. Plug in USB, tap
+              <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Choose USB printer</strong>, and pick your device.
+              On Windows with a <strong class="font-medium text-[rgb(var(--rc-page-fg))]">POS-80C</strong> driver, checkout prints through the
+              <strong class="font-medium text-[rgb(var(--rc-page-fg))]">browser dialog</strong> (same as Ctrl+P). See “Printer not in the list?” for details.
+            </p>
+            <div
+              id="pos-printer-usb-status"
+              class="flex items-start gap-2.5 rounded-xl border border-amber-500/25 bg-[rgb(var(--rc-surface))]/70 px-3 py-2.5 text-xs leading-snug text-[rgb(var(--rc-muted))]"
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                id="pos-printer-usb-status-dot"
+                class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400 ring-2 ring-[rgb(var(--rc-surface))]"
+                aria-hidden="true"
+              ></span>
+              <span id="pos-printer-usb-status-label">Checking USB…</span>
+            </div>
+            <button
+              type="button"
+              id="pos-printer-usb-pick"
+              class="btn-rc btn-rc-primary flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-wider sm:py-3.5"
+            >
+              Choose USB printer…
+            </button>
+            <button type="button" id="pos-printer-usb-retry" class="btn-rc btn-rc-ghost hidden w-full rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wider">Try again</button>
             <p id="pos-printer-usb-picked" class="hidden text-sm font-medium text-[rgb(var(--rc-page-fg))]"></p>
+            <details class="group rounded-xl border border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/50 px-3 py-2 text-[11px] text-[rgb(var(--rc-muted))]">
+              <summary class="cursor-pointer list-none py-1 font-semibold text-[rgb(var(--rc-page-fg))] [&::-webkit-details-marker]:hidden">
+                <span class="underline-offset-2 group-open:underline">Printer not in the list?</span>
+              </summary>
+              <ul class="mt-2 list-disc space-y-1 border-t border-[rgb(var(--rc-border))]/50 pt-2 pl-4 leading-snug">
+                <li id="pos-printer-usb-help-denied">
+                  <strong class="text-[rgb(var(--rc-page-fg))]">“Access denied” on Windows:</strong>
+                  <span id="pos-printer-usb-help-denied-text">Normal when POS-80C is installed — save the USB device anyway; receipts print via browser (Destination: POS-80C).</span>
+                </li>
+                <li>Install the Windows driver for your thermal printer, then reconnect USB.</li>
+                <li>Close other apps that may lock the printer (old POS, label tools).</li>
+                <li>If only the browser dialog works, set <strong class="font-medium text-[rgb(var(--rc-page-fg))]">POS-80C</strong> as the default printer in Windows and use 80&nbsp;mm paper in More settings.</li>
+              </ul>
+            </details>
           </div>
 
           <p id="pos-printer-msg" class="rounded-lg px-1 text-xs text-[rgb(var(--rc-muted))]" role="status"></p>
@@ -5267,22 +5385,34 @@
       (function () {
         var p = window.POS_PRINTING;
         if (!p || typeof p !== "object") return;
-        function triAllow(v) {
-          if (v === null || v === undefined) return true;
-          if (v === false || v === 0 || v === "0") return false;
+        function triPrinterAllow(v) {
+          if (v === true || v === 1 || v === "1") return true;
           if (typeof v === "string") {
             var s = v.trim().toLowerCase();
-            if (s === "false" || s === "no" || s === "off") return false;
             if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
           }
-          return !!v;
+          return false;
         }
-        p.printer_allow_bluetooth = triAllow(p.printer_allow_bluetooth);
-        p.printer_allow_network = triAllow(p.printer_allow_network);
-        p.printer_allow_usb = triAllow(p.printer_allow_usb);
-        if (p.print_compulsory_sale === null || p.print_compulsory_sale === undefined) {
-          p.print_compulsory_sale = false;
+        p.printer_allow_bluetooth = triPrinterAllow(p.printer_allow_bluetooth);
+        p.printer_allow_network = triPrinterAllow(p.printer_allow_network);
+        p.printer_allow_usb = triPrinterAllow(p.printer_allow_usb);
+        window.posPrinterTypeAllowed = function (pp, type) {
+          pp = pp || window.POS_PRINTING || {};
+          type = String(type || "").toLowerCase();
+          if (type === "bluetooth") return pp.printer_allow_bluetooth === true;
+          if (type === "network") return pp.printer_allow_network === true;
+          if (type === "usb") return pp.printer_allow_usb === true;
+          return false;
+        };
+        function triBoolSetting(v) {
+          if (v === true || v === 1 || v === "1") return true;
+          if (typeof v === "string") {
+            var s = v.trim().toLowerCase();
+            if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
+          }
+          return false;
         }
+        p.print_compulsory_sale = triBoolSetting(p.print_compulsory_sale);
       })();
       window.POS_RECEIPT_SETTINGS = {{ pos_receipt_settings|tojson }};
       {% if shop.shop_logo %}
@@ -7453,7 +7583,8 @@
         }, 0);
         document.querySelectorAll(".pos-cart-badge").forEach(function (badge) {
           badge.textContent = fmtQty(count);
-          badge.classList.toggle("opacity-50", count <= 0);
+          badge.classList.toggle("pos-cart-badge--empty", count <= 0);
+          badge.classList.remove("opacity-50");
         });
         document.querySelectorAll(".pos-cart-open-trigger").forEach(function (cartBtn) {
           cartBtn.classList.toggle("pos-cart-btn--live", count > 0);
@@ -8010,6 +8141,9 @@
 
       try {
         window.__updatePosCompulsoryPrinterWorkspaceLock = updatePosCompulsoryPrinterWorkspaceLock;
+        window.__posCompulsoryPrinterModalShow = posCompulsoryPrinterModalShow;
+        window.__posCompulsoryPrinterModalHide = posCompulsoryPrinterModalHide;
+        window.__posCompulsoryPrinterGateBlocking = posCompulsoryPrinterGateBlocking;
       } catch (eExpLock) {}
 
       (function initCompulsoryPrinterNoticeModal() {
@@ -8025,9 +8159,12 @@
         if (dismiss) dismiss.addEventListener("click", hideIfAllowed);
         if (openSetup)
           openSetup.addEventListener("click", function () {
-            posCompulsoryPrinterModalHide();
-            var po = document.getElementById("pos-printer-open");
-            if (po) po.click();
+            if (typeof window.__posOpenPrinterSetupFromHeader === "function") {
+              window.__posOpenPrinterSetupFromHeader();
+            } else {
+              var po = document.getElementById("pos-printer-open");
+              if (po) po.click();
+            }
           });
         if (root)
           root.addEventListener("click", function (e) {
@@ -10152,6 +10289,13 @@
             localStorage.removeItem(PRINTER_LS_KEY);
             return null;
           }
+          if (
+            typeof window.posPrinterTypeAllowed === "function" &&
+            !window.posPrinterTypeAllowed(null, String(localP.printer_type || "").toLowerCase())
+          ) {
+            localStorage.removeItem(PRINTER_LS_KEY);
+            return null;
+          }
           return Object.assign({}, localP, { shop_id: SHOP_ID });
         } catch (e) {
           return null;
@@ -10176,6 +10320,18 @@
               return offlinePrinterProfileFromCache();
             }
             var serverP = j.printer || null;
+            if (
+              serverP &&
+              typeof window.posPrinterTypeAllowed === "function" &&
+              !window.posPrinterTypeAllowed(null, String(serverP.printer_type || "").toLowerCase())
+            ) {
+              serverP = null;
+            }
+            if (!serverP && j && j.stale_printer) {
+              try {
+                localStorage.removeItem(PRINTER_LS_KEY);
+              } catch (eStale) {}
+            }
             if (serverP) {
               var fp = printerProfileFingerprint(serverP);
               try {
@@ -10712,6 +10868,36 @@
         });
       }
 
+      window.posIsUsbAccessDeniedError = function (e) {
+        var m = (e && e.message) || String(e || "");
+        return /access denied/i.test(m) || (e && e.name === "SecurityError");
+      };
+      window.posUsbAccessDeniedShort = function () {
+        return "Receipts will print via browser (choose POS-80C). Silent USB is blocked by Windows.";
+      };
+      window.posUsbAccessDeniedDetail = function () {
+        return (
+          "Windows is using the POS-80 / thermal driver, so Chrome cannot open the printer for silent ESC/POS. " +
+          "That is normal — use the print dialog and pick POS-80C. Close other apps if print fails. " +
+          "For silent USB only: free the device for Chrome (advanced: WinUSB via Zadig)."
+        );
+      };
+      window.posFormatUsbError = function (e, opts) {
+        opts = opts || {};
+        if (window.posIsUsbAccessDeniedError(e)) {
+          return opts.detail ? window.posUsbAccessDeniedDetail() : window.posUsbAccessDeniedShort();
+        }
+        return (e && e.message) || String(e || "");
+      };
+
+      function openUsbDeviceOrExplain(device) {
+        if (!device) return Promise.reject(new Error("No USB device."));
+        if (device.opened) return Promise.resolve(device);
+        return device.open().catch(function (e) {
+          return Promise.reject(new Error(window.posFormatUsbError(e)));
+        });
+      }
+
       /** WebUSB: select configuration and claim first bulk OUT endpoint (thermal ESC/POS). */
       function ensureUsbConfiguration(device) {
         if (device.configuration) return Promise.resolve();
@@ -10821,8 +11007,7 @@
                 "USB printer not found. Plug it in and open printer setup so the browser can access it again."
               );
             }
-            var openP = device.opened ? Promise.resolve() : device.open();
-            return openP
+            return openUsbDeviceOrExplain(device)
               .then(function () {
                 return ensureUsbConfiguration(device);
               })
@@ -10875,8 +11060,15 @@
               });
           })
           .catch(function (e) {
-            setAuthStatus((e && e.message) ? e.message : "USB thermal print failed.", "error");
-            return Promise.reject(e);
+            var denied =
+              typeof window.posIsUsbAccessDeniedError === "function" && window.posIsUsbAccessDeniedError(e);
+            var errMsg = window.posFormatUsbError
+              ? window.posFormatUsbError(e, { detail: false })
+              : (e && e.message) || "USB thermal print failed.";
+            if (!denied) {
+              setAuthStatus(errMsg, "error");
+            }
+            return Promise.reject(new Error(errMsg));
           });
       }
 
@@ -11321,7 +11513,7 @@
 
       /** Silent ESC/POS over Web Bluetooth using the saved shop printer only. */
       function tryBluetoothEscPosSilent(payload, pp, saved, btPrintOpts) {
-        if (pp.printer_allow_bluetooth === false) {
+        if (typeof window.posPrinterTypeAllowed === "function" && !window.posPrinterTypeAllowed(null, "bluetooth")) {
           return Promise.reject(new Error("Bluetooth printing disabled"));
         }
         if (!window.isSecureContext || !navigator.bluetooth) {
@@ -11339,11 +11531,10 @@
 
       /** True when IT allows any POS printer path — browser thermal dialog is allowed as fallback (not only “USB printer”). */
       function posPrintingAllowsBrowserThermalFallback() {
-        var pp = window.POS_PRINTING || {};
         return (
-          pp.printer_allow_usb !== false ||
-          pp.printer_allow_network !== false ||
-          pp.printer_allow_bluetooth !== false
+          (typeof window.posPrinterTypeAllowed === "function" && window.posPrinterTypeAllowed(null, "usb")) ||
+          window.posPrinterTypeAllowed(null, "network") ||
+          window.posPrinterTypeAllowed(null, "bluetooth")
         );
       }
 
@@ -11386,7 +11577,13 @@
             });
           }
 
-          if (saved && pt === "network" && host && pp.printer_allow_network !== false) {
+          if (
+            saved &&
+            pt === "network" &&
+            host &&
+            typeof window.posPrinterTypeAllowed === "function" &&
+            window.posPrinterTypeAllowed(null, "network")
+          ) {
             return printNetworkEscPosReceipt(payload, printOpts).catch(function () {
               return fallbackBrowserOrBluetooth();
             });
@@ -11400,9 +11597,21 @@
             cfg != null &&
             !isNaN(usbVid) &&
             !isNaN(usbPid) &&
-            pp.printer_allow_usb !== false;
+            typeof window.posPrinterTypeAllowed === "function" &&
+            window.posPrinterTypeAllowed(null, "usb");
           if (isUsb && navigator.usb) {
-            return printUsbEscPosReceipt(cfg, payload, printOpts).catch(function () {
+            return printUsbEscPosReceipt(cfg, payload, printOpts).catch(function (usbErr) {
+              try {
+                if (typeof toastSay === "function") {
+                  var denied =
+                    typeof window.posIsUsbAccessDeniedError === "function" &&
+                    window.posIsUsbAccessDeniedError(usbErr);
+                  if (!denied) {
+                    var usbMsg = (usbErr && usbErr.message) || "USB print failed";
+                    toastSay(usbMsg + " — opening browser print…");
+                  }
+                }
+              } catch (eToastUsb) {}
               // Some USB bridges are flaky with custom variant overrides.
               // Retry once using the baseline USB path before browser fallback.
               if (printOpts && Array.isArray(printOpts.receiptVariants) && printOpts.receiptVariants.length) {
@@ -11511,30 +11720,87 @@
         { passive: false }
       );
 
-      document.querySelectorAll(".pos-item-card").forEach(function (btn) {
-        btn.addEventListener(
-          "click",
-          function (e) {
-            if (posCatalogClickSuppressed()) {
-              e.preventDefault();
-              e.stopPropagation();
-              return;
-            }
-            addFromCard(btn);
-          },
-          true
-        );
-        btn.addEventListener("keydown", function (e) {
-          if (e.key === "Enter" || e.key === " ") {
+      function playPosItemCardTapAnim(card) {
+        if (!card || !card.classList) return;
+        card.classList.remove("pos-item-card--tapped");
+        void card.offsetWidth;
+        card.classList.add("pos-item-card--tapped");
+        window.setTimeout(function () {
+          card.classList.remove("pos-item-card--tapped");
+        }, 480);
+      }
+
+      function initPosItemCardMotion() {
+        var catalogRoot = document.getElementById("pos-catalog");
+        if (catalogRoot && !catalogRoot.dataset.posCardsDelegated) {
+          catalogRoot.dataset.posCardsDelegated = "1";
+          catalogRoot.addEventListener(
+            "click",
+            function (e) {
+              var btn = e.target && e.target.closest ? e.target.closest(".pos-item-card") : null;
+              if (!btn || !catalogRoot.contains(btn)) return;
+              if (posCatalogClickSuppressed()) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              playPosItemCardTapAnim(btn);
+              addFromCard(btn);
+            },
+            true
+          );
+          catalogRoot.addEventListener("keydown", function (e) {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            var btn = e.target && e.target.closest ? e.target.closest(".pos-item-card") : null;
+            if (!btn || !catalogRoot.contains(btn)) return;
             if (posCatalogClickSuppressed()) {
               e.preventDefault();
               return;
             }
             e.preventDefault();
+            playPosItemCardTapAnim(btn);
             addFromCard(btn);
-          }
+          });
+          catalogRoot.addEventListener("pointerdown", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest(".pos-item-card") : null;
+            if (!btn || btn.disabled) return;
+            btn.classList.add("is-pressing");
+          });
+          catalogRoot.addEventListener("pointerup", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest(".pos-item-card") : null;
+            if (btn) btn.classList.remove("is-pressing");
+          });
+          catalogRoot.addEventListener("pointercancel", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest(".pos-item-card") : null;
+            if (btn) btn.classList.remove("is-pressing");
+          });
+        }
+
+      }
+
+      function bindPosStripScrollEffects() {
+        document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
+          if (strip.dataset.posStripFxBound) return;
+          strip.dataset.posStripFxBound = "1";
+          var outer = strip.closest(".pos-cat-strip-outer");
+          var scrollEndTimer = null;
+          strip.addEventListener(
+            "scroll",
+            function () {
+              strip.classList.add("is-strip-scrolling");
+              if (outer) outer.classList.add("is-strip-scrolling");
+              if (scrollEndTimer) window.clearTimeout(scrollEndTimer);
+              scrollEndTimer = window.setTimeout(function () {
+                strip.classList.remove("is-strip-scrolling");
+                if (outer) outer.classList.remove("is-strip-scrolling");
+              }, 140);
+            },
+            { passive: true }
+          );
         });
-      });
+      }
+      initPosItemCardMotion();
+      bindPosStripScrollEffects();
 
       var searchEl = document.getElementById("pos-search");
       var noRes = document.getElementById("pos-no-results");
@@ -11548,6 +11814,78 @@
           return name.indexOf(t) !== -1;
         });
       }
+      var searchStatusEl = document.getElementById("pos-search-status");
+      var searchClearBtn = document.getElementById("pos-search-clear");
+      var chipsScrollEl = document.getElementById("pos-cat-chips");
+      var chipsRailEl = chipsScrollEl ? chipsScrollEl.closest(".pos-search-panel__chips-rail") : null;
+      var catalogChipScrollLockUntil = 0;
+      var catalogChipScrollTick = false;
+
+      function posCatalogTypingTarget(el) {
+        if (!el || !el.tagName) return false;
+        var tag = el.tagName.toUpperCase();
+        return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+      }
+
+      function setActiveCatalogChip(chip, scrollChipIntoView) {
+        if (!chip) return;
+        document.querySelectorAll(".pos-cat-chip").forEach(function (c) {
+          c.classList.remove("is-active");
+          c.setAttribute("aria-selected", "false");
+        });
+        chip.classList.add("is-active");
+        chip.setAttribute("aria-selected", "true");
+        if (scrollChipIntoView !== false && chipsScrollEl && chip.scrollIntoView) {
+          try {
+            chip.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+          } catch (e2) {
+            chip.scrollIntoView(false);
+          }
+        }
+      }
+
+      function syncSearchClearUi() {
+        var hasQ = !!(searchEl && searchEl.value && searchEl.value.trim());
+        if (searchClearBtn) searchClearBtn.classList.toggle("hidden", !hasQ);
+        if (searchEl) searchEl.classList.toggle("pos-search-field__input--has-value", hasQ);
+      }
+
+      function updateCatalogChipFilters() {
+        document.querySelectorAll(".pos-cat-chip:not(.pos-cat-chip--all)").forEach(function (chip) {
+          var id = chip.getAttribute("data-target");
+          var sec = id ? document.getElementById(id) : null;
+          var hidden = !!(sec && sec.classList.contains("pos-live-search-hidden"));
+          chip.classList.toggle("pos-cat-chip--hidden", hidden);
+          chip.disabled = hidden;
+        });
+      }
+
+      function updateSearchStatus() {
+        if (!searchStatusEl) return;
+        var q = (searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+        var visibleCards = document.querySelectorAll(".pos-item-card:not(.pos-live-search-hidden)").length;
+        var visibleSections = document.querySelectorAll(".pos-cat-section:not(.pos-live-search-hidden)").length;
+        if (q) {
+          if (!visibleCards) {
+            searchStatusEl.textContent = "No matches — try fewer words";
+            searchStatusEl.classList.add("pos-search-status--warn");
+          } else {
+            searchStatusEl.textContent =
+              visibleCards +
+              " item" +
+              (visibleCards === 1 ? "" : "s") +
+              " · " +
+              visibleSections +
+              " " +
+              (visibleSections === 1 ? "category" : "categories");
+            searchStatusEl.classList.remove("pos-search-status--warn");
+          }
+        } else {
+          searchStatusEl.textContent = visibleCards + " items";
+          searchStatusEl.classList.remove("pos-search-status--warn");
+        }
+      }
+
       function runSearch() {
         var q = (searchEl && searchEl.value ? searchEl.value : "").toLowerCase().trim();
 
@@ -11569,19 +11907,177 @@
         document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
           updatePosCatStripScrollUi(strip);
         });
-      }
-      if (searchEl) {
-        searchEl.addEventListener("input", runSearch);
-        searchEl.addEventListener("search", runSearch);
+        syncSearchClearUi();
+        updateCatalogChipFilters();
+        updateSearchStatus();
+        if (q) {
+          var firstVisible = document.querySelector(".pos-cat-section:not(.pos-live-search-hidden)");
+          if (firstVisible) {
+            catalogChipScrollLockUntil = Date.now() + 700;
+            var matchChip = document.querySelector(
+              '.pos-cat-chip[data-target="' + firstVisible.id + '"]'
+            );
+            if (matchChip) setActiveCatalogChip(matchChip);
+          }
+        }
       }
 
-      document.querySelectorAll(".pos-cat-chip").forEach(function (chip) {
-        chip.addEventListener("click", function () {
-          var id = chip.getAttribute("data-target");
-          var el = id ? document.getElementById(id) : null;
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      function clearPosSearch(focusAfter) {
+        if (!searchEl) return;
+        searchEl.value = "";
+        runSearch();
+        syncSearchClearUi();
+        var allChip = document.querySelector(".pos-cat-chip--all");
+        if (allChip) setActiveCatalogChip(allChip);
+        if (focusAfter) searchEl.focus();
+      }
+
+      function jumpCatalogChipTarget(chip) {
+        if (!chip) return;
+        catalogChipScrollLockUntil = Date.now() + 900;
+        setActiveCatalogChip(chip);
+        if (chip.classList.contains("pos-cat-chip--all")) {
+          if (searchEl && searchEl.value.trim()) {
+            clearPosSearch(false);
+          }
+          var panel = document.querySelector(".pos-search-panel");
+          var top = panel || document.getElementById("pos-catalog");
+          if (top) top.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+        var id = chip.getAttribute("data-target");
+        var el = id ? document.getElementById(id) : null;
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function updateChipsNavButtons() {
+        if (!chipsScrollEl || !chipsRailEl) return;
+        var max = chipsScrollEl.scrollWidth - chipsScrollEl.clientWidth;
+        var left = chipsScrollEl.scrollLeft;
+        var prev = chipsRailEl.querySelector(".pos-chips-nav--prev");
+        var next = chipsRailEl.querySelector(".pos-chips-nav--next");
+        var noScroll = max <= 4;
+        if (prev) {
+          prev.disabled = noScroll || left <= 2;
+          prev.classList.toggle("pos-chips-nav--disabled", prev.disabled);
+        }
+        if (next) {
+          next.disabled = noScroll || left >= max - 2;
+          next.classList.toggle("pos-chips-nav--disabled", next.disabled);
+        }
+      }
+
+      function initPosCatalogCommandUx() {
+        if (searchEl) {
+          searchEl.addEventListener("input", runSearch);
+          searchEl.addEventListener("search", runSearch);
+          searchEl.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              clearPosSearch(false);
+              searchEl.blur();
+            }
+          });
+        }
+        if (searchClearBtn) {
+          searchClearBtn.addEventListener("click", function () {
+            clearPosSearch(true);
+          });
+        }
+        if (chipsScrollEl && !chipsScrollEl.dataset.posChipsDelegated) {
+          chipsScrollEl.dataset.posChipsDelegated = "1";
+          chipsScrollEl.addEventListener("click", function (e) {
+            var chip = e.target && e.target.closest ? e.target.closest(".pos-cat-chip") : null;
+            if (chip) jumpCatalogChipTarget(chip);
+          });
+        }
+        var topBtn = document.getElementById("pos-chips-scroll-start");
+        if (topBtn) {
+          topBtn.addEventListener("click", function () {
+            var all = document.querySelector(".pos-cat-chip--all");
+            jumpCatalogChipTarget(all || null);
+          });
+        }
+        if (chipsRailEl) {
+          chipsRailEl.querySelectorAll(".pos-chips-nav").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              if (!chipsScrollEl || btn.disabled) return;
+              var dir = btn.classList.contains("pos-chips-nav--next") ? 1 : -1;
+              chipsScrollEl.scrollBy({ left: dir * Math.max(200, chipsScrollEl.clientWidth * 0.55), behavior: "smooth" });
+            });
+          });
+        }
+        if (chipsScrollEl) {
+          chipsScrollEl.addEventListener("scroll", updateChipsNavButtons, { passive: true });
+          updateChipsNavButtons();
+        }
+        document.addEventListener("keydown", function (e) {
+          if (posCatalogTypingTarget(e.target) && e.key !== "Escape") return;
+          if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (!searchEl) return;
+            var tag = e.target && e.target.tagName ? e.target.tagName.toUpperCase() : "";
+            if (tag === "INPUT" || tag === "TEXTAREA") return;
+            e.preventDefault();
+            searchEl.focus();
+            try {
+              searchEl.select();
+            } catch (e3) {}
+            return;
+          }
+          if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
+            if (!searchEl) return;
+            e.preventDefault();
+            searchEl.focus();
+            try {
+              searchEl.select();
+            } catch (e4) {}
+          }
         });
-      });
+        function syncActiveCatalogChipFromScroll() {
+          if (Date.now() < catalogChipScrollLockUntil) return;
+          var q = (searchEl && searchEl.value ? searchEl.value : "").trim();
+          if (q) return;
+          var anchor = 140 + (window.visualViewport ? 0 : 0);
+          var sections = document.querySelectorAll(".pos-cat-section:not(.pos-live-search-hidden)");
+          var best = null;
+          var bestTop = Infinity;
+          sections.forEach(function (sec) {
+            var r = sec.getBoundingClientRect();
+            if (r.bottom < anchor) return;
+            var dist = Math.abs(r.top - anchor);
+            if (dist < bestTop) {
+              bestTop = dist;
+              best = sec;
+            }
+          });
+          if (!best || !best.id) return;
+          var chip = document.querySelector('.pos-cat-chip[data-target="' + best.id + '"]');
+          if (chip && !chip.classList.contains("is-active")) setActiveCatalogChip(chip, false);
+        }
+        window.addEventListener(
+          "scroll",
+          function () {
+            if (catalogChipScrollTick) return;
+            catalogChipScrollTick = true;
+            requestAnimationFrame(function () {
+              catalogChipScrollTick = false;
+              syncActiveCatalogChipFromScroll();
+            });
+          },
+          { passive: true }
+        );
+        syncSearchClearUi();
+        updateSearchStatus();
+        try {
+          if (window.matchMedia("(min-width: 900px) and (hover: hover)").matches && !sessionStorage.getItem("pos-search-autofocused")) {
+            sessionStorage.setItem("pos-search-autofocused", "1");
+            setTimeout(function () {
+              if (searchEl && !document.querySelector(".pos-cart-drawer.is-open")) searchEl.focus();
+            }, 400);
+          }
+        } catch (e5) {}
+      }
+      initPosCatalogCommandUx();
 
       function updatePosCatStripScrollUi(strip) {
         var wrap = strip.closest(".pos-cat-strip-outer");
@@ -11596,14 +12092,19 @@
         if (next) next.disabled = noHop || left >= maxScroll - 2;
       }
 
-      function initPosCategoryScrollStrips() {
+      function refreshAllPosCatStrips() {
         document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
-          strip.addEventListener("scroll", function () {
-            updatePosCatStripScrollUi(strip);
-          });
+          if (typeof updatePosCatStripScrollUi === "function") updatePosCatStripScrollUi(strip);
         });
-        document.querySelectorAll(".pos-cat-scroll-btn").forEach(function (btn) {
-          btn.addEventListener("click", function (e) {
+      }
+
+      function initPosCategoryScrollStrips() {
+        var catalogRoot = document.getElementById("pos-catalog");
+        if (catalogRoot && !catalogRoot.dataset.posStripsDelegated) {
+          catalogRoot.dataset.posStripsDelegated = "1";
+          catalogRoot.addEventListener("click", function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest(".pos-cat-scroll-btn") : null;
+            if (!btn || !catalogRoot.contains(btn)) return;
             e.preventDefault();
             e.stopPropagation();
             var wrap = btn.closest(".pos-cat-strip-outer");
@@ -11616,23 +12117,28 @@
               updatePosCatStripScrollUi(strip);
             }, 380);
           });
-        });
-        function refreshAllStrips() {
-          document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(updatePosCatStripScrollUi);
         }
-        window.addEventListener("resize", refreshAllStrips);
-        window.addEventListener("orientationchange", refreshAllStrips);
-        window.addEventListener("load", refreshAllStrips);
-        if (typeof ResizeObserver !== "undefined") {
-          document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
+        document.querySelectorAll(".pos-cat-strip-outer .pos-item-scroll").forEach(function (strip) {
+          if (strip.dataset.posStripScrollBound) return;
+          strip.dataset.posStripScrollBound = "1";
+          strip.addEventListener("scroll", function () {
+            updatePosCatStripScrollUi(strip);
+          });
+          if (typeof ResizeObserver !== "undefined") {
             var ro = new ResizeObserver(function () {
               updatePosCatStripScrollUi(strip);
             });
             ro.observe(strip);
-          });
+          }
+        });
+        if (!window.__posCatStripGlobalsBound) {
+          window.__posCatStripGlobalsBound = true;
+          window.addEventListener("resize", refreshAllPosCatStrips);
+          window.addEventListener("orientationchange", refreshAllPosCatStrips);
+          window.addEventListener("load", refreshAllPosCatStrips);
         }
         requestAnimationFrame(function () {
-          requestAnimationFrame(refreshAllStrips);
+          requestAnimationFrame(refreshAllPosCatStrips);
         });
       }
 
@@ -11911,16 +12417,19 @@
         applyLinePriceInput(inp);
       }, true);
 
-      (function applyPrinterTypeAllowList() {
-        var pp = window.POS_PRINTING || {};
+      (function applyPrinterTypeAllowListEarly() {
+        if (typeof window.applyPrinterTypeAllowList === "function") {
+          window.applyPrinterTypeAllowList();
+          return;
+        }
+        var allowed = window.posPrinterTypeAllowed;
         document.querySelectorAll(".pos-printer-type-btn").forEach(function (btn) {
           var t = btn.getAttribute("data-printer-type");
           if (!t) return;
-          var allow = true;
-          if (t === "bluetooth") allow = pp.printer_allow_bluetooth !== false;
-          if (t === "network") allow = pp.printer_allow_network !== false;
-          if (t === "usb") allow = pp.printer_allow_usb !== false;
+          var allow = allowed ? allowed(null, t) : false;
           btn.classList.toggle("hidden", !allow);
+          btn.classList.toggle("pos-printer-type-blocked", !allow);
+          btn.disabled = !allow;
         });
       })();
 
@@ -12279,6 +12788,17 @@
       render();
       applyPosCartUiSettings();
 
+      /** Fallback if printer script finishes after first paint — compulsory + not ready → open setup. */
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          if (typeof window.__posEnsureCompulsoryPrinterPromptAfterLoad === "function") {
+            window.__posEnsureCompulsoryPrinterPromptAfterLoad();
+          } else {
+            window.__posCompulsoryPrinterOnLoadPending = true;
+          }
+        }, 1400);
+      });
+
       window.richcomPosPrinterRunTestPrint = function () {
         return runConfiguredPrinterAction(makePrinterTestReceiptPayload());
       };
@@ -12342,6 +12862,7 @@
       var printerUiOpen = false;
 
       var USB_FILTERS = [
+        { classCode: 7 },
         { vendorId: 0x04b8 },
         { vendorId: 0x04e8 },
         { vendorId: 0x0519 },
@@ -12353,45 +12874,246 @@
         { vendorId: 0x154f },
         { vendorId: 0x0922 },
         { vendorId: 0x067b },
+        { vendorId: 0x1a86 },
+        { vendorId: 0x0403 },
+        { vendorId: 0x1fc9 },
+        { vendorId: 0x6868 },
+        { vendorId: 0x0dd4 },
+        { vendorId: 0x0525 },
+        { vendorId: 0x1504 },
       ];
 
       /** Matches IT / shop printing settings: which receipt connection types staff may use. */
       function posPrinterAllowedKindsInSettings() {
-        var pp = window.POS_PRINTING || {};
         var out = [];
-        if (pp.printer_allow_bluetooth !== false) out.push("bluetooth");
-        if (pp.printer_allow_network !== false) out.push("network");
-        if (pp.printer_allow_usb !== false) out.push("usb");
+        if (window.posPrinterTypeAllowed(null, "bluetooth")) out.push("bluetooth");
+        if (window.posPrinterTypeAllowed(null, "network")) out.push("network");
+        if (window.posPrinterTypeAllowed(null, "usb")) out.push("usb");
         return out;
       }
 
-      /**
-       * Effective shortcuts: same tiles as "Connection type" after applyPrinterTypeAllowList runs.
-       * DOM wins when populated (settings JSON can disagree with enforced booleans edge cases).
-       */
-      function printerKindsShownInSetupDialog() {
-        var kinds = [];
-        document.querySelectorAll(".pos-printer-type-btn").forEach(function (btn) {
-          if (btn.classList.contains("hidden")) return;
-          var t = btn.getAttribute("data-printer-type");
-          if (t) kinds.push(t);
-        });
-        if (kinds.length) return kinds;
+      /** IT toggles only — never infer allowed types from DOM or a saved USB/BT profile. */
+      function printerKindsForSetupNavigation() {
         return posPrinterAllowedKindsInSettings();
       }
 
-      function msg(t) {
-        if (msgEl) msgEl.textContent = t || "";
+      function firstAllowedPrinterKind() {
+        var kinds = printerKindsForSetupNavigation();
+        return kinds.length ? kinds[0] : "";
+      }
+
+      function msg(t, tone) {
+        if (!msgEl) return;
+        msgEl.textContent = t || "";
+        msgEl.classList.remove("text-rose-600", "dark:text-rose-400", "text-emerald-700", "dark:text-emerald-300");
+        if (tone === "error") {
+          msgEl.classList.add("text-rose-600", "dark:text-rose-400");
+        } else if (tone === "ok") {
+          msgEl.classList.add("text-emerald-700", "dark:text-emerald-300");
+        }
+      }
+
+      function applyPrinterTypeAllowList() {
+        document.querySelectorAll(".pos-printer-type-btn").forEach(function (btn) {
+          var t = btn.getAttribute("data-printer-type");
+          if (!t) return;
+          var allow = window.posPrinterTypeAllowed(null, t);
+          btn.classList.toggle("hidden", !allow);
+          btn.classList.toggle("pos-printer-type-blocked", !allow);
+          btn.disabled = !allow;
+          if (allow) {
+            btn.removeAttribute("aria-hidden");
+            btn.removeAttribute("tabindex");
+          } else {
+            btn.setAttribute("aria-hidden", "true");
+            btn.setAttribute("tabindex", "-1");
+          }
+        });
+        if (stepType) {
+          var kinds = posPrinterAllowedKindsInSettings();
+          stepType.classList.toggle("hidden", kinds.length <= 1);
+        }
+        if (panelUsb) {
+          panelUsb.classList.toggle("hidden", !window.posPrinterTypeAllowed(null, "usb"));
+        }
+        syncPrinterIntroCopy();
+        syncPrinterSingleModeBackLinks();
+      }
+
+      function syncPrinterIntroCopy() {
+        var el = document.getElementById("pos-printer-intro-checkout");
+        if (!el) return;
+        var kinds = posPrinterAllowedKindsInSettings();
+        if (kinds.length === 1 && kinds[0] === "usb") {
+          el.innerHTML =
+            '<strong class="font-semibold text-[rgb(var(--rc-page-fg))]">USB is enabled for this shop.</strong> ' +
+            "Plug in the printer, tap <strong class=\"font-semibold text-[rgb(var(--rc-page-fg))]\">Choose USB printer</strong> below, and allow Chrome access. " +
+            "Receipts print silently over USB when pairing succeeds; otherwise the browser print dialog opens (pick <strong class=\"font-semibold text-[rgb(var(--rc-page-fg))]\">POS-80C</strong> / 80&nbsp;mm).";
+          return;
+        }
+        if (kinds.length === 1 && kinds[0] === "network") {
+          el.innerHTML =
+            '<strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Network printing is enabled.</strong> ' +
+            "Save the printer IP below; receipts are sent as ESC/POS on port 9100 from this server.";
+          return;
+        }
+        if (kinds.length === 1 && kinds[0] === "bluetooth") {
+          el.innerHTML =
+            '<strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Bluetooth is enabled.</strong> ' +
+            "Use <strong class=\"font-semibold text-[rgb(var(--rc-page-fg))]\">Choose printer</strong> and <strong class=\"font-semibold text-[rgb(var(--rc-page-fg))]\">Connect printer</strong> until the status shows linked.";
+          return;
+        }
+      }
+
+      function savedPrinterTypeAllowed(p) {
+        if (!p) return false;
+        var t = String(p.printer_type || "").toLowerCase();
+        return posPrinterAllowedKindsInSettings().indexOf(t) >= 0;
+      }
+
+      function normalizePrinterConfig(cfg) {
+        if (!cfg) return {};
+        if (typeof cfg === "object") return cfg;
+        if (typeof cfg === "string") {
+          try {
+            return JSON.parse(cfg) || {};
+          } catch (e) {
+            return {};
+          }
+        }
+        return {};
+      }
+
+      function openPrinterPanelForType(t, opts) {
+        opts = opts || {};
+        t = String(t || "").toLowerCase();
+        if (!window.posPrinterTypeAllowed(null, t)) {
+          msg("That printer type is disabled in IT settings.");
+          return;
+        }
+        if (t === "bluetooth") {
+          showPanel("bluetooth");
+          if (!opts.fromSaved) resetBluetoothPanel();
+          reflectBluetoothPrinterModal();
+          if (!opts.fromSaved && opts.autoPair) runBluetoothPairOrResumeFromUi();
+          else if (!opts.fromSaved) msg("");
+        } else if (t === "network") {
+          showPanel("network");
+          if (opts.autoScan !== false) runNetworkScanAuto();
+        } else if (t === "usb") {
+          showPanel("usb");
+          reflectUsbPrinterModal();
+        }
+      }
+
+      var compulsoryPrinterConnectFlow = false;
+
+      /**
+       * Compulsory printing on + printer not ready: lock catalog, show gate, open printer setup.
+       * opts.fromLoad — when true, re-runs after refreshSaved even if already queued once.
+       */
+      function runCompulsoryPrinterConnectPrompt(opts) {
+        opts = opts || {};
+        if (typeof window.__posPrintingCompulsoryOnSaleEnabled !== "function" || !window.__posPrintingCompulsoryOnSaleEnabled()) {
+          return;
+        }
+        if (window.POS_RECEIPT_PRINTER_CONFIGURED) {
+          window.__posCompulsorySetupPromptQueued = false;
+          window.__posCompulsorySetupOpened = false;
+          document.body.classList.remove("pos-compulsory-setup-open");
+          return;
+        }
+        try {
+          if (window.__updatePosCompulsoryPrinterWorkspaceLock) window.__updatePosCompulsoryPrinterWorkspaceLock();
+        } catch (eLock) {}
+        if (!opts.force) {
+          if (printerUiOpen) return;
+          if (window.__posCompulsorySetupOpened && !opts.fromLoad) return;
+          if (window.__posCompulsorySetupPromptQueued && !opts.fromLoad) return;
+        }
+        window.__posCompulsorySetupPromptQueued = true;
+        clearTimeout(window.__posCompulsorySetupPromptTimer);
+        var delayMs = opts.fromLoad ? 400 : 300;
+        window.__posCompulsorySetupPromptTimer = setTimeout(function () {
+          if (window.POS_RECEIPT_PRINTER_CONFIGURED) return;
+          if (!window.__posPrintingCompulsoryOnSaleEnabled()) return;
+          if (!opts.force && printerUiOpen) return;
+          window.__posCompulsorySetupOpened = true;
+          compulsoryPrinterConnectFlow = true;
+          document.body.classList.add("pos-compulsory-setup-open");
+          try {
+            if (window.__posCompulsoryPrinterModalHide) window.__posCompulsoryPrinterModalHide();
+          } catch (eHide) {}
+          setPrinterOpen(true);
+        }, delayMs);
+      }
+
+      function ensureCompulsoryPrinterPromptAfterLoad() {
+        runCompulsoryPrinterConnectPrompt({ fromLoad: true, force: true });
+      }
+
+      function navigatePrinterSetupAfterRefresh() {
+        if (!printerUiOpen) return;
+        applyPrinterTypeAllowList();
+        var kinds = printerKindsForSetupNavigation();
+        var p = window.__POS_LAST_HEADER_PRINTER;
+        var forceConnect = !!compulsoryPrinterConnectFlow;
+        if (p && savedPrinterTypeAllowed(p)) {
+          var t = String(p.printer_type || "").toLowerCase();
+          var sgBt = window.__POS_BT || {};
+          var autoPairBt = t === "bluetooth" && (forceConnect || !sgBt.gattConnected);
+          openPrinterPanelForType(t, { fromSaved: true, autoScan: t === "network", autoPair: autoPairBt });
+          compulsoryPrinterConnectFlow = false;
+          return;
+        }
+        if (p && !savedPrinterTypeAllowed(p)) {
+          msg(
+            "Saved printer is " +
+              String(p.printer_type || "unknown") +
+              ", but IT settings only allow " +
+              (kinds.length ? kinds.join(" / ") : "none") +
+              ". Tap Forget saved printer, then set up an allowed type."
+          );
+        }
+        if (!kinds.length) {
+          msg("No printer connection types are enabled in IT settings.", "error");
+          showTypeChooser();
+          compulsoryPrinterConnectFlow = false;
+          return;
+        }
+        if (kinds.length !== 1) {
+          showTypeChooser();
+          compulsoryPrinterConnectFlow = false;
+          return;
+        }
+        openPrinterPanelForType(kinds[0], {
+          fromSaved: false,
+          autoPair: kinds[0] === "bluetooth",
+        });
+        compulsoryPrinterConnectFlow = false;
       }
 
       function setPrinterOpen(on) {
         printerUiOpen = !!on;
         if (!dlg || !backdrop) return;
         if (on) {
+          var compulsoryNeedsPrinter =
+            typeof window.__posPrintingCompulsoryOnSaleEnabled === "function" &&
+            window.__posPrintingCompulsoryOnSaleEnabled() &&
+            !window.POS_RECEIPT_PRINTER_CONFIGURED;
+          if (compulsoryNeedsPrinter) {
+            document.body.classList.add("pos-compulsory-setup-open");
+            try {
+              if (window.__posCompulsoryPrinterModalHide) window.__posCompulsoryPrinterModalHide();
+            } catch (eHide2) {}
+          }
+          applyPrinterTypeAllowList();
           backdrop.classList.remove("hidden");
           dlg.classList.remove("hidden");
           document.body.style.overflow = "hidden";
-          refreshSaved();
+          refreshSaved().then(function () {
+            navigatePrinterSetupAfterRefresh();
+          });
         } else {
           stopNetScanStream();
           if (usbPending && navigator.usb && usbPending.opened) {
@@ -12400,13 +13122,24 @@
           }
           backdrop.classList.add("hidden");
           dlg.classList.add("hidden");
-          document.body.style.overflow = "";
+          document.body.classList.remove("pos-compulsory-setup-open");
           msg("");
+          try {
+            if (window.__updatePosCompulsoryPrinterWorkspaceLock) window.__updatePosCompulsoryPrinterWorkspaceLock();
+          } catch (eRelock) {}
         }
       }
 
       function showTypeChooser() {
-        if (stepType) stepType.classList.remove("hidden");
+        applyPrinterTypeAllowList();
+        if (stepType) {
+          var kinds = printerKindsForSetupNavigation();
+          if (kinds.length <= 1) {
+            if (kinds.length === 1) openPrinterPanelForType(kinds[0], { fromSaved: false });
+            return;
+          }
+          stepType.classList.remove("hidden");
+        }
         if (panelBt) panelBt.classList.add("hidden");
         if (panelNet) panelNet.classList.add("hidden");
         if (panelUsb) panelUsb.classList.add("hidden");
@@ -12414,21 +13147,33 @@
       }
 
       function syncPrinterSingleModeBackLinks() {
-        var hideBack = printerKindsShownInSetupDialog().length <= 1;
+        var hideBack = printerKindsForSetupNavigation().length <= 1;
         document.querySelectorAll(".pos-printer-back").forEach(function (btn) {
           btn.classList.toggle("hidden", !!hideBack);
         });
       }
 
       function showPanel(kind) {
+        kind = String(kind || "").toLowerCase();
+        if (!window.posPrinterTypeAllowed(null, kind)) {
+          var fallback = firstAllowedPrinterKind();
+          if (!fallback) {
+            showTypeChooser();
+            return;
+          }
+          kind = fallback;
+        }
         if (stepType) stepType.classList.add("hidden");
         if (panelBt) panelBt.classList.toggle("hidden", kind !== "bluetooth");
         if (panelNet) panelNet.classList.toggle("hidden", kind !== "network");
-        if (panelUsb) panelUsb.classList.toggle("hidden", kind !== "usb");
+        if (panelUsb) {
+          panelUsb.classList.toggle("hidden", kind !== "usb" || !window.posPrinterTypeAllowed(null, "usb"));
+        }
         if (kind === "network") {
           refreshPrintAgentStatus();
         }
         if (kind === "bluetooth") reflectBluetoothPrinterModal();
+        if (kind === "usb") reflectUsbPrinterModal();
         syncPrinterSingleModeBackLinks();
       }
 
@@ -12448,6 +13193,116 @@
           picked.classList.add("hidden");
           picked.textContent = "";
         }
+        reflectUsbPrinterModal();
+      }
+
+      function reflectUsbPrinterModal() {
+        var dot = document.getElementById("pos-printer-usb-status-dot");
+        var label = document.getElementById("pos-printer-usb-status-label");
+        var pickBtn = document.getElementById("pos-printer-usb-pick");
+        var pickedEl = document.getElementById("pos-printer-usb-picked");
+        var retryEl = document.getElementById("pos-printer-usb-retry");
+        var disabledHint = document.getElementById("pos-printer-usb-disabled-hint");
+        var usbAllowed = window.posPrinterTypeAllowed(null, "usb");
+
+        if (disabledHint) disabledHint.classList.toggle("hidden", usbAllowed);
+        if (pickBtn) {
+          pickBtn.disabled = !usbAllowed;
+          pickBtn.classList.toggle("opacity-50", !usbAllowed);
+          pickBtn.classList.toggle("cursor-not-allowed", !usbAllowed);
+        }
+
+        function greyState(text) {
+          if (!dot || !label) return;
+          dot.className =
+            "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400 ring-2 ring-[rgb(var(--rc-surface))]";
+          label.textContent = text;
+        }
+
+        if (!usbAllowed) {
+          greyState("USB printing is disabled in settings.");
+          if (pickBtn) pickBtn.textContent = "USB not allowed";
+          return;
+        }
+
+        if (!window.isSecureContext) {
+          greyState("USB needs HTTPS or localhost (127.0.0.1).");
+          if (pickBtn) pickBtn.textContent = "Choose USB printer…";
+          return;
+        }
+        if (!navigator.usb) {
+          greyState("WebUSB is not available — use Chrome or Edge.");
+          if (pickBtn) pickBtn.textContent = "Choose USB printer…";
+          return;
+        }
+
+        var pRow = window.__POS_LAST_HEADER_PRINTER || null;
+        var hasSavedUsb =
+          !!(
+            window.__POS_LAST_HEADER_CONNECTED &&
+            pRow &&
+            String(pRow.printer_type || "").toLowerCase() === "usb"
+          );
+
+        if (pickBtn) {
+          pickBtn.textContent = hasSavedUsb ? "Re-select USB printer…" : "Choose USB printer…";
+        }
+
+        if (!hasSavedUsb) {
+          greyState("No USB printer saved for this shop yet.");
+          if (pickedEl) {
+            pickedEl.classList.add("hidden");
+            pickedEl.textContent = "";
+          }
+          return;
+        }
+
+        var cfg = normalizePrinterConfig(pRow.config);
+        var vid = parseInt(cfg.vendorId, 10);
+        var pid = parseInt(cfg.productId, 10);
+        var name = ((pRow.device_label || "") + "").trim() || "USB printer";
+        var idLine =
+          !isNaN(vid) && !isNaN(pid)
+            ? "VID " + vid.toString(16) + " · PID " + pid.toString(16)
+            : "";
+
+        if (pickedEl) {
+          pickedEl.textContent = "Saved: " + name + (idLine ? " (" + idLine + ")" : "");
+          pickedEl.classList.remove("hidden");
+        }
+        if (retryEl) retryEl.classList.add("hidden");
+
+        if (isNaN(vid) || isNaN(pid)) {
+          greyState("Saved USB profile is invalid — choose the printer again.");
+          return;
+        }
+
+        navigator.usb
+          .getDevices()
+          .then(function (devices) {
+            var plugged = devices.some(function (d) {
+              return d && d.vendorId === vid && d.productId === pid;
+            });
+            if (!dot || !label) return;
+            if (plugged) {
+              dot.className =
+                "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_10px_-3px_rgba(34,197,94,0.9)] ring-2 ring-emerald-400/65";
+              label.textContent =
+                'Saved — “' +
+                name +
+                '” is plugged in. Checkout uses browser print (POS-80C) unless silent USB is available.';
+            } else {
+              dot.className =
+                "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500 ring-2 ring-[rgb(var(--rc-surface))]";
+              label.textContent =
+                'Saved — “' +
+                name +
+                '” not detected. Plug in USB and tap Re-select USB printer to grant access again.';
+            }
+          })
+          .catch(function () {
+            greyState("Could not check USB devices.");
+          });
       }
 
       function pickBluetoothAndSave() {
@@ -12565,6 +13420,9 @@
             return Promise.resolve(attach).then(
               function () {
                 var sg = window.__POS_BT || {};
+                if (typeof reevaluatePosReceiptPrinterReady === "function") {
+                  reevaluatePosReceiptPrinterReady();
+                }
                 if (sg.gattConnected) {
                   afterRefresh("Printer saved and linked for silent receipts.", true);
                 } else {
@@ -12604,6 +13462,10 @@
       function pickUsbAndSave() {
         var pickedEl = document.getElementById("pos-printer-usb-picked");
         var retryEl = document.getElementById("pos-printer-usb-retry");
+        if (!window.posPrinterTypeAllowed(null, "usb")) {
+          msg("USB printing is turned off in IT settings.", "error");
+          return;
+        }
         msg("Select your USB printer…");
         if (!navigator.usb) {
           msg("WebUSB is not available in this browser.");
@@ -12618,9 +13480,15 @@
         usbPickPromise
           .then(function (device) {
             usbPending = device;
+            var label = device.productName || "USB printer";
+            var cfg = {
+              vendorId: device.vendorId,
+              productId: device.productId,
+              serialNumber: device.serialNumber || "",
+            };
             if (pickedEl) {
               pickedEl.textContent =
-                "Opening VID " +
+                "Saving VID " +
                 device.vendorId.toString(16) +
                 " · PID " +
                 device.productId.toString(16) +
@@ -12628,31 +13496,56 @@
                 "…";
               pickedEl.classList.remove("hidden");
             }
-            return device.open().then(function () {
-              var d = device;
-              var label = d.productName || "USB printer";
-              var cfg = {
-                vendorId: d.vendorId,
-                productId: d.productId,
-                serialNumber: d.serialNumber || "",
-              };
-              return d
-                .close()
-                .catch(function () {})
+            function finishSave(warnText) {
+              return apiSave("usb", label, cfg).then(function () {
+                return warnText || "";
+              });
+            }
+            /* requestDevice() grants access; open() often fails on Windows when the spooler/driver owns the printer. */
+            if (!device.opened) {
+              return device
+                .open()
                 .then(function () {
-                  return apiSave("usb", label, cfg);
+                  return device.close().catch(function () {});
+                })
+                .then(function () {
+                  return finishSave("");
+                })
+                .catch(function (openErr) {
+                  if (
+                    typeof window.posIsUsbAccessDeniedError === "function" &&
+                    window.posIsUsbAccessDeniedError(openErr)
+                  ) {
+                    return finishSave("__usb_driver__");
+                  }
+                  return Promise.reject(openErr);
                 });
-            });
+            }
+            return finishSave("");
           })
-          .then(function () {
+          .then(function (warnText) {
             usbPending = null;
-            msg("USB printer saved.");
+            if (warnText === "__usb_driver__") {
+              msg(
+                "USB printer saved. " +
+                  (typeof window.posUsbAccessDeniedShort === "function"
+                    ? window.posUsbAccessDeniedShort()
+                    : "Use browser print (POS-80C)."),
+                "ok"
+              );
+            } else if (warnText) {
+              msg(warnText, "error");
+            } else {
+              msg("USB printer saved.", "ok");
+            }
             if (pickedEl) {
               pickedEl.textContent = "USB printer saved.";
               pickedEl.classList.remove("hidden");
             }
             if (retryEl) retryEl.classList.add("hidden");
-            refreshSaved();
+            refreshSaved().then(function () {
+              reflectUsbPrinterModal();
+            });
             setPrinterOpen(false);
           })
           .catch(function (e) {
@@ -12661,9 +13554,14 @@
             if (e.name === "NotFoundError") {
               msg("No device selected.");
             } else {
-              msg(e.message || String(e));
+              msg(
+                typeof window.posFormatUsbError === "function"
+                  ? window.posFormatUsbError(e)
+                  : e.message || String(e)
+              );
             }
             if (retryEl) retryEl.classList.remove("hidden");
+            reflectUsbPrinterModal();
           });
       }
 
@@ -13154,12 +14052,54 @@
         return { sm: sm, xs: xs, aria: aria };
       }
 
+      /** Re-check compulsory gate after BLE link (publishReceiptPrinterReadyFlag can run before GATT connects). */
+      function reevaluatePosReceiptPrinterReady() {
+        if (
+          typeof window.__posPrintingCompulsoryOnSaleEnabled !== "function" ||
+          !window.__posPrintingCompulsoryOnSaleEnabled()
+        ) {
+          return;
+        }
+        var row = window.__POS_LAST_HEADER_PRINTER;
+        if (!row || !savedPrinterTypeAllowed(row)) {
+          return;
+        }
+        var pt = String(row.printer_type || "").toLowerCase();
+        if (pt !== "bluetooth") {
+          return;
+        }
+        var sg = window.__POS_BT || {};
+        var ready = !!(sg.gattConnected && !sg.userMuted);
+        if (ready === !!window.POS_RECEIPT_PRINTER_CONFIGURED) {
+          return;
+        }
+        window.POS_RECEIPT_PRINTER_CONFIGURED = ready;
+        if (ready) {
+          window.__posCompulsorySetupPromptQueued = false;
+          window.__posCompulsorySetupOpened = false;
+          clearTimeout(window.__posCompulsorySetupPromptTimer);
+          document.body.classList.remove("pos-compulsory-setup-open");
+          if (printerUiOpen) {
+            setPrinterOpen(false);
+          }
+        }
+        try {
+          if (window.__posPrinterConnectionChanged) window.__posPrinterConnectionChanged();
+        } catch (eRc) {}
+      }
+
       function syncPrinterHeaderButton(connected, printer) {
-        window.__POS_LAST_HEADER_CONNECTED = !!connected;
-        window.__POS_LAST_HEADER_PRINTER = connected && printer ? printer : null;
+        var rawPrinter = printer || null;
+        window.__POS_LAST_HEADER_PRINTER = rawPrinter;
+        window.__POS_LAST_HEADER_STALE_PRINTER =
+          rawPrinter && !savedPrinterTypeAllowed(rawPrinter) ? rawPrinter : null;
+        var effPrinter =
+          rawPrinter && savedPrinterTypeAllowed(rawPrinter) ? rawPrinter : null;
+        var effConnected = !!(connected && effPrinter);
+        window.__POS_LAST_HEADER_CONNECTED = !!effConnected;
 
         function publishReceiptPrinterReadyFlag() {
-          var baseReady = !!connected && !!printer;
+          var baseReady = effConnected && !!effPrinter;
           window.__posReceiptReadyProbeGen = (window.__posReceiptReadyProbeGen || 0) + 1;
           var myGen = window.__posReceiptReadyProbeGen;
 
@@ -13173,14 +14113,23 @@
           function applyReady(rv) {
             if (myGen !== window.__posReceiptReadyProbeGen) return;
             window.POS_RECEIPT_PRINTER_CONFIGURED = !!rv;
+            if (rv) {
+              window.__posCompulsorySetupPromptQueued = false;
+              window.__posCompulsorySetupOpened = false;
+              clearTimeout(window.__posCompulsorySetupPromptTimer);
+              document.body.classList.remove("pos-compulsory-setup-open");
+              if (printerUiOpen) {
+                setPrinterOpen(false);
+              }
+            }
             try {
               if (window.__posPrinterConnectionChanged) window.__posPrinterConnectionChanged();
             } catch (eCb) {}
             try {
               var c0 = compulsoryOn();
               var ob2 = document.getElementById("pos-printer-open");
-              if (!ob2 || !printer || !c0) return;
-              var pt0 = String(printer.printer_type || "").toLowerCase();
+              if (!ob2 || !effPrinter || !c0) return;
+              var pt0 = String(effPrinter.printer_type || "").toLowerCase();
               if (pt0 === "network" || pt0 === "usb") {
                 var showOk = !!rv && baseReady;
                 ob2.classList.toggle("pos-printer-header-btn--connected", showOk);
@@ -13189,12 +14138,12 @@
             } catch (eHdr) {}
           }
 
-          if (!baseReady || !printer) {
+          if (!baseReady || !effPrinter) {
             applyReady(false);
             return;
           }
 
-          var pt = String(printer.printer_type || "").toLowerCase();
+          var pt = String(effPrinter.printer_type || "").toLowerCase();
           var compulsory = compulsoryOn();
 
           if (pt === "bluetooth") {
@@ -13224,11 +14173,15 @@
           }
 
           if (pt === "usb") {
+            if (typeof window.posPrinterTypeAllowed === "function" && !window.posPrinterTypeAllowed(null, "usb")) {
+              applyReady(false);
+              return;
+            }
             applyReady(false);
             if (!window.isSecureContext || !navigator.usb) {
               return;
             }
-            var cfg = printer.config;
+            var cfg = effPrinter.config;
             if (typeof cfg === "string") {
               try {
                 cfg = JSON.parse(cfg) || {};
@@ -13267,7 +14220,7 @@
         var smEl = document.getElementById("pos-printer-open-label-sm");
         var xsEl = document.getElementById("pos-printer-open-label-xs");
         var isBtThermal =
-          !!(connected && printer && String(printer.printer_type || "").toLowerCase() === "bluetooth");
+          !!(effConnected && effPrinter && String(effPrinter.printer_type || "").toLowerCase() === "bluetooth");
         ob.classList.remove("pos-printer-header-btn--bt-standby", "pos-printer-header-btn--bt-busy");
 
         var sg = window.__POS_BT || {};
@@ -13280,13 +14233,13 @@
             typeof window.__posPrintingCompulsoryOnSaleEnabled === "function" &&
             window.__posPrintingCompulsoryOnSaleEnabled();
           var ptHdr =
-            connected && printer ? String(printer.printer_type || "").toLowerCase() : "";
-          if (compulsoryHdr && connected && printer && (ptHdr === "network" || ptHdr === "usb")) {
+            effConnected && effPrinter ? String(effPrinter.printer_type || "").toLowerCase() : "";
+          if (compulsoryHdr && effConnected && effPrinter && (ptHdr === "network" || ptHdr === "usb")) {
             ob.classList.toggle("pos-printer-header-btn--connected", false);
             ob.classList.toggle("pos-printer-header-btn--disconnected", true);
           } else {
-            ob.classList.toggle("pos-printer-header-btn--connected", !!connected);
-            ob.classList.toggle("pos-printer-header-btn--disconnected", !connected);
+            ob.classList.toggle("pos-printer-header-btn--connected", !!effConnected);
+            ob.classList.toggle("pos-printer-header-btn--disconnected", !effConnected);
           }
         } else {
           ob.classList.remove("pos-printer-header-btn--connected", "pos-printer-header-btn--disconnected");
@@ -13296,8 +14249,35 @@
           ob.classList.toggle("pos-printer-header-btn--bt-busy", busyBt && !muted);
         }
 
-        if (connected && printer) {
-          var s = formatPrinterHeaderSummary(printer);
+        if (window.__POS_LAST_HEADER_STALE_PRINTER) {
+          var staleKinds = printerKindsForSetupNavigation();
+          var staleNeed =
+            staleKinds.indexOf("bluetooth") >= 0
+              ? "Bluetooth"
+              : staleKinds.length
+                ? staleKinds[0].charAt(0).toUpperCase() + staleKinds[0].slice(1)
+                : "printer";
+          var staleSm = "Connect " + staleNeed;
+          var staleXs = staleNeed;
+          if (smEl) smEl.textContent = staleSm;
+          if (xsEl) xsEl.textContent = staleXs.length > 14 ? staleXs.slice(0, 12) + "…" : staleXs;
+          ob.classList.remove("pos-printer-header-btn--bt-standby", "pos-printer-header-btn--bt-busy");
+          ob.classList.toggle("pos-printer-header-btn--connected", false);
+          ob.classList.toggle("pos-printer-header-btn--disconnected", true);
+          ob.setAttribute(
+            "aria-label",
+            "Saved " +
+              String(window.__POS_LAST_HEADER_STALE_PRINTER.printer_type || "printer") +
+              " printer is not allowed in IT settings. Open setup to connect " +
+              staleNeed +
+              "."
+          );
+          publishReceiptPrinterReadyFlag();
+          return;
+        }
+
+        if (effConnected && effPrinter) {
+          var s = formatPrinterHeaderSummary(effPrinter);
           var headlineSm = s.sm;
           var headlineXs = s.xs;
           var suffix = "";
@@ -13319,15 +14299,26 @@
           if (xsEl) xsEl.textContent = headlineXs.length > 14 ? headlineXs.slice(0, 12) + "…" : headlineXs;
           ob.setAttribute("aria-label", s.aria + suffix);
         } else {
-          var allowedKinds = printerKindsShownInSetupDialog();
+          var allowedKinds =
+            typeof printerKindsForSetupNavigation === "function"
+              ? printerKindsForSetupNavigation()
+              : [];
           var onlyOne = allowedKinds.length === 1;
+          var kindLabels = allowedKinds
+            .map(function (k) {
+              if (k === "bluetooth") return "Bluetooth";
+              if (k === "network") return "network";
+              if (k === "usb") return "USB";
+              return k;
+            })
+            .join(", ");
           if (smEl) smEl.textContent = onlyOne ? "Connect printer" : "Set up printer";
           if (xsEl) xsEl.textContent = onlyOne ? "Connect" : "Printer";
           ob.setAttribute(
             "aria-label",
             onlyOne
               ? "No receipt printer configured. Open to connect the allowed printer."
-              : "No receipt printer configured. Open to choose Bluetooth, network, or USB."
+              : "No receipt printer configured. Open to choose " + (kindLabels || "a printer type") + "."
           );
         }
 
@@ -13425,10 +14416,11 @@
       }
 
       document.addEventListener("richcom-pos-bluetooth-changed", function () {
-        var c = !!window.__POS_LAST_HEADER_CONNECTED;
         var row = window.__POS_LAST_HEADER_PRINTER || null;
-        syncPrinterHeaderButton(c, row);
+        var allowed = !!(row && savedPrinterTypeAllowed(row));
+        syncPrinterHeaderButton(allowed, row);
         reflectBluetoothPrinterModal();
+        reevaluatePosReceiptPrinterReady();
       });
 
       function printerCacheFingerprintRow(p) {
@@ -13459,20 +14451,28 @@
 
       function refreshSaved() {
         var testBtn = document.getElementById("pos-printer-test-print");
-        fetch(PRINTER_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
+        return fetch(PRINTER_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
           .then(function (r) {
             return r.json();
           })
           .then(function (j) {
-            var connected = !!(j && j.ok && j.printer);
             var p = j && j.ok ? j.printer : null;
+            var stale = j && j.ok && j.stale_printer ? j.stale_printer : null;
+            var activeRow = p && savedPrinterTypeAllowed(p) ? p : null;
             if (typeof window.posBtOnSavedPrinterRowChanged === "function") {
-              window.posBtOnSavedPrinterRowChanged(p);
+              window.posBtOnSavedPrinterRowChanged(activeRow);
             }
-            syncPrinterHeaderButton(connected, p);
+            syncPrinterHeaderButton(!!activeRow, activeRow);
+            if (stale && !activeRow) {
+              window.__POS_LAST_HEADER_STALE_PRINTER = stale;
+            }
             reflectBluetoothPrinterModal();
+            if (panelUsb && !panelUsb.classList.contains("hidden")) {
+              reflectUsbPrinterModal();
+            }
             if (!j || !j.ok || !savedBox) return;
-            if (!p) {
+            var bannerRow = activeRow || stale;
+            if (!bannerRow) {
               savedBox.classList.add("hidden");
               savedBox.textContent = "";
               if (testBtn) {
@@ -13484,26 +14484,49 @@
             }
             var line =
               "<strong>Saved:</strong> " +
-              (p.device_label || p.printer_type) +
+              (bannerRow.device_label || bannerRow.printer_type) +
               " (" +
-              p.printer_type +
+              bannerRow.printer_type +
               ")";
+            if (!savedPrinterTypeAllowed(bannerRow)) {
+              line =
+                '<strong class="text-amber-800 dark:text-amber-200">Not active:</strong> ' +
+                (p.device_label || p.printer_type) +
+                " (" +
+                p.printer_type +
+                ") — disabled in IT settings.";
+              line +=
+                '<br><span class="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-300">Only ' +
+                posPrinterAllowedKindsInSettings().join(", ") +
+                ' allowed. Tap <strong>Forget saved printer</strong>, then connect ' +
+                (posPrinterAllowedKindsInSettings().indexOf("bluetooth") >= 0 ? "Bluetooth" : "an allowed printer") +
+                ".</span>";
+              if (testBtn) {
+                testBtn.disabled = true;
+                testBtn.title = "Forget the saved printer and set up an allowed type";
+              }
+            }
             savedBox.innerHTML = line;
             savedBox.classList.remove("hidden");
-            if (testBtn) {
+            if (testBtn && savedPrinterTypeAllowed(bannerRow) && activeRow) {
               testBtn.disabled = false;
               testBtn.title = "Send a one-line test receipt to your saved printer";
             }
             try {
-              var fp = printerCacheFingerprintRow(p);
-              localStorage.setItem(
-                LS_KEY,
-                JSON.stringify(Object.assign({}, p, { shop_id: SHOP_ID, printer_fingerprint: fp }))
-              );
+              if (activeRow) {
+                var fp = printerCacheFingerprintRow(activeRow);
+                localStorage.setItem(
+                  LS_KEY,
+                  JSON.stringify(Object.assign({}, activeRow, { shop_id: SHOP_ID, printer_fingerprint: fp }))
+                );
+              } else {
+                localStorage.removeItem(PRINTER_LS_KEY);
+              }
             } catch (e) {}
-            if ((p.printer_type || "").toLowerCase() === "network") {
+            if (activeRow && (activeRow.printer_type || "").toLowerCase() === "network") {
               refreshPrintAgentStatus();
             }
+            return j;
           })
           .catch(function () {
             if (typeof window.posBtOnSavedPrinterRowChanged === "function") {
@@ -13511,6 +14534,9 @@
             }
             syncPrinterHeaderButton(false, null);
             reflectBluetoothPrinterModal();
+            if (panelUsb && !panelUsb.classList.contains("hidden")) {
+              reflectUsbPrinterModal();
+            }
             if (savedBox) {
               savedBox.classList.add("hidden");
             }
@@ -13524,19 +14550,9 @@
 
       document.querySelectorAll(".pos-printer-type-btn").forEach(function (btn) {
         btn.addEventListener("click", function () {
+          if (btn.disabled || btn.classList.contains("pos-printer-type-blocked")) return;
           var t = btn.getAttribute("data-printer-type");
-          if (t === "bluetooth") {
-            showPanel("bluetooth");
-            resetBluetoothPanel();
-            msg("");
-          } else if (t === "network") {
-            showPanel("network");
-            runNetworkScanAuto();
-          } else if (t === "usb") {
-            showPanel("usb");
-            resetUsbPanel();
-            pickUsbAndSave();
-          }
+          openPrinterPanelForType(t, { fromSaved: false, autoPair: false });
         });
       });
 
@@ -13546,29 +14562,19 @@
         });
       });
 
-      /** Header button: one visible connection type → go straight to that panel; otherwise show chooser. */
+      /** Header button: open setup, load saved profile, show the matching connection panel. */
       function openPrinterSetupFromHeader() {
-        var kinds = printerKindsShownInSetupDialog();
         setPrinterOpen(true);
-        if (!dlg || !backdrop) return;
-        if (kinds.length !== 1) {
-          showTypeChooser();
-          return;
-        }
-        var t = kinds[0];
-        if (t === "bluetooth") {
-          showPanel("bluetooth");
-          resetBluetoothPanel();
-          runBluetoothPairOrResumeFromUi();
-        } else if (t === "network") {
-          showPanel("network");
-          runNetworkScanAuto();
-        } else if (t === "usb") {
-          showPanel("usb");
-          resetUsbPanel();
-          pickUsbAndSave();
-        }
       }
+
+      try {
+        window.__posOpenPrinterSetupFromHeader = openPrinterSetupFromHeader;
+        window.__posRunCompulsoryPrinterConnectPrompt = runCompulsoryPrinterConnectPrompt;
+        window.__posEnsureCompulsoryPrinterPromptAfterLoad = ensureCompulsoryPrinterPromptAfterLoad;
+        if (window.__posCompulsoryPrinterOnLoadPending) {
+          ensureCompulsoryPrinterPromptAfterLoad();
+        }
+      } catch (eExposeComp) {}
 
       document.addEventListener(
         "click",
@@ -13656,6 +14662,10 @@
             });
         });
 
+      document.getElementById("pos-printer-usb-pick") &&
+        document.getElementById("pos-printer-usb-pick").addEventListener("click", function () {
+          pickUsbAndSave();
+        });
       document.getElementById("pos-printer-usb-retry") &&
         document.getElementById("pos-printer-usb-retry").addEventListener("click", function () {
           pickUsbAndSave();
@@ -13707,16 +14717,17 @@
         var kind = ((e && e.detail && e.detail.kind) || "").toLowerCase();
         if (kind === "bluetooth") {
           setPrinterOpen(true);
-          showPanel("bluetooth");
-          resetBluetoothPanel();
-          if (e && e.detail && e.detail.pick_now) pickBluetoothAndSave();
-          else msg("");
           return;
         }
         if (kind === "network") {
           setPrinterOpen(true);
-          showPanel("network");
-          runNetworkScanAuto();
+          return;
+        }
+        if (kind === "usb") {
+          if (typeof window.posPrinterTypeAllowed === "function" && !window.posPrinterTypeAllowed(null, "usb")) {
+            return;
+          }
+          setPrinterOpen(true);
         }
       });
 
@@ -13738,15 +14749,25 @@
       if (navigator.usb && typeof navigator.usb.addEventListener === "function") {
         try {
           navigator.usb.addEventListener("connect", function () {
-            if (typeof window.__posPrintingCompulsoryOnSaleEnabled === "function" && window.__posPrintingCompulsoryOnSaleEnabled()) refreshSaved();
+            refreshSaved().then(function () {
+              reflectUsbPrinterModal();
+            });
           });
           navigator.usb.addEventListener("disconnect", function () {
-            if (typeof window.__posPrintingCompulsoryOnSaleEnabled === "function" && window.__posPrintingCompulsoryOnSaleEnabled()) refreshSaved();
+            refreshSaved().then(function () {
+              reflectUsbPrinterModal();
+            });
           });
         } catch (eUsbEv) {}
       }
 
-      refreshSaved();
+      applyPrinterTypeAllowList();
+      refreshSaved().finally(function () {
+        ensureCompulsoryPrinterPromptAfterLoad();
+      });
+      try {
+        window.applyPrinterTypeAllowList = applyPrinterTypeAllowList;
+      } catch (eExpose) {}
     })();
   </script>
   <script>

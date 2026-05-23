@@ -7,262 +7,114 @@
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
-  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop stock transactions</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Full ledger for this shop (<span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'selected period' }}</span>):
-          company, manual/POS, and transfers. Rows without a catalog match still appear. Newest first — loads up to
-          <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ '{:,}'.format(audit_row_limit|default(25000)) }}</span>
-          lines (use URL parameter <code class="rounded bg-[rgb(var(--rc-surface-2))] px-1 font-mono text-[11px]">limit</code>, max 50,000).
-        </p>
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <div class="sa-stock-analytics">
+  <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    {% set stock_shell_title = 'Stock movement analysis' %}
+    {% set stock_shell_desc = 'Full ledger for this shop. Newest first — up to ' ~ '{:,}'.format(audit_row_limit|default(25000)) ~ ' lines (URL limit max 50,000).' %}
+    {% set stock_shell_badge = 'Movement' %}
+    {% set stock_filter_mode_all = true %}
+    {% set stock_filter_extra_hidden = '<input type="hidden" name="limit" value="' ~ (audit_row_limit|default(25000)|string) ~ '" />' %}
+    {% set stock_filter_extra_row %}
+    <div class="mt-3 flex flex-wrap items-end gap-2.5 border-t border-[rgb(var(--rc-border))]/60 pt-3">
+      <div class="min-w-[7rem] flex-1 sm:max-w-[9rem]">
+        <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
+        <select id="audit-direction" name="direction" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+          <option value="" {% if not audit_direction %}selected{% endif %}>All</option>
+          <option value="in" {% if audit_direction == 'in' %}selected{% endif %}>In</option>
+          <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
+        </select>
       </div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-        {{ (transactions or [])|length }} loaded
+      <div class="min-w-[7rem] flex-1 sm:max-w-[9rem]">
+        <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
+        <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+          <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
+          <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
+          <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual / POS</option>
+          <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
+        </select>
+      </div>
+      <div class="min-w-[10rem] flex-[2]">
+        <label for="audit-item-id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
+        <select id="audit-item-id" name="item_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+          <option value="">All items</option>
+          {% for it in filter_items or [] %}
+          <option value="{{ it.id }}" {% if audit_item_id == it.id %}selected{% endif %}>{{ it.category }} — {{ it.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="min-w-[9rem] flex-[2]">
+        <label for="audit-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Search</label>
+        <input id="audit-q" type="search" name="q" value="{{ audit_q or '' }}" placeholder="Name or category…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]" />
+      </div>
+      <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
+    </div>
+    {% endset %}
+    {% include "partials/shop_stock_hero_filter.html" %}
+
+    <div class="sa-stock-kpis grid gap-3 lg:grid-cols-3">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm lg:col-span-3">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Rows loaded</p>
+        <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ (transactions or [])|length }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ f.range_label or 'All dates' }}</p>
       </div>
     </div>
 
-    <form method="get" class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3">
-      <input type="hidden" name="limit" value="{{ audit_row_limit|default(25000) }}" />
-      <div class="flex flex-wrap items-end gap-2.5">
-        <div class="min-w-[10rem] flex-1">
-          <label for="audit-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
-          <select id="audit-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
-            <option value="all" {% if (f.mode or 'all') == 'all' %}selected{% endif %}>All dates</option>
-            <option value="single_day" {% if (f.mode or '') == 'single_day' %}selected{% endif %}>Single day</option>
-            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-          </select>
-        </div>
-
-        <div id="audit-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'all') not in ('single_day',) %}hidden{% endif %}">
-          <label for="audit-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
-          <input id="audit-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-        </div>
-
-        <div id="audit-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-          <div class="min-w-[9.5rem] flex-1">
-            <label for="audit-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
-            <input id="audit-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-          </div>
-          <div class="min-w-[9.5rem] flex-1">
-            <label for="audit-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
-            <input id="audit-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-          </div>
-        </div>
-
-        <div id="audit-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-          <label for="audit-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
-          <input id="audit-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-        </div>
-
-        <div id="audit-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-          <label for="audit-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
-          <input id="audit-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-        </div>
-      </div>
-
-      <div class="mt-3 flex flex-wrap items-end gap-2.5 border-t border-[rgb(var(--rc-border))]/60 pt-3">
-        <div class="min-w-[8rem] flex-1 sm:max-w-[11rem]">
-          <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
-          <select id="audit-direction" name="direction" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
-            <option value="" {% if not audit_direction %}selected{% endif %}>All</option>
-            <option value="in" {% if audit_direction == 'in' %}selected{% endif %}>In</option>
-            <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
-          </select>
-        </div>
-        <div class="min-w-[8rem] flex-1 sm:max-w-[11rem]">
-          <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
-          <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
-            <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
-            <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
-            <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual / POS</option>
-            <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
-          </select>
-        </div>
-        <div class="min-w-[12rem] flex-[2]">
-          <label for="audit-item-id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
-          <select id="audit-item-id" name="item_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
-            <option value="">All items</option>
-            {% for it in filter_items or [] %}
-              <option value="{{ it.id }}" {% if audit_item_id == it.id %}selected{% endif %}>{{ it.category }} — {{ it.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="min-w-[10rem] flex-[2]">
-          <label for="audit-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Search name / category</label>
-          <input id="audit-q" type="search" name="q" value="{{ audit_q or '' }}" placeholder="Contains…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]" />
-        </div>
-        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Apply filters</button>
-        <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
-      </div>
-    </form>
-
     {% if transactions and (transactions|length) >= (audit_row_limit|default(25000)) %}
-      <p class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-200">
-        Showing the {{ audit_row_limit|default(25000) }} most recent rows only. Narrow the date range or use filters to find older movements, or increase <span class="font-mono">limit</span> in the URL (max 50,000).
-      </p>
+    <p class="sa-stock-banner rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-200">
+      Showing the {{ audit_row_limit|default(25000) }} most recent rows only. Narrow filters or increase <span class="font-mono">limit</span> in the URL (max 50,000).
+    </p>
     {% endif %}
 
     {% if not transactions %}
-      <p class="mt-4 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
+    <p class="text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
     {% else %}
-      {# Mobile: cards #}
-      <div class="mt-5 grid gap-3 md:hidden">
-        {% for tx in transactions %}
-          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-            <div class="flex flex-wrap items-start justify-between gap-2">
-              <div class="min-w-0">
-                <div class="text-xs font-extrabold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-                  {{ (tx.direction or '').upper() }} • {{ (tx.source or '').upper() }}
-                </div>
-                <div class="mt-1 truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
-                  {{ tx.category }} — {{ tx.name }}
-                </div>
-              </div>
-              <div class="text-xs font-semibold text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</div>
-            </div>
-
-            <div class="mt-3 grid gap-2 text-sm">
-              <div class="flex items-center justify-between">
-                <span class="text-[rgb(var(--rc-muted))]">QTY</span>
-                <span class="font-extrabold text-[rgb(var(--rc-page-fg))]">{{ tx.qty }}</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-[rgb(var(--rc-muted))]">SHOP (BEFORE → AFTER)</span>
-                <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.shop_stock_before }} → {{ tx.shop_stock_after }}</span>
-              </div>
-              {% if tx.company_stock_before is not none or tx.company_stock_after is not none %}
-                <div class="flex items-center justify-between">
-                  <span class="text-[rgb(var(--rc-muted))]">COMPANY (BEFORE → AFTER)</span>
-                  <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.company_stock_before if tx.company_stock_before is not none else '-' }} → {{ tx.company_stock_after if tx.company_stock_after is not none else '-' }}</span>
-                </div>
-              {% endif %}
-              {% if tx.reason %}
-                <div class="flex items-center justify-between">
-                  <span class="text-[rgb(var(--rc-muted))]">REASON</span>
-                  <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ (tx.reason or '').upper() }}</span>
-                </div>
-              {% endif %}
-              {% if tx.refunded %}
-                <div class="flex items-center justify-between">
-                  <span class="text-[rgb(var(--rc-muted))]">REFUNDED</span>
-                  <span class="font-semibold text-[rgb(var(--rc-page-fg))]">YES{% if tx.refund_amount is not none %} ({{ "%.2f"|format(tx.refund_amount) }}){% endif %}</span>
-                </div>
-              {% endif %}
-              {% if tx.buying_price is not none %}
-                <div class="flex items-center justify-between">
-                  <span class="text-[rgb(var(--rc-muted))]">BUYING PRICE</span>
-                  <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.buying_price) }}</span>
-                </div>
-              {% endif %}
-              {% if tx.place_brought_from %}
-                <div class="flex items-center justify-between gap-4">
-                  <span class="shrink-0 text-[rgb(var(--rc-muted))]">PLACE</span>
-                  <span class="min-w-0 truncate font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.place_brought_from }}</span>
-                </div>
-              {% endif %}
-              {% if tx.note %}
-                <div class="mt-2 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
-                  {{ tx.note }}
-                </div>
-              {% endif %}
-              {% if tx.moved_by %}
-                <div class="flex items-center justify-between">
-                  <span class="text-[rgb(var(--rc-muted))]">BY</span>
-                  <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.moved_by }}</span>
-                </div>
-              {% endif %}
-            </div>
-          </div>
-        {% endfor %}
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+      <div class="overflow-x-auto">
+        <table class="sa-stock-data-table min-w-[48rem] w-full text-sm">
+          <thead>
+            <tr>
+              <th class="text-left whitespace-nowrap">Time</th>
+              <th class="hidden text-left lg:table-cell">By</th>
+              <th class="text-left">Item</th>
+              <th class="text-left">Dir</th>
+              <th class="text-left">Source</th>
+              <th class="text-right">Qty</th>
+              <th class="text-right">Shop before</th>
+              <th class="text-right">Shop after</th>
+              <th class="hidden text-right xl:table-cell">Co. before</th>
+              <th class="hidden text-right xl:table-cell">Co. after</th>
+              <th class="hidden text-right lg:table-cell">Buy</th>
+              <th class="hidden text-left lg:table-cell">Place</th>
+              <th class="hidden text-left lg:table-cell">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tx in transactions %}
+            <tr>
+              <td class="whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ tx.created_at }}</td>
+              <td class="hidden max-w-[8rem] truncate lg:table-cell text-[rgb(var(--rc-muted))]">{{ tx.moved_by or '—' }}</td>
+              <td>
+                <div class="text-[10px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ tx.category }}</div>
+                <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.name }}</div>
+              </td>
+              <td class="whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
+              <td class="whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
+              <td class="text-right font-semibold tabular-nums">{{ tx.qty }}</td>
+              <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_before }}</td>
+              <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_after }}</td>
+              <td class="hidden text-right tabular-nums xl:table-cell text-[rgb(var(--rc-muted))]">{{ tx.company_stock_before if tx.company_stock_before is not none else '—' }}</td>
+              <td class="hidden text-right tabular-nums xl:table-cell text-[rgb(var(--rc-muted))]">{{ tx.company_stock_after if tx.company_stock_after is not none else '—' }}</td>
+              <td class="hidden text-right tabular-nums lg:table-cell">{% if tx.buying_price is not none %}{{ "%.2f"|format(tx.buying_price) }}{% else %}—{% endif %}</td>
+              <td class="hidden max-w-[10rem] truncate lg:table-cell text-[rgb(var(--rc-muted))]">{{ tx.place_brought_from or '' }}</td>
+              <td class="hidden whitespace-nowrap lg:table-cell">{{ (tx.reason or '').upper() }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-
-      {# Tablet/PC: table #}
-      <div class="mt-5 hidden overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] md:block">
-        <div class="overflow-x-auto">
-          <table class="min-w-[980px] w-full text-sm">
-            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-              <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Recorded by</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Direction</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Source</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop before</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop after</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider xl:table-cell">Company before</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider xl:table-cell">Company after</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Buying price</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Place</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Reason</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Refunded</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider lg:table-cell">Refund amount</th>
-                <th class="hidden px-3 py-2 text-left text-xs font-bold uppercase tracking-wider xl:table-cell">Note</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-              {% for tx in transactions %}
-                <tr>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">
-                    <span class="block max-w-[140px] truncate">{{ tx.moved_by or '—' }}</span>
-                  </td>
-                  <td class="px-3 py-2">
-                    <div class="min-w-0">
-                      <div class="truncate text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ tx.category }}</div>
-                      <div class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.name }}</div>
-                    </div>
-                  </td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
-                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.qty }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.shop_stock_before }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.shop_stock_after }}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap xl:table-cell">{{ tx.company_stock_before if tx.company_stock_before is not none else '-' }}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap xl:table-cell">{{ tx.company_stock_after if tx.company_stock_after is not none else '-' }}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{% if tx.buying_price is not none %}{{ "%.2f"|format(tx.buying_price) }}{% else %}-{% endif %}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] lg:table-cell">
-                    <span class="block max-w-[180px] truncate">{{ tx.place_brought_from or '' }}</span>
-                  </td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{{ (tx.reason or '').upper() }}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{% if tx.refunded %}YES{% else %}NO{% endif %}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap lg:table-cell">{% if tx.refunded and tx.refund_amount is not none %}{{ "%.2f"|format(tx.refund_amount) }}{% else %}-{% endif %}</td>
-                  <td class="hidden px-3 py-2 text-[rgb(var(--rc-muted))] xl:table-cell">
-                    <span class="block max-w-[220px] truncate">{{ tx.note or '' }}</span>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    </div>
     {% endif %}
   </div>
-{% endblock %}
-
-{% block scripts %}
-  {{ super() }}
-  <script>
-    (function () {
-      var mode = document.getElementById("audit-filter-mode");
-      var day = document.getElementById("audit-filter-single-day");
-      var period = document.getElementById("audit-filter-period");
-      var month = document.getElementById("audit-filter-month");
-      var year = document.getElementById("audit-filter-year");
-      if (!mode) return;
-      function sync() {
-        var m = mode.value || "all";
-        if (day) day.classList.toggle("hidden", m !== "single_day");
-        if (period) period.classList.toggle("hidden", m !== "period");
-        if (month) month.classList.toggle("hidden", m !== "month");
-        if (year) year.classList.toggle("hidden", m !== "year");
-      }
-      mode.addEventListener("change", sync);
-      sync();
-    })();
-  </script>
+  </div>
 {% endblock %}

@@ -1,0 +1,38 @@
+{# Base tokens per mode (overridden by preset when data-theme-preset is set) #}
+html[data-theme="dark"] {
+  --rc-page-bg: 22 24 30;
+  --rc-page-fg: 226 228 234;
+  --rc-muted: 152 158 172;
+  --rc-border: 58 62 74;
+  --rc-surface: 32 34 42;
+  --rc-surface-2: 42 46 56;
+}
+html[data-theme="light"] {
+  --rc-page-bg: 241 242 246;
+  --rc-page-fg: 28 30 38;
+  --rc-muted: 92 98 112;
+  --rc-border: 205 210 222;
+  --rc-surface: 255 255 255;
+  --rc-surface-2: 232 234 240;
+}
+
+{% for preset_id, preset in theme_presets_css.items() %}
+  {% set d = preset.dark %}
+  {% set l = preset.light %}
+  html[data-theme-preset="{{ preset_id }}"][data-theme="dark"] {
+    --rc-page-bg: {{ d.page_bg }};
+    --rc-page-fg: {{ d.page_fg }};
+    --rc-muted: {{ d.muted }};
+    --rc-border: {{ d.border }};
+    --rc-surface: {{ d.surface }};
+    --rc-surface-2: {{ d.surface_2 }};
+  }
+  html[data-theme-preset="{{ preset_id }}"][data-theme="light"] {
+    --rc-page-bg: {{ l.page_bg }};
+    --rc-page-fg: {{ l.page_fg }};
+    --rc-muted: {{ l.muted }};
+    --rc-border: {{ l.border }};
+    --rc-surface: {{ l.surface }};
+    --rc-surface-2: {{ l.surface_2 }};
+  }
+{% endfor %}

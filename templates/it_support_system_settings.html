@@ -31,7 +31,516 @@
     .rc-receipt-switch:checked::after {
       transform: translateX(1.15rem);
     }
+    .rc-appearance-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: 1.25rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: linear-gradient(
+        135deg,
+        rgba(var(--rc-surface-2) / 0.95) 0%,
+        rgba(var(--rc-surface) / 0.98) 55%,
+        rgba(var(--rc-primary) / 0.06) 100%
+      );
+      padding: 1rem 1.15rem;
+    }
+    .rc-appearance-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 80% at 100% 0%, rgba(var(--rc-primary) / 0.14), transparent 55%),
+        radial-gradient(ellipse 50% 60% at 0% 100%, rgba(var(--rc-accent) / 0.1), transparent 50%);
+      pointer-events: none;
+    }
+    .rc-appearance-hero__inner {
+      position: relative;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .rc-appearance-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      border: 1px solid rgba(var(--rc-primary) / 0.25);
+      background: rgba(var(--rc-primary) / 0.1);
+      padding: 0.2rem 0.65rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-primary));
+    }
+    .rc-appearance-layout {
+      display: grid;
+      gap: 1.25rem;
+      margin-top: 1.25rem;
+    }
+    #appearance-preset-grid {
+      gap: 0.5rem;
+    }
+    @media (min-width: 640px) {
+      #appearance-preset-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 1024px) {
+      #appearance-preset-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .rc-appearance-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(13.5rem, 16rem);
+        align-items: start;
+      }
+      .rc-appearance-stage-wrap {
+        position: sticky;
+        top: 5.5rem;
+      }
+    }
+    @media (min-width: 1280px) {
+      #appearance-preset-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+    .rc-appearance-section-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+    }
+    .rc-appearance-section-label svg {
+      width: 1rem;
+      height: 1rem;
+      opacity: 0.7;
+    }
+    .rc-appearance-preset {
+      position: relative;
+      cursor: pointer;
+      border-radius: 0.75rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: rgb(var(--rc-surface));
+      padding: 0;
+      text-align: left;
+      overflow: hidden;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .rc-appearance-preset:hover {
+      border-color: rgba(var(--rc-primary) / 0.35);
+      transform: translateY(-2px);
+      box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.45);
+    }
+    .rc-appearance-preset.is-selected {
+      border-color: rgba(var(--rc-primary) / 0.65);
+      box-shadow: 0 0 0 1px rgba(var(--rc-primary) / 0.4), 0 20px 48px -28px rgba(var(--rc-primary) / 0.45);
+    }
+    .rc-appearance-preset__check {
+      position: absolute;
+      top: 0.35rem;
+      right: 0.35rem;
+      z-index: 2;
+      display: flex;
+      height: 1rem;
+      width: 1rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: rgb(var(--rc-primary));
+      color: #fff;
+      opacity: 0;
+      transform: scale(0.6);
+      transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .rc-appearance-preset.is-selected .rc-appearance-preset__check {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .rc-appearance-preset__frame {
+      position: relative;
+      margin: 0.4rem 0.4rem 0;
+      border-radius: 0.45rem;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 4px 14px -10px rgba(0, 0, 0, 0.35);
+      aspect-ratio: 2 / 1;
+      max-height: 3.25rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .rc-appearance-preset__titlebar {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.2rem 0.35rem;
+      flex-shrink: 0;
+    }
+    .rc-appearance-preset__traffic {
+      width: 0.3rem;
+      height: 0.3rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.22);
+    }
+    .rc-appearance-preset__canvas {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 28% 1fr;
+      gap: 0.2rem;
+      padding: 0.25rem;
+      min-height: 0;
+    }
+    .rc-appearance-preset__rail {
+      border-radius: 0.35rem;
+      opacity: 0.92;
+    }
+    .rc-appearance-preset__content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .rc-appearance-preset__block {
+      border-radius: 0.3rem;
+      flex: 1;
+      min-height: 0.5rem;
+    }
+    .rc-appearance-preset__block--sm {
+      flex: 0 0 28%;
+    }
+    .rc-appearance-preset__meta {
+      padding: 0.4rem 0.5rem 0.5rem;
+    }
+    .rc-appearance-preset__name {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: rgb(var(--rc-page-fg));
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .rc-appearance-preset__tag {
+      margin-top: 0.1rem;
+      font-size: 0.6rem;
+      line-height: 1.25;
+      color: rgb(var(--rc-muted));
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .rc-appearance-preset__chips {
+      display: flex;
+      gap: 0.2rem;
+      margin-top: 0.35rem;
+    }
+    .rc-appearance-preset__chip {
+      height: 0.35rem;
+      width: 0.9rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .rc-appearance-mode {
+      display: inline-flex;
+      padding: 0.2rem;
+      border-radius: 0.85rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: rgb(var(--rc-surface-2));
+      gap: 0.15rem;
+    }
+    .rc-appearance-mode__btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 0.65rem;
+      border: none;
+      background: transparent;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgb(var(--rc-muted));
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .rc-appearance-mode__btn.is-active {
+      background: rgb(var(--rc-surface));
+      color: rgb(var(--rc-page-fg));
+      box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.25);
+    }
+    .rc-appearance-mode__btn svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      opacity: 0.85;
+    }
+    .rc-appearance-brand-grid {
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 20rem;
+    }
+    .rc-appearance-brand-card {
+      border-radius: 0.65rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: rgb(var(--rc-surface-2));
+      padding: 0.5rem 0.55rem;
+      transition: border-color 0.2s ease;
+    }
+    .rc-appearance-brand-card:focus-within {
+      border-color: rgba(var(--rc-primary) / 0.45);
+    }
+    .rc-appearance-brand-card__swatch {
+      height: 1.75rem;
+      border-radius: 0.4rem;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 0.4rem;
+      overflow: hidden;
+      position: relative;
+    }
+    .rc-appearance-brand-card__swatch input[type="color"] {
+      position: absolute;
+      inset: -8px;
+      width: calc(100% + 16px);
+      height: calc(100% + 16px);
+      cursor: pointer;
+      border: none;
+      padding: 0;
+    }
+    .rc-appearance-brand-card__hex {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: rgb(var(--rc-page-fg));
+      letter-spacing: 0.04em;
+    }
+    .rc-appearance-fonts {
+      display: grid;
+      gap: 0.35rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    @media (min-width: 640px) {
+      .rc-appearance-fonts {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 1024px) {
+      .rc-appearance-fonts {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+    .rc-appearance-font {
+      position: relative;
+      cursor: pointer;
+      border-radius: 0.65rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: rgb(var(--rc-surface));
+      padding: 0.45rem 0.4rem 0.5rem;
+      text-align: left;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+    }
+    .rc-appearance-font:hover {
+      border-color: rgba(var(--rc-primary) / 0.35);
+      transform: translateY(-1px);
+    }
+    .rc-appearance-font.is-selected {
+      border-color: rgba(var(--rc-primary) / 0.55);
+      background: linear-gradient(160deg, rgba(var(--rc-primary) / 0.12), rgba(var(--rc-surface) / 0.5));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .rc-appearance-font__glyph {
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: rgb(var(--rc-page-fg));
+    }
+    .rc-appearance-font__name {
+      margin-top: 0.2rem;
+      font-size: 0.55rem;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+      color: rgb(var(--rc-muted));
+    }
+    .rc-appearance-font__pill {
+      position: absolute;
+      top: 0.35rem;
+      right: 0.35rem;
+      font-size: 0.5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: rgb(var(--rc-primary));
+      opacity: 0;
+    }
+    .rc-appearance-font.is-selected .rc-appearance-font__pill {
+      opacity: 1;
+    }
+    .rc-appearance-font__cat {
+      display: block;
+      font-size: 0.5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgb(var(--rc-muted));
+      opacity: 0.85;
+    }
+    .rc-appearance-font__tagline {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.5rem;
+      line-height: 1.2;
+      color: rgb(var(--rc-muted));
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .rc-appearance-stage {
+      border-radius: 0.85rem;
+      border: 1px solid rgb(var(--rc-border));
+      overflow: hidden;
+      background: rgb(var(--rc-surface));
+      box-shadow: 0 24px 64px -32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    }
+    .rc-appearance-stage__label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgb(var(--rc-border));
+      color: rgb(var(--rc-muted));
+    }
+    .rc-appearance-stage__live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: rgb(var(--rc-primary));
+    }
+    .rc-appearance-stage__live::before {
+      content: "";
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 999px;
+      background: currentColor;
+      animation: rc-appearance-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes rc-appearance-pulse {
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.45;
+        transform: scale(0.85);
+      }
+    }
+    .rc-appearance-preview {
+      min-height: 9.5rem;
+    }
+    .rc-appearance-preview__topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    .rc-appearance-preview__search {
+      flex: 1;
+      max-width: 8rem;
+      height: 0.45rem;
+      border-radius: 999px;
+      opacity: 0.35;
+    }
+    .rc-appearance-preview__avatar {
+      width: 1.25rem;
+      height: 1.25rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .rc-appearance-preview__body {
+      display: grid;
+      grid-template-columns: 2.75rem 1fr;
+      min-height: 7.5rem;
+    }
+    .rc-appearance-preview__nav {
+      padding: 0.65rem 0.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      border-right: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    .rc-appearance-preview__nav-item {
+      height: 0.4rem;
+      border-radius: 0.25rem;
+    }
+    .rc-appearance-preview__nav-item--active {
+      width: 85% !important;
+      opacity: 1 !important;
+    }
+    .rc-appearance-preview__main {
+      padding: 0.75rem 0.85rem 1rem;
+    }
+    .rc-appearance-preview__stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.4rem;
+      margin-top: 0.55rem;
+    }
+    .rc-appearance-preview__stat {
+      border-radius: 0.5rem;
+      padding: 0.45rem 0.5rem;
+      font-size: 0.55rem;
+      line-height: 1.3;
+    }
+    .rc-appearance-preview__stat strong {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-top: 0.15rem;
+    }
+    .rc-appearance-preview__hero-card {
+      border-radius: 0.65rem;
+      padding: 0.65rem 0.75rem;
+      margin-top: 0.55rem;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .rc-appearance-preview__btn {
+      flex-shrink: 0;
+      padding: 0.3rem 0.6rem;
+      border-radius: 0.4rem;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.35);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rc-appearance-stage__live::before {
+        animation: none;
+      }
+      .rc-appearance-preset:hover,
+      .rc-appearance-font:hover {
+        transform: none;
+      }
+    }
   </style>
+  {% if appearance_fonts_google_url %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="{{ appearance_fonts_google_url }}" rel="stylesheet" />
+  {% endif %}
 {% endblock %}
 {% block title %}System settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}System settings{% endblock %}
@@ -123,33 +632,234 @@
   >
     <input type="hidden" name="return_hash" id="return_hash" value="#system" />
     <div id="system" data-panel="system" class="scroll-mt-24">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">System settings</h2>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Theme defaults for the portal UI.</p>
+      {% set _cur_preset = site_settings.theme_preset if site_settings and site_settings.theme_preset else 'eye-comfort' %}
+      {% set _cur_mode = site_settings.default_theme if site_settings else 'dark' %}
+      <input type="hidden" name="theme_preset" id="theme_preset" value="{{ _cur_preset }}" />
+      <input type="hidden" name="font_family" id="font_family" value="{{ site_settings.font_family if site_settings else 'Plus Jakarta Sans' }}" />
 
-      <div class="mt-6 grid gap-4 md:grid-cols-2">
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Default theme</label>
-          <select name="default_theme" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
-            <option value="dark" {% if site_settings and site_settings.default_theme == 'dark' %}selected{% endif %}>Dark</option>
-            <option value="light" {% if site_settings and site_settings.default_theme == 'light' %}selected{% endif %}>Light</option>
-            <option value="system" {% if site_settings and site_settings.default_theme == 'system' %}selected{% endif %}>System</option>
-          </select>
+      <div class="rc-appearance-hero">
+        <div class="rc-appearance-hero__inner">
+          <div class="max-w-2xl">
+            <span class="rc-appearance-badge">
+              <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
+              Global design system
+            </span>
+            <h2 class="mt-2 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">Appearance &amp; branding</h2>
+            <p class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Each palette has separate colors for <strong class="font-medium text-[rgb(var(--rc-page-fg))]">light</strong> and <strong class="font-medium text-[rgb(var(--rc-page-fg))]">dark</strong> mode. Use the mode pills below and your header theme toggle to check both before saving.
+            </p>
+          </div>
+          <p id="appearance-active-summary" class="text-right text-xs font-medium text-[rgb(var(--rc-muted))] sm:max-w-[12rem]">
+            <span class="block text-[10px] uppercase tracking-widest opacity-70">Active</span>
+            <span id="appearance-active-preset-label" class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">—</span>
+          </p>
         </div>
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Font family</label>
-          <select name="font_family" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
-            <option {% if site_settings and site_settings.font_family == 'Plus Jakarta Sans' %}selected{% endif %}>Plus Jakarta Sans</option>
-            <option {% if site_settings and site_settings.font_family == 'System UI' %}selected{% endif %}>System UI</option>
-            <option {% if site_settings and site_settings.font_family == 'Inter' %}selected{% endif %}>Inter</option>
-          </select>
+      </div>
+
+      <div class="rc-appearance-layout">
+        <div class="space-y-7">
+          <section>
+            <div class="rc-appearance-section-label">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+              </svg>
+              Color palettes
+            </div>
+            <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]"><strong class="font-medium text-[rgb(var(--rc-page-fg))]">18 color personalities</strong> — each sets the UI wash plus matching brand colors. Pick one, then tweak primary/accent if needed.</p>
+            <div class="mt-4 grid sm:grid-cols-2" id="appearance-preset-grid" role="radiogroup" aria-label="Theme palette">
+              {% for preset in appearance_presets %}
+                <button
+                  type="button"
+                  class="rc-appearance-preset {% if preset.id == _cur_preset %}is-selected{% endif %}"
+                  data-preset-id="{{ preset.id }}"
+                  data-preset-label="{{ preset.label }}"
+                  data-brand-primary="{{ preset.brand_primary }}"
+                  data-brand-accent="{{ preset.brand_accent }}"
+                  data-preset-dark="{{ preset.dark|tojson }}"
+                  data-preset-light="{{ preset.light|tojson }}"
+                  aria-pressed="{% if preset.id == _cur_preset %}true{% else %}false{% endif %}"
+                >
+                  {% if preset.recommended %}
+                    <span class="absolute left-2 top-2 z-[1] rounded bg-[rgb(var(--rc-primary))]/15 px-1 py-px text-[8px] font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))]">Top pick</span>
+                  {% endif %}
+                  <span class="rc-appearance-preset__check" aria-hidden="true">
+                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <div class="rc-appearance-preset__frame" aria-hidden="true">
+                    <div class="rc-appearance-preset__titlebar" style="background: rgb({{ preset.dark.surface }})">
+                      <span class="rc-appearance-preset__traffic"></span>
+                      <span class="rc-appearance-preset__traffic"></span>
+                      <span class="rc-appearance-preset__traffic"></span>
+                    </div>
+                    <div class="rc-appearance-preset__canvas" style="background: rgb({{ preset.dark.page_bg }})">
+                      <div class="rc-appearance-preset__rail" style="background: rgb({{ preset.dark.surface_2 }})"></div>
+                      <div class="rc-appearance-preset__content">
+                        <div class="rc-appearance-preset__block" style="background: rgb({{ preset.dark.surface }})"></div>
+                        <div class="rc-appearance-preset__block rc-appearance-preset__block--sm" style="background: rgb({{ preset.dark.border }})"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="rc-appearance-preset__meta">
+                    <p class="rc-appearance-preset__name">{{ preset.label }}</p>
+                    <p class="rc-appearance-preset__tag">{{ preset.tagline }}</p>
+                    <div class="rc-appearance-preset__chips">
+                      {% for hex in preset.swatch %}
+                        <span class="rc-appearance-preset__chip" style="background: {{ hex }}"></span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </button>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section>
+            <div class="rc-appearance-section-label">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              Display mode
+            </div>
+            <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Default experience for new visitors before they use the theme toggle.</p>
+            <select name="default_theme" id="default_theme" class="sr-only" tabindex="-1" aria-hidden="true">
+              <option value="dark" {% if _cur_mode == 'dark' %}selected{% endif %}>Dark</option>
+              <option value="light" {% if _cur_mode == 'light' %}selected{% endif %}>Light</option>
+              <option value="system" {% if _cur_mode == 'system' %}selected{% endif %}>System</option>
+            </select>
+            <div class="rc-appearance-mode mt-4" id="appearance-mode-pills" role="group" aria-label="Default display mode">
+              <button type="button" class="rc-appearance-mode__btn {% if _cur_mode == 'dark' %}is-active{% endif %}" data-mode="dark">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+                Dark
+              </button>
+              <button type="button" class="rc-appearance-mode__btn {% if _cur_mode == 'light' %}is-active{% endif %}" data-mode="light">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                Light
+              </button>
+              <button type="button" class="rc-appearance-mode__btn {% if _cur_mode == 'system' %}is-active{% endif %}" data-mode="system">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                System
+              </button>
+            </div>
+          </section>
+
+          <section>
+            <div class="rc-appearance-section-label">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4z" />
+              </svg>
+              Brand colors
+            </div>
+            <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Buttons, links, charts, and focus rings across the product.</p>
+            <div class="rc-appearance-brand-grid mt-4">
+              <div class="rc-appearance-brand-card">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Primary</p>
+                <div class="rc-appearance-brand-card__swatch" id="primary_color_swatch" style="background: {{ site_settings.primary_color if site_settings else '#f97316' }}">
+                  <input name="primary_color" id="primary_color" type="color" value="{{ site_settings.primary_color if site_settings else '#f97316' }}" aria-label="Primary brand color" />
+                </div>
+                <span class="rc-appearance-brand-card__hex" id="primary_color_hex">{{ site_settings.primary_color if site_settings else '#f97316' }}</span>
+              </div>
+              <div class="rc-appearance-brand-card">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Accent</p>
+                <div class="rc-appearance-brand-card__swatch" id="accent_color_swatch" style="background: {{ site_settings.accent_color if site_settings else '#fb923c' }}">
+                  <input name="accent_color" id="accent_color" type="color" value="{{ site_settings.accent_color if site_settings else '#fb923c' }}" aria-label="Accent brand color" />
+                </div>
+                <span class="rc-appearance-brand-card__hex" id="accent_color_hex">{{ site_settings.accent_color if site_settings else '#fb923c' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <div class="rc-appearance-section-label">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h10" />
+              </svg>
+              Typography
+            </div>
+            <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]"><strong class="font-medium text-[rgb(var(--rc-page-fg))]">27 typefaces</strong> — modern, professional, friendly, technical &amp; accessible. Click to preview across the portal.</p>
+            <div class="rc-appearance-fonts mt-4" id="appearance-font-grid" role="listbox" aria-label="Font family">
+              {% for font in appearance_fonts %}
+                <button
+                  type="button"
+                  class="rc-appearance-font {% if site_settings and site_settings.font_family == font.id %}is-selected{% elif not site_settings and font.recommended %}is-selected{% endif %}"
+                  data-font-id="{{ font.id }}"
+                  data-font-stack="{{ font.stack }}"
+                  role="option"
+                  aria-selected="{% if site_settings and site_settings.font_family == font.id %}true{% elif not site_settings and font.recommended %}true{% else %}false{% endif %}"
+                  title="{{ font.tagline }}"
+                >
+                  <span class="rc-appearance-font__pill">{% if font.recommended %}Default{% else %}Active{% endif %}</span>
+                  <span class="rc-appearance-font__cat">{{ font.category }}</span>
+                  <span class="rc-appearance-font__glyph" style="font-family: {{ font.stack }}">Ag</span>
+                  <span class="rc-appearance-font__name" style="font-family: {{ font.stack }}">{{ font.id }}</span>
+                  {% if font.tagline %}
+                    <span class="rc-appearance-font__tagline" style="font-family: {{ font.stack }}">{{ font.tagline }}</span>
+                  {% endif %}
+                </button>
+              {% endfor %}
+            </div>
+          </section>
         </div>
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Primary color</label>
-          <input name="primary_color" type="color" class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2" value="{{ site_settings.primary_color if site_settings else '#f97316' }}" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Accent color</label>
-          <input name="accent_color" type="color" class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2" value="{{ site_settings.accent_color if site_settings else '#fb923c' }}" />
+
+        <div class="rc-appearance-stage-wrap">
+          <div class="rc-appearance-stage">
+            <div class="rc-appearance-stage__label">
+              <span>Live portal preview</span>
+              <span class="rc-appearance-stage__live">Updating</span>
+            </div>
+            <div class="rc-appearance-preview" id="appearance-live-preview">
+              <div class="rc-appearance-preview__topbar" id="appearance-preview-topbar">
+                <span class="rc-appearance-preview__search" id="appearance-preview-search"></span>
+                <span class="rc-appearance-preview__avatar" id="appearance-preview-avatar"></span>
+              </div>
+              <div class="rc-appearance-preview__body">
+                <nav class="rc-appearance-preview__nav" id="appearance-preview-nav" aria-hidden="true">
+                  <span class="rc-appearance-preview__nav-item rc-appearance-preview__nav-item--active" style="width: 75%"></span>
+                  <span class="rc-appearance-preview__nav-item" style="width: 55%"></span>
+                  <span class="rc-appearance-preview__nav-item" style="width: 65%"></span>
+                  <span class="rc-appearance-preview__nav-item" style="width: 45%"></span>
+                </nav>
+                <div class="rc-appearance-preview__main" id="appearance-preview-main">
+                  <p class="text-[11px] font-bold uppercase tracking-wider opacity-50" id="appearance-preview-eyebrow">Overview</p>
+                  <p class="text-sm font-bold tracking-tight" id="appearance-preview-heading">Dashboard</p>
+                  <p class="mt-0.5 text-[10px] opacity-75" id="appearance-preview-sub">Sales, stock &amp; credit</p>
+                  <div class="rc-appearance-preview__stats" id="appearance-preview-stats">
+                    <div class="rc-appearance-preview__stat" id="appearance-preview-stat-1">
+                      Sales
+                      <strong>KES 84k</strong>
+                    </div>
+                    <div class="rc-appearance-preview__stat" id="appearance-preview-stat-2">
+                      Orders
+                      <strong>126</strong>
+                    </div>
+                    <div class="rc-appearance-preview__stat" id="appearance-preview-stat-3">
+                      Stock
+                      <strong>98%</strong>
+                    </div>
+                  </div>
+                  <div class="rc-appearance-preview__hero-card" id="appearance-preview-card">
+                    <div>
+                      <span class="text-[10px] font-medium opacity-80">Today&apos;s total</span>
+                      <span class="block text-sm font-bold tracking-tight">KES 128,450</span>
+                    </div>
+                    <span class="rc-appearance-preview__btn" id="appearance-preview-btn">Report</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="mt-3 text-center text-[10px] leading-relaxed text-[rgb(var(--rc-muted))]">
+            Reflects palette, mode, fonts &amp; brand colors. Auto-saves shortly after each change.
+          </p>
         </div>
       </div>
     </div>
@@ -1235,6 +1945,264 @@
         el.addEventListener("change", syncAllowVsCompulsory);
       });
       syncAllowVsCompulsory();
+    })();
+
+    (function () {
+      var presetGrid = document.getElementById("appearance-preset-grid");
+      var fontGrid = document.getElementById("appearance-font-grid");
+      var presetInput = document.getElementById("theme_preset");
+      var fontInput = document.getElementById("font_family");
+      var defaultThemeSel = document.getElementById("default_theme");
+      var modePills = document.getElementById("appearance-mode-pills");
+      var priInput = document.getElementById("primary_color");
+      var accInput = document.getElementById("accent_color");
+      var priHex = document.getElementById("primary_color_hex");
+      var accHex = document.getElementById("accent_color_hex");
+      var priSwatch = document.getElementById("primary_color_swatch");
+      var accSwatch = document.getElementById("accent_color_swatch");
+      var activePresetLabel = document.getElementById("appearance-active-preset-label");
+      var previewTop = document.getElementById("appearance-preview-topbar");
+      var previewNav = document.getElementById("appearance-preview-nav");
+      var previewMain = document.getElementById("appearance-preview-main");
+      var previewCard = document.getElementById("appearance-preview-card");
+      var previewBtn = document.getElementById("appearance-preview-btn");
+      var previewHeading = document.getElementById("appearance-preview-heading");
+      var previewSub = document.getElementById("appearance-preview-sub");
+      var previewEyebrow = document.getElementById("appearance-preview-eyebrow");
+      var previewAvatar = document.getElementById("appearance-preview-avatar");
+      var previewSearch = document.getElementById("appearance-preview-search");
+      var previewStats = document.getElementById("appearance-preview-stats");
+      var statEls = [
+        document.getElementById("appearance-preview-stat-1"),
+        document.getElementById("appearance-preview-stat-2"),
+        document.getElementById("appearance-preview-stat-3"),
+      ];
+
+      function hexToRgb(hex) {
+        hex = String(hex || "").replace("#", "").trim();
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        if (hex.length !== 6) return null;
+        var n = parseInt(hex, 16);
+        if (isNaN(n)) return null;
+        return (n >> 16) + " " + ((n >> 8) & 255) + " " + (n & 255);
+      }
+
+      function resolvePreviewMode() {
+        var v = defaultThemeSel ? defaultThemeSel.value : "dark";
+        if (v === "system" && window.RichcomTheme && window.RichcomTheme.resolveDefault) {
+          return window.RichcomTheme.resolveDefault("system");
+        }
+        if (v === "system") {
+          try {
+            return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          } catch (e) {
+            return "dark";
+          }
+        }
+        return v === "light" ? "light" : "dark";
+      }
+
+      function activePresetButton() {
+        return presetGrid ? presetGrid.querySelector(".rc-appearance-preset.is-selected") : null;
+      }
+
+      function activePresetTokens() {
+        var btn = activePresetButton();
+        if (!btn) return null;
+        var mode = resolvePreviewMode();
+        try {
+          return JSON.parse(btn.getAttribute(mode === "light" ? "data-preset-light" : "data-preset-dark") || "{}");
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function paintPresetFrames() {
+        if (!presetGrid) return;
+        var mode = resolvePreviewMode();
+        presetGrid.querySelectorAll(".rc-appearance-preset").forEach(function (btn) {
+          var tokens;
+          try {
+            tokens = JSON.parse(btn.getAttribute(mode === "light" ? "data-preset-light" : "data-preset-dark") || "{}");
+          } catch (e) {
+            return;
+          }
+          var titlebar = btn.querySelector(".rc-appearance-preset__titlebar");
+          var canvas = btn.querySelector(".rc-appearance-preset__canvas");
+          var rail = btn.querySelector(".rc-appearance-preset__rail");
+          var blocks = btn.querySelectorAll(".rc-appearance-preset__block");
+          if (titlebar && tokens.surface) titlebar.style.background = "rgb(" + tokens.surface + ")";
+          if (canvas && tokens.page_bg) canvas.style.background = "rgb(" + tokens.page_bg + ")";
+          if (rail && tokens.surface_2) rail.style.background = "rgb(" + tokens.surface_2 + ")";
+          if (blocks[0] && tokens.surface) blocks[0].style.background = "rgb(" + tokens.surface + ")";
+          if (blocks[1] && tokens.border) blocks[1].style.background = "rgb(" + tokens.border + ")";
+        });
+      }
+
+      function applyBrandColors() {
+        var root = document.documentElement;
+        if (priInput) {
+          var p = hexToRgb(priInput.value);
+          if (p) root.style.setProperty("--rc-primary", p);
+          if (priHex) priHex.textContent = priInput.value.toUpperCase();
+          if (priSwatch) priSwatch.style.background = priInput.value;
+        }
+        if (accInput) {
+          var a = hexToRgb(accInput.value);
+          if (a) root.style.setProperty("--rc-accent", a);
+          if (accHex) accHex.textContent = accInput.value.toUpperCase();
+          if (accSwatch) accSwatch.style.background = accInput.value;
+        }
+      }
+
+      function applyFont() {
+        var sel = fontGrid ? fontGrid.querySelector(".rc-appearance-font.is-selected") : null;
+        var stack = sel ? sel.getAttribute("data-font-stack") : null;
+        if (!stack) return;
+        document.documentElement.style.setProperty("--rc-font-family", stack);
+        document.querySelectorAll(
+          "#appearance-preview-heading, #appearance-preview-sub, #appearance-preview-eyebrow, #appearance-live-preview"
+        ).forEach(function (el) {
+          if (el) el.style.fontFamily = stack;
+        });
+      }
+
+      function syncActiveLabel() {
+        var btn = activePresetButton();
+        if (activePresetLabel && btn) {
+          activePresetLabel.textContent = btn.getAttribute("data-preset-label") || "Theme";
+        }
+      }
+
+      function syncLivePreviewPanel() {
+        var t = activePresetTokens();
+        if (!t || !previewMain) return;
+        var pri = priInput ? priInput.value : "#f97316";
+        var acc = accInput ? accInput.value : "#fb923c";
+        if (previewTop) {
+          previewTop.style.background = "rgb(" + t.surface + ")";
+          previewTop.style.borderColor = "rgba(" + t.border + " / 0.35)";
+        }
+        if (previewSearch) previewSearch.style.background = "rgb(" + t.border + ")";
+        if (previewAvatar) previewAvatar.style.background = "linear-gradient(135deg, " + pri + ", " + acc + ")";
+        if (previewNav) {
+          previewNav.style.background = "rgb(" + t.surface_2 + ")";
+          previewNav.style.borderColor = "rgba(" + t.border + " / 0.4)";
+        }
+        previewMain.style.background = "rgb(" + t.page_bg + ")";
+        previewMain.style.color = "rgb(" + t.page_fg + ")";
+        previewCard.style.background =
+          "linear-gradient(145deg, rgba(" + hexToRgb(pri) + " / 0.18), rgb(" + t.surface + "))";
+        previewCard.style.border = "1px solid rgba(" + t.border + " / 0.55)";
+        previewCard.style.boxShadow = "0 8px 24px -16px rgba(" + hexToRgb(pri) + " / 0.45)";
+        previewBtn.style.background = pri;
+        previewBtn.style.color = "#fff";
+        previewNav.querySelectorAll(".rc-appearance-preview__nav-item").forEach(function (el, i) {
+          el.style.background = i === 0 ? pri : "rgb(" + t.border + ")";
+          el.style.opacity = i === 0 ? "1" : "0.45";
+        });
+        statEls.forEach(function (el) {
+          if (!el) return;
+          el.style.background = "rgb(" + t.surface + ")";
+          el.style.border = "1px solid rgba(" + t.border + " / 0.5)";
+          el.style.color = "rgb(" + t.page_fg + ")";
+        });
+        if (previewStats) previewStats.style.opacity = "1";
+      }
+
+      function refreshAppearancePreview() {
+        var pid = presetInput ? presetInput.value : "";
+        if (pid) document.documentElement.setAttribute("data-theme-preset", pid);
+        if (window.RichcomTheme && window.RichcomTheme.clearPaletteInlineVars) {
+          window.RichcomTheme.clearPaletteInlineVars();
+        }
+        applyBrandColors();
+        applyFont();
+        paintPresetFrames();
+        syncLivePreviewPanel();
+        syncActiveLabel();
+        if (window.RichcomTheme && defaultThemeSel) {
+          window.RichcomTheme.apply(resolvePreviewMode());
+        }
+      }
+
+      function setMode(mode) {
+        if (!defaultThemeSel) return;
+        defaultThemeSel.value = mode;
+        if (modePills) {
+          modePills.querySelectorAll(".rc-appearance-mode__btn").forEach(function (b) {
+            b.classList.toggle("is-active", b.getAttribute("data-mode") === mode);
+          });
+        }
+        defaultThemeSel.dispatchEvent(new Event("change", { bubbles: true }));
+        refreshAppearancePreview();
+      }
+
+      function applyPresetBrand(btn) {
+        if (!btn) return;
+        var pri = btn.getAttribute("data-brand-primary");
+        var acc = btn.getAttribute("data-brand-accent");
+        if (pri && priInput) {
+          priInput.value = pri;
+          priInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        if (acc && accInput) {
+          accInput.value = acc;
+          accInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }
+
+      if (presetGrid && presetInput) {
+        presetGrid.querySelectorAll(".rc-appearance-preset").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            presetGrid.querySelectorAll(".rc-appearance-preset").forEach(function (b) {
+              b.classList.remove("is-selected");
+              b.setAttribute("aria-pressed", "false");
+            });
+            btn.classList.add("is-selected");
+            btn.setAttribute("aria-pressed", "true");
+            presetInput.value = btn.getAttribute("data-preset-id") || "eye-comfort";
+            applyPresetBrand(btn);
+            refreshAppearancePreview();
+          });
+        });
+      }
+
+      if (fontGrid && fontInput) {
+        fontGrid.querySelectorAll(".rc-appearance-font").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            fontGrid.querySelectorAll(".rc-appearance-font").forEach(function (b) {
+              b.classList.remove("is-selected");
+              b.setAttribute("aria-selected", "false");
+            });
+            btn.classList.add("is-selected");
+            btn.setAttribute("aria-selected", "true");
+            fontInput.value = btn.getAttribute("data-font-id") || "Plus Jakarta Sans";
+            refreshAppearancePreview();
+          });
+        });
+      }
+
+      if (modePills) {
+        modePills.querySelectorAll(".rc-appearance-mode__btn").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            setMode(btn.getAttribute("data-mode") || "dark");
+          });
+        });
+      }
+
+      if (defaultThemeSel) {
+        defaultThemeSel.addEventListener("change", refreshAppearancePreview);
+        try {
+          window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+            if (defaultThemeSel.value === "system") refreshAppearancePreview();
+          });
+        } catch (e) {}
+      }
+      if (priInput) priInput.addEventListener("input", refreshAppearancePreview);
+      if (accInput) accInput.addEventListener("input", refreshAppearancePreview);
+
+      refreshAppearancePreview();
     })();
 
     (function () {

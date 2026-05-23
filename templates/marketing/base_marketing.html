@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth" data-marketing-theme="light">
+<html
+  lang="en"
+  class="scroll-smooth"
+  data-marketing-theme="light"
+  style="--rc-font-family: {{ (site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack }}"
+>
   <script>
     (function () {
       try {
@@ -16,9 +21,7 @@
     <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
     <title>{% block title %}{{ pub_brand_name }}{% endblock %} — {{ pub_title_suffix }}</title>
     <meta name="description" content="{% block meta_description %}Run every store with clear sales, stock, and reporting — one view of your retail business, from the shop to head office.{% endblock %}" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    {% include "partials/theme_font_link.html" %}
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -26,8 +29,8 @@
         theme: {
           extend: {
             fontFamily: {
-              sans: ["Inter", "system-ui", "sans-serif"],
-              display: ["Inter", "system-ui", "sans-serif"],
+              sans: ["var(--rc-font-family)"],
+              display: ["var(--rc-font-family)"],
             },
             colors: {
               pos: {
@@ -57,6 +60,16 @@
       };
     </script>
     <style>
+      html {
+        font-family: var(--rc-font-family, "Plus Jakarta Sans", system-ui, sans-serif);
+      }
+      body,
+      button,
+      input,
+      select,
+      textarea {
+        font-family: inherit;
+      }
       html[data-marketing-theme="light"] body {
         color: #18181b;
         background: #ffffff;
@@ -72,7 +85,7 @@
   </head>
   <body class="font-sans antialiased overflow-x-hidden text-zinc-900 dark:text-zinc-100">
     {% include "marketing/partials/header.html" %}
-    <main class="pt-14">{% block content %}{% endblock %}</main>
+    <main class="mk-main">{% block content %}{% endblock %}</main>
     {% include "marketing/partials/footer.html" %}
     <script src="{{ url_for('static', filename='marketing/js/marketing.js') }}"></script>
     {% block extra_scripts %}{% endblock %}

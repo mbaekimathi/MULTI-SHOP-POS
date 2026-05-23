@@ -13,7 +13,7 @@
 
   {% if not audit_sales %}
     {% set empty_title = "No credit sales match" %}
-    {% set empty_message = "Adjust date range, shop, customer search, or payment status, then apply filters again." %}
+    {% set empty_message = "Adjust date range, shop, customer search, or payment status." %}
     {% include "partials/it_support_credit_empty.html" %}
   {% else %}
     <div class="it-credit-cards" aria-label="Credit sales list">

@@ -7,169 +7,49 @@
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set d = stock_data or {} %}
-  <style>
-    .shop-stock-analytics-theme .it-analytics-toolbar,
-    .shop-stock-analytics-theme .it-analytics-filter {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 14px 28px -22px rgba(15, 23, 42, 0.55);
-    }
-    .shop-stock-analytics-theme .it-analytics-toolbar {
-      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 38%);
-    }
-    .shop-stock-analytics-theme .it-analytics-filter input,
-    .shop-stock-analytics-theme .it-analytics-filter select {
-      min-height: 2.5rem;
-    }
-    .shop-stock-analytics-theme .rounded-2xl {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 28px -24px rgba(15, 23, 42, 0.52);
-    }
-    .shop-stock-analytics-theme [data-shop-analytics-report-view="raw"] .sa-visual-only {
-      display: none !important;
-    }
-    .shop-stock-analytics-theme [data-shop-analytics-report-view="visual"] .sa-raw-only {
-      display: none !important;
-    }
-    .shop-stock-analytics-theme .shop-analytics-tab {
-      transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
-    }
-    .shop-stock-analytics-theme .shop-analytics-tab.shop-analytics-tab-active {
-      background: rgba(var(--rc-primary), 0.14);
-      color: rgb(var(--rc-page-fg));
-      box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.28);
-    }
-  </style>
-  <div class="shop-stock-analytics-theme">
-  <div class="it-analytics-toolbar mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock analytics</p>
-        <p class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Summary across the filtered period.</p>
-      </div>
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300/95">
-          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-          Live
-        </span>
-        <div class="flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1" role="tablist" aria-label="Raw or visual stock analytics">
-          <button type="button" role="tab" id="shop-stock-tab-raw" class="shop-analytics-tab shop-analytics-tab-active rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" aria-selected="true">Raw data</button>
-          <button type="button" role="tab" id="shop-stock-tab-visual" class="shop-analytics-tab rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" aria-selected="false">Visual data</button>
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <div class="sa-stock-analytics">
+  <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    {% set stock_shell_title = 'Stock status' %}
+    {% set stock_shell_desc = 'Movement summary for ' ~ shop.shop_name ~ ' in the selected period.' %}
+    {% set stock_shell_badge = 'Stock status' %}
+    {% set stock_shell_show_tabs = true %}
+    {% include "partials/shop_stock_hero_filter.html" %}
+
+    <div id="shop-stock-report-root" data-shop-analytics-report-view="raw" class="space-y-4">
+      <div class="sa-stock-kpis grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">In</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ d.qty_in or 0 }}</p>
         </div>
-      </div>
-    </div>
-  </div>
-  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop stock analytics</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Showing stock movement for <span class="font-semibold">{{ f.range_label or 'selected period' }}</span>.
-        </p>
-      </div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-        {{ d.tx_count or 0 }} transactions
-      </div>
-    </div>
-    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">In</div><div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.qty_in or 0 }}</div></div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Out</div><div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.qty_out or 0 }}</div></div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Net</div><div class="mt-1 text-2xl font-extrabold {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{% if (d.net_qty or 0) > 0 %}+{% endif %}{{ d.net_qty or 0 }}</div></div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Items moved</div><div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ d.distinct_items or 0 }}</div></div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">SKUs in catalog</div><div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ sku_count or 0 }}</div></div>
-    </div>
-  </div>
-
-  <form method="get" class="it-analytics-filter mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3 shadow-sm">
-    <div class="flex flex-wrap items-end gap-2.5">
-      <div class="min-w-[10rem] flex-1">
-        <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
-        <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
-          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-          <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-          <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-        </select>
-      </div>
-
-      <div id="filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
-        <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
-        <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-      </div>
-
-      <div id="filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-        <div class="min-w-[9.5rem] flex-1">
-          <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
-          <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Out</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ d.qty_out or 0 }}</p>
         </div>
-        <div class="min-w-[9.5rem] flex-1">
-          <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
-          <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Net</p>
+          <p class="mt-1 text-2xl font-black tabular-nums {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{% if (d.net_qty or 0) > 0 %}+{% endif %}{{ d.net_qty or 0 }}</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Items moved</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ d.distinct_items or 0 }}</p>
+        </div>
+        <div class="rounded-2xl border border-amber-400/25 bg-amber-500/[0.07] p-4 shadow-sm sm:col-span-2 xl:col-span-1">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300/90">SKUs in catalog</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ sku_count or 0 }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ d.tx_count or 0 }} transactions</p>
         </div>
       </div>
 
-      <div id="filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-        <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
-        <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      <div class="sa-visual-only sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">At a glance</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Totals above reflect stock movement for your selected range. Use Raw data and Stock reports for line-level detail.</p>
       </div>
-
-      <div id="filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-        <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
-        <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-      </div>
-
-      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
+      <p class="sa-raw-only text-sm text-[rgb(var(--rc-muted))]">
+        Detailed tables are on
+        <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, view='low_stock', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '', reorder_threshold=reorder_threshold or 5) }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">stock reports</a>.
+      </p>
     </div>
-  </form>
-
-  <div id="shop-stock-report-root" data-shop-analytics-report-view="raw">
-  <div class="sa-visual-only mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">At a glance</h3>
-    <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">High-level KPIs reflect stock movement totals for your selected range above. Detailed line-level movement stays in Raw data plus full reports.</p>
   </div>
-  <p class="sa-raw-only mt-4 text-sm text-[rgb(var(--rc-muted))]">
-    Detailed tables are on
-    <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, view='low_stock', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '', reorder_threshold=reorder_threshold or 5) }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">shop stock reports</a>.
-  </p>
-  </div>
-
-  <script>
-    (function () {
-      var reportRoot = document.getElementById("shop-stock-report-root");
-      var rawBtn = document.getElementById("shop-stock-tab-raw");
-      var visualBtn = document.getElementById("shop-stock-tab-visual");
-      var STORAGE_KEY = "shop-stock-analytics-report-view";
-      var mode = document.getElementById("analytics-filter-mode");
-      var day = document.getElementById("filter-single-day");
-      var period = document.getElementById("filter-period");
-      var month = document.getElementById("filter-month");
-      var year = document.getElementById("filter-year");
-      function syncView(view) {
-        var v = view === "visual" ? "visual" : "raw";
-        if (!reportRoot || !rawBtn || !visualBtn) return;
-        reportRoot.setAttribute("data-shop-analytics-report-view", v);
-        rawBtn.classList.toggle("shop-analytics-tab-active", v === "raw");
-        visualBtn.classList.toggle("shop-analytics-tab-active", v === "visual");
-        rawBtn.setAttribute("aria-selected", v === "raw");
-        visualBtn.setAttribute("aria-selected", v === "visual");
-        try { localStorage.setItem(STORAGE_KEY, v); } catch (_e) {}
-      }
-      function sync() {
-        var m = mode.value || "single_day";
-        if (day) day.classList.toggle("hidden", m !== "single_day");
-        if (period) period.classList.toggle("hidden", m !== "period");
-        if (month) month.classList.toggle("hidden", m !== "month");
-        if (year) year.classList.toggle("hidden", m !== "year");
-      }
-      if (rawBtn && visualBtn && reportRoot) {
-        rawBtn.addEventListener("click", function () { syncView("raw"); });
-        visualBtn.addEventListener("click", function () { syncView("visual"); });
-        try { syncView(localStorage.getItem(STORAGE_KEY) || "raw"); } catch (_e) { syncView("raw"); }
-      }
-      if (mode) {
-        mode.addEventListener("change", sync);
-        sync();
-      }
-    })();
-  </script>
   </div>
 {% endblock %}

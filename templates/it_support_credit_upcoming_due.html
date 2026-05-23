@@ -1,29 +1,22 @@
-{% extends "employee_layout.html" %}
-{% block title %}Upcoming credit due dates — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
-{% block portal_page_title %}Upcoming credit due dates{% endblock %}
-
-{% block sidebar_links %}
-  {% include "partials/it_support_credit_sidebar_nav.html" %}
-{% endblock %}
-
-{% block employee_content %}
-  {% set shop_list = shops or [] %}
-
-  <div class="it-credit-page">
-    <header class="it-credit-hub-header mb-5 sm:mb-6">
-      {% set credit_title = "Upcoming credit due dates" %}
-      {% set credit_description = "Open credit with a due date on or before your horizon (includes past-due). Sorted by due date, soonest first." %}
-      {% include "partials/it_support_credit_intro.html" %}
-
-      {% set filter_clear_url = url_for('it_support_credit_payments_upcoming_due') %}
-      {% include "partials/it_support_credit_filter_due.html" %}
-    </header>
-
-    {% include "partials/it_support_credit_due_data.html" %}
-  </div>
-{% endblock %}
-
-{% block scripts %}
-  {{ super() }}
-  {% include "partials/it_support_credit_hub_assets.html" %}
-{% endblock %}
+{% extends "employee_layout.html" %}
+{% block title %}Upcoming credit due dates — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Upcoming credit due dates{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_credit_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  {% set shop_list = shops or [] %}
+  {% include "partials/it_support_credit_hub_assets.html" %}
+  <div class="it-credit-page it-credit-analytics">
+  <div class="it-credit-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    {% set credit_shell_title = 'Upcoming credit due dates' %}
+    {% set credit_shell_desc = 'Open credit with a due date on or before your horizon (includes past-due). Sorted by due date, soonest first.' %}
+    {% set filter_clear_url = url_for('it_support_credit_payments_upcoming_due') %}
+    {% include "partials/it_support_credit_hero_filter_due.html" %}
+    {% include "partials/it_support_credit_due_data.html" %}
+  </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% endblock %}

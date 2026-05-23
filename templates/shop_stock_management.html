@@ -11,9 +11,11 @@
   {% set view = view|default('auto') %}
   {% set pos_inventory_mode = pos_inventory_mode|default('shop') %}
   {% set store_registration_enabled = store_registration_enabled|default(false) %}
-  <div class="space-y-6">
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <div class="sa-stock-analytics">
+  <div class="sa-stock-workspace mt-4 space-y-4 sm:space-y-6">
     {% if pos_inventory_mode == 'both' %}
-      <section class="rounded-2xl border border-amber-400/45 bg-[rgb(var(--rc-surface))] p-5 shadow-sm ring-1 ring-amber-400/20">
+      <section class="sa-stock-section rounded-2xl border border-amber-400/45 bg-[rgb(var(--rc-surface))] p-5 shadow-sm ring-1 ring-amber-400/20">
         <p class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-amber-300/95">Kitchen + shelf (POS “Both”)</p>
         <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
           This page now uses <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">registered store stock items</strong>
@@ -22,7 +24,7 @@
       </section>
     {% endif %}
 
-    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <section class="sa-stock-section rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Stock operations</h2>
@@ -440,6 +442,7 @@
         {% endif %}
       </section>
     {% endif %}
+  </div>
   </div>
 {% endblock %}
 

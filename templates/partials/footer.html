@@ -1,6 +1,10 @@
-  <footer class="border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] py-10">
-    <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center text-sm text-[rgb(var(--rc-muted))] sm:flex-row sm:text-left sm:px-6 lg:px-8">
-      <p>&copy; <span id="year"></span> {{ site_settings.company_name if site_settings else "Point of Sale" }}. All rights reserved.</p>
-      <p class="text-[rgb(var(--rc-muted))]">Networking · Equipment · Professional services</p>
+  <footer class="site-footer border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] pb-[env(safe-area-inset-bottom,0px)]">
+    <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div class="flex flex-col items-center gap-4 text-center text-sm text-[rgb(var(--rc-muted))] sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:text-left">
+        <p class="max-w-md leading-relaxed">
+          &copy; <span id="year"></span> {{ site_settings.company_name if site_settings else "Point of Sale" }}. All rights reserved.
+        </p>
+        <p class="max-w-xs text-[rgb(var(--rc-muted))] sm:text-right">Networking · Equipment · Professional services</p>
+      </div>
     </div>
   </footer>

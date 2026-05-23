@@ -13,115 +13,70 @@
   {% set leak_rows = high_value_zero_stock or [] %}
   {% set low_margin_rows = low_margin_high_volume or [] %}
   {% set low_stock_rows = low_stock_items or [] %}
-  <div class="mx-auto max-w-6xl space-y-4">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Per-item stock profitability (this shop)</h2>
-          <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-            POS sales window: <span class="font-semibold">{{ f.range_label or "selected period" }}</span>.
-            Avg buy uses weighted cost from stock-in at this shop.
-          </p>
-        </div>
+  {% set _view_labels = {
+    'margin': 'Margin',
+    'stock_value': 'Stock value',
+    'velocity': 'Turnover',
+    'leakage': 'Revenue leak',
+    'low_margin_high_volume': 'Low margin',
+    'low_stock': 'Low stock'
+  } %}
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <div class="sa-stock-analytics">
+  <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    {% set stock_shell_title = 'Stock profitability analysis' %}
+    {% set stock_shell_desc = 'Per-item margins and stock value for ' ~ shop.shop_name ~ '. POS window: ' ~ (f.range_label or 'selected period') ~ '.' %}
+    {% set stock_shell_badge = _view_labels.get(selected_view or 'margin', 'Profitability') %}
+    {% set stock_filter_extra_hidden = '<input type="hidden" name="view" value="' ~ (selected_view or 'margin') ~ '" /><input type="hidden" name="low_stock_threshold" value="' ~ (low_stock_threshold|default(5, true)) ~ '" />' %}
+    {% set stock_filter_extra_fields %}
+    <div class="min-w-[7rem] max-w-[9rem] flex-1">
+      <label for="stock-reorder-threshold" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Reorder</label>
+      <input id="stock-reorder-threshold" type="number" min="0" max="500" name="reorder_threshold" value="{{ reorder_threshold or 5 }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]" />
+    </div>
+    {% endset %}
+    {% include "partials/shop_stock_hero_filter.html" %}
+
+    <div class="sa-stock-kpis grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Items analysed</p>
+        <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ rows|length }}</p>
       </div>
-
-      <form method="get" class="mt-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/95 p-3">
-        <input type="hidden" name="view" value="{{ selected_view or 'margin' }}" />
-        <div class="flex flex-wrap items-end gap-2.5">
-          <div class="min-w-[10rem] flex-1">
-            <label for="profit-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
-            <select id="profit-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
-              <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-              <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-              <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-              <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-            </select>
-          </div>
-
-          <div id="profit-filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
-            <label for="profit-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
-            <input id="profit-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-          </div>
-
-          <div id="profit-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-            <div class="min-w-[9.5rem] flex-1">
-              <label for="profit-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
-              <input id="profit-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-            </div>
-            <div class="min-w-[9.5rem] flex-1">
-              <label for="profit-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
-              <input id="profit-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-            </div>
-          </div>
-
-          <div id="profit-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-            <label for="profit-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
-            <input id="profit-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-          </div>
-
-          <div id="profit-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-            <label for="profit-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
-            <input id="profit-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-          </div>
-
-          <div class="min-w-[8rem]">
-            <label for="profit-reorder-threshold" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Reorder</label>
-            <input id="profit-reorder-threshold" type="number" min="0" max="500" name="reorder_threshold" value="{{ reorder_threshold or 5 }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]" />
-          </div>
-          <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
-        </div>
-      </form>
-
-      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Items analysed</div>
-          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ rows|length }}</div>
-        </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Average margin</div>
-          <div class="mt-1 text-2xl font-extrabold {% if (avg_margin_pct or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">
-            {{ "%.2f"|format(avg_margin_pct or 0) }}%
-          </div>
-        </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Stock value</div>
-          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_stock_value or 0) }}</div>
-        </div>
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-4">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Dead stock value</div>
-          <div class="mt-1 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(dead_stock_value or 0) }}</div>
-          <div class="text-xs text-[rgb(var(--rc-muted))]">{{ dead_stock_count or 0 }} items</div>
-        </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Average margin</p>
+        <p class="mt-1 text-2xl font-black tabular-nums {% if (avg_margin_pct or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ "%.2f"|format(avg_margin_pct or 0) }}%</p>
+      </div>
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Stock value</p>
+        <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_stock_value or 0) }}</p>
+      </div>
+      <div class="rounded-2xl border border-amber-400/25 bg-amber-500/[0.07] p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300/90">Dead stock value</p>
+        <p class="mt-1 text-2xl font-black tabular-nums text-amber-400">{{ "%.2f"|format(dead_stock_value or 0) }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ dead_stock_count or 0 }} items</p>
       </div>
     </div>
 
     {% if selected_view == "margin" %}
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Margin analysis</h3>
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="sa-stock-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 pb-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Margin analysis</h3>
+        <span class="sa-stock-panel-meta text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">{{ margin_rows|length }} rows</span>
+      </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="min-w-[980px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Selling</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Avg buying</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Margin/unit</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Margin %</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty sold</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+        <table class="sa-stock-data-table min-w-[36rem] w-full text-sm">
+          <thead><tr><th class="text-left">Item</th><th class="text-right">Selling</th><th class="text-right">Avg buy</th><th class="text-right">Margin/unit</th><th class="text-right">Margin %</th><th class="text-right">Qty sold</th></tr></thead>
+          <tbody>
             {% for r in margin_rows[:40] %}
-              <tr>
-                <td class="px-3 py-2"><div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</div><div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.category or "—" }}</div></td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.selling_price or 0) }}</td>
-                <td class="px-3 py-2 text-right">{% if r.avg_buying_price is not none %}{{ "%.2f"|format(r.avg_buying_price or 0) }}{% else %}—{% endif %}</td>
-                <td class="px-3 py-2 text-right {% if r.margin_amount is not none and (r.margin_amount or 0) >= 0 %}text-emerald-400{% elif r.margin_amount is not none %}text-rose-400{% endif %}">{% if r.margin_amount is not none %}{{ "%.2f"|format(r.margin_amount) }}{% else %}—{% endif %}</td>
-                <td class="px-3 py-2 text-right {% if (r.margin_pct or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{% if r.margin_pct is not none %}{{ "%.2f"|format(r.margin_pct or 0) }}%{% else %}—{% endif %}</td>
-                <td class="px-3 py-2 text-right">{{ r.qty_sold or 0 }}</td>
-              </tr>
+            <tr>
+              <td><div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</div><div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.category or "—" }}</div></td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.selling_price or 0) }}</td>
+              <td class="text-right tabular-nums">{% if r.avg_buying_price is not none %}{{ "%.2f"|format(r.avg_buying_price or 0) }}{% else %}—{% endif %}</td>
+              <td class="text-right tabular-nums {% if r.margin_amount is not none and (r.margin_amount or 0) >= 0 %}text-emerald-400{% elif r.margin_amount is not none %}text-rose-400{% endif %}">{% if r.margin_amount is not none %}{{ "%.2f"|format(r.margin_amount) }}{% else %}—{% endif %}</td>
+              <td class="text-right tabular-nums {% if (r.margin_pct or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{% if r.margin_pct is not none %}{{ "%.2f"|format(r.margin_pct or 0) }}%{% else %}—{% endif %}</td>
+              <td class="text-right tabular-nums">{{ r.qty_sold or 0 }}</td>
+            </tr>
             {% else %}
-              <tr><td colspan="6" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No margin rows yet.</td></tr>
+            <tr><td colspan="6" class="py-8 text-center text-[rgb(var(--rc-muted))]">No margin rows yet.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -130,32 +85,25 @@
     {% endif %}
 
     {% if selected_view == "stock_value" %}
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock value &amp; dead stock</h3>
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="sa-stock-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 pb-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock value &amp; dead stock</h3>
+      </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="min-w-[980px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock qty</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Avg buying</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock value</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty sold</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+        <table class="sa-stock-data-table min-w-[36rem] w-full text-sm">
+          <thead><tr><th class="text-left">Item</th><th class="text-right">Stock</th><th class="text-right">Avg buy</th><th class="text-right">Value</th><th class="text-right">Sold</th><th class="text-left">Status</th></tr></thead>
+          <tbody>
             {% for r in stock_value_rows[:40] %}
-              <tr>
-                <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-                <td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td>
-                <td class="px-3 py-2 text-right">{% if r.avg_buying_price is not none %}{{ "%.2f"|format(r.avg_buying_price or 0) }}{% else %}—{% endif %}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td>
-                <td class="px-3 py-2 text-right">{{ r.qty_sold or 0 }}</td>
-                <td class="px-3 py-2">{% if (r.stock_qty or 0) > 0 and (r.qty_sold or 0) == 0 %}<span class="text-amber-400 font-semibold">Dead stock</span>{% else %}<span class="text-[rgb(var(--rc-muted))]">Active</span>{% endif %}</td>
-              </tr>
+            <tr>
+              <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
+              <td class="text-right tabular-nums">{{ r.stock_qty or 0 }}</td>
+              <td class="text-right tabular-nums">{% if r.avg_buying_price is not none %}{{ "%.2f"|format(r.avg_buying_price or 0) }}{% else %}—{% endif %}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.stock_value or 0) }}</td>
+              <td class="text-right tabular-nums">{{ r.qty_sold or 0 }}</td>
+              <td>{% if (r.stock_qty or 0) > 0 and (r.qty_sold or 0) == 0 %}<span class="font-semibold text-amber-400">Dead stock</span>{% else %}<span class="text-[rgb(var(--rc-muted))]">Active</span>{% endif %}</td>
+            </tr>
             {% else %}
-              <tr><td colspan="6" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No stock value rows.</td></tr>
+            <tr><td colspan="6" class="py-8 text-center text-[rgb(var(--rc-muted))]">No stock value rows.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -164,30 +112,24 @@
     {% endif %}
 
     {% if selected_view == "velocity" %}
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock velocity (turnover rate)</h3>
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="sa-stock-panel-head border-b border-[rgb(var(--rc-border))]/80 pb-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock velocity (turnover)</h3>
+      </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="min-w-[980px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty sold</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Current stock</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Turnover rate</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Revenue</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+        <table class="sa-stock-data-table min-w-[28rem] w-full text-sm">
+          <thead><tr><th class="text-left">Item</th><th class="text-right">Sold</th><th class="text-right">Stock</th><th class="text-right">Turnover</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>
             {% for r in velocity_rows[:40] %}
-              <tr>
-                <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-                <td class="px-3 py-2 text-right">{{ r.qty_sold or 0 }}</td>
-                <td class="px-3 py-2 text-right">{{ r.stock_qty or 0 }}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.velocity or 0) }}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.revenue or 0) }}</td>
-              </tr>
+            <tr>
+              <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
+              <td class="text-right tabular-nums">{{ r.qty_sold or 0 }}</td>
+              <td class="text-right tabular-nums">{{ r.stock_qty or 0 }}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.velocity or 0) }}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.revenue or 0) }}</td>
+            </tr>
             {% else %}
-              <tr><td colspan="5" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No turnover rows.</td></tr>
+            <tr><td colspan="5" class="py-8 text-center text-[rgb(var(--rc-muted))]">No turnover rows.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -196,28 +138,23 @@
     {% endif %}
 
     {% if selected_view == "leakage" %}
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">High-value zero-stock items (revenue leak)</h3>
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="sa-stock-panel-head border-b border-[rgb(var(--rc-border))]/80 pb-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">High-value zero-stock (revenue leak)</h3>
+      </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="min-w-[900px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty sold</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Revenue</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+        <table class="sa-stock-data-table min-w-[24rem] w-full text-sm">
+          <thead><tr><th class="text-left">Item</th><th class="text-right">Stock</th><th class="text-right">Sold</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>
             {% for r in leak_rows[:40] %}
-              <tr>
-                <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-                <td class="px-3 py-2 text-right text-rose-400">{{ r.stock_qty or 0 }}</td>
-                <td class="px-3 py-2 text-right">{{ r.qty_sold or 0 }}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.revenue or 0) }}</td>
-              </tr>
+            <tr>
+              <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
+              <td class="text-right tabular-nums text-rose-400">{{ r.stock_qty or 0 }}</td>
+              <td class="text-right tabular-nums">{{ r.qty_sold or 0 }}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.revenue or 0) }}</td>
+            </tr>
             {% else %}
-              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No zero-stock leakage items in this period.</td></tr>
+            <tr><td colspan="4" class="py-8 text-center text-[rgb(var(--rc-muted))]">No zero-stock leakage items in this period.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -226,30 +163,24 @@
     {% endif %}
 
     {% if selected_view == "low_margin_high_volume" %}
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Low-margin / high-volume items</h3>
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="sa-stock-panel-head border-b border-[rgb(var(--rc-border))]/80 pb-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Low-margin / high-volume</h3>
+      </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="min-w-[980px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty sold</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Margin %</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Margin/unit</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Revenue</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+        <table class="sa-stock-data-table min-w-[28rem] w-full text-sm">
+          <thead><tr><th class="text-left">Item</th><th class="text-right">Sold</th><th class="text-right">Margin %</th><th class="text-right">Margin/unit</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>
             {% for r in low_margin_rows[:40] %}
-              <tr>
-                <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-                <td class="px-3 py-2 text-right">{{ r.qty_sold or 0 }}</td>
-                <td class="px-3 py-2 text-right text-amber-400">{{ "%.2f"|format(r.margin_pct or 0) }}%</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.margin_amount or 0) }}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.revenue or 0) }}</td>
-              </tr>
+            <tr>
+              <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
+              <td class="text-right tabular-nums">{{ r.qty_sold or 0 }}</td>
+              <td class="text-right tabular-nums text-amber-400">{{ "%.2f"|format(r.margin_pct or 0) }}%</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.margin_amount or 0) }}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.revenue or 0) }}</td>
+            </tr>
             {% else %}
-              <tr><td colspan="5" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No low-margin high-volume items detected.</td></tr>
+            <tr><td colspan="5" class="py-8 text-center text-[rgb(var(--rc-muted))]">No low-margin high-volume items.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -258,30 +189,24 @@
     {% endif %}
 
     {% if selected_view == "low_stock" %}
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items below low-stock threshold</h3>
+    <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="sa-stock-panel-head border-b border-[rgb(var(--rc-border))]/80 pb-3">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Below low-stock threshold</h3>
+      </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="min-w-[980px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock qty</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Qty sold</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Velocity</th>
-              <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Revenue</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+        <table class="sa-stock-data-table min-w-[28rem] w-full text-sm">
+          <thead><tr><th class="text-left">Item</th><th class="text-right">Stock</th><th class="text-right">Sold</th><th class="text-right">Velocity</th><th class="text-right">Revenue</th></tr></thead>
+          <tbody>
             {% for r in low_stock_rows[:60] %}
-              <tr>
-                <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-                <td class="px-3 py-2 text-right {% if (r.low_stock_threshold or 0) > 0 and (r.stock_qty or 0) <= (r.low_stock_threshold or 0) %}text-rose-400{% endif %}">{{ r.stock_qty or 0 }}</td>
-                <td class="px-3 py-2 text-right">{{ r.qty_sold or 0 }}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.velocity or 0) }}</td>
-                <td class="px-3 py-2 text-right">{{ "%.2f"|format(r.revenue or 0) }}</td>
-              </tr>
+            <tr>
+              <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
+              <td class="text-right tabular-nums {% if (r.low_stock_threshold or 0) > 0 and (r.stock_qty or 0) <= (r.low_stock_threshold or 0) %}text-rose-400{% endif %}">{{ r.stock_qty or 0 }}</td>
+              <td class="text-right tabular-nums">{{ r.qty_sold or 0 }}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.velocity or 0) }}</td>
+              <td class="text-right tabular-nums">{{ "%.2f"|format(r.revenue or 0) }}</td>
+            </tr>
             {% else %}
-              <tr><td colspan="5" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No low-stock rows.</td></tr>
+            <tr><td colspan="5" class="py-8 text-center text-[rgb(var(--rc-muted))]">No low-stock rows.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -289,24 +214,5 @@
     </div>
     {% endif %}
   </div>
-
-  <script>
-    (function () {
-      var mode = document.getElementById("profit-filter-mode");
-      var day = document.getElementById("profit-filter-single-day");
-      var period = document.getElementById("profit-filter-period");
-      var month = document.getElementById("profit-filter-month");
-      var year = document.getElementById("profit-filter-year");
-      if (!mode) return;
-      function sync() {
-        var m = mode.value || "single_day";
-        if (day) day.classList.toggle("hidden", m !== "single_day");
-        if (period) period.classList.toggle("hidden", m !== "period");
-        if (month) month.classList.toggle("hidden", m !== "month");
-        if (year) year.classList.toggle("hidden", m !== "year");
-      }
-      mode.addEventListener("change", sync);
-      sync();
-    })();
-  </script>
+  </div>
 {% endblock %}

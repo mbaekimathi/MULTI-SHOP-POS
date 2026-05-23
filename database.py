@@ -1702,8 +1702,11 @@ def update_shop_settings(
 ) -> bool:
     if default_theme not in ("dark", "light"):
         return False
-    allowed_fonts = {"Plus Jakarta Sans", "Inter", "System UI"}
-    if font_family not in allowed_fonts:
+    try:
+        from theme_presets import ALLOWED_FONTS as allowed_fonts_set
+    except ImportError:
+        allowed_fonts_set = {"Plus Jakarta Sans", "Inter", "System UI"}
+    if font_family not in allowed_fonts_set:
         return False
     if not re.match(r"^#[0-9a-fA-F]{6}$", (primary_color or "")) or not re.match(
         r"^#[0-9a-fA-F]{6}$", (accent_color or "")
@@ -8631,7 +8634,6 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
     """
     Items for Shop POS: only active system items that are marked displayed for this shop.
     """
-    ensure_shop_kitchen_portions_schema()
     sql = """
     SELECT
         i.id,

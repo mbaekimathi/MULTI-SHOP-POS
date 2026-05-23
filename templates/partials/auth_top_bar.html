@@ -2,16 +2,16 @@
 <div class="auth-top-bar">
   <a href="{{ url_for('index') }}" class="auth-top-bar__brand">
     {% if site_settings and site_settings.app_icon %}
-      <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" />
+      <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" width="32" height="32" />
     {% else %}
       <span class="auth-top-bar__brand-mark" aria-hidden="true">{{ pub_brand_mark }}</span>
     {% endif %}
     <span class="truncate">{{ pub_brand_name }}</span>
   </a>
   <div class="auth-top-bar__nav">
-    <a href="{{ url_for('marketing_features') }}">Solutions</a>
-    <a href="{{ url_for('marketing_contact') }}">Contact</a>
+    <a href="{{ url_for('marketing_features') }}" class="auth-top-bar__link">Solutions</a>
+    <a href="{{ url_for('marketing_contact') }}" class="auth-top-bar__link">Contact</a>
     {% include "partials/theme_toggle.html" %}
-    <a href="{{ url_for('index') }}" class="auth-top-bar__home">Home</a>
+    <a href="{{ url_for('index') }}" class="auth-top-bar__home auth-top-bar__link">Home</a>
   </div>
 </div>

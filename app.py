@@ -304,6 +304,13 @@ def inject_jos_version():
     return {"jos_version": JOS_VERSION}
 
 
+@app.context_processor
+def inject_font_catalog():
+    from theme_presets import fonts_for_template
+
+    return {"appearance_fonts": fonts_for_template()}
+
+
 def _effective_pos_theme_colors(shop: dict) -> tuple[str, str]:
     """Shop primary/accent when set; otherwise company (IT) defaults from site settings."""
     company_pri = "#f97316"
@@ -339,6 +346,45 @@ def _hex_to_rgb_triplet(hex_color: str) -> str:
         return f"{r} {g} {b}"
     except Exception:
         return "249 115 22"
+
+
+@app.template_filter("font_stack")
+def font_stack_filter(display_name: str) -> str:
+    from theme_presets import font_css_stack
+
+    return font_css_stack(display_name)
+
+
+@app.template_filter("font_google_url")
+def font_google_url_filter(display_name: str) -> str:
+    from theme_presets import google_fonts_url, normalize_font_family
+
+    return google_fonts_url(normalize_font_family(display_name))
+
+
+def _effective_portal_font_family() -> str:
+    """Site-wide font, or the active shop's font when a shop session is open."""
+    from theme_presets import DEFAULT_FONT_FAMILY, normalize_font_family
+
+    try:
+        from database import get_shop_by_id, get_site_settings
+
+        stored = get_site_settings(["font_family"]) or {}
+        site_font = normalize_font_family(stored.get("font_family"))
+    except Exception:
+        site_font = DEFAULT_FONT_FAMILY
+
+    shop_id = session.get("shop_id")
+    if not shop_id:
+        return site_font
+    try:
+        shop = get_shop_by_id(int(shop_id))
+    except (TypeError, ValueError):
+        return site_font
+    if not shop:
+        return site_font
+    shop_font = (shop.get("font_family") or "").strip()
+    return normalize_font_family(shop_font) if shop_font else site_font
 
 
 def _build_analytics_filter():
@@ -481,6 +527,16 @@ def role_label(key: str) -> str:
 
 @app.context_processor
 def inject_site_settings():
+    from theme_presets import (
+        DEFAULT_THEME_PRESET,
+        THEME_PRESETS,
+        font_css_stack,
+        google_fonts_url,
+        normalize_default_theme,
+        normalize_font_family,
+        normalize_theme_preset,
+    )
+
     defaults = {
         "company_name": "Point of Sale",
         "company_email": "",
@@ -492,6 +548,7 @@ def inject_site_settings():
         "accent_color": "#fb923c",
         "font_family": "Plus Jakarta Sans",
         "default_theme": "dark",
+        "theme_preset": "eye-comfort",
     }
     try:
         from database import get_site_settings
@@ -502,12 +559,61 @@ def inject_site_settings():
     merged = {**defaults, **{k: v for k, v in (stored or {}).items() if v is not None and v != ""}}
     merged["primary_color_rgb"] = _hex_to_rgb_triplet(merged.get("primary_color"))
     merged["accent_color_rgb"] = _hex_to_rgb_triplet(merged.get("accent_color"))
-    return {"site_settings": merged}
+    merged["font_family"] = normalize_font_family(merged.get("font_family"))
+    merged["default_theme"] = normalize_default_theme(merged.get("default_theme"))
+    merged["theme_preset"] = normalize_theme_preset(merged.get("theme_preset"))
+    preset_key = merged["theme_preset"]
+    portal_font = _effective_portal_font_family()
+    site_font = merged["font_family"]
+    return {
+        "site_settings": merged,
+        "theme_default": merged["default_theme"],
+        "font_family": site_font,
+        "portal_font_family": portal_font,
+        "font_family_stack": font_css_stack(site_font),
+        "theme_preset": preset_key,
+        "theme_presets_css": THEME_PRESETS,
+        "theme_font_google_url": google_fonts_url(portal_font),
+    }
 
 
 @app.context_processor
 def inject_portal_context():
     """Nav + portal shell: profile, role, links (DB row when logged in)."""
+    if request.endpoint == "shop_pos":
+        uid = session.get("employee_id")
+        if not uid:
+            out = {
+                "nav_employee": None,
+                "portal_employee": None,
+                "shop_ui_role": "manager" if session.get("shop_id") else None,
+                "shop_role_preview_active": False,
+                "shop_role_preview_label": None,
+                "shop_show_it_branch_controls": False,
+                "shop_role_preview_options": SHOP_UI_PREVIEW_ROLES,
+            }
+            return out
+        role_key = str(session.get("employee_role") or "employee").strip().lower()
+        if role_key not in VALID_ROLES:
+            role_key = "employee"
+        pe = {
+            "name": session.get("employee_name") or "",
+            "role_key": role_key,
+            "role_label": ROLE_LABELS.get(role_key, role_key),
+            "profile_image": None,
+            "dashboard_url": url_for("employee_dashboard", role=role_key),
+            "profile_settings_url": url_for("employee_profile_settings"),
+        }
+        return {
+            "nav_employee": {
+                "name": pe["name"],
+                "role_label": pe["role_label"],
+                "dashboard_url": pe["dashboard_url"],
+            },
+            "portal_employee": pe,
+            **_shop_role_preview_template_ctx(role_key),
+        }
+
     uid = session.get("employee_id")
     if not uid:
         out = {
@@ -644,6 +750,9 @@ def _notify_new_shop_stock_request(
 
 @app.context_processor
 def inject_notification_context():
+    if request.endpoint == "shop_pos":
+        return {"notification_count": 0, "notifications_url": None, "notification_scope": None}
+
     uid = session.get("employee_id")
     if not uid:
         return {"notification_count": 0, "notifications_url": None, "notification_scope": None}
@@ -1349,6 +1458,15 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
     _enforce_exclusive_pos_inventory(merged)
+    # Company IT policy (site settings) — shop JSON may carry stale overrides from older saves.
+    for k in (
+        "printer_allow_bluetooth",
+        "printer_allow_network",
+        "printer_allow_usb",
+        "print_compulsory_sale",
+    ):
+        merged[k] = base[k]
+    _sync_print_compulsory_with_printer_allow_list(merged)
     return merged
 
 
@@ -1533,17 +1651,34 @@ def _shop_print_compulsory_on_sale_enabled(shop: dict) -> bool:
     return bool(_effective_printing_settings_for_shop(shop).get("print_compulsory_sale"))
 
 
+def _printer_type_allowed_by_printing_settings(ps: dict, printer_type: str) -> bool:
+    """Whether IT allows saving/using this POS printer connection type."""
+    pt = (printer_type or "").strip().lower()
+    if pt == "bluetooth":
+        return bool(ps.get("printer_allow_bluetooth"))
+    if pt == "network":
+        return bool(ps.get("printer_allow_network"))
+    if pt == "usb":
+        return bool(ps.get("printer_allow_usb"))
+    return False
+
+
 def _shop_has_saved_pos_printer(shop_id: int) -> bool:
-    """True if shop has POS receipt printer metadata saved (printer setup completed)."""
+    """True if shop has a saved printer whose type is allowed by current IT settings."""
     try:
-        from database import get_shop_printer_settings
+        from database import get_shop_by_id, get_shop_printer_settings
 
         row = get_shop_printer_settings(shop_id)
+        shop = get_shop_by_id(shop_id)
     except Exception:
         row = None
-    if not row:
+        shop = None
+    if not row or not shop:
         return False
-    return bool((row.get("printer_type") or "").strip())
+    if not (row.get("printer_type") or "").strip():
+        return False
+    ps = _effective_printing_settings_for_shop(shop)
+    return _printer_type_allowed_by_printing_settings(ps, row.get("printer_type") or "")
 
 
 def _shop_compulsory_printer_record_sale_gate(shop_id: int) -> Tuple[bool, str]:
@@ -1554,6 +1689,21 @@ def _shop_compulsory_printer_record_sale_gate(shop_id: int) -> Tuple[bool, str]:
     if not row:
         return False, "Printing is compulsory on sale: configure a receipt printer for this shop before checkout."
     pt = (row.get("printer_type") or "").strip().lower()
+    ps = _effective_printing_settings_for_shop(_get_shop_or_404(shop_id))
+    if not _printer_type_allowed_by_printing_settings(ps, pt):
+        allowed = []
+        if ps.get("printer_allow_bluetooth"):
+            allowed.append("Bluetooth")
+        if ps.get("printer_allow_network"):
+            allowed.append("network")
+        if ps.get("printer_allow_usb"):
+            allowed.append("USB")
+        hint = ", ".join(allowed) if allowed else "an allowed type"
+        return (
+            False,
+            f"Printing is compulsory on sale: saved printer is {pt or 'unknown'}, but IT only allows {hint}. "
+            "Open printer setup, tap Forget saved printer, then connect an allowed printer.",
+        )
     if pt != "network":
         return True, ""
     if cfg.get("print_agent_enabled") and (cfg.get("print_agent_token") or "").strip():
@@ -1826,8 +1976,11 @@ def it_support_system_settings():
         company_instagram = (request.form.get("company_instagram") or "").strip()
         primary_color = (request.form.get("primary_color") or "#f97316").strip()
         accent_color = (request.form.get("accent_color") or "#fb923c").strip()
-        font_family = (request.form.get("font_family") or "Plus Jakarta Sans").strip()
-        default_theme = (request.form.get("default_theme") or "dark").strip()
+        from theme_presets import normalize_default_theme, normalize_font_family, normalize_theme_preset
+
+        font_family = normalize_font_family((request.form.get("font_family") or "").strip())
+        default_theme = normalize_default_theme((request.form.get("default_theme") or "").strip())
+        theme_preset = normalize_theme_preset((request.form.get("theme_preset") or "").strip())
         app_icon_file = request.files.get("app_icon")
         remove_app_icon = (request.form.get("remove_app_icon") or "").strip() == "1"
 
@@ -1839,9 +1992,6 @@ def it_support_system_settings():
             primary_color = "#f97316"
         if not _ok_hex(accent_color):
             accent_color = "#fb923c"
-        if default_theme not in ("dark", "light", "system"):
-            default_theme = "dark"
-
         app_icon_path = None
         if remove_app_icon:
             app_icon_path = ""
@@ -1869,6 +2019,7 @@ def it_support_system_settings():
                 "accent_color": accent_color,
                 "font_family": font_family,
                 "default_theme": default_theme,
+                "theme_preset": theme_preset,
                 "receipt_settings_json": json.dumps(_receipt_settings_from_form(), separators=(",", ":")),
                 "printing_settings_json": json.dumps(_printing_settings_from_form(), separators=(",", ":")),
             }
@@ -1900,11 +2051,17 @@ def it_support_system_settings():
     _tab_q = {"printing": "receipt"}.get(_tab_raw, _tab_raw)
     _valid_tabs = ("system", "company", "website", "pos", "receipt")
     initial_settings_tab = _tab_q if _tab_q in _valid_tabs else None
+    from theme_presets import fonts_for_template, google_fonts_url, theme_presets_for_template
+
+    font_ids = [f["id"] for f in fonts_for_template()]
     return render_template(
         "it_support_system_settings.html",
         receipt_settings=_load_receipt_settings(),
         printing_settings=_load_printing_settings(),
         initial_settings_tab=initial_settings_tab,
+        appearance_presets=theme_presets_for_template(),
+        appearance_fonts=fonts_for_template(),
+        appearance_fonts_google_url=google_fonts_url(*font_ids),
     )
 
 
@@ -5559,6 +5716,48 @@ def shop_portal(shop_id: int):
     return redirect(url_for("shop_pos", shop_id=shop_id))
 
 
+def _pos_catalog_items_payload(rows: list) -> list[dict]:
+    """Serialize POS catalog rows for catalog.json (stock refresh + client bootstrap)."""
+    items: list[dict] = []
+    for it in rows or []:
+        try:
+            price = float(it.get("price") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        try:
+            orig = float(it.get("original_selling_price") or 0)
+        except (TypeError, ValueError):
+            orig = 0.0
+        img_rel = _normalize_static_relative_path(it.get("image_path"))
+        if img_rel.startswith("http://") or img_rel.startswith("https://"):
+            image_url = img_rel
+        elif img_rel:
+            image_url = url_for("static", filename=img_rel)
+        else:
+            image_url = ""
+        items.append(
+            {
+                "id": int(it.get("id") or 0),
+                "category": (it.get("category") or "").strip() or "Uncategorized",
+                "name": (it.get("name") or "").strip(),
+                "shop_stock_qty": round(float(it.get("shop_stock_qty") or 0), 4),
+                "kitchen_portions": int(it.get("kitchen_portions") or 0),
+                "stock_update_enabled": int(it.get("stock_update_enabled") or 0),
+                "price": round(price, 2),
+                "original_selling_price": round(orig, 2),
+                "image_url": image_url,
+            }
+        )
+    return items
+
+
+def _load_shop_pos_catalog_rows(shop_id: int) -> list:
+    from database import ensure_shop_items_for_shop, list_shop_pos_items
+
+    ensure_shop_items_for_shop(shop_id)
+    return list_shop_pos_items(shop_id=shop_id, limit=2000)
+
+
 @app.route("/shops/<int:shop_id>/shop-pos")
 def shop_pos(shop_id: int):
     shop = _get_shop_or_404(shop_id)
@@ -5566,10 +5765,7 @@ def shop_pos(shop_id: int):
     if gate is not None:
         return gate
     try:
-        from database import ensure_shop_items_for_shop, list_shop_pos_items
-
-        ensure_shop_items_for_shop(shop_id)
-        items = list_shop_pos_items(shop_id=shop_id, limit=2000)
+        items = _load_shop_pos_catalog_rows(shop_id)
     except Exception:
         items = []
     pri_rgb, acc_rgb = _effective_pos_theme_colors(shop)
@@ -5737,38 +5933,16 @@ def shop_stock_in_receipt(shop_id: int, tx_id: int):
 
 @app.route("/shops/<int:shop_id>/shop-pos/catalog.json")
 def shop_pos_catalog_json(shop_id: int):
-    """Lightweight catalog snapshot for live stock/price refresh without reloading the page."""
+    """Catalog snapshot for POS bootstrap and live stock/price refresh."""
     shop = _get_shop_or_404(shop_id)
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
     try:
-        from database import ensure_shop_items_for_shop, list_shop_pos_items
-
-        ensure_shop_items_for_shop(shop_id)
-        rows = list_shop_pos_items(shop_id=shop_id, limit=2000)
+        rows = _load_shop_pos_catalog_rows(shop_id)
     except Exception:
         rows = []
-    items = []
-    for it in rows:
-        try:
-            price = float(it.get("price") or 0)
-        except (TypeError, ValueError):
-            price = 0.0
-        try:
-            orig = float(it.get("original_selling_price") or 0)
-        except (TypeError, ValueError):
-            orig = 0.0
-        items.append(
-            {
-                "id": int(it.get("id") or 0),
-                "shop_stock_qty": round(float(it.get("shop_stock_qty") or 0), 4),
-                "kitchen_portions": int(it.get("kitchen_portions") or 0),
-                "stock_update_enabled": int(it.get("stock_update_enabled") or 0),
-                "price": round(price, 2),
-                "original_selling_price": round(orig, 2),
-            }
-        )
+    items = _pos_catalog_items_payload(rows)
     response = jsonify(
         {
             "ok": True,
@@ -7172,19 +7346,26 @@ def shop_pos_printer(shop_id: int):
         except json.JSONDecodeError:
             cfg = {}
         updated = row.get("updated_at")
-        return jsonify(
-            {
-                "ok": True,
-                "shop_id": shop_id,
-                "printer": {
+        printer_payload = {
+            "shop_id": shop_id,
+            "printer_type": row["printer_type"],
+            "device_label": row["device_label"],
+            "config": cfg,
+            "updated_at": updated.isoformat() if hasattr(updated, "isoformat") else None,
+        }
+        ps = _effective_printing_settings_for_shop(shop)
+        pt = (row.get("printer_type") or "").strip().lower()
+        if not _printer_type_allowed_by_printing_settings(ps, pt):
+            return jsonify(
+                {
+                    "ok": True,
                     "shop_id": shop_id,
-                    "printer_type": row["printer_type"],
-                    "device_label": row["device_label"],
-                    "config": cfg,
-                    "updated_at": updated.isoformat() if hasattr(updated, "isoformat") else None,
-                },
-            }
-        )
+                    "printer": None,
+                    "stale_printer": printer_payload,
+                    "stale_reason": "not_allowed_by_it_settings",
+                }
+            )
+        return jsonify({"ok": True, "shop_id": shop_id, "printer": printer_payload})
 
     data = request.get_json(force=True, silent=True) or {}
     if data.get("clear"):
@@ -7194,6 +7375,14 @@ def shop_pos_printer(shop_id: int):
     pt = (data.get("printer_type") or "").strip().lower()
     if pt not in ("bluetooth", "network", "usb"):
         return jsonify({"ok": False, "error": "Invalid printer_type"}), 400
+    ps = _effective_printing_settings_for_shop(shop)
+    if not _printer_type_allowed_by_printing_settings(ps, pt):
+        return jsonify(
+            {
+                "ok": False,
+                "error": f"{pt.capitalize()} printing is disabled in IT settings for this company.",
+            }
+        ), 400
     label = (data.get("device_label") or "")[:255]
     cfg = data.get("config")
     if not isinstance(cfg, dict):
@@ -9946,7 +10135,9 @@ def shop_settings_appearance(shop_id: int):
         return gate
     if request.method == "POST":
         default_theme = (request.form.get("default_theme") or "").strip().lower()
-        font_family = (request.form.get("font_family") or "").strip()
+        from theme_presets import normalize_font_family
+
+        font_family = normalize_font_family((request.form.get("font_family") or "").strip())
         primary_color = (request.form.get("primary_color") or "").strip()
         accent_color = (request.form.get("accent_color") or "").strip()
         try:

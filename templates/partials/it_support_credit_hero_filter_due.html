@@ -1,0 +1,51 @@
+{# Hero + live filter for upcoming due page. #}
+{% set shop_list = shop_list or [] %}
+<section class="it-credit-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+  <div class="it-credit-hero-top border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="it-credit-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Company credit</p>
+        <h2 class="it-credit-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ credit_shell_title }}</h2>
+        <p class="it-credit-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ credit_shell_desc }}</p>
+      </div>
+      <div class="it-credit-chips flex flex-wrap items-center gap-2 lg:justify-end">
+        <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+          Next {{ due_days_ahead or 90 }} days
+        </span>
+        {% if filter_shop_id %}
+        <span class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-border))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">Shop filtered</span>
+        {% endif %}
+        <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300/95">
+          <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+          Due dates
+        </span>
+      </div>
+    </div>
+  </div>
+  <form method="get" action="{{ url_for('it_support_credit_payments_upcoming_due') }}" id="credit-due-filter-form" class="it-credit-filter-form it-credit-live-filter border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6">
+    <div class="it-credit-filter-intro mb-3">
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filters</p>
+      <p class="it-credit-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Changes apply automatically</p>
+    </div>
+    <div class="flex flex-wrap items-end gap-2.5">
+      <div class="min-w-[7rem] flex-1 sm:max-w-[9rem]">
+        <label for="due-days" class="it-credit-label">Horizon (days)</label>
+        <input id="due-days" type="number" min="1" max="730" name="days" value="{{ due_days_ahead or 90 }}" class="it-credit-input" />
+      </div>
+      <div class="min-w-[9rem] flex-1 sm:max-w-[11rem]">
+        <label for="due-shop" class="it-credit-label">Shop</label>
+        <select id="due-shop" name="shop_id" class="it-credit-input">
+          <option value="">All shops</option>
+          {% for sh in shop_list %}
+          <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="min-w-[10rem] flex-[2]">
+        <label for="due-q" class="it-credit-label">Customer</label>
+        <input id="due-q" type="search" name="customer_q" value="{{ customer_q or '' }}" placeholder="Name or phone…" autocomplete="off" class="it-credit-input" />
+      </div>
+      <a href="{{ filter_clear_url }}" class="btn-rc btn-rc-ghost it-credit-btn shrink-0">Reset</a>
+    </div>
+  </form>
+</section>

@@ -1,0 +1,7 @@
+{% set _ff = font_family|default(portal_font_family|default(site_settings.font_family if site_settings else 'Plus Jakarta Sans', true), true) %}
+{% set _font_url = _ff|font_google_url %}
+{% if _font_url %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="{{ _font_url }}" rel="stylesheet" />
+{% endif %}

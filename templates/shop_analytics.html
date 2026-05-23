@@ -134,110 +134,631 @@
         grid-template-columns: 1fr;
       }
     }
+    .shop-analytics-theme.sa-sales-view .sa-sales-workspace {
+      width: 100%;
+      max-width: 64rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-hero {
+      background:
+        radial-gradient(circle at top right, rgba(52, 211, 153, 0.12), transparent 48%),
+        radial-gradient(circle at bottom left, rgba(56, 189, 248, 0.08), transparent 42%),
+        linear-gradient(180deg, rgba(var(--rc-surface-2), 0.35) 0%, rgb(var(--rc-surface)) 100%);
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-filter input,
+    .shop-analytics-theme.sa-sales-view .sa-sales-filter select {
+      min-height: 2.5rem;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table th,
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table td {
+      border: 1px solid rgba(var(--rc-border), 0.9);
+      padding: 0.55rem 0.75rem;
+      vertical-align: middle;
+      font-size: 0.8125rem;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table thead th {
+      background: rgba(var(--rc-surface-2), 0.95);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+      white-space: nowrap;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table tbody tr:nth-child(even) td {
+      background: rgba(var(--rc-surface-2), 0.35);
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table tbody tr:hover td {
+      background: rgba(var(--rc-primary), 0.07);
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table tfoot td {
+      background: rgba(var(--rc-surface-2), 0.95);
+      font-weight: 700;
+      border-top-width: 2px;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table .sa-sales-col-date {
+      width: 42%;
+      text-align: left;
+    }
+    .shop-analytics-theme.sa-sales-view .sa-sales-daily-table .sa-sales-col-num {
+      width: 29%;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    @media (max-width: 639px) {
+      .shop-analytics-theme.sa-sales-view .sa-sales-workspace {
+        margin-top: 0.5rem;
+        gap: 0.5rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-hero {
+        border-radius: 0.5rem;
+        box-shadow: none;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-hero-top {
+        padding: 0.65rem 0.75rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-hero-desc,
+      .shop-analytics-theme.sa-sales-view .sa-sales-hero-eyebrow,
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter-hint {
+        display: none;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-hero-title {
+        font-size: 1rem;
+        margin-top: 0;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-chips {
+        gap: 0.25rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-chips span {
+        padding: 0.1rem 0.4rem;
+        font-size: 0.65rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter {
+        padding: 0.5rem 0.75rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter input,
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter select {
+        min-height: 2.15rem;
+        font-size: 0.8125rem;
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter label {
+        font-size: 0.55rem;
+        margin-bottom: 0.1rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter-fields {
+        gap: 0.35rem;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0;
+        border: 1px solid rgba(var(--rc-border), 0.9);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        background: rgb(var(--rc-surface));
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-filter-intro {
+        display: none;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpi {
+        padding: 0.45rem 0.35rem;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        background: transparent;
+        border-right: 1px solid rgba(var(--rc-border), 0.85);
+        text-align: center;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpi:last-child {
+        border-right: none;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpi--accent {
+        background: rgba(16, 185, 129, 0.06);
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpi-label {
+        font-size: 0.5rem;
+        letter-spacing: 0.05em;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpi-value {
+        margin-top: 0.1rem;
+        font-size: 0.95rem;
+        line-height: 1.1;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-kpi-foot {
+        display: none;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-daily-panel {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        background: transparent;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-daily-head {
+        padding: 0.35rem 0;
+        border-bottom: 1px solid rgba(var(--rc-border), 0.75);
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-daily-sub {
+        display: none;
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-daily-scroll {
+        padding: 0.35rem 0 0;
+        max-height: min(48vh, 24rem);
+      }
+      .shop-analytics-theme.sa-sales-view .sa-sales-daily-table th,
+      .shop-analytics-theme.sa-sales-view .sa-sales-daily-table td {
+        padding: 0.4rem 0.35rem;
+        font-size: 0.75rem;
+      }
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-workspace {
+      width: 100%;
+      max-width: 64rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-hero {
+      background:
+        radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 48%),
+        radial-gradient(circle at bottom left, rgba(249, 115, 22, 0.08), transparent 42%),
+        linear-gradient(180deg, rgba(var(--rc-surface-2), 0.35) 0%, rgb(var(--rc-surface)) 100%);
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-filter input,
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-filter select {
+      min-height: 2.5rem;
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table th,
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table td {
+      border: 1px solid rgba(var(--rc-border), 0.9);
+      padding: 0.55rem 0.65rem;
+      vertical-align: middle;
+      font-size: 0.8125rem;
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table thead th {
+      background: rgba(var(--rc-surface-2), 0.95);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table tbody tr:nth-child(even) td {
+      background: rgba(var(--rc-surface-2), 0.35);
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table .sa-shop-td-left {
+      text-align: left;
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table .sa-shop-td-right {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table .sa-shop-td-center {
+      text-align: center;
+    }
+    @media (max-width: 639px) {
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-workspace {
+        margin-top: 0.5rem;
+        gap: 0.5rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-hero {
+        border-radius: 0.5rem;
+        box-shadow: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-hero-top {
+        padding: 0.65rem 0.75rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-hero-desc,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-hero-eyebrow,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-filter-intro,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-filter-hint {
+        display: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-hero-title {
+        font-size: 1rem;
+        margin-top: 0;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-chips span {
+        padding: 0.1rem 0.4rem;
+        font-size: 0.65rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-filter {
+        padding: 0.5rem 0.75rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-filter input,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-filter select {
+        min-height: 2.15rem;
+        font-size: 0.8125rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis {
+        display: grid;
+        gap: 0;
+        border: 1px solid rgba(var(--rc-border), 0.9);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        background: rgb(var(--rc-surface));
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis.mt-3,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis.mt-4 {
+        margin-top: 0.5rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis.sm\:grid-cols-2,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis.lg\:grid-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis.lg\:grid-cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis.lg\:grid-cols-3 > div {
+        border-bottom: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis > div {
+        padding: 0.45rem 0.35rem;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        text-align: center;
+        border-right: 1px solid rgba(var(--rc-border), 0.85);
+        border-bottom: 1px solid rgba(var(--rc-border), 0.85);
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis > div:nth-child(2n) {
+        border-right: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis > div:nth-last-child(-n+2) {
+        border-bottom: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis > div:only-child {
+        border-right: none;
+        border-bottom: none;
+        grid-column: 1 / -1;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis p.mt-1.text-xs {
+        display: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis .text-xl {
+        font-size: 0.95rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-kpis .text-sm {
+        font-size: 0.75rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-banner {
+        margin-top: 0.35rem;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.65rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-panel {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        background: transparent;
+        margin-top: 0.5rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-panel-head {
+        padding: 0.35rem 0;
+        border-bottom: 1px solid rgba(var(--rc-border), 0.75);
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-panel-head span.text-\[10px\] {
+        display: none;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table th,
+      .shop-analytics-theme.sa-shop-analytics .sa-shop-data-table td {
+        padding: 0.4rem 0.35rem;
+        font-size: 0.75rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-visual-only.mt-3 {
+        margin-top: 0.5rem;
+      }
+      .shop-analytics-theme.sa-shop-analytics .sa-visual-only.rounded-2xl {
+        border-radius: 0.5rem;
+        padding: 0.65rem;
+      }
+    }
+
   </style>
-  <div class="shop-analytics-theme">
-  <form method="get" action="{{ request.path }}" class="it-analytics-toolbar mt-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-    <div class="toolbar-grid grid grid-cols-[1fr_auto] items-center gap-3">
-      <div>
-        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop analytics workspace</p>
-        <p class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Use one data scope for all cards, charts, and tables on this page.</p>
-      </div>
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300/95">
-          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-          Live
-        </span>
-        <div class="flex flex-wrap items-center gap-2">
-          <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))] sm:hidden">Presentation</p>
-          <div
-            class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1"
-            role="tablist"
-            aria-label="Raw or visual analytics"
-          >
-            <button
-              type="button"
-              role="tab"
-              id="shop-analytics-tab-raw"
-              class="shop-analytics-tab shop-analytics-tab-active rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]"
-              aria-selected="true"
-            >
-              Raw data
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id="shop-analytics-tab-visual"
-              class="shop-analytics-tab rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]"
-              aria-selected="false"
-            >
-              Visual data
-            </button>
+  <div class="shop-analytics-theme{% if av == 'sales' %} sa-sales-view{% else %} sa-shop-analytics{% endif %}">
+  {% if av == 'sales' %}
+  {% set _fm = f.mode or 'single_day' %}
+  <div class="sa-sales-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    <section class="sa-sales-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+      <div class="sa-sales-hero-top border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0">
+            <p class="sa-sales-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop analytics</p>
+            <h2 class="sa-sales-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Cash sales report</h2>
+            <p class="sa-sales-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Completed cash transactions for <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</span>.
+              Credit sales are excluded from this view.
+            </p>
+          </div>
+          <div class="sa-sales-chips flex flex-wrap items-center gap-2 lg:max-w-md lg:justify-end" aria-live="polite">
+            <span class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/80 px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+              Scope <span class="ml-1.5 text-[rgb(var(--rc-page-fg))]">{{ 'Actual' if analytics_scope == 'actual' else 'General' }}</span>
+            </span>
+            {% if _fm == 'single_day' %}
+            <span class="inline-flex items-center rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-2.5 py-1 text-xs font-semibold text-emerald-300/95">
+              Day <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.single_day or '—' }}</span>
+            </span>
+            {% elif _fm == 'period' %}
+            <span class="inline-flex items-center rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-2.5 py-1 text-xs font-semibold text-emerald-300/95">
+              Range <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.start_date or '—' }} – {{ f.end_date or '—' }}</span>
+            </span>
+            {% elif _fm == 'month' %}
+            <span class="inline-flex items-center rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-2.5 py-1 text-xs font-semibold text-emerald-300/95">
+              Month <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.month or '—' }}</span>
+            </span>
+            {% elif _fm == 'year' %}
+            <span class="inline-flex items-center rounded-lg border border-emerald-400/25 bg-emerald-500/[0.08] px-2.5 py-1 text-xs font-semibold text-emerald-300/95">
+              Year <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.year or '—' }}</span>
+            </span>
+            {% endif %}
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300/95">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
+              Sales only
+            </span>
           </div>
         </div>
-        <div class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-1">
-          <button type="submit" name="analytics_scope" value="general" class="scope-chip rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if analytics_scope != 'actual' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))]{% endif %}">General</button>
-          <button type="submit" name="analytics_scope" value="actual" class="scope-chip rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if analytics_scope == 'actual' %}bg-[rgb(var(--rc-primary))]/15 text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))]{% endif %}">Actual</button>
+      </div>
+      <form id="sa-sales-filter-form" method="get" action="{{ request.path }}" class="sa-sales-filter border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6">
+        <div class="sa-sales-filter-intro mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filters</p>
+            <p class="sa-sales-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Changes apply automatically</p>
+          </div>
+        </div>
+        <div class="sa-sales-filter-fields flex flex-wrap items-end gap-2.5">
+          <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
+            <label for="sa-sales-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Data scope</label>
+            <select id="sa-sales-scope" name="analytics_scope" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="general" {% if analytics_scope != 'actual' %}selected{% endif %}>General</option>
+              <option value="actual" {% if analytics_scope == 'actual' %}selected{% endif %}>Actual</option>
+            </select>
+          </div>
+          <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
+            <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period</label>
+            <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+              <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
+              <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+              <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+            </select>
+          </div>
+          <div id="filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+            <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+            <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div id="filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+            <div class="min-w-[9.5rem] flex-1">
+              <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+              <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+            </div>
+            <div class="min-w-[9.5rem] flex-1">
+              <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+              <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+            </div>
+          </div>
+          <div id="filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+            <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div id="filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+            <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+        </div>
+      </form>
+      <script>
+        (function () {
+          var form = document.getElementById("sa-sales-filter-form");
+          if (!form) return;
+          var mode = document.getElementById("analytics-filter-mode");
+          var yearInput = document.getElementById("analytics-year");
+          var submitTimer = null;
+          var yearTimer = null;
+
+          function submitSoon(delay) {
+            if (submitTimer) clearTimeout(submitTimer);
+            submitTimer = setTimeout(function () {
+              submitTimer = null;
+              if (typeof form.requestSubmit === "function") {
+                form.requestSubmit();
+              } else {
+                form.submit();
+              }
+            }, delay == null ? 120 : delay);
+          }
+
+          form.querySelectorAll("select").forEach(function (el) {
+            el.addEventListener("change", function () {
+              if (el === mode) {
+                submitSoon(80);
+              } else {
+                submitSoon();
+              }
+            });
+          });
+
+          form.querySelectorAll('input[type="date"], input[type="month"]').forEach(function (el) {
+            el.addEventListener("change", function () {
+              submitSoon();
+            });
+          });
+
+          if (yearInput) {
+            yearInput.addEventListener("change", function () {
+              submitSoon();
+            });
+            yearInput.addEventListener("input", function () {
+              if (yearTimer) clearTimeout(yearTimer);
+              yearTimer = setTimeout(function () {
+                yearTimer = null;
+                var y = parseInt(yearInput.value, 10);
+                if (y >= 2000 && y <= 2100) submitSoon(0);
+              }, 450);
+            });
+          }
+        })();
+      </script>
+    </section>
+  {% else %}
+  {% set _fm = f.mode or 'single_day' %}
+  {% if av == 'revenue' %}
+    {% set _shop_report_title = 'Revenue overview' %}
+    {% set _shop_report_desc = 'Sale and credit revenue combined for this shop.' %}
+    {% set _shop_report_badge = 'Revenue' %}
+  {% elif av == 'item' %}
+    {% set _shop_report_title = 'Item performance' %}
+    {% set _shop_report_desc = 'Top selling items by quantity and revenue.' %}
+    {% set _shop_report_badge = 'Items' %}
+  {% elif av == 'period' %}
+    {% set _shop_report_title = 'Period insights' %}
+    {% set _shop_report_desc = 'Sales patterns by day, hour, and employee.' %}
+    {% set _shop_report_badge = 'Period' %}
+  {% elif av == 'credit' %}
+    {% set _shop_report_title = 'Credit analytics' %}
+    {% set _shop_report_desc = 'Credit-only transactions; direct cash sales excluded.' %}
+    {% set _shop_report_badge = 'Credit only' %}
+  {% elif av == 'customer' %}
+    {% set _shop_report_title = 'Customer analytics' %}
+    {% set _shop_report_desc = 'Customer purchase activity for this shop.' %}
+    {% set _shop_report_badge = 'Customers' %}
+  {% else %}
+    {% set _shop_report_title = _report_label %}
+    {% set _shop_report_desc = 'Analytics for the selected date range.' %}
+    {% set _shop_report_badge = 'Report' %}
+  {% endif %}
+  <div class="sa-shop-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    <section class="sa-shop-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+      <div class="sa-shop-hero-top border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0 flex-1">
+            <p class="sa-shop-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop analytics</p>
+            <h2 class="sa-shop-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ _shop_report_title }}</h2>
+            <p class="sa-shop-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              {{ _shop_report_desc }}
+              <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</span>
+            </p>
+          </div>
+          <div class="flex flex-col items-stretch gap-2 sm:items-end">
+            <div class="sa-shop-chips flex flex-wrap items-center gap-2 lg:justify-end" aria-live="polite">
+              <span class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/80 px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+                Scope <span class="ml-1.5 text-[rgb(var(--rc-page-fg))]">{{ 'Actual' if analytics_scope == 'actual' else 'General' }}</span>
+              </span>
+              {% if _fm == 'single_day' %}
+              <span class="inline-flex items-center rounded-lg border border-sky-400/25 bg-sky-500/[0.08] px-2.5 py-1 text-xs font-semibold text-sky-300/95">
+                Day <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.single_day or '—' }}</span>
+              </span>
+              {% elif _fm == 'period' %}
+              <span class="inline-flex items-center rounded-lg border border-sky-400/25 bg-sky-500/[0.08] px-2.5 py-1 text-xs font-semibold text-sky-300/95">
+                Range <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.start_date or '—' }} – {{ f.end_date or '—' }}</span>
+              </span>
+              {% elif _fm == 'month' %}
+              <span class="inline-flex items-center rounded-lg border border-sky-400/25 bg-sky-500/[0.08] px-2.5 py-1 text-xs font-semibold text-sky-300/95">
+                Month <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.month or '—' }}</span>
+              </span>
+              {% elif _fm == 'year' %}
+              <span class="inline-flex items-center rounded-lg border border-sky-400/25 bg-sky-500/[0.08] px-2.5 py-1 text-xs font-semibold text-sky-300/95">
+                Year <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.year or '—' }}</span>
+              </span>
+              {% endif %}
+              <span class="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-sky-300/95">
+                <span class="h-1.5 w-1.5 rounded-full bg-sky-400" aria-hidden="true"></span>
+                {{ _shop_report_badge }}
+              </span>
+            </div>
+            {% if av == 'revenue' %}
+            <div
+              class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1"
+              role="tablist"
+              aria-label="Raw or visual analytics"
+            >
+              <button
+                type="button"
+                role="tab"
+                id="shop-analytics-tab-raw"
+                class="shop-analytics-tab shop-analytics-tab-active rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]"
+                aria-selected="true"
+              >
+                Raw data
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="shop-analytics-tab-visual"
+                class="shop-analytics-tab rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]"
+                aria-selected="false"
+              >
+                Visual data
+              </button>
+            </div>
+            {% endif %}
+          </div>
         </div>
       </div>
-    </div>
-    <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
-    <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
-    <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
-    <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
-    <input type="hidden" name="month" value="{{ f.month or '' }}" />
-    <input type="hidden" name="year" value="{{ f.year or '' }}" />
-  </form>
-
-  <form method="get" action="{{ request.path }}" class="it-analytics-filter mt-4 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-    <input type="hidden" name="analytics_scope" value="{{ analytics_scope }}" />
-    <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/60 pb-3">
-      <div>
-        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Scope</p>
-        <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Date range for all charts and tables</p>
-      </div>
-      <p class="max-w-xs text-right text-[11px] text-[rgb(var(--rc-muted))]">Changing filters reloads this page and keeps the same report.</p>
-    </div>
-    <div class="flex flex-wrap items-end gap-2.5">
-      <div class="min-w-[10rem] flex-1">
-        <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filter mode</label>
-        <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
-          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-          <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-          <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-        </select>
-      </div>
-      <div id="filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
-        <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
-        <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-      </div>
-
-      <div id="filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-        <div class="min-w-[9.5rem] flex-1">
-          <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
-          <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      <form id="sa-shop-filter-form" method="get" action="{{ request.path }}" class="sa-shop-filter border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6">
+        <div class="sa-shop-filter-intro mb-3">
+          <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filters</p>
+          <p class="sa-shop-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Changes apply automatically</p>
         </div>
-        <div class="min-w-[9.5rem] flex-1">
-          <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
-          <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        <div class="sa-shop-filter-fields flex flex-wrap items-end gap-2.5">
+          <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
+            <label for="sa-shop-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Data scope</label>
+            <select id="sa-shop-scope" name="analytics_scope" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="general" {% if analytics_scope != 'actual' %}selected{% endif %}>General</option>
+              <option value="actual" {% if analytics_scope == 'actual' %}selected{% endif %}>Actual</option>
+            </select>
+          </div>
+          <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
+            <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period</label>
+            <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+              <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
+              <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+              <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+            </select>
+          </div>
+          <div id="filter-single-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+            <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+            <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div id="filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+            <div class="min-w-[9.5rem] flex-1">
+              <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+              <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+            </div>
+            <div class="min-w-[9.5rem] flex-1">
+              <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+              <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+            </div>
+          </div>
+          <div id="filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+            <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div id="filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+            <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
         </div>
-      </div>
+      </form>
+    </section>
+  {% endif %}
 
-      <div id="filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-        <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
-        <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-      </div>
-
-      <div id="filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-        <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
-        <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
-      </div>
-
-      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
-    </div>
-  </form>
-
-  <div id="shop-analytics-report-root" data-shop-analytics-view="raw">
+  {% if av == 'sales' %}
+  <div id="shop-analytics-report-root" data-shop-analytics-view="raw" class="space-y-4">
+  {% else %}
+  <div id="shop-analytics-report-root" data-shop-analytics-view="raw" class="space-y-4">
+  {% endif %}
   {% if (analytics_view or 'revenue') == 'revenue' %}
     {% set rd = revenue_data or {} %}
     {% set sale = rd.sale or {} %}
@@ -245,7 +766,7 @@
     {% set _tc = (rd.total_count or 0)|int %}
     {% set _ta = (rd.total_amount or 0)|float %}
     {% set _avg = (_ta / _tc) if _tc > 0 else 0 %}
-    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="sa-shop-kpis mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div class="rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/90">Sale revenue</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((sale.amount or 0)|float) }}</p>
@@ -268,13 +789,13 @@
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+    <div class="sa-raw-only sa-shop-panel mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
         <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Daily breakdown</h3>
         <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sale vs Credit</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
+        <table class="sa-shop-data-table min-w-full text-xs">
           <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
             <tr>
               <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Date</th>
@@ -424,6 +945,52 @@
           setReportView(localStorage.getItem(STORAGE_KEY) || "raw");
         } catch (_e) {
           setReportView("raw");
+        }
+      }
+
+
+      var shopForm = document.getElementById("sa-shop-filter-form");
+      if (shopForm) {
+        var shopSubmitTimer = null;
+        var shopYearTimer = null;
+        var shopYearInput = shopForm.querySelector("#analytics-year");
+        function shopSubmitSoon(delay) {
+          if (shopSubmitTimer) clearTimeout(shopSubmitTimer);
+          shopSubmitTimer = setTimeout(function () {
+            shopSubmitTimer = null;
+            if (typeof shopForm.requestSubmit === "function") {
+              shopForm.requestSubmit();
+            } else {
+              shopForm.submit();
+            }
+          }, delay == null ? 120 : delay);
+        }
+        shopForm.querySelectorAll("select").forEach(function (el) {
+          el.addEventListener("change", function () {
+            if (el === mode) {
+              shopSubmitSoon(80);
+            } else {
+              shopSubmitSoon();
+            }
+          });
+        });
+        shopForm.querySelectorAll('input[type="date"], input[type="month"]').forEach(function (el) {
+          el.addEventListener("change", function () {
+            shopSubmitSoon();
+          });
+        });
+        if (shopYearInput) {
+          shopYearInput.addEventListener("change", function () {
+            shopSubmitSoon();
+          });
+          shopYearInput.addEventListener("input", function () {
+            if (shopYearTimer) clearTimeout(shopYearTimer);
+            shopYearTimer = setTimeout(function () {
+              shopYearTimer = null;
+              var y = parseInt(shopYearInput.value, 10);
+              if (y >= 2000 && y <= 2100) shopSubmitSoon(0);
+            }, 450);
+          });
         }
       }
 
@@ -597,7 +1164,7 @@
     {% set idt = item_data or {} %}
     {% set peak_day = idt.peak_day or {} %}
     {% set peak_hour = idt.peak_hour or {} %}
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="sa-shop-kpis mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Qty sold</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ idt.total_qty or 0 }}</p>
@@ -618,13 +1185,13 @@
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+    <div class="sa-raw-only sa-shop-panel mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
         <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Top sold items</h3>
         <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Quantity and revenue</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
+        <table class="sa-shop-data-table min-w-full text-xs">
           <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
             <tr>
               <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Item</th>
@@ -657,7 +1224,7 @@
     {% set least_emp = pd.least_employee or {} %}
     {% set peak_day = pd.peak_day or {} %}
     {% set peak_hour = pd.peak_hour or {} %}
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="sa-shop-kpis mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Transactions</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ pd.total_tx_count or 0 }}</p>
@@ -708,13 +1275,13 @@
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+    <div class="sa-raw-only sa-shop-panel mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
         <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Employee sales ranking</h3>
         <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Most to least</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
+        <table class="sa-shop-data-table min-w-full text-xs">
           <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
             <tr>
               <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Employee</th>
@@ -819,67 +1386,85 @@
   {% endif %}
   {% if (analytics_view or '') == 'sales' %}
     {% set sd = sales_data or {} %}
-    {% set top_emp = sd.top_employee or {} %}
-    {% set least_emp = sd.least_employee or {} %}
-    {% set peak_day = sd.peak_day or {} %}
-    {% set peak_hour = sd.peak_hour or {} %}
-    <div class="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/[0.08] px-4 py-2 text-xs font-bold text-emerald-300/90">
-      Sales-only analysis (credit excluded).
-    </div>
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Sales transactions</p>
-        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ sd.total_tx_count or 0 }}</p>
+    {% set _sa_tx = (sd.total_tx_count or 0)|int %}
+    {% set _sa_rev = (sd.total_revenue or 0)|float %}
+    {% set _sa_avg = (_sa_rev / _sa_tx) if _sa_tx > 0 else 0 %}
+    {% set _sa_days = (sd.daily or [])|length %}
+    <div class="sa-sales-kpis grid gap-3 sm:grid-cols-3">
+      <div class="sa-sales-kpi rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm ring-1 ring-[rgb(var(--rc-border))]/50">
+        <p class="sa-sales-kpi-label text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Transactions</p>
+        <p class="sa-sales-kpi-value mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ _sa_tx }}</p>
+        <p class="sa-sales-kpi-foot mt-1 text-xs text-[rgb(var(--rc-muted))]">Cash sales in selected period</p>
       </div>
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Sales revenue</p>
-        <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((sd.total_revenue or 0)|float) }}</p>
+      <div class="sa-sales-kpi sa-sales-kpi--accent rounded-2xl border border-emerald-400/30 bg-emerald-500/[0.08] p-4 shadow-sm">
+        <p class="sa-sales-kpi-label text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/90">Revenue</p>
+        <p class="sa-sales-kpi-value mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(_sa_rev) }}</p>
+        <p class="sa-sales-kpi-foot mt-1 text-xs text-[rgb(var(--rc-muted))]">Total cash collected</p>
       </div>
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak sales day</p>
-        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_day.day or "-" }}</p>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_day.revenue or 0)|float) }} revenue</p>
-      </div>
-      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Peak sales time</p>
-        <p class="mt-1 text-sm font-black text-[rgb(var(--rc-page-fg))]">{{ peak_hour.hour or "-" }}</p>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ "%.2f"|format((peak_hour.revenue or 0)|float) }} revenue</p>
+      <div class="sa-sales-kpi rounded-2xl border border-sky-400/25 bg-sky-500/[0.07] p-4 shadow-sm">
+        <p class="sa-sales-kpi-label text-[10px] font-black uppercase tracking-[0.16em] text-sky-300/90">Avg. ticket</p>
+        <p class="sa-sales-kpi-value mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(_sa_avg) }}</p>
+        <p class="sa-sales-kpi-foot mt-1 text-xs text-[rgb(var(--rc-muted))]">Mean per transaction</p>
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
-        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Sales employee ranking</h3>
-        <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Most to least</span>
+    <div class="sa-sales-daily-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-sales-daily-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 px-4 py-3 sm:px-5">
+        <div>
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Daily breakdown</h3>
+          <p class="sa-sales-daily-sub mt-0.5 text-xs text-[rgb(var(--rc-muted))]">One row per day in the filtered range</p>
+        </div>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">
+          {{ _sa_days }} day{% if _sa_days != 1 %}s{% endif %}
+        </span>
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
-          <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+      {% if sd.daily %}
+      <div class="sa-sales-daily-scroll max-h-[min(52vh,28rem)] overflow-auto p-3 sm:p-4">
+        <table class="sa-sales-daily-table">
+          <colgroup>
+            <col class="sa-sales-col-date" />
+            <col class="sa-sales-col-num" />
+            <col class="sa-sales-col-num" />
+          </colgroup>
+          <thead class="sticky top-0 z-[1]">
             <tr>
-              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Employee</th>
-              <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Code</th>
-              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Transactions</th>
-              <th class="px-4 py-2 text-right font-bold uppercase tracking-wider">Revenue</th>
+              <th scope="col" class="sa-sales-col-date">Date</th>
+              <th scope="col" class="sa-sales-col-num">Transactions</th>
+              <th scope="col" class="sa-sales-col-num">Revenue</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
-            {% for row in sd.employees or [] %}
-              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
-                <td class="px-4 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.employee_name }}</td>
-                <td class="px-4 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_code or "-" }}</td>
-                <td class="px-4 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.tx_count or 0 }}</td>
-                <td class="px-4 py-2 text-right tabular-nums font-bold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format((row.revenue or 0)|float) }}</td>
-              </tr>
-            {% else %}
-              <tr>
-                <td colspan="4" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No sales-only data for this filter yet.</td>
-              </tr>
+          <tbody>
+            {% for row in sd.daily %}
+            <tr>
+              <td class="sa-sales-col-date font-medium text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
+              <td class="sa-sales-col-num text-[rgb(var(--rc-muted))]">{{ row.tx_count or 0 }}</td>
+              <td class="sa-sales-col-num font-semibold text-emerald-400">{{ "%.2f"|format((row.revenue or 0)|float) }}</td>
+            </tr>
             {% endfor %}
           </tbody>
+          <tfoot class="sticky bottom-0 z-[1]">
+            <tr>
+              <td class="sa-sales-col-date text-[rgb(var(--rc-page-fg))]">Total</td>
+              <td class="sa-sales-col-num text-[rgb(var(--rc-page-fg))]">{{ _sa_tx }}</td>
+              <td class="sa-sales-col-num text-emerald-400">{{ "%.2f"|format(_sa_rev) }}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
+      {% else %}
+      <div class="flex flex-col items-center justify-center px-6 py-14 text-center">
+        <div class="flex h-12 w-12 items-center justify-center rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 text-[rgb(var(--rc-muted))]">
+          <svg class="h-6 w-6 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6M5 21h14a2 2 0 002-2V7l-5-5H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <p class="mt-4 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">No sales for this period</p>
+        <p class="mt-1 max-w-sm text-sm text-[rgb(var(--rc-muted))]">Try a different day, range, or month using the filters above.</p>
+      </div>
+      {% endif %}
     </div>
   {% endif %}
+
   {% if (analytics_view or '') == 'credit' %}
     {% set cd = credit_data or {} %}
     {% set top_emp = cd.top_employee or {} %}
@@ -888,10 +1473,10 @@
     {% set customer_details = cd.customer_details or {} %}
     {% set peak_day = cd.peak_day or {} %}
     {% set peak_hour = cd.peak_hour or {} %}
-    <div class="mt-3 rounded-xl border border-orange-400/30 bg-orange-500/[0.08] px-4 py-2 text-xs font-bold text-orange-300/90">
+    <div class="sa-shop-banner mt-3 rounded-xl border border-orange-400/30 bg-orange-500/[0.08] px-4 py-2 text-xs font-bold text-orange-300/90">
       Credit-only analysis (direct sales excluded).
     </div>
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="sa-shop-kpis mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Credit transactions</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ cd.total_tx_count or 0 }}</p>
@@ -912,13 +1497,13 @@
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+    <div class="sa-raw-only sa-shop-panel mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
         <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Credit employee ranking</h3>
         <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Most to least</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
+        <table class="sa-shop-data-table min-w-full text-xs">
           <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
             <tr>
               <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Employee</th>
@@ -945,13 +1530,13 @@
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+    <div class="sa-raw-only sa-shop-panel mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
         <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Credit customers analytics</h3>
         <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Each credit customer</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
+        <table class="sa-shop-data-table min-w-full text-xs">
           <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
             <tr>
               <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Customer</th>
@@ -998,7 +1583,7 @@
       <div class="absolute inset-0 bg-black/55"></div>
       <div class="absolute inset-0 flex items-center justify-center p-4">
         <div class="w-full max-w-3xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
-          <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+          <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
             <div>
               <h4 id="credit-customer-modal-title" class="text-sm font-black text-[rgb(var(--rc-page-fg))]">Customer credit details</h4>
               <p id="credit-customer-modal-subtitle" class="text-[11px] text-[rgb(var(--rc-muted))]"></p>
@@ -1062,7 +1647,7 @@
                 '<span class="font-black tabular-nums text-[rgb(var(--rc-page-fg))]">Total: ' + esc(fmt(s.total_amount || 0)) + '</span>' +
                 '</div>' +
                 '<div class="overflow-x-auto">' +
-                '<table class="min-w-full text-xs"><thead><tr class="text-[rgb(var(--rc-muted))]">' +
+                '<table class="sa-shop-data-table min-w-full text-xs"><thead><tr class="text-[rgb(var(--rc-muted))]">' +
                 '<th class="px-2 py-1 text-left font-bold uppercase tracking-wider">Item bought</th>' +
                 '<th class="px-2 py-1 text-right font-bold uppercase tracking-wider">Qty</th>' +
                 '<th class="px-2 py-1 text-right font-bold uppercase tracking-wider">Amount</th>' +
@@ -1106,7 +1691,7 @@
   {% endif %}
   {% if (analytics_view or '') == 'customer' %}
     {% set cd = customer_data or {} %}
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="sa-shop-kpis mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Customers</p>
         <p class="mt-1 text-xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ cd.distinct_customers or 0 }}</p>
@@ -1121,13 +1706,13 @@
       </div>
     </div>
 
-    <div class="sa-raw-only mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
+    <div class="sa-raw-only sa-shop-panel mt-3 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="sa-shop-panel-head flex items-center justify-between border-b border-[rgb(var(--rc-border))]/80 px-4 py-3">
         <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Customer analytics for this shop</h3>
         <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shop scope only</span>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-xs">
+        <table class="sa-shop-data-table min-w-full text-xs">
           <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
             <tr>
               <th class="px-4 py-2 text-left font-bold uppercase tracking-wider">Customer</th>
@@ -1172,5 +1757,10 @@
     </div>
   {% endif %}
   </div>
+  {% if av == 'sales' %}
+  </div>
+  {% else %}
+  </div>
+  {% endif %}
   </div>
 {% endblock %}

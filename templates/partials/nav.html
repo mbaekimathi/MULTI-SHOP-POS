@@ -1,63 +1,71 @@
-  <header class="fixed inset-x-0 top-0 z-50">
+  <header class="site-nav-header fixed inset-x-0 top-0 z-50 pt-[env(safe-area-inset-top,0px)]">
     <nav
-      class="mx-auto mt-3 max-w-6xl px-4 sm:px-6 lg:px-8"
+      class="site-nav mx-auto mt-2 max-w-6xl px-3 sm:mt-3 sm:px-6 lg:px-8"
       aria-label="Primary"
     >
       <div
-        class="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 sm:px-5"
+        class="glass site-nav__inner flex flex-wrap items-center justify-between gap-2 rounded-2xl px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3"
       >
         <a
-          class="order-1 flex min-w-0 shrink-0 items-center gap-2"
+          class="order-1 flex min-w-0 max-w-[65%] shrink-0 items-center gap-2 sm:max-w-none"
           href="{% if nav_employee %}{{ nav_employee.dashboard_url }}{% else %}{{ url_for('employee_login') }}{% endif %}"
           title="{% if nav_employee %}Employee portal{% else %}Company login{% endif %}"
         >
           <span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/30">
             {% if site_settings and site_settings.app_icon %}
-              <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full object-cover" />
+              <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full object-cover" width="36" height="36" />
             {% else %}
-              <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="" class="h-full w-full object-cover" />
+              <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="" class="h-full w-full object-cover" width="36" height="36" />
             {% endif %}
           </span>
           <span class="truncate text-sm font-semibold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-base">
             {{ site_settings.company_name if site_settings else "Point of Sale" }}
           </span>
         </a>
-        <div class="order-2 flex shrink-0 items-center gap-2 md:order-3">
+        <div class="order-2 flex shrink-0 items-center gap-1.5 sm:gap-2 md:order-3">
           {% include "partials/theme_toggle.html" %}
           {% if nav_employee %}
             {% include "partials/notification_bell.html" %}
           {% endif %}
           <button
             type="button"
-            class="inline-flex items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))] md:hidden"
+            class="site-nav__toggle inline-flex min-h-[2.75rem] min-w-[2.75rem] items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))] md:hidden"
             aria-expanded="false"
             aria-controls="mobile-menu"
             id="nav-toggle"
           >
             <span class="sr-only">Open menu</span>
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="site-nav__icon-open h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <svg class="site-nav__icon-close hidden h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
         <div
           id="mobile-menu"
-          class="order-3 flex w-full max-md:hidden basis-full flex-col gap-0.5 pt-1 md:order-2 md:flex md:w-auto md:max-w-none md:basis-auto md:flex-1 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-x-0.5 md:gap-y-1 md:pt-0 lg:gap-x-1"
+          class="site-nav__menu order-3 hidden w-full basis-full flex-col gap-0.5 border-t border-[rgb(var(--rc-border))] pt-2 md:order-2 md:flex md:w-auto md:max-w-none md:basis-auto md:flex-1 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-x-0.5 md:gap-y-1 md:border-0 md:pt-0 lg:gap-x-1"
         >
-          <details class="group relative">
+          <details class="group relative w-full md:w-auto">
             <summary
-              class="nav-pill cursor-pointer list-none font-semibold [&::-webkit-details-marker]:hidden"
+              class="nav-pill min-h-[2.75rem] w-full cursor-pointer list-none font-semibold md:w-auto [&::-webkit-details-marker]:hidden"
             >
               Login
             </summary>
             <div
               class="mt-1 min-w-[11rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1 shadow-xl md:absolute md:left-0 md:top-full md:z-50 md:mt-2"
             >
-              <a href="{{ url_for('employee_login') }}" class="nav-pill block w-full">Employee login</a>
-              <a href="{{ url_for('public_shop_login') }}" class="nav-pill block w-full">Shop login</a>
+              <a href="{{ url_for('employee_login') }}" class="nav-pill block min-h-[2.5rem] w-full">Employee login</a>
+              <a href="{{ url_for('public_shop_login') }}" class="nav-pill block min-h-[2.5rem] w-full">Shop login</a>
             </div>
           </details>
         </div>
       </div>
     </nav>
+    <div
+      id="site-nav-backdrop"
+      class="site-nav__backdrop fixed inset-0 z-40 hidden bg-black/50 md:hidden"
+      aria-hidden="true"
+    ></div>
   </header>

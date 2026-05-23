@@ -2,20 +2,67 @@
     (function () {
       var btn = document.getElementById("nav-toggle");
       var menu = document.getElementById("mobile-menu");
-      if (btn && menu) {
-        function setOpen(open) {
-          if (open) menu.classList.remove("max-md:hidden");
-          else menu.classList.add("max-md:hidden");
-          btn.setAttribute("aria-expanded", open ? "true" : "false");
+      var backdrop = document.getElementById("site-nav-backdrop");
+      var iconOpen = btn && btn.querySelector(".site-nav__icon-open");
+      var iconClose = btn && btn.querySelector(".site-nav__icon-close");
+      if (!btn || !menu) return;
+
+      var mq = window.matchMedia("(min-width: 768px)");
+
+      function setOpen(open) {
+        var mobile = !mq.matches;
+        if (mobile) {
+          menu.classList.toggle("hidden", !open);
+          menu.classList.toggle("flex", open);
+          if (backdrop) {
+            backdrop.classList.toggle("hidden", !open);
+          }
+          document.body.classList.toggle("site-nav-open", open);
+        } else {
+          menu.classList.remove("hidden");
+          menu.classList.add("flex");
+          if (backdrop) backdrop.classList.add("hidden");
+          document.body.classList.remove("site-nav-open");
         }
-        btn.addEventListener("click", function () {
-          setOpen(menu.classList.contains("max-md:hidden"));
-        });
-        menu.querySelectorAll("a").forEach(function (a) {
-          a.addEventListener("click", function () {
-            if (window.matchMedia("(max-width: 767px)").matches) setOpen(false);
-          });
+        btn.setAttribute("aria-expanded", open && mobile ? "true" : "false");
+        if (iconOpen && iconClose) {
+          iconOpen.classList.toggle("hidden", open && mobile);
+          iconClose.classList.toggle("hidden", !(open && mobile));
+        }
+      }
+
+      btn.addEventListener("click", function () {
+        if (mq.matches) return;
+        setOpen(menu.classList.contains("hidden"));
+      });
+
+      if (backdrop) {
+        backdrop.addEventListener("click", function () {
+          setOpen(false);
         });
       }
+
+      menu.querySelectorAll("a").forEach(function (a) {
+        a.addEventListener("click", function () {
+          if (!mq.matches) setOpen(false);
+        });
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !mq.matches && !menu.classList.contains("hidden")) {
+          setOpen(false);
+        }
+      });
+
+      function onBreakpoint() {
+        if (mq.matches) setOpen(false);
+        else setOpen(false);
+      }
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", onBreakpoint);
+      } else if (typeof mq.addListener === "function") {
+        mq.addListener(onBreakpoint);
+      }
+      onBreakpoint();
     })();
   </script>

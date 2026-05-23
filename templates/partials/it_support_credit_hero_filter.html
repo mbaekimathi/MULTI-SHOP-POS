@@ -1,0 +1,120 @@
+{# Integrated hero + live filter for IT credit hub pages. #}
+{% set f = f or {} %}
+{% set shop_list = shop_list or [] %}
+{% set _fm = f.mode or 'single_day' %}
+<section class="it-credit-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+  <div class="it-credit-hero-top border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="it-credit-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Company credit</p>
+        <h2 class="it-credit-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ credit_shell_title }}</h2>
+        <p class="it-credit-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ credit_shell_desc }}</p>
+      </div>
+      <div class="it-credit-chips flex flex-wrap items-center gap-2 lg:justify-end" aria-live="polite">
+        {% if credit_all_time %}
+        <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">All time</span>
+        {% elif _fm == 'single_day' %}
+        <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+          Day <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.single_day or '—' }}</span>
+        </span>
+        {% elif _fm == 'period' %}
+        <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+          Range <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.start_date or '—' }} – {{ f.end_date or '—' }}</span>
+        </span>
+        {% elif _fm == 'month' %}
+        <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+          Month <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.month or '—' }}</span>
+        </span>
+        {% elif _fm == 'year' %}
+        <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+          Year <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.year or '—' }}</span>
+        </span>
+        {% endif %}
+        {% if filter_shop_id %}
+        <span class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/80 px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">Shop filtered</span>
+        {% endif %}
+        <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300/95">
+          <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+          {{ credit_shell_badge }}
+        </span>
+      </div>
+    </div>
+  </div>
+  <form
+    id="{{ filter_form_id }}"
+    method="get"
+    class="it-credit-filter-form it-credit-live-filter border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6"
+    {% if filter_form_action %}action="{{ filter_form_action }}"{% endif %}
+  >
+    <div class="it-credit-filter-intro mb-3">
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filters</p>
+      <p class="it-credit-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Changes apply automatically</p>
+    </div>
+    <div class="flex flex-wrap items-end gap-2.5">
+      <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
+        <label for="cp-filter-mode" class="it-credit-label">Period</label>
+        <select id="cp-filter-mode" name="mode" class="it-credit-input">
+          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
+          <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div id="cp-filter-single-day" data-credit-filter="single_day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+        <label for="cp-single-day" class="it-credit-label">Day</label>
+        <input id="cp-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="it-credit-input" />
+      </div>
+      <div id="cp-filter-period" data-credit-filter="period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="cp-start" class="it-credit-label">Start</label>
+          <input id="cp-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="it-credit-input" />
+        </div>
+        <div class="min-w-[9.5rem] flex-1">
+          <label for="cp-end" class="it-credit-label">End</label>
+          <input id="cp-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="it-credit-input" />
+        </div>
+      </div>
+      <div id="cp-filter-month" data-credit-filter="month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+        <label for="cp-month" class="it-credit-label">Month</label>
+        <input id="cp-month" type="month" name="month" value="{{ f.month or '' }}" class="it-credit-input" />
+      </div>
+      <div id="cp-filter-year" data-credit-filter="year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+        <label for="cp-year" class="it-credit-label">Year</label>
+        <input id="cp-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="it-credit-input" placeholder="e.g. 2026" />
+      </div>
+      <div class="min-w-[9rem] flex-1 sm:max-w-[11rem]">
+        <label for="cp-shop" class="it-credit-label">Shop</label>
+        <select id="cp-shop" name="shop_id" class="it-credit-input">
+          <option value="">All shops</option>
+          {% for sh in shop_list %}
+          <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if show_payment_scope %}
+      <div class="min-w-[9rem] flex-1 sm:max-w-[12rem]">
+        <label for="cp-payment-scope" class="it-credit-label">Payment status</label>
+        <select id="cp-payment-scope" name="payment_scope" class="it-credit-input">
+          <option value="all" {% if (payment_scope or 'all') == 'all' %}selected{% endif %}>All — partial then paid</option>
+          <option value="partial" {% if (payment_scope or '') == 'partial' %}selected{% endif %}>Partially paid</option>
+          <option value="paid" {% if (payment_scope or '') == 'paid' %}selected{% endif %}>Fully paid</option>
+        </select>
+      </div>
+      {% endif %}
+      <div class="min-w-[10rem] flex-[2]">
+        <label for="cp-customer-q" class="it-credit-label">Customer</label>
+        <input id="cp-customer-q" type="search" name="customer_q" value="{{ customer_q or '' }}" placeholder="Name or phone…" autocomplete="off" class="it-credit-input" />
+      </div>
+      <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+        <label class="it-credit-toggle shrink-0" for="cp-all-time">
+          <input id="cp-all-time" type="checkbox" name="all_time" value="1" {% if credit_all_time %}checked{% endif %} />
+          <span>All time</span>
+        </label>
+        <a href="{{ filter_clear_url }}" class="btn-rc btn-rc-ghost it-credit-btn shrink-0">Clear</a>
+        {% if show_print and filter_print_url %}
+        <a href="{{ filter_print_url }}" class="btn-rc btn-rc-ghost it-credit-btn shrink-0" title="Print all credit sales">Print</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</section>

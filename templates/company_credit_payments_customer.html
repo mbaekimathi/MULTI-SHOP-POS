@@ -13,8 +13,10 @@
 {% block employee_content %}
   {% set tx_count = transactions|length %}
   {% set pay_count = payment_transactions|length %}
+  {% include "partials/it_support_credit_hub_assets.html" %}
 
-  <div class="it-credit-page">
+  <div class="it-credit-page it-credit-analytics">
+  <div class="it-credit-workspace mt-4 flex flex-col gap-2 sm:gap-4">
     <header class="mb-5 sm:mb-6">
       <article class="it-credit-intro">
         <div class="it-credit-customer-header">
@@ -364,11 +366,11 @@
       </div>
     </div>
   </div>
+  </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  {% include "partials/it_support_credit_hub_assets.html" %}
   <style>
     @media print {
       nav,
