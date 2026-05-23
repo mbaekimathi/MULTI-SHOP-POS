@@ -1,0 +1,125 @@
+{# Upcoming due rows — responsive cards + table. Expects: due_rows, due_days_ahead #}
+{% set ns = namespace(count=0, balance=0.0, overdue=0) %}
+{% for row in due_rows %}
+  {% set ns.count = ns.count + 1 %}
+  {% set ns.balance = ns.balance + (row.remaining_amount|float) %}
+  {% if row.overdue %}{% set ns.overdue = ns.overdue + 1 %}{% endif %}
+{% endfor %}
+
+<section class="it-credit-panel" aria-labelledby="credit-due-heading">
+  <div class="it-credit-panel__head">
+    <div class="min-w-0">
+      <h2 id="credit-due-heading" class="it-credit-panel__title">Due soon &amp; overdue</h2>
+      <p class="it-credit-panel__desc">Within the next {{ due_days_ahead or 90 }} days, including past-due balances.</p>
+    </div>
+    {% if due_rows %}
+      <span class="it-credit-panel__badge">{{ ns.count }} sale{% if ns.count != 1 %}s{% endif %}</span>
+    {% endif %}
+  </div>
+
+  {% if not due_rows %}
+    {% set empty_title = "Nothing due in this window" %}
+    {% set empty_message = "Increase the horizon, clear shop or customer filters, or check back when new credit sales have due dates." %}
+    {% include "partials/it_support_credit_empty.html" %}
+  {% else %}
+    <div class="it-credit-stats it-credit-stats--3" role="group" aria-label="Due summary">
+      <div class="it-credit-stat">
+        <p class="it-credit-stat__label">Sales</p>
+        <p class="it-credit-stat__value">{{ ns.count }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--rose">
+        <p class="it-credit-stat__label">Overdue</p>
+        <p class="it-credit-stat__value">{{ ns.overdue }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--amber">
+        <p class="it-credit-stat__label">Total outstanding</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.balance) }}</p>
+      </div>
+    </div>
+
+    <div class="it-credit-cards" aria-label="Due credit sales">
+      {% for row in due_rows %}
+        <article class="it-credit-row-card">
+          <div class="it-credit-row-card__top">
+            <div class="min-w-0">
+              <p class="it-credit-row-card__name">{{ row.customer_name }}</p>
+              <p class="it-credit-row-card__sub">{{ row.shop_name }} · Due {{ row.credit_due_date }}</p>
+            </div>
+            {% if row.overdue %}
+              <span class="it-credit-badge it-credit-badge--overdue shrink-0">Overdue</span>
+            {% else %}
+              <span class="it-credit-badge it-credit-badge--upcoming shrink-0">Upcoming</span>
+            {% endif %}
+          </div>
+          <div class="it-credit-row-card__metrics">
+            <div>
+              <p class="it-credit-metric__label">Balance</p>
+              <p class="it-credit-metric__value it-credit-amount--credit">{{ "%.2f"|format(row.remaining_amount) }}</p>
+            </div>
+            <div>
+              <p class="it-credit-metric__label">Sale</p>
+              <p class="it-credit-metric__value text-[rgb(var(--rc-muted))]">#{{ row.id }}</p>
+            </div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <a href="{{ url_for('it_support_credit_sale_detail', shop_id=row.shop_id, sale_id=row.id) }}" class="btn-rc btn-rc-ghost it-credit-btn w-full sm:w-auto">View sale</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+
+    <p class="it-credit-scroll-hint" aria-hidden="true">
+      <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+      Swipe table for more columns
+    </p>
+
+    <div class="it-credit-table-desktop">
+      <div class="it-credit-table-wrap">
+        <div class="it-credit-table-wrap__scroll">
+          <table class="it-credit-table min-w-[800px]">
+            <thead>
+              <tr>
+                <th scope="col">Due</th>
+                <th scope="col">Status</th>
+                <th scope="col">Shop</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Balance</th>
+                <th scope="col">Sale</th>
+                <th scope="col"><span class="sr-only">View</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in due_rows %}
+                <tr>
+                  <td class="whitespace-nowrap font-medium tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.credit_due_date }}</td>
+                  <td>
+                    {% if row.overdue %}
+                      <span class="it-credit-badge it-credit-badge--overdue">Overdue</span>
+                    {% else %}
+                      <span class="it-credit-badge it-credit-badge--upcoming">Upcoming</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-xs text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                  <td>
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.customer_name }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.customer_phone }}</div>
+                  </td>
+                  <td class="it-credit-amount--credit">{{ "%.2f"|format(row.remaining_amount) }}</td>
+                  <td class="text-xs text-[rgb(var(--rc-muted))]">#{{ row.id }} · {{ row.created_at }}</td>
+                  <td>
+                    <a href="{{ url_for('it_support_credit_sale_detail', shop_id=row.shop_id, sale_id=row.id) }}" class="it-credit-action-btn" aria-label="Sale detail">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</section>

@@ -1,95 +1,29 @@
-{% extends "employee_layout.html" %}
-{% block title %}Upcoming credit due dates — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
-{% block portal_page_title %}Upcoming credit due dates{% endblock %}
-
-{% block sidebar_links %}
-  {% include "partials/it_support_credit_sidebar_nav.html" %}
-{% endblock %}
-
-{% block employee_content %}
-  {% set shop_list = shops or [] %}
-
-  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Upcoming credit due dates</h2>
-    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-      Credit sales that still have a balance and have a due date on or before the horizon (includes past-due). Ordered by due date.
-    </p>
-  </div>
-
-  <form method="get" action="{{ url_for('it_support_credit_payments_upcoming_due') }}" class="mt-4 flex flex-wrap items-end gap-2.5 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <div class="min-w-[8rem]">
-      <label for="due-days" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Horizon (days)</label>
-      <input id="due-days" type="number" min="1" max="730" name="days" value="{{ due_days_ahead or 90 }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-    </div>
-    <div class="min-w-[12rem] flex-1">
-      <label for="due-shop" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
-      <select id="due-shop" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
-        <option value="">All shops</option>
-        {% for sh in shop_list %}
-          <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="min-w-[12rem] flex-1 sm:min-w-[16rem]">
-      <label for="due-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Customer name or phone</label>
-      <input id="due-q" type="search" name="customer_q" value="{{ customer_q or '' }}" placeholder="Search…" autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-    </div>
-    <div class="flex flex-wrap gap-2 pb-0.5">
-      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Apply</button>
-      <a href="{{ url_for('it_support_credit_payments_upcoming_due') }}" class="btn-rc btn-rc-ghost rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
-    </div>
-  </form>
-
-  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    {% if not due_rows %}
-      <p class="text-sm text-[rgb(var(--rc-muted))]">No open credit with a due date in this window.</p>
-    {% else %}
-      <div class="overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-        <div class="overflow-x-auto">
-          <table class="min-w-[800px] w-full text-sm">
-            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-              <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Due</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sale</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-              {% for row in due_rows %}
-                <tr class="hover:bg-[rgb(var(--rc-surface-2))]/40">
-                  <td class="whitespace-nowrap px-3 py-2.5 font-medium tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.credit_due_date }}</td>
-                  <td class="px-3 py-2.5">
-                    {% if row.overdue %}
-                      <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-300">Overdue</span>
-                    {% else %}
-                      <span class="inline-flex rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-200">Upcoming</span>
-                    {% endif %}
-                  </td>
-                  <td class="px-3 py-2.5 text-xs text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
-                  <td class="px-3 py-2.5">
-                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.customer_name }}</div>
-                    <div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.customer_phone }}</div>
-                  </td>
-                  <td class="px-3 py-2.5 font-semibold tabular-nums text-amber-400">{{ "%.2f"|format(row.remaining_amount) }}</td>
-                  <td class="px-3 py-2.5 text-xs text-[rgb(var(--rc-muted))]">#{{ row.id }} · {{ row.created_at }}</td>
-                  <td class="px-3 py-2.5">
-                    <a href="{{ url_for('it_support_credit_sale_detail', shop_id=row.shop_id, sale_id=row.id) }}" class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]" aria-label="Sale detail">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
-                      </svg>
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    {% endif %}
-  </div>
-{% endblock %}
+{% extends "employee_layout.html" %}
+{% block title %}Upcoming credit due dates — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Upcoming credit due dates{% endblock %}
+
+{% block sidebar_links %}
+  {% include "partials/it_support_credit_sidebar_nav.html" %}
+{% endblock %}
+
+{% block employee_content %}
+  {% set shop_list = shops or [] %}
+
+  <div class="it-credit-page">
+    <header class="it-credit-hub-header mb-5 sm:mb-6">
+      {% set credit_title = "Upcoming credit due dates" %}
+      {% set credit_description = "Open credit with a due date on or before your horizon (includes past-due). Sorted by due date, soonest first." %}
+      {% include "partials/it_support_credit_intro.html" %}
+
+      {% set filter_clear_url = url_for('it_support_credit_payments_upcoming_due') %}
+      {% include "partials/it_support_credit_filter_due.html" %}
+    </header>
+
+    {% include "partials/it_support_credit_due_data.html" %}
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% include "partials/it_support_credit_hub_assets.html" %}
+{% endblock %}

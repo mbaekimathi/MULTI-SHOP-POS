@@ -1,0 +1,159 @@
+{# Company credit customers list — table (tablet+) + cards (mobile). Expects: credit_sales #}
+{% set ns = namespace(count=0, credit=0.0, paid=0.0, balance=0.0) %}
+{% for s in credit_sales %}
+  {% set ns.count = ns.count + 1 %}
+  {% set ns.credit = ns.credit + (s.total_amount|float) %}
+  {% set ns.paid = ns.paid + (s.paid_amount|float) %}
+  {% set ns.balance = ns.balance + (s.remaining_amount|float) %}
+{% endfor %}
+
+<section class="it-credit-panel" id="credit-sales-print-area" aria-labelledby="credit-customers-heading">
+  <div class="it-credit-panel__head">
+    <div class="min-w-0">
+      <h2 id="credit-customers-heading" class="it-credit-panel__title">Customer balances</h2>
+      <p class="it-credit-panel__desc">Combined credit totals per customer across all shops.</p>
+    </div>
+    {% if credit_sales %}
+      <span class="it-credit-panel__badge">{{ ns.count }} customer{% if ns.count != 1 %}s{% endif %}</span>
+    {% endif %}
+  </div>
+
+  {% if not credit_sales %}
+    {% set empty_title = "No customers found" %}
+    {% set empty_message = "Try widening your date range, clearing filters, or searching with a different name or phone number." %}
+    {% include "partials/it_support_credit_empty.html" %}
+  {% else %}
+    <div class="it-credit-stats" role="group" aria-label="Summary totals">
+      <div class="it-credit-stat">
+        <p class="it-credit-stat__label">Customers</p>
+        <p class="it-credit-stat__value">{{ ns.count }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--amber">
+        <p class="it-credit-stat__label">Credit total</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.credit) }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--emerald">
+        <p class="it-credit-stat__label">Paid</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.paid) }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--rose">
+        <p class="it-credit-stat__label">Outstanding</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.balance) }}</p>
+      </div>
+    </div>
+
+    <div class="it-credit-cards" aria-label="Customer list">
+      {% for s in credit_sales %}
+        <article class="it-credit-row-card">
+          <div class="it-credit-row-card__top">
+            <div class="min-w-0">
+              <p class="it-credit-row-card__name">{{ s.customer_name }}</p>
+              <p class="it-credit-row-card__sub">{{ s.customer_phone }}</p>
+            </div>
+            <a href="{{ url_for('company_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}"
+               class="it-credit-action-btn shrink-0"
+               aria-label="View {{ s.customer_name }}">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          </div>
+          <div class="it-credit-row-card__metrics">
+            <div>
+              <p class="it-credit-metric__label">Credit sales</p>
+              <p class="it-credit-metric__value text-[rgb(var(--rc-muted))]">{{ s.tx_count }}</p>
+            </div>
+            <div>
+              <p class="it-credit-metric__label">Credit total</p>
+              <p class="it-credit-metric__value it-credit-amount--credit">{{ "%.2f"|format(s.total_amount) }}</p>
+            </div>
+            <div>
+              <p class="it-credit-metric__label">Paid</p>
+              <p class="it-credit-metric__value it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</p>
+            </div>
+            <div>
+              <p class="it-credit-metric__label">Balance</p>
+              <p class="it-credit-metric__value it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</p>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+
+    <p class="it-credit-scroll-hint" aria-hidden="true">
+      <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+      Swipe table for more columns
+    </p>
+
+    <div class="it-credit-table-desktop">
+      <div class="it-credit-table-wrap">
+        <div class="it-credit-table-wrap__scroll">
+          <table class="it-credit-table min-w-[680px]">
+            <thead>
+              <tr>
+                <th scope="col">Customer</th>
+                <th scope="col">Credit sales</th>
+                <th scope="col">Credit total</th>
+                <th scope="col">Paid</th>
+                <th scope="col">Balance</th>
+                <th scope="col"><span class="sr-only">View</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in credit_sales %}
+                <tr>
+                  <td class="col-customer max-w-[18rem]">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.customer_name }}</div>
+                    <div class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ s.customer_phone }}</div>
+                  </td>
+                  <td class="col-tx text-[rgb(var(--rc-muted))]">{{ s.tx_count }}</td>
+                  <td class="col-total it-credit-amount--credit">{{ "%.2f"|format(s.total_amount) }}</td>
+                  <td class="col-paid it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</td>
+                  <td class="col-balance it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</td>
+                  <td class="col-view">
+                    <a href="{{ url_for('company_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}"
+                       class="it-credit-action-btn"
+                       aria-label="View customer credit sales">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="print-only-table mt-3 hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr>
+            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
+            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit sales</th>
+            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
+            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
+            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in credit_sales %}
+            <tr>
+              <td class="px-3 py-2.5">
+                <div class="font-semibold">{{ s.customer_name }}</div>
+                <div class="text-xs">{{ s.customer_phone }}</div>
+              </td>
+              <td class="px-3 py-2.5">{{ s.tx_count }}</td>
+              <td class="px-3 py-2.5 tabular-nums">{{ "%.2f"|format(s.total_amount) }}</td>
+              <td class="px-3 py-2.5 tabular-nums">{{ "%.2f"|format(s.paid_amount) }}</td>
+              <td class="px-3 py-2.5 tabular-nums font-semibold">{{ "%.2f"|format(s.remaining_amount) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>

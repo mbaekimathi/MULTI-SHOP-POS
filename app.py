@@ -739,8 +739,8 @@ def _save_branding_upload(file_storage):
 
 @app.route("/")
 def index():
-    """Public marketing landing page."""
-    return render_template("marketing/home.html")
+    """Entry point: shop or employee sign-in only."""
+    return render_template("home.html")
 
 
 @app.route("/features")

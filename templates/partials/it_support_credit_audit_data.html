@@ -1,0 +1,181 @@
+{# Audit page data — sales + payment receipts. Expects: audit_sales, payment_receipts #}
+
+<section class="it-credit-panel mb-5 sm:mb-6" aria-labelledby="audit-sales-heading">
+  <div class="it-credit-panel__head">
+    <div class="min-w-0">
+      <h2 id="audit-sales-heading" class="it-credit-panel__title">Credit sales (payments applied)</h2>
+      <p class="it-credit-panel__desc">Sales with at least one payment — partially paid first, then fully paid.</p>
+    </div>
+    {% if audit_sales %}
+      <span class="it-credit-panel__badge">{{ audit_sales|length }} sale{% if audit_sales|length != 1 %}s{% endif %}</span>
+    {% endif %}
+  </div>
+
+  {% if not audit_sales %}
+    {% set empty_title = "No credit sales match" %}
+    {% set empty_message = "Adjust date range, shop, customer search, or payment status, then apply filters again." %}
+    {% include "partials/it_support_credit_empty.html" %}
+  {% else %}
+    <div class="it-credit-cards" aria-label="Credit sales list">
+      {% for s in audit_sales %}
+        <article class="it-credit-row-card {% if s.credit_status == 'partially_paid' %}ring-1 ring-amber-500/20{% elif s.credit_status == 'paid' %}ring-1 ring-emerald-500/15{% endif %}">
+          <div class="it-credit-row-card__top">
+            <div class="min-w-0">
+              <p class="it-credit-row-card__name">{{ s.customer_name }}</p>
+              <p class="it-credit-row-card__sub">{{ s.shop_name }} · #{{ s.id }}</p>
+            </div>
+            {% if s.credit_status == 'partially_paid' %}
+              <span class="it-credit-badge it-credit-badge--partial shrink-0">Partial</span>
+            {% elif s.credit_status == 'paid' %}
+              <span class="it-credit-badge it-credit-badge--paid shrink-0">Paid</span>
+            {% endif %}
+          </div>
+          <div class="it-credit-row-card__metrics">
+            <div><p class="it-credit-metric__label">Total</p><p class="it-credit-metric__value it-credit-amount--credit">{{ "%.2f"|format(s.total_amount) }}</p></div>
+            <div><p class="it-credit-metric__label">Balance</p><p class="it-credit-metric__value it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</p></div>
+            <div><p class="it-credit-metric__label">Due</p><p class="it-credit-metric__value text-[rgb(var(--rc-muted))]">{{ s.credit_due_date or '—' }}</p></div>
+            <div><p class="it-credit-metric__label">Paid</p><p class="it-credit-metric__value it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</p></div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <a href="{{ url_for('it_support_credit_sale_detail', shop_id=s.shop_id, sale_id=s.id) }}" class="btn-rc btn-rc-ghost it-credit-btn w-full sm:w-auto">View sale</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+
+    <p class="it-credit-scroll-hint" aria-hidden="true">
+      <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+      Swipe table for more columns
+    </p>
+
+    <div class="it-credit-table-desktop">
+      <div class="it-credit-table-wrap">
+        <div class="it-credit-table-wrap__scroll">
+          <table class="it-credit-table min-w-[860px]">
+            <thead>
+              <tr>
+                <th scope="col">Status</th>
+                <th scope="col">Shop</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Sale</th>
+                <th scope="col">Due</th>
+                <th scope="col">Total</th>
+                <th scope="col">Paid</th>
+                <th scope="col">Balance</th>
+                <th scope="col"><span class="sr-only">View</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in audit_sales %}
+                <tr class="{% if s.credit_status == 'partially_paid' %}bg-amber-500/[0.04]{% elif s.credit_status == 'paid' %}bg-emerald-500/[0.04]{% endif %}">
+                  <td>
+                    {% if s.credit_status == 'partially_paid' %}
+                      <span class="it-credit-badge it-credit-badge--partial">Partial</span>
+                    {% elif s.credit_status == 'paid' %}
+                      <span class="it-credit-badge it-credit-badge--paid">Paid</span>
+                    {% else %}
+                      <span class="text-xs text-[rgb(var(--rc-muted))]">{{ s.credit_status }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">{{ s.shop_code or ('#' ~ s.shop_id) }}</div>
+                  </td>
+                  <td>
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ s.customer_name }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">{{ s.customer_phone }}</div>
+                  </td>
+                  <td class="text-xs text-[rgb(var(--rc-muted))]">#{{ s.id }} · {{ s.created_at }}</td>
+                  <td class="text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ s.credit_due_date or '—' }}</td>
+                  <td class="it-credit-amount--credit">{{ "%.2f"|format(s.total_amount) }}</td>
+                  <td class="it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</td>
+                  <td class="it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</td>
+                  <td>
+                    <a href="{{ url_for('it_support_credit_sale_detail', shop_id=s.shop_id, sale_id=s.id) }}" class="it-credit-action-btn" aria-label="Sale detail">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+<section class="it-credit-panel" aria-labelledby="audit-receipts-heading">
+  <div class="it-credit-panel__head">
+    <div class="min-w-0">
+      <h2 id="audit-receipts-heading" class="it-credit-panel__title">Payment receipts</h2>
+      <p class="it-credit-panel__desc">Every recorded payment toward credit, newest first.</p>
+    </div>
+    {% if payment_receipts %}
+      <span class="it-credit-panel__badge">{{ payment_receipts|length }} receipt{% if payment_receipts|length != 1 %}s{% endif %}</span>
+    {% endif %}
+  </div>
+
+  {% if not payment_receipts %}
+    {% set empty_title = "No payment receipts" %}
+    {% set empty_message = "No payments were logged for the current filters. Try all time or a wider date range." %}
+    {% include "partials/it_support_credit_empty.html" %}
+  {% else %}
+    <div class="it-credit-cards" aria-label="Payment receipts list">
+      {% for r in payment_receipts %}
+        <article class="it-credit-row-card">
+          <div class="it-credit-row-card__top">
+            <div class="min-w-0">
+              <p class="it-credit-row-card__name">{{ r.customer_name }}</p>
+              <p class="it-credit-row-card__sub">{{ r.shop_name }} · {{ r.created_at }}</p>
+            </div>
+            <p class="it-credit-amount--paid shrink-0 text-base">{{ "%.2f"|format(r.amount) }}</p>
+          </div>
+          <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">{{ r.payment_method|upper }} {% if r.note %}· {{ r.note }}{% endif %}</p>
+        </article>
+      {% endfor %}
+    </div>
+
+    <p class="it-credit-scroll-hint" aria-hidden="true">
+      <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+      Swipe table for more columns
+    </p>
+
+    <div class="it-credit-table-desktop">
+      <div class="it-credit-table-wrap">
+        <div class="it-credit-table-wrap__scroll">
+          <table class="it-credit-table min-w-[720px]">
+            <thead>
+              <tr>
+                <th scope="col">When</th>
+                <th scope="col">Shop</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Method</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in payment_receipts %}
+                <tr>
+                  <td class="text-xs text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+                  <td class="text-xs text-[rgb(var(--rc-page-fg))]">{{ r.shop_name }}</td>
+                  <td>
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ r.customer_name }}</div>
+                    <div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.customer_phone }}</div>
+                  </td>
+                  <td class="text-xs uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ r.payment_method }}</td>
+                  <td class="it-credit-amount--paid">{{ "%.2f"|format(r.amount) }}</td>
+                  <td class="max-w-[14rem] truncate text-xs text-[rgb(var(--rc-muted))]" title="{{ r.note or '' }}">{{ r.note or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</section>

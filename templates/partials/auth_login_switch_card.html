@@ -1,0 +1,42 @@
+{# active: "shop" | "employee" — the page the user is on now #}
+<div
+  class="auth-login-switch mt-6 rounded-xl border-2 border-dashed p-4 text-left sm:p-5
+    {% if active == 'shop' %}
+      border-violet-200/90 bg-violet-50/50 dark:border-violet-700/50 dark:bg-violet-950/30
+    {% else %}
+      border-teal-200/90 bg-teal-50/50 dark:border-teal-700/50 dark:bg-teal-950/30
+    {% endif %}"
+  role="complementary"
+>
+  {% if active == 'shop' %}
+    <p class="text-xs font-bold uppercase tracking-wider text-violet-800 dark:text-violet-300">Not on a shop device?</p>
+    <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">
+      <strong class="font-semibold text-slate-900 dark:text-slate-100">Employee login</strong> is for your personal staff code — managers, IT, and head office.
+    </p>
+    <a
+      href="{{ url_for('employee_login') }}"
+      class="js-auth-switch-link auth-login-switch__btn mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-violet-400/60 bg-white px-4 py-2.5 text-sm font-bold text-violet-900 shadow-sm transition hover:bg-violet-50 dark:border-violet-500/50 dark:bg-violet-950/60 dark:text-violet-100 dark:hover:bg-violet-900/50"
+      data-auth-switch="to-employee"
+    >
+      <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.748-.5M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+      </svg>
+      Go to employee login
+    </a>
+  {% else %}
+    <p class="text-xs font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300">On a till or shop tablet?</p>
+    <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">
+      <strong class="font-semibold text-slate-900 dark:text-slate-100">Shop login</strong> uses the branch shop code and shop password — not your employee code.
+    </p>
+    <a
+      href="{{ url_for('public_shop_login') }}"
+      class="js-auth-switch-link auth-login-switch__btn mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-teal-400/60 bg-white px-4 py-2.5 text-sm font-bold text-teal-900 shadow-sm transition hover:bg-teal-50 dark:border-teal-500/50 dark:bg-teal-950/60 dark:text-teal-100 dark:hover:bg-teal-900/50"
+      data-auth-switch="to-shop"
+    >
+      <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a2.25 2.25 0 013.75-.659A2.25 2.25 0 017.5 9.349m0 0V21m8.25-11.751V4.5A2.25 2.25 0 0013.5 2.25h-3A2.25 2.25 0 008.25 4.5v4.598M12 8.25h.008v.008H12V8.25z" />
+      </svg>
+      Go to shop login
+    </a>
+  {% endif %}
+</div>

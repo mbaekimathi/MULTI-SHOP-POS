@@ -11,269 +11,383 @@
 {% endblock %}
 
 {% block employee_content %}
-  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ customer_name }}</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Phone: {{ customer_phone }}</p>
-        <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">All shops combined</p>
-      </div>
-      {% if back_shop_id %}
-        <div class="flex flex-wrap items-center gap-2">
-          <a href="{{ url_for('shop_credit_payments', shop_id=back_shop_id) }}" class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]">Back</a>
-          <a href="{{ url_for('company_credit_payments_customer', customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id, print=1) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-sm font-semibold">Print client statement</a>
-        </div>
-      {% else %}
-        <div class="flex flex-wrap items-center gap-2">
-          <a href="{{ url_for('it_support_credit_payments') }}" class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]">Back</a>
-          <a href="{{ url_for('company_credit_payments_customer', customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id, print=1) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-sm font-semibold">Print client statement</a>
-        </div>
-      {% endif %}
-    </div>
-  </div>
+  {% set tx_count = transactions|length %}
+  {% set pay_count = payment_transactions|length %}
 
-  <div class="mt-4 grid gap-3 sm:grid-cols-3">
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Credit total</div><div class="mt-2 text-2xl font-extrabold text-amber-400">{{ "%.2f"|format(total_credit or 0) }}</div></div>
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-2 text-2xl font-extrabold text-emerald-400">{{ "%.2f"|format(total_paid or 0) }}</div></div>
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance</div><div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_due or 0) }}</div></div>
-  </div>
-
-  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Receive payment (company FIFO)</h3>
-    <form method="post" action="{{ url_for('company_credit_payments_pay') }}" class="mt-3 flex flex-wrap items-end gap-2.5">
-      <input type="hidden" name="customer_name" value="{{ customer_name }}" />
-      <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
-      <input type="hidden" name="back_shop_id" value="{{ back_shop_id or '' }}" />
-      <div class="min-w-[12rem] flex-1">
-        <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Amount paid</label>
-        <input name="amount" type="number" step="0.01" min="0" required class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
-      </div>
-      <div class="min-w-[14rem] flex-1">
-        <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Payment method</label>
-        <select name="payment_method" required class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
-          <option value="">Select method</option>
-          <option value="cash">Cash</option>
-          <option value="mpesa">Mpesa</option>
-          <option value="bank">Bank</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-      <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-sm font-semibold">Pay</button>
-    </form>
-    <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Payment is applied FIFO to the oldest unpaid credit sale across all shops for this customer.</p>
-  </div>
-
-  <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <div class="flex flex-wrap items-center gap-2 border-b border-[rgb(var(--rc-border))] pb-3">
-      <button type="button" id="tab-credit-sales-btn" class="tab-btn rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]">Credit sales</button>
-      <button type="button" id="tab-payments-btn" class="tab-btn rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]">Payments received</button>
-    </div>
-
-    <div id="tab-credit-sales-panel" class="tab-panel mt-4">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All credit sales for this customer</h3>
-      {% if not transactions %}
-        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No credit sales found for this customer.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[980px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sale</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">View items</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for tx in transactions %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
-                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">#{{ tx.id }}</td>
-                    <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(tx.total_amount) }}</td>
-                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(tx.paid_amount) }}</td>
-                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(tx.remaining_amount) }}</td>
-                    <td class="px-3 py-2">
-                      {% if tx.credit_status == 'paid' %}
-                        <span class="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">paid</span>
-                      {% elif tx.credit_status == 'partially_paid' %}
-                        <span class="rounded-full border border-amber-300/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">partially paid</span>
-                      {% else %}
-                        <span class="rounded-full border border-slate-300/30 bg-slate-500/10 px-2 py-0.5 text-xs font-semibold text-slate-200">not paid</span>
-                      {% endif %}
-                    </td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ tx.employee_name }}{% if tx.employee_code %} ({{ tx.employee_code }}){% endif %}</td>
-                    <td class="px-3 py-2">
-                      <a
-                        href="{{ url_for('company_credit_sale_detail', shop_id=tx.shop_id, sale_id=tx.id, customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id) }}"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
-                        aria-label="View transaction items"
-                        title="View transaction items"
-                      >
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
-                        </svg>
-                      </a>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+  <div class="it-credit-page">
+    <header class="mb-5 sm:mb-6">
+      <article class="it-credit-intro">
+        <div class="it-credit-customer-header">
+          <div class="flex min-w-0 flex-1 gap-3 sm:gap-4">
+            <div class="it-credit-intro__icon" aria-hidden="true">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1 pt-0.5">
+              <h2 class="text-base font-semibold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">{{ customer_name }}</h2>
+              <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+                <span class="font-medium text-[rgb(var(--rc-page-fg))]">{{ customer_phone }}</span>
+                <span class="mx-1.5 text-[rgb(var(--rc-border))]">·</span>
+                All shops combined
+              </p>
+              {% if tx_count or pay_count %}
+                <p class="mt-2 flex flex-wrap gap-2">
+                  {% if tx_count %}<span class="it-credit-pill it-credit-pill--active"><span class="it-credit-pill__text">{{ tx_count }} credit sale{% if tx_count != 1 %}s{% endif %}</span></span>{% endif %}
+                  {% if pay_count %}<span class="it-credit-pill"><span class="it-credit-pill__text">{{ pay_count }} payment{% if pay_count != 1 %}s{% endif %}</span></span>{% endif %}
+                </p>
+              {% endif %}
+            </div>
+          </div>
+          <div class="it-credit-customer-header__actions">
+            {% if back_shop_id %}
+              <a href="{{ url_for('shop_credit_payments', shop_id=back_shop_id) }}" class="btn-rc btn-rc-ghost it-credit-btn">Back</a>
+            {% else %}
+              <a href="{{ url_for('it_support_credit_payments') }}" class="btn-rc btn-rc-ghost it-credit-btn">Back</a>
+            {% endif %}
+            <a href="{{ url_for('company_credit_payments_customer', customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id, print=1) }}" class="btn-rc btn-rc-ghost it-credit-btn">
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              Print statement
+            </a>
           </div>
         </div>
-      {% endif %}
+      </article>
+    </header>
+
+    <div class="it-credit-stats mb-5 sm:mb-6" role="group" aria-label="Customer balance summary">
+      <div class="it-credit-stat it-credit-stat--amber">
+        <p class="it-credit-stat__label">Credit total</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(total_credit or 0) }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--emerald">
+        <p class="it-credit-stat__label">Paid</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(total_paid or 0) }}</p>
+      </div>
+      <div class="it-credit-stat it-credit-stat--rose">
+        <p class="it-credit-stat__label">Balance due</p>
+        <p class="it-credit-stat__value">{{ "%.2f"|format(total_due or 0) }}</p>
+      </div>
+      <div class="it-credit-stat">
+        <p class="it-credit-stat__label">Open sales</p>
+        <p class="it-credit-stat__value">{{ tx_count }}</p>
+      </div>
     </div>
 
-    <div id="tab-payments-panel" class="tab-panel mt-4 hidden">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All payments for this customer</h3>
-      {% if not payment_transactions %}
-        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No payments found for this customer.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[760px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Method</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Amount</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for p in payment_transactions %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ p.created_at }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ p.shop_name }}{% if p.shop_code %} ({{ p.shop_code }}){% endif %}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] uppercase">{{ p.payment_method }}</td>
-                    <td class="px-3 py-2 font-semibold text-emerald-400">{{ "%.2f"|format(p.amount) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+    <section class="it-credit-panel mb-5 sm:mb-6" aria-labelledby="receive-payment-heading">
+      <div class="it-credit-panel__head">
+        <div class="min-w-0">
+          <h2 id="receive-payment-heading" class="it-credit-panel__title">Receive payment</h2>
+          <p class="it-credit-panel__desc">Applied FIFO to the oldest unpaid credit sale across all shops for this customer.</p>
         </div>
-      {% endif %}
-    </div>
-  </div>
+      </div>
+      <form method="post" action="{{ url_for('company_credit_payments_pay') }}" class="it-credit-pay-form">
+        <input type="hidden" name="customer_name" value="{{ customer_name }}" />
+        <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
+        <input type="hidden" name="back_shop_id" value="{{ back_shop_id or '' }}" />
+        <div class="it-credit-field">
+          <label for="pay-amount" class="it-credit-label">Amount paid</label>
+          <input id="pay-amount" name="amount" type="number" step="0.01" min="0" required class="it-credit-input" placeholder="0.00" />
+        </div>
+        <div class="it-credit-field">
+          <label for="pay-method" class="it-credit-label">Payment method</label>
+          <select id="pay-method" name="payment_method" required class="it-credit-input">
+            <option value="">Select method</option>
+            <option value="cash">Cash</option>
+            <option value="mpesa">Mpesa</option>
+            <option value="bank">Bank</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="it-credit-pay-form__submit">
+          <button type="submit" class="btn-rc btn-rc-primary it-credit-btn w-full sm:w-auto">
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Record payment
+          </button>
+        </div>
+      </form>
+    </section>
 
-  <div id="client-statement-print" class="hidden mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-    <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Client Credit Statement</h3>
-    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Customer: <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ customer_name }}</span> ({{ customer_phone }})</p>
-    <p class="text-xs text-[rgb(var(--rc-muted))]">All shops combined</p>
+    <section class="it-credit-panel" aria-labelledby="customer-activity-heading">
+      <div class="it-credit-panel__head">
+        <div class="min-w-0 flex-1">
+          <h2 id="customer-activity-heading" class="it-credit-panel__title">Activity</h2>
+          <p class="it-credit-panel__desc">Credit sales and payments received for this customer.</p>
+        </div>
+        <div class="it-credit-tabs" role="tablist" aria-label="Customer activity tabs">
+          <button type="button" id="tab-credit-sales-btn" class="it-credit-tab-btn it-credit-tab-btn--active" role="tab" aria-selected="true" aria-controls="tab-credit-sales-panel">Credit sales</button>
+          <button type="button" id="tab-payments-btn" class="it-credit-tab-btn" role="tab" aria-selected="false" aria-controls="tab-payments-panel">Payments</button>
+        </div>
+      </div>
 
-    <div class="mt-3 grid gap-2 sm:grid-cols-3">
-      <div class="rounded-lg border border-[rgb(var(--rc-border))] p-3"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Credit total</div><div class="mt-1 text-lg font-bold">{{ "%.2f"|format(total_credit or 0) }}</div></div>
-      <div class="rounded-lg border border-[rgb(var(--rc-border))] p-3"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-1 text-lg font-bold">{{ "%.2f"|format(total_paid or 0) }}</div></div>
-      <div class="rounded-lg border border-[rgb(var(--rc-border))] p-3"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Balance</div><div class="mt-1 text-lg font-bold">{{ "%.2f"|format(total_due or 0) }}</div></div>
-    </div>
+      <div id="tab-credit-sales-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-credit-sales-btn">
+        {% if not transactions %}
+          {% set empty_title = "No credit sales" %}
+          {% set empty_message = "This customer has no recorded credit sales across any shop yet." %}
+          {% include "partials/it_support_credit_empty.html" %}
+        {% else %}
+          <div class="it-credit-cards mt-1" aria-label="Credit sales">
+            {% for tx in transactions %}
+              <article class="it-credit-row-card">
+                <div class="it-credit-row-card__top">
+                  <div class="min-w-0">
+                    <p class="it-credit-row-card__name">Sale #{{ tx.id }} · {{ tx.shop_name }}</p>
+                    <p class="it-credit-row-card__sub">{{ tx.created_at }}{% if tx.employee_name %} · {{ tx.employee_name }}{% endif %}</p>
+                  </div>
+                  {% if tx.credit_status == 'paid' %}
+                    <span class="it-credit-badge it-credit-badge--paid shrink-0">Paid</span>
+                  {% elif tx.credit_status == 'partially_paid' %}
+                    <span class="it-credit-badge it-credit-badge--partial shrink-0">Partial</span>
+                  {% else %}
+                    <span class="it-credit-badge it-credit-badge--unpaid shrink-0">Unpaid</span>
+                  {% endif %}
+                </div>
+                <div class="it-credit-row-card__metrics">
+                  <div><p class="it-credit-metric__label">Amount</p><p class="it-credit-metric__value it-credit-amount--credit">{{ "%.2f"|format(tx.total_amount) }}</p></div>
+                  <div><p class="it-credit-metric__label">Paid</p><p class="it-credit-metric__value it-credit-amount--paid">{{ "%.2f"|format(tx.paid_amount) }}</p></div>
+                  <div><p class="it-credit-metric__label">Balance</p><p class="it-credit-metric__value it-credit-amount--balance">{{ "%.2f"|format(tx.remaining_amount) }}</p></div>
+                  <div><p class="it-credit-metric__label">Shop</p><p class="it-credit-metric__value text-[rgb(var(--rc-muted))] text-xs">{{ tx.shop_code or ('#' ~ tx.shop_id) }}</p></div>
+                </div>
+                <div class="mt-3 flex justify-end">
+                  <a href="{{ url_for('company_credit_sale_detail', shop_id=tx.shop_id, sale_id=tx.id, customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id) }}" class="btn-rc btn-rc-ghost it-credit-btn w-full sm:w-auto">View items</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
 
-    <div class="mt-4">
-      <h4 class="text-sm font-semibold">Credit details (all credit sales)</h4>
-      <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
-        <thead class="bg-[rgb(var(--rc-surface-2))]">
-          <tr>
-            <th class="px-2 py-1 text-left">Date</th>
-            <th class="px-2 py-1 text-left">Shop</th>
-            <th class="px-2 py-1 text-left">Sale</th>
-            <th class="px-2 py-1 text-left">Amount</th>
-            <th class="px-2 py-1 text-left">Paid</th>
-            <th class="px-2 py-1 text-left">Balance</th>
-            <th class="px-2 py-1 text-left">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for tx in transactions %}
+          <p class="it-credit-scroll-hint mt-3" aria-hidden="true">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+            Swipe table for more columns
+          </p>
+
+          <div class="it-credit-table-desktop mt-1">
+            <div class="it-credit-table-wrap">
+              <div class="it-credit-table-wrap__scroll">
+                <table class="it-credit-table min-w-[980px]">
+                  <thead>
+                    <tr>
+                      <th scope="col">Date</th>
+                      <th scope="col">Shop</th>
+                      <th scope="col">Sale</th>
+                      <th scope="col">Amount</th>
+                      <th scope="col">Paid</th>
+                      <th scope="col">Balance</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Employee</th>
+                      <th scope="col"><span class="sr-only">View</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for tx in transactions %}
+                      <tr>
+                        <td class="whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ tx.created_at }}</td>
+                        <td class="text-[rgb(var(--rc-muted))]">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                        <td class="font-semibold text-[rgb(var(--rc-page-fg))]">#{{ tx.id }}</td>
+                        <td class="it-credit-amount--credit">{{ "%.2f"|format(tx.total_amount) }}</td>
+                        <td class="it-credit-amount--paid">{{ "%.2f"|format(tx.paid_amount) }}</td>
+                        <td class="it-credit-amount--balance">{{ "%.2f"|format(tx.remaining_amount) }}</td>
+                        <td>
+                          {% if tx.credit_status == 'paid' %}
+                            <span class="it-credit-badge it-credit-badge--paid">Paid</span>
+                          {% elif tx.credit_status == 'partially_paid' %}
+                            <span class="it-credit-badge it-credit-badge--partial">Partial</span>
+                          {% else %}
+                            <span class="it-credit-badge it-credit-badge--unpaid">Unpaid</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-[rgb(var(--rc-muted))]">{{ tx.employee_name }}{% if tx.employee_code %} ({{ tx.employee_code }}){% endif %}</td>
+                        <td>
+                          <a href="{{ url_for('company_credit_sale_detail', shop_id=tx.shop_id, sale_id=tx.id, customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id) }}" class="it-credit-action-btn" aria-label="View sale #{{ tx.id }} items">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                            </svg>
+                          </a>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div id="tab-payments-panel" class="tab-panel hidden mt-4 sm:mt-5" role="tabpanel" aria-labelledby="tab-payments-btn">
+        {% if not payment_transactions %}
+          {% set empty_title = "No payments yet" %}
+          {% set empty_message = "Payments recorded for this customer will appear here." %}
+          {% include "partials/it_support_credit_empty.html" %}
+        {% else %}
+          <div class="it-credit-cards" aria-label="Payments received">
+            {% for p in payment_transactions %}
+              <article class="it-credit-row-card">
+                <div class="it-credit-row-card__top">
+                  <div class="min-w-0">
+                    <p class="it-credit-row-card__name">{{ p.shop_name }}</p>
+                    <p class="it-credit-row-card__sub">{{ p.created_at }} · {{ p.payment_method|upper }}</p>
+                  </div>
+                  <p class="it-credit-amount--paid shrink-0 text-base">{{ "%.2f"|format(p.amount) }}</p>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+
+          <p class="it-credit-scroll-hint mt-3" aria-hidden="true">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+            Swipe table for more columns
+          </p>
+
+          <div class="it-credit-table-desktop mt-1">
+            <div class="it-credit-table-wrap">
+              <div class="it-credit-table-wrap__scroll">
+                <table class="it-credit-table min-w-[760px]">
+                  <thead>
+                    <tr>
+                      <th scope="col">Date</th>
+                      <th scope="col">Shop</th>
+                      <th scope="col">Method</th>
+                      <th scope="col">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for p in payment_transactions %}
+                      <tr>
+                        <td class="whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ p.created_at }}</td>
+                        <td class="text-[rgb(var(--rc-muted))]">{{ p.shop_name }}{% if p.shop_code %} ({{ p.shop_code }}){% endif %}</td>
+                        <td class="uppercase text-[rgb(var(--rc-page-fg))]">{{ p.payment_method }}</td>
+                        <td class="it-credit-amount--paid">{{ "%.2f"|format(p.amount) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <div id="client-statement-print" class="hidden">
+      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Client Credit Statement</h3>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Customer: <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ customer_name }}</span> ({{ customer_phone }})</p>
+      <p class="text-xs text-[rgb(var(--rc-muted))]">All shops combined</p>
+
+      <div class="mt-3 grid gap-2 sm:grid-cols-3">
+        <div class="rounded-lg border border-[rgb(var(--rc-border))] p-3"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Credit total</div><div class="mt-1 text-lg font-bold">{{ "%.2f"|format(total_credit or 0) }}</div></div>
+        <div class="rounded-lg border border-[rgb(var(--rc-border))] p-3"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-1 text-lg font-bold">{{ "%.2f"|format(total_paid or 0) }}</div></div>
+        <div class="rounded-lg border border-[rgb(var(--rc-border))] p-3"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Balance</div><div class="mt-1 text-lg font-bold">{{ "%.2f"|format(total_due or 0) }}</div></div>
+      </div>
+
+      <div class="mt-4">
+        <h4 class="text-sm font-semibold">Credit details (all credit sales)</h4>
+        <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
+          <thead class="bg-[rgb(var(--rc-surface-2))]">
             <tr>
-              <td class="px-2 py-1">{{ tx.created_at }}</td>
-              <td class="px-2 py-1">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
-              <td class="px-2 py-1">#{{ tx.id }}</td>
-              <td class="px-2 py-1">{{ "%.2f"|format(tx.total_amount) }}</td>
-              <td class="px-2 py-1">{{ "%.2f"|format(tx.paid_amount) }}</td>
-              <td class="px-2 py-1">{{ "%.2f"|format(tx.remaining_amount) }}</td>
-              <td class="px-2 py-1">{{ tx.credit_status.replace('_', ' ') }}</td>
+              <th class="px-2 py-1 text-left">Date</th>
+              <th class="px-2 py-1 text-left">Shop</th>
+              <th class="px-2 py-1 text-left">Sale</th>
+              <th class="px-2 py-1 text-left">Amount</th>
+              <th class="px-2 py-1 text-left">Paid</th>
+              <th class="px-2 py-1 text-left">Balance</th>
+              <th class="px-2 py-1 text-left">Status</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {% for tx in transactions %}
+              <tr>
+                <td class="px-2 py-1">{{ tx.created_at }}</td>
+                <td class="px-2 py-1">{{ tx.shop_name }}{% if tx.shop_code %} ({{ tx.shop_code }}){% endif %}</td>
+                <td class="px-2 py-1">#{{ tx.id }}</td>
+                <td class="px-2 py-1">{{ "%.2f"|format(tx.total_amount) }}</td>
+                <td class="px-2 py-1">{{ "%.2f"|format(tx.paid_amount) }}</td>
+                <td class="px-2 py-1">{{ "%.2f"|format(tx.remaining_amount) }}</td>
+                <td class="px-2 py-1">{{ tx.credit_status.replace('_', ' ') }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-    <div class="mt-4">
-      <h4 class="text-sm font-semibold">All payment transactions</h4>
-      <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
-        <thead class="bg-[rgb(var(--rc-surface-2))]">
-          <tr>
-            <th class="px-2 py-1 text-left">Date</th>
-            <th class="px-2 py-1 text-left">Shop</th>
-            <th class="px-2 py-1 text-left">Method</th>
-            <th class="px-2 py-1 text-left">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in payment_transactions %}
+      <div class="mt-4">
+        <h4 class="text-sm font-semibold">All payment transactions</h4>
+        <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
+          <thead class="bg-[rgb(var(--rc-surface-2))]">
             <tr>
-              <td class="px-2 py-1">{{ p.created_at }}</td>
-              <td class="px-2 py-1">{{ p.shop_name }}{% if p.shop_code %} ({{ p.shop_code }}){% endif %}</td>
-              <td class="px-2 py-1 uppercase">{{ p.payment_method }}</td>
-              <td class="px-2 py-1">{{ "%.2f"|format(p.amount) }}</td>
+              <th class="px-2 py-1 text-left">Date</th>
+              <th class="px-2 py-1 text-left">Shop</th>
+              <th class="px-2 py-1 text-left">Method</th>
+              <th class="px-2 py-1 text-left">Amount</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {% for p in payment_transactions %}
+              <tr>
+                <td class="px-2 py-1">{{ p.created_at }}</td>
+                <td class="px-2 py-1">{{ p.shop_name }}{% if p.shop_code %} ({{ p.shop_code }}){% endif %}</td>
+                <td class="px-2 py-1 uppercase">{{ p.payment_method }}</td>
+                <td class="px-2 py-1">{{ "%.2f"|format(p.amount) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-    <div class="mt-4">
-      <h4 class="text-sm font-semibold">All items bought (credit sales)</h4>
-      <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
-        <thead class="bg-[rgb(var(--rc-surface-2))]">
-          <tr>
-            <th class="px-2 py-1 text-left">Date</th>
-            <th class="px-2 py-1 text-left">Shop</th>
-            <th class="px-2 py-1 text-left">Sale</th>
-            <th class="px-2 py-1 text-left">Item</th>
-            <th class="px-2 py-1 text-left">Qty</th>
-            <th class="px-2 py-1 text-left">Unit</th>
-            <th class="px-2 py-1 text-left">Line total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for it in credit_items %}
+      <div class="mt-4">
+        <h4 class="text-sm font-semibold">All items bought (credit sales)</h4>
+        <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
+          <thead class="bg-[rgb(var(--rc-surface-2))]">
             <tr>
-              <td class="px-2 py-1">{{ it.created_at }}</td>
-              <td class="px-2 py-1">{{ it.shop_name }}{% if it.shop_code %} ({{ it.shop_code }}){% endif %}</td>
-              <td class="px-2 py-1">#{{ it.sale_id }}</td>
-              <td class="px-2 py-1">{{ it.item_name }}</td>
-              <td class="px-2 py-1">{{ it.qty }}</td>
-              <td class="px-2 py-1">{{ "%.2f"|format(it.unit_price) }}</td>
-              <td class="px-2 py-1">{{ "%.2f"|format(it.line_total) }}</td>
+              <th class="px-2 py-1 text-left">Date</th>
+              <th class="px-2 py-1 text-left">Shop</th>
+              <th class="px-2 py-1 text-left">Sale</th>
+              <th class="px-2 py-1 text-left">Item</th>
+              <th class="px-2 py-1 text-left">Qty</th>
+              <th class="px-2 py-1 text-left">Unit</th>
+              <th class="px-2 py-1 text-left">Line total</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for it in credit_items %}
+              <tr>
+                <td class="px-2 py-1">{{ it.created_at }}</td>
+                <td class="px-2 py-1">{{ it.shop_name }}{% if it.shop_code %} ({{ it.shop_code }}){% endif %}</td>
+                <td class="px-2 py-1">#{{ it.sale_id }}</td>
+                <td class="px-2 py-1">{{ it.item_name }}</td>
+                <td class="px-2 py-1">{{ it.qty }}</td>
+                <td class="px-2 py-1">{{ "%.2f"|format(it.unit_price) }}</td>
+                <td class="px-2 py-1">{{ "%.2f"|format(it.line_total) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
+  {% include "partials/it_support_credit_hub_assets.html" %}
   <style>
     @media print {
-      nav, header, aside, .btn-rc, .tab-btn, form, #tab-credit-sales-panel, #tab-payments-panel {
+      nav,
+      header,
+      aside,
+      .btn-rc,
+      .it-credit-tabs,
+      .it-credit-tab-btn,
+      .it-credit-pay-form,
+      .it-credit-panel,
+      .it-credit-stats,
+      .it-credit-cards,
+      .it-credit-scroll-hint,
+      .it-credit-table-desktop,
+      .it-credit-intro {
         display: none !important;
       }
       #client-statement-print {
         display: block !important;
-        border: 0 !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
       }
       #client-statement-print table,
       #client-statement-print th,
@@ -295,13 +409,10 @@
         salesPanel.classList.toggle("hidden", !salesActive);
         paymentsPanel.classList.toggle("hidden", salesActive);
 
-        salesBtn.classList.toggle("bg-[rgb(var(--rc-surface-2))]", salesActive);
-        salesBtn.classList.toggle("text-[rgb(var(--rc-page-fg))]", salesActive);
-        salesBtn.classList.toggle("text-[rgb(var(--rc-muted))]", !salesActive);
-
-        paymentsBtn.classList.toggle("bg-[rgb(var(--rc-surface-2))]", !salesActive);
-        paymentsBtn.classList.toggle("text-[rgb(var(--rc-page-fg))]", !salesActive);
-        paymentsBtn.classList.toggle("text-[rgb(var(--rc-muted))]", salesActive);
+        salesBtn.classList.toggle("it-credit-tab-btn--active", salesActive);
+        salesBtn.setAttribute("aria-selected", salesActive ? "true" : "false");
+        paymentsBtn.classList.toggle("it-credit-tab-btn--active", !salesActive);
+        paymentsBtn.setAttribute("aria-selected", !salesActive ? "true" : "false");
       }
 
       salesBtn.addEventListener("click", function () { setTab("sales"); });

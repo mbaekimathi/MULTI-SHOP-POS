@@ -1,0 +1,48 @@
+{# kind: "shop" | "employee" #}
+<header class="auth-login-header mb-6 text-center">
+  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ pub_brand_name }}</p>
+
+  {% if kind == 'shop' %}
+    <div
+      class="auth-login-header__icon mx-auto mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-500 text-white shadow-lg shadow-teal-500/25 ring-4 ring-teal-500/20"
+      aria-hidden="true"
+    >
+      <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a2.25 2.25 0 013.75-.659A2.25 2.25 0 017.5 9.349m0 0V21m8.25-11.751V4.5A2.25 2.25 0 0013.5 2.25h-3A2.25 2.25 0 008.25 4.5v4.598M12 8.25h.008v.008H12V8.25z" />
+      </svg>
+    </div>
+    <h1 id="auth-login-heading" class="mt-4 text-2xl font-bold tracking-tight text-teal-900 dark:text-teal-100">Shop login</h1>
+    <p class="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">For POS, tills, and in-store tablets</p>
+    <ul class="auth-login-header__needs mx-auto mt-4 max-w-xs list-none space-y-1.5 text-left text-sm text-slate-600 dark:text-slate-400">
+      <li class="flex gap-2">
+        <span class="font-bold text-teal-600 dark:text-teal-400" aria-hidden="true">✓</span>
+        <span><strong class="text-slate-800 dark:text-slate-200">Branch shop code</strong> (6 digits)</span>
+      </li>
+      <li class="flex gap-2">
+        <span class="font-bold text-teal-600 dark:text-teal-400" aria-hidden="true">✓</span>
+        <span><strong class="text-slate-800 dark:text-slate-200">Shop password</strong> for this branch</span>
+      </li>
+    </ul>
+  {% else %}
+    <div
+      class="auth-login-header__icon mx-auto mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-600/25 ring-4 ring-violet-600/20"
+      aria-hidden="true"
+    >
+      <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.748-.5M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+      </svg>
+    </div>
+    <h1 id="auth-login-heading" class="mt-4 text-2xl font-bold tracking-tight text-violet-900 dark:text-violet-100">Employee login</h1>
+    <p class="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">For staff portal, managers, and IT</p>
+    <ul class="auth-login-header__needs mx-auto mt-4 max-w-xs list-none space-y-1.5 text-left text-sm text-slate-600 dark:text-slate-400">
+      <li class="flex gap-2">
+        <span class="font-bold text-violet-600 dark:text-violet-400" aria-hidden="true">✓</span>
+        <span><strong class="text-slate-800 dark:text-slate-200">Your employee code</strong> (6 digits)</span>
+      </li>
+      <li class="flex gap-2">
+        <span class="font-bold text-violet-600 dark:text-violet-400" aria-hidden="true">✓</span>
+        <span><strong class="text-slate-800 dark:text-slate-200">Your personal password</strong></span>
+      </li>
+    </ul>
+  {% endif %}
+</header>

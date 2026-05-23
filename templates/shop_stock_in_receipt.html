@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block shop_content %}
-  {# Same settings + CSS tokens as POS sale receipt (shop_pos buildThermalReceiptPlainHtml) #}
+  {# Same layout as POS sale receipt (shop_pos buildThermalReceiptPlainHtml) #}
   {% set S = pos_receipt_settings or {} %}
   {% set r = receipt or {} %}
   {% set roll_mm = 58 if (S.receipt_width or '80mm')|string|trim == '58mm' else 80 %}
@@ -32,8 +32,10 @@
   {% set qm = (S.receipt_qr_mode or 'receipt_details') | string | trim %}
   {% set qr_site = (S.receipt_qr_website_url or '') | trim %}
   {% set dt_short = (r.created_at|string)[:22] if r.created_at else '—' %}
+  {% set total_str = "%.2f"|format(r.total_cost or 0) %}
+  {% set qty_str = (r.qty or 0) | string %}
+  {% set price_str = "%.2f"|format(r.buying_price or 0) %}
   <style>
-    /* Mirrors templates/shop_pos.html buildThermalReceiptStyles (sale receipt) */
     .receipt-page-wrap { max-width: 100%; overflow-x: auto; }
     .receipt-thermal {
       box-sizing: border-box;
@@ -45,13 +47,13 @@
       font-size: {{ fsize }};
       line-height: 1.22;
       background: #fff;
-      color: #111;
+      color: #000;
       overflow-wrap: anywhere;
       word-break: break-word;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .receipt-thermal-accent { height: 1.5mm; margin: 0 0 1.5mm; background: #0a0a0a; }
+    .receipt-thermal-accent { height: 2mm; margin: 0 0 1.5mm; background: #000; }
     .receipt-logo-row { text-align: center; margin: 0 auto 1mm; padding: 0 1mm; }
     .receipt-logo-row img {
       display: block; margin: 0 auto; max-height: 10mm; max-width: 68mm; height: auto; width: auto; object-fit: contain;
@@ -63,86 +65,52 @@
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: #374151;
+      color: #000;
     }
     .receipt-thermal-shopname {
       margin: 0;
       font-size: clamp(11px, 3.2mm, 15px);
-      font-weight: 800;
+      font-weight: 900;
       letter-spacing: -0.02em;
       line-height: 1.12;
-      color: #0a0a0a;
+      color: #000;
     }
-    .receipt-thermal-company { margin: 1px 0 0; font-size: 9px; font-weight: 600; color: #4b5563; }
-    .receipt-thermal-rule { height: 0; border: none; border-top: 1px solid #d1d5db; margin: 0 0 1.5mm; }
+    .receipt-thermal-company { margin: 1px 0 0; font-size: 9px; font-weight: 700; color: #000; }
+    .receipt-thermal-rule { height: 0; border: none; border-top: 1px solid #000; margin: 0 0 1.5mm; }
     .receipt-thermal-contact { margin: 0 0 1mm; text-align: center; }
     .receipt-thermal-customhdr {
       margin: 0 0 1mm;
       font-size: 8.5px;
       line-height: 1.25;
-      color: #374151;
+      color: #000;
+      font-weight: 600;
       white-space: pre-wrap;
       text-align: center;
     }
-    .receipt-thermal-mut { margin: 0; font-size: 8px; line-height: 1.2; color: #6b7280; }
-    .receipt-thermal-meta {
-      margin: 0 0 1.5mm;
-      padding: 1mm 0;
-      border-top: 1px solid #e5e7eb;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .receipt-thermal-meta div {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 1.5mm;
-      margin: 0.8mm 0;
-    }
-    .receipt-thermal-meta dt {
-      margin: 0;
-      font-size: 7.5px;
-      font-weight: 700;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .receipt-thermal-meta dd {
-      margin: 0;
-      max-width: 72%;
-      text-align: right;
-      font-weight: 700;
-      font-size: 9px;
-      color: #111;
-    }
+    .receipt-thermal-mut { margin: 0; font-size: 8px; line-height: 1.2; color: #000; font-weight: 600; }
     pre.receipt {
       margin: 0;
       width: 100%;
       max-width: 100%;
       font-family: "Cascadia Mono", "Courier New", Consolas, "Liberation Mono", monospace;
-      font-size: 9px;
-      line-height: 1.28;
+      font-size: 9.5px;
+      font-weight: 700;
+      line-height: 1.35;
       white-space: pre-wrap;
       word-wrap: break-word;
       overflow: visible;
-      color: #111;
+      color: #000;
     }
-    pre.receipt--items { margin: 0; padding: 0.8mm 0 0; border-top: 1px dashed #d1d5db; }
-    pre.receipt--tail { margin: 1mm 0 0; padding: 1mm 0 0; border-top: 1px solid #e5e7eb; }
-    .receipt-thermal-totals { margin: 0 0 1mm; padding: 1mm 0 0; border-top: 2px solid #111; }
-    .receipt-thermal-grand {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 2mm;
-      margin-top: 1mm;
-      padding-top: 1mm;
-      border-top: 1px solid #e5e7eb;
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      color: #0a0a0a;
+    pre.receipt--meta,
+    pre.receipt--payment,
+    pre.receipt--totals {
+      margin: 0;
+      padding: 0.8mm 0;
+      border-top: 1px solid #000;
+      border-bottom: 1px solid #000;
     }
-    .receipt-thermal-grand span:last-child { font-variant-numeric: tabular-nums; }
+    pre.receipt--items { margin: 0; padding: 0.8mm 0 0; border-top: 1px solid #000; }
+    pre.receipt--tail { margin: 1mm 0 0; padding: 1mm 0 0; border-top: 1px solid #000; }
     .receipt-qr {
       display: flex;
       flex-direction: column;
@@ -153,22 +121,23 @@
       min-height: 22mm;
     }
     .receipt-qr img { display: block; width: 22mm; height: 22mm; max-width: 72%; object-fit: contain; }
-    .receipt-qr-caption { margin: 0.5mm 0 0; padding: 0; width: 100%; text-align: center; font-size: 7.5px; line-height: 1.25; color: #6b7280; }
+    .receipt-qr-caption { margin: 0.5mm 0 0; padding: 0; width: 100%; text-align: center; font-size: 7.5px; line-height: 1.25; color: #000; font-weight: 600; }
     .receipt-thermal-footer {
       margin: 0 0 1mm;
       padding: 1mm 0 0;
       text-align: center;
       font-size: 8px;
       line-height: 1.25;
-      color: #4b5563;
-      border-top: 1px dashed #d1d5db;
+      color: #000;
+      font-weight: 600;
+      border-top: 1px dashed #000;
       white-space: pre-wrap;
     }
     .receipt-browser-print-tip {
       margin: 0 0 1.5mm;
       padding: 1.5mm 2mm;
       border: 1px solid #fcd34d;
-      background: linear-gradient(180deg, #fffbeb, #fff7ed);
+      background: #fffbeb;
       color: #92400e;
       font-size: 8px;
       line-height: 1.3;
@@ -185,10 +154,22 @@
         padding: 0 1.5mm 2mm !important;
         font-size: {{ fsize }} !important;
       }
-      pre.receipt { font-size: {% if roll_mm == 58 %}8.5{% else %}9{% endif %}pt !important; }
+      pre.receipt,
+      pre.receipt--meta,
+      pre.receipt--items,
+      pre.receipt--totals,
+      pre.receipt--payment,
+      pre.receipt--tail {
+        font-size: {% if roll_mm == 58 %}8.5{% else %}9.5{% endif %}pt !important;
+        font-weight: 700 !important;
+        color: #000 !important;
+      }
+      .receipt-thermal-mut,
+      .receipt-thermal-customhdr,
+      .receipt-thermal-footer,
+      .receipt-thermal-company { color: #000 !important; font-weight: 700 !important; }
       .receipt-logo-row img { max-height: 9mm; }
       .receipt-qr img { width: 20mm !important; height: 20mm !important; }
-      .receipt-thermal-grand { font-size: 10.5pt !important; }
       @page { size: {{ roll_css }} auto; margin: 0; }
       html, body {
         width: {{ roll_css }} !important;
@@ -244,20 +225,14 @@
           <div class="receipt-thermal-customhdr">{{ S.receipt_header }}</div>
         {% endif %}
 
-        <dl class="receipt-thermal-meta">
-          <div><dt>Tx</dt><dd>#{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}</dd></div>
-          {% if S.show_server %}
-            <div><dt>Staff</dt><dd>{{ r.served_by or '—' }}</dd></div>
-          {% endif %}
-          <div><dt>From</dt><dd>{{ r.place_brought_from or '—' }} · {{ r.seller_phone or '—' }}</dd></div>
-        </dl>
+        <pre class="receipt receipt--meta">TX        #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+{% if S.show_server %}STAFF     {{ r.served_by or '—' }}
+{% endif %}FROM      {{ r.place_brought_from or '—' }} · {{ r.seller_phone or '—' }}</pre>
 
         <pre class="receipt receipt--items">{{ r.item_name }}
-{{ (r.qty or 0) }} × {{ "%.2f"|format(r.buying_price or 0) }} = {{ "%.2f"|format(r.total_cost or 0) }}</pre>
+{{ qty_str }} × {{ price_str }} = {{ total_str }}</pre>
 
-        <section class="receipt-thermal-totals" aria-label="Total">
-          <div class="receipt-thermal-grand"><span>Total</span><span>{{ "%.2f"|format(r.total_cost or 0) }}</span></div>
-        </section>
+        <pre class="receipt receipt--totals">TOTAL     {{ total_str }}</pre>
 
         {% if qr_on %}
           {% set qr_payload = qr_site if (qm == 'website' and qr_site) else request.url %}

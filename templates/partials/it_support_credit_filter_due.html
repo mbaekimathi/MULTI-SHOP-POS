@@ -1,0 +1,60 @@
+{# Upcoming due dates filter.
+   Params: filter_clear_url, shop_list, filter_shop_id, customer_q, due_days_ahead
+#}
+{% set shop_list = shop_list or [] %}
+
+<details class="it-credit-filter" id="credit-due-filter-panel">
+  <summary class="it-credit-filter__summary" aria-label="Toggle filter options">
+    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[rgb(var(--rc-primary))]/10 text-[rgb(var(--rc-primary))]" aria-hidden="true">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3M5 21h14a2 2 0 002-2V9H3v10a2 2 0 002 2z" />
+      </svg>
+    </span>
+    <span class="min-w-0 flex-1">
+      <span class="block text-xs font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-page-fg))]">Refine results</span>
+      <span class="it-credit-pills mt-1">
+        <span class="it-credit-pill it-credit-pill--active"><span class="it-credit-pill__text">Next {{ due_days_ahead or 90 }} days</span></span>
+        {% if filter_shop_id %}<span class="it-credit-pill it-credit-pill--active"><span class="it-credit-pill__text">Shop filtered</span></span>{% endif %}
+        {% if customer_q %}<span class="it-credit-pill it-credit-pill--active"><span class="it-credit-pill__text">Customer search</span></span>{% endif %}
+      </span>
+    </span>
+    <svg class="it-credit-filter__chevron h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </summary>
+
+  <div class="it-credit-filter__body">
+    <form method="get" action="{{ url_for('it_support_credit_payments_upcoming_due') }}" id="credit-due-filter-form">
+    <div class="it-credit-filter__grid it-credit-filter__grid--2">
+      <div class="it-credit-field">
+        <label for="due-days" class="it-credit-label">Horizon (days)</label>
+        <input id="due-days" type="number" min="1" max="730" name="days" value="{{ due_days_ahead or 90 }}" class="it-credit-input" aria-describedby="due-days-hint" />
+        <p id="due-days-hint" class="mt-1 text-[10px] text-[rgb(var(--rc-muted))]">Includes past-due within this window.</p>
+      </div>
+      <div class="it-credit-field">
+        <label for="due-shop" class="it-credit-label">Shop</label>
+        <select id="due-shop" name="shop_id" class="it-credit-input">
+          <option value="">All shops</option>
+          {% for sh in shop_list %}
+            <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="it-credit-field it-credit-field--span-2">
+        <label for="due-q" class="it-credit-label">Customer</label>
+        <input id="due-q" type="search" name="customer_q" value="{{ customer_q or '' }}" placeholder="Search by name or phone…" autocomplete="off" class="it-credit-input" />
+      </div>
+    </div>
+
+    <div class="it-credit-actions">
+      <button type="submit" class="it-credit-actions__primary btn-rc btn-rc-primary it-credit-btn w-full sm:w-auto">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+        Apply filters
+      </button>
+      <div class="it-credit-actions__secondary">
+        <a href="{{ filter_clear_url }}" class="btn-rc btn-rc-ghost it-credit-btn">Reset</a>
+      </div>
+    </div>
+    </form>
+  </div>
+</details>

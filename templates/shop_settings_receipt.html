@@ -84,6 +84,29 @@
         return d.innerHTML;
       }
 
+      function previewLineWidth(narrow) {
+        return narrow ? 24 : 32;
+      }
+
+      function thermalPreviewMetaLine(label, value, width) {
+        label = String(label || "").toUpperCase();
+        value = String(value == null ? "" : value);
+        var left = (label.length > 9 ? label.slice(0, 9) : label) + " ";
+        var valMax = Math.max(8, width - left.length);
+        var val = value.length > valMax ? value.slice(0, valMax - 1) + "\u2026" : value;
+        return left + val.padStart(valMax, " ");
+      }
+
+      function thermalPreviewPreBlock(lines, extraClass) {
+        return (
+          '<pre class="receipt-preview-pre' +
+          (extraClass ? " " + extraClass : "") +
+          '" style="margin:8px 0;padding:6px 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:700;font-family:ui-monospace,Cascadia Mono,Consolas,monospace;font-size:0.85em;line-height:1.35;white-space:pre-wrap">' +
+          esc(lines.join("\n")) +
+          "</pre>"
+        );
+      }
+
       function val(name) {
         var el = tab.querySelector('[name="' + name + '"]');
         if (!el) return "";
@@ -107,7 +130,6 @@
         var fsMap = { "8pt": "8px", "10pt": "10px", "12pt": "12px" };
         body.style.fontSize = fsMap[fsize] || "12px";
 
-        var boldH = !!val("receipt_bold_headers");
         var prefix = String(val("receipt_number_prefix") || "T").trim() || "T";
         var startNum = String(val("receipt_starting_number") || "1001").trim() || "1001";
         var receiptNo = prefix + "-" + startNum;
@@ -143,7 +165,6 @@
         var taxAmt = incTax ? subtotal * (taxPct / 100) : 0;
         var grand = subtotal + taxAmt;
 
-        var th = boldH ? "font-weight:700" : "font-weight:600";
         var html = "";
         html += '<div style="text-align:center;font-weight:700;font-size:1.05em;letter-spacing:0.03em">' + esc(meta.companyName || "Point of Sale") + "</div>";
         html += '<div style="text-align:center;opacity:0.75;font-size:0.85em;margin-top:2px">THERMAL RECEIPT</div>';
@@ -182,77 +203,50 @@
             "</div>";
         }
 
-        html += '<div style="font-size:0.85em">';
-        html +=
-          '<div style="display:flex;justify-content:space-between;gap:8px"><span>Receipt</span><span style="font-weight:600">' +
-          esc(receiptNo) +
-          "</span></div>";
-        if (showDt) {
-          html +=
-            '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Date</span><span>' +
-            esc(demoDate) +
-            "</span></div>";
-        }
-        html +=
-          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Type</span><span style="font-weight:600">Sale</span></div>';
-        html +=
-          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Customer</span><span>Walk-in customer</span></div>';
-        html +=
-          '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Phone</span><span>-</span></div>';
-        if (showServer) {
-          html +=
-            '<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px"><span>Cashier</span><span>Jane Doe (123456)</span></div>';
-        }
-        html += "</div>";
+        var W = previewLineWidth(narrow);
+        var metaLines = [];
+        metaLines.push(thermalPreviewMetaLine("RECEIPT", receiptNo, W));
+        if (showDt) metaLines.push(thermalPreviewMetaLine("DATE", demoDate, W));
+        metaLines.push(thermalPreviewMetaLine("BUYER", "Walk-in customer · -", W));
+        if (showServer) metaLines.push(thermalPreviewMetaLine("STAFF", "Jane Doe (123456)", W));
+        html += thermalPreviewPreBlock(metaLines, "receipt-preview-meta");
 
-        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
-        html += '<table style="width:100%;border-collapse:collapse;font-size:0.85em"><thead><tr>';
-        html += '<td style="' + th + ';text-align:left;width:58%;padding:1px 0">Item</td>';
-        html += '<td style="' + th + ';text-align:center;width:12%;padding:1px 0">Qty</td>';
-        html += '<td style="' + th + ';text-align:right;width:30%;padding:1px 0">Amt</td>';
-        html += "</tr></thead><tbody>";
+        var itemLines = [];
+        var qtyW = 4;
+        var amtW = 9;
+        var rightHdr = " " + "Qty".padStart(qtyW, " ") + " " + "Amt".padStart(amtW, " ");
+        var nameW = Math.max(6, W - rightHdr.length);
+        itemLines.push(("Item" + " ".repeat(nameW)).slice(0, nameW) + rightHdr);
+        itemLines.push(new Array(Math.min(W, 32) + 1).join("-"));
         demoLines.forEach(function (l) {
-          html +=
-            '<tr><td colspan="3" style="padding-top:4px;vertical-align:top">' + esc(l.name) + "</td></tr>";
-          html +=
-            '<tr><td></td><td style="text-align:center">' +
-            String(l.qty) +
-            '</td><td style="text-align:right">' +
-            l.total.toFixed(2) +
-            "</td></tr>";
+          var qty = String(l.qty);
+          var amt = l.total.toFixed(2);
+          itemLines.push(
+            (String(l.name) + " ".repeat(nameW)).slice(0, nameW) +
+              " " +
+              qty.padStart(qtyW, " ") +
+              " " +
+              amt.padStart(amtW, " ")
+          );
         });
-        html += "</tbody></table>";
+        html += thermalPreviewPreBlock(itemLines, "receipt-preview-items");
 
-        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
+        var totalLines = [];
         if (incTax) {
-          html +=
-            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700"><span>Subtotal</span><span>' +
-            subtotal.toFixed(2) +
-            "</span></div>";
-          html +=
-            '<div style="display:flex;justify-content:space-between;font-size:0.85em;margin-top:4px"><span>Tax (' +
-            esc(String(taxPct)) +
-            "%)</span><span>" +
-            taxAmt.toFixed(2) +
-            "</span></div>";
-          html +=
-            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700;margin-top:4px"><span>Total</span><span>' +
-            grand.toFixed(2) +
-            "</span></div>";
+          totalLines.push(thermalPreviewMetaLine("SUBTOTAL", subtotal.toFixed(2), W));
+          totalLines.push(
+            thermalPreviewMetaLine("TAX", taxAmt.toFixed(2) + " (" + String(taxPct) + "%)", W)
+          );
+          totalLines.push(thermalPreviewMetaLine("TOTAL", grand.toFixed(2), W));
         } else {
-          html +=
-            '<div style="display:flex;justify-content:space-between;font-size:1em;font-weight:700"><span>Total</span><span>' +
-            subtotal.toFixed(2) +
-            "</span></div>";
+          totalLines.push(thermalPreviewMetaLine("TOTAL", subtotal.toFixed(2), W));
         }
+        html += thermalPreviewPreBlock(totalLines, "receipt-preview-totals");
 
         if (showPay) {
-          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
-          html += '<div style="font-size:0.85em;font-weight:600">' + esc(payTypeLabel) + "</div>";
-          if (payText) {
-            html +=
-              '<div style="font-size:0.85em;margin-top:4px;white-space:pre-wrap">' + esc(payText) + "</div>";
-          }
+          var payLines = [payTypeLabel];
+          if (payText) payLines.push(payText);
+          html += thermalPreviewPreBlock(payLines, "receipt-preview-payment");
         }
 
         if (qrOn) {
