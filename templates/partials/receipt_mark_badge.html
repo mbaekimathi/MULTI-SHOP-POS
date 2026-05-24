@@ -1,0 +1,13 @@
+{# Expects: mark (receipt_mark_status string) #}
+{% set mark = mark or 'pending' %}
+{% if mark == 'confirmed' %}
+  <span class="rcpt-mark-badge rcpt-mark-badge--confirmed receipt-mark-badge" data-mark-status="confirmed">confirmed</span>
+{% elif mark == 'cancelled' %}
+  <span class="rcpt-mark-badge rcpt-mark-badge--cancelled receipt-mark-badge" data-mark-status="cancelled">cancelled</span>
+{% elif mark == 'partial_return' %}
+  <span class="rcpt-mark-badge rcpt-mark-badge--partial_return receipt-mark-badge" data-mark-status="partial_return">partial return</span>
+{% elif mark == 'returned' %}
+  <span class="rcpt-mark-badge rcpt-mark-badge--returned receipt-mark-badge" data-mark-status="returned">returned</span>
+{% else %}
+  <span class="rcpt-mark-badge rcpt-mark-badge--pending receipt-mark-badge" data-mark-status="pending">pending</span>
+{% endif %}

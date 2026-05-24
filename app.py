@@ -487,6 +487,137 @@ def _analytics_scope_from_request() -> str:
     return scope if scope in ("general", "actual") else "general"
 
 
+def _analytics_nav_kwargs() -> dict:
+    """Query args for IT Support analytics sidebar links (shared period + scope)."""
+    f = _build_analytics_filter()
+    out = {
+        "mode": f["mode"],
+        "single_day": f["single_day"],
+        "start_date": f["start_date"],
+        "end_date": f["end_date"],
+        "month": f["month"],
+        "year": f["year"],
+        "analytics_scope": _analytics_scope_from_request(),
+    }
+    # shop_id / shop_view are set per-link in shop sidebar templates (not here) to avoid
+    # duplicate url_for kwargs when merging with **_anav.
+    return out
+
+
+def _shop_view_from_request() -> str:
+    shop_view = (request.args.get("shop_view") or "revenue").strip().lower()
+    if shop_view not in ("revenue", "item", "sales", "credit", "period", "stock", "customer"):
+        return "revenue"
+    return shop_view
+
+
+def _fetch_shop_analytics_payload(analytics_filter: dict, analytics_scope: str) -> dict:
+    """Load shop-scoped analytics for the active shop_view tab."""
+    shop_id = request.args.get("shop_id", type=int)
+    if not shop_id:
+        return {}
+    shop_view = _shop_view_from_request()
+    try:
+        from database import (
+            get_shop_credit_analytics,
+            get_shop_customer_analytics,
+            get_shop_item_analytics,
+            get_shop_period_analytics,
+            get_shop_revenue_analytics,
+            get_shop_sales_analytics,
+            get_shop_stock_analytics,
+        )
+
+        if shop_view == "item":
+            return get_shop_item_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+        if shop_view == "sales":
+            return get_shop_sales_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+        if shop_view == "credit":
+            return get_shop_credit_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+        if shop_view == "period":
+            return get_shop_period_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+        if shop_view == "stock":
+            return get_shop_stock_analytics(
+                shop_id=shop_id, analytics_filter=analytics_filter
+            )
+        if shop_view == "customer":
+            return get_shop_customer_analytics(
+                shop_id=shop_id,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+        return get_shop_revenue_analytics(
+            shop_id=shop_id,
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        return {}
+
+
+_IT_SUPPORT_ANALYTICS_NAV_ENDPOINTS = frozenset(
+    {
+        "it_support_analytics",
+        "it_support_revenue_analytics",
+        "it_support_item_analytics_page",
+        "it_support_sales_analytics",
+        "it_support_credit_analytics",
+        "it_support_period_analytics",
+        "it_support_employee_analytics",
+        "it_support_customer_analytics",
+        "it_support_shop_analytics",
+        "it_support_customer_transactions",
+    }
+)
+
+_SHOP_ANALYTICS_NAV_ENDPOINTS = frozenset(
+    {
+        "shop_analytics",
+        "shop_revenue_analytics",
+        "shop_item_analytics",
+        "shop_period_analytics",
+        "shop_sales_analytics",
+        "shop_credit_analytics",
+        "shop_customer_analytics",
+        "shop_customer_analytics_detail",
+        "shop_stock_analytics",
+        "shop_receipts",
+    }
+)
+
+
+@app.context_processor
+def inject_it_support_analytics_nav():
+    ep = request.endpoint or ""
+    if ep not in _IT_SUPPORT_ANALYTICS_NAV_ENDPOINTS:
+        return {}
+    return {"analytics_nav": _analytics_nav_kwargs()}
+
+
+@app.context_processor
+def inject_shop_analytics_nav():
+    ep = request.endpoint or ""
+    if ep not in _SHOP_ANALYTICS_NAV_ENDPOINTS:
+        return {}
+    return {"analytics_nav": _analytics_nav_kwargs()}
+
+
 def _normalize_static_relative_path(path) -> str:
     """Normalize DB paths for Flask url_for('static', filename=...)."""
     if path is None:
@@ -848,7 +979,7 @@ def _save_branding_upload(file_storage):
 
 @app.route("/")
 def index():
-    """Entry point: shop or employee sign-in only."""
+    """Simple home hub with sign-in and site links."""
     return render_template("home.html")
 
 
@@ -4736,7 +4867,11 @@ def _render_it_support_analytics_page(view_key: str):
             from database import get_it_support_revenue_analytics
 
             revenue_data = get_it_support_revenue_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                transactions_limit=120,
+                transactions_offset=0,
+                include_transactions=True,
             )
         except Exception:
             revenue_data = {
@@ -4744,16 +4879,29 @@ def _render_it_support_analytics_page(view_key: str):
                 "sale_amount": 0.0,
                 "credit_amount": 0.0,
                 "total_amount": 0.0,
+                "cash_paid_total": 0.0,
+                "mpesa_paid_total": 0.0,
                 "shops": [],
                 "daily": [],
                 "transactions": [],
+                "transactions_meta": {
+                    "limit": 120,
+                    "offset": 0,
+                    "loaded_count": 0,
+                    "total_count": 0,
+                    "has_more": False,
+                },
             }
     if view_key == "item":
         try:
             from database import get_it_support_item_analytics
 
             item_data = get_it_support_item_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                lines_limit=120,
+                lines_offset=0,
+                include_lines=True,
             )
         except Exception:
             item_data = {
@@ -4764,6 +4912,13 @@ def _render_it_support_analytics_page(view_key: str):
                 "top_items": [],
                 "shops": [],
                 "lines": [],
+                "lines_meta": {
+                    "limit": 120,
+                    "offset": 0,
+                    "loaded_count": 0,
+                    "total_count": 0,
+                    "has_more": False,
+                },
             }
     if view_key == "period":
         try:
@@ -4845,7 +5000,11 @@ def _render_it_support_analytics_page(view_key: str):
             from database import get_it_support_customer_analytics
 
             customer_data = get_it_support_customer_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                customers_limit=120,
+                customers_offset=0,
+                include_customers=True,
             )
         except Exception:
             customer_data = {
@@ -4853,6 +5012,13 @@ def _render_it_support_analytics_page(view_key: str):
                 "total_amount": 0.0,
                 "distinct_customers": 0,
                 "customers": [],
+                "customers_meta": {
+                    "limit": 120,
+                    "offset": 0,
+                    "loaded_count": 0,
+                    "total_count": 0,
+                    "has_more": False,
+                },
             }
     if view_key == "shop":
         try:
@@ -4918,6 +5084,9 @@ def _render_it_support_analytics_page(view_key: str):
                     )
             except Exception:
                 shop_view_data = None
+    shop_sku_count = 0
+    if view_key == "shop" and selected_shop_id:
+        shop_sku_count = _shop_active_sku_count(int(selected_shop_id))
     return render_template(
         "it_support_analytics_page.html",
         analytics_key=view_key,
@@ -4935,13 +5104,197 @@ def _render_it_support_analytics_page(view_key: str):
         selected_shop_id=selected_shop_id,
         shop_view=shop_view,
         shop_view_data=shop_view_data,
+        shop_sku_count=shop_sku_count,
+        shops_list=shops,
     )
+
+
+def _revenue_tx_params_from_request() -> dict:
+    """Pagination / staged-load flags for revenue analytics API."""
+    include_transactions = request.args.get("include_transactions", "1") != "0"
+    try:
+        tx_limit = int(request.args.get("tx_limit", 150))
+    except (TypeError, ValueError):
+        tx_limit = 150
+    try:
+        tx_offset = int(request.args.get("tx_offset", 0))
+    except (TypeError, ValueError):
+        tx_offset = 0
+    return {
+        "transactions_limit": tx_limit,
+        "transactions_offset": tx_offset,
+        "include_transactions": include_transactions,
+    }
+
+
+def _item_lines_params_from_request() -> dict:
+    include_lines = request.args.get("include_lines", "1") != "0"
+    try:
+        lines_limit = int(request.args.get("bulk_limit", request.args.get("lines_limit", 150)))
+    except (TypeError, ValueError):
+        lines_limit = 150
+    try:
+        lines_offset = int(request.args.get("bulk_offset", request.args.get("lines_offset", 0)))
+    except (TypeError, ValueError):
+        lines_offset = 0
+    return {
+        "lines_limit": lines_limit,
+        "lines_offset": lines_offset,
+        "include_lines": include_lines,
+    }
+
+
+def _customer_bulk_params_from_request() -> dict:
+    include_customers = request.args.get("include_customers", "1") != "0"
+    try:
+        customers_limit = int(request.args.get("bulk_limit", request.args.get("customers_limit", 150)))
+    except (TypeError, ValueError):
+        customers_limit = 150
+    try:
+        customers_offset = int(request.args.get("bulk_offset", request.args.get("customers_offset", 0)))
+    except (TypeError, ValueError):
+        customers_offset = 0
+    return {
+        "customers_limit": customers_limit,
+        "customers_offset": customers_offset,
+        "include_customers": include_customers,
+    }
+
+
+def _json_safe_value(val):
+    if val is None:
+        return val
+    if hasattr(val, "strftime"):
+        return val.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(val, dict):
+        return {k: _json_safe_value(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_json_safe_value(v) for v in val]
+    return val
+
+
+def _serialize_analytics_json(data: dict) -> dict:
+    """Make analytics payload JSON-safe (datetimes → strings)."""
+    if not data:
+        return {}
+    return _json_safe_value(dict(data))
+
+
+def _serialize_revenue_analytics_json(data: dict) -> dict:
+    """Make revenue analytics payload JSON-safe (datetimes → strings)."""
+    return _serialize_analytics_json(data)
+
+
+def _fetch_it_support_analytics_payload(view_key: str, analytics_filter: dict, analytics_scope: str) -> dict:
+    """Load analytics data for API / live updates."""
+    if view_key == "revenue":
+        from database import get_it_support_revenue_analytics
+
+        return get_it_support_revenue_analytics(
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+            **_revenue_tx_params_from_request(),
+        )
+    if view_key == "item":
+        from database import get_it_support_item_analytics
+
+        return get_it_support_item_analytics(
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+            **_item_lines_params_from_request(),
+        )
+    if view_key == "customer":
+        from database import get_it_support_customer_analytics
+
+        return get_it_support_customer_analytics(
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+            **_customer_bulk_params_from_request(),
+        )
+    if view_key == "period":
+        from database import get_it_support_period_analytics
+
+        return get_it_support_period_analytics(
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+        )
+    if view_key == "employee":
+        from database import get_it_support_employee_analytics
+
+        return get_it_support_employee_analytics(
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+        )
+    if view_key == "sales":
+        from database import get_it_support_sales_analytics
+
+        return get_it_support_sales_analytics(
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+        )
+    if view_key == "credit":
+        from database import get_it_support_credit_analytics
+
+        return get_it_support_credit_analytics(
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+        )
+    if view_key == "shop":
+        return _fetch_shop_analytics_payload(analytics_filter, analytics_scope)
+    abort(404)
+
+
+def _it_support_analytics_json_response(view_key: str, payload: dict, analytics_filter: dict, analytics_scope: str):
+    safe = _serialize_analytics_json(payload)
+    body = {
+        "ok": True,
+        "key": view_key,
+        "data": safe,
+        "filter": analytics_filter,
+        "analytics_scope": analytics_scope,
+        "period_label": analytics_filter.get("range_label") or "",
+    }
+    if view_key == "revenue":
+        body["revenue"] = safe
+    if view_key == "shop":
+        body["shop_data"] = safe
+        body["shop_view"] = _shop_view_from_request()
+    return jsonify(body)
 
 
 @app.route("/it_support/analytics/revenue")
 @login_required
 def it_support_revenue_analytics():
     return _render_it_support_analytics_page("revenue")
+
+
+@app.route("/it_support/analytics/revenue/data")
+@login_required
+def it_support_revenue_analytics_data():
+    """JSON payload for live revenue analytics filter updates."""
+    return it_support_analytics_data("revenue")
+
+
+@app.route("/it_support/analytics/<view_key>/data")
+@login_required
+def it_support_analytics_data(view_key: str):
+    """JSON payload for live IT support analytics filter updates."""
+    _it_support_or_super_admin_only()
+    labels = (
+        "revenue",
+        "item",
+        "sales",
+        "credit",
+        "period",
+        "employee",
+        "customer",
+        "shop",
+    )
+    if view_key not in labels:
+        abort(404)
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    try:
+        payload = _fetch_it_support_analytics_payload(view_key, analytics_filter, analytics_scope)
+    except Exception:
+        payload = {}
+    return _it_support_analytics_json_response(view_key, payload, analytics_filter, analytics_scope)
 
 
 @app.route("/it_support/analytics/item")
@@ -5074,6 +5427,50 @@ def it_support_customer_transactions():
     )
 
 
+def _build_credit_payments_query_dict(
+    *,
+    all_time: bool,
+    analytics_filter: dict,
+    filter_shop_id: int | None,
+    customer_q: str,
+) -> dict:
+    """Canonical query args for credit payments (avoids duplicate period params in the URL)."""
+    q: dict = {}
+    if filter_shop_id:
+        q["shop_id"] = filter_shop_id
+    cq = (customer_q or "").strip()
+    if cq:
+        q["customer_q"] = cq
+    if all_time:
+        q["all_time"] = "1"
+        return q
+    f = analytics_filter or {}
+    mode = f.get("mode") or "single_day"
+    q["mode"] = mode
+    if mode == "single_day":
+        q["single_day"] = f.get("single_day")
+    elif mode == "period":
+        q["start_date"] = f.get("start_date")
+        q["end_date"] = f.get("end_date")
+    elif mode == "month":
+        q["month"] = f.get("month")
+    elif mode == "year":
+        q["year"] = f.get("year")
+    return q
+
+
+def _credit_payments_args_match(canonical: dict) -> bool:
+    skip = frozenset({"print"})
+    cur = {k: request.args.get(k) for k in request.args if k not in skip}
+    for key, val in canonical.items():
+        if str(cur.get(key, "") or "") != str(val or ""):
+            return False
+    for key in cur:
+        if key not in canonical:
+            return False
+    return True
+
+
 @app.route("/it_support/credit-payments")
 @login_required
 def it_support_credit_payments():
@@ -5108,29 +5505,50 @@ def it_support_credit_payments():
     if not has_explicit_filter:
         all_time = True
 
+    canonical_q = _build_credit_payments_query_dict(
+        all_time=all_time,
+        analytics_filter=analytics_filter,
+        filter_shop_id=filter_shop_id,
+        customer_q=customer_q,
+    )
+    if request.args and not should_print and not _credit_payments_args_match(canonical_q):
+        return redirect(url_for("it_support_credit_payments", **canonical_q))
+
     sales = []
     shops = []
     try:
-        from database import list_company_credit_customers, list_shops
+        from database import list_all_shops_credit_sales, list_shops
 
         shops = list_shops(limit=500) or []
-        sales = list_company_credit_customers(
+        sales = list_all_shops_credit_sales(
             limit=5000,
             analytics_filter=None if all_time else analytics_filter,
+            analytics_scope="general",
             shop_id=filter_shop_id,
             customer_q=customer_q or None,
         )
     except Exception:
         sales, shops = [], []
+    analytics_nav = _build_credit_payments_query_dict(
+        all_time=all_time,
+        analytics_filter=analytics_filter,
+        filter_shop_id=filter_shop_id,
+        customer_q=customer_q,
+    )
+    print_q = dict(analytics_nav)
+    print_q["all_time"] = "1"
+    print_q["print"] = "1"
     return render_template(
         "it_support_credit_payments.html",
         credit_sales=sales,
         shops=shops,
         analytics_filter=analytics_filter,
+        analytics_nav=analytics_nav,
         filter_shop_id=filter_shop_id,
         customer_q=customer_q,
         credit_all_time=all_time,
         credit_should_print=should_print,
+        filter_print_url=url_for("it_support_credit_payments", **print_q),
     )
 
 
@@ -5196,12 +5614,19 @@ def it_support_credit_payments_audit():
         )
     except Exception:
         audit_sales, payment_receipts, shops = [], [], []
+    analytics_nav = _build_credit_payments_query_dict(
+        all_time=all_time,
+        analytics_filter=analytics_filter,
+        filter_shop_id=filter_shop_id,
+        customer_q=customer_q,
+    )
     return render_template(
         "it_support_credit_payments_audit.html",
         audit_sales=audit_sales,
         payment_receipts=payment_receipts,
         shops=shops,
         analytics_filter=analytics_filter,
+        analytics_nav=analytics_nav,
         filter_shop_id=filter_shop_id,
         customer_q=customer_q,
         payment_scope=payment_scope,
@@ -5241,6 +5666,7 @@ def it_support_credit_payments_upcoming_due():
         "it_support_credit_upcoming_due.html",
         due_rows=due_rows,
         shops=shops,
+        analytics_nav=_analytics_nav_kwargs(),
         filter_shop_id=filter_shop_id,
         customer_q=customer_q,
         due_days_ahead=days_ahead,
@@ -5255,28 +5681,21 @@ def it_support_credit_payments_customer():
     if not shop_id:
         flash("Select a shop customer to view credit payments.", "error")
         return redirect(url_for("it_support_credit_payments"))
+    shop = _get_shop_or_404(shop_id)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
-    try:
-        from database import get_shop_customer_credit_transactions
-
-        txs = get_shop_customer_credit_transactions(
-            shop_id=shop_id, customer_name=customer_name, customer_phone=customer_phone, limit=3000
-        )
-    except Exception:
-        txs = []
-    total_credit = sum(float(t.get("total_amount") or 0) for t in txs)
-    total_paid = sum(float(t.get("paid_amount") or 0) for t in txs)
-    total_due = max(total_credit - total_paid, 0.0)
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
     return render_template(
         "it_support_credit_payments_customer.html",
+        shop=shop,
         shop_id=shop_id,
         customer_name=customer_name,
         customer_phone=customer_phone,
-        transactions=txs,
-        total_credit=total_credit,
-        total_paid=total_paid,
-        total_due=total_due,
+        embed_record_payment=True,
+        credit_payment_return_to="customer",
+        **note_ctx,
     )
 
 
@@ -5294,47 +5713,17 @@ def company_credit_payments_customer():
         if not _shop_pos_allow_credit_sale(bshop):
             return redirect(url_for("shop_dashboard", shop_id=back_shop_id))
     should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
-    try:
-        from database import (
-            get_company_customer_credit_items,
-            get_company_customer_credit_payments,
-            get_company_customer_credit_transactions,
-        )
-
-        txs = get_company_customer_credit_transactions(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=5000,
-        )
-        payments = get_company_customer_credit_payments(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=5000,
-        )
-        credit_items = get_company_customer_credit_items(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=20000,
-        )
-    except Exception:
-        txs = []
-        payments = []
-        credit_items = []
-    total_credit = sum(float(t.get("total_amount") or 0) for t in txs)
-    total_paid = sum(float(t.get("paid_amount") or 0) for t in txs)
-    total_due = max(total_credit - total_paid, 0.0)
+    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    shop_stub = {"shop_name": "All shops", "shop_code": ""}
     return render_template(
         "company_credit_payments_customer.html",
+        shop=shop_stub,
         customer_name=customer_name,
         customer_phone=customer_phone,
-        transactions=txs,
-        payment_transactions=payments,
-        credit_items=credit_items,
-        total_credit=total_credit,
-        total_paid=total_paid,
-        total_due=total_due,
         back_shop_id=back_shop_id,
+        embed_record_payment=True,
         company_should_print=should_print,
+        **note_ctx,
     )
 
 
@@ -5395,14 +5784,13 @@ def company_credit_payments_pay():
             flash(f"Payment applied. Unused amount: {unused:.2f}", "success")
         else:
             flash("Payment applied successfully.", "success")
-    return redirect(
-        url_for(
-            "company_credit_payments_customer",
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            back_shop_id=back_shop_id,
-        )
+    target = url_for(
+        "company_credit_payments_customer",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        back_shop_id=back_shop_id,
     )
+    return redirect(f"{target}#shop-credit-payments")
 
 
 @app.route("/it_support/credit-payments/pay", methods=["POST"])
@@ -5416,20 +5804,30 @@ def it_support_credit_payments_pay():
         shop_id = 0
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
+    return_to = (request.form.get("return_to") or "customer").strip().lower()
+    sale_id = request.form.get("sale_id", type=int)
     amount_raw = (request.form.get("amount") or "").strip()
     note = (request.form.get("note") or "").strip() or None
+
+    def _it_support_credit_pay_redirect():
+        if return_to == "sale" and sale_id and shop_id:
+            return url_for(
+                "it_support_credit_sale_detail",
+                shop_id=shop_id,
+                sale_id=sale_id,
+            )
+        return url_for(
+            "it_support_credit_payments_customer",
+            shop_id=shop_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+        )
+
     try:
         amount = float(amount_raw)
     except Exception:
         flash("Enter a valid amount.", "error")
-        return redirect(
-            url_for(
-                "it_support_credit_payments_customer",
-                shop_id=shop_id,
-                customer_name=customer_name,
-                customer_phone=customer_phone,
-            )
-        )
+        return redirect(_it_support_credit_pay_redirect())
     try:
         from database import apply_shop_credit_payment_fifo
 
@@ -5450,14 +5848,7 @@ def it_support_credit_payments_pay():
             flash(f"Payment applied. Unused amount: {unused:.2f}", "success")
         else:
             flash("Payment applied successfully.", "success")
-    return redirect(
-        url_for(
-            "it_support_credit_payments_customer",
-            shop_id=shop_id,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-        )
-    )
+    return redirect(f"{_it_support_credit_pay_redirect()}#shop-credit-payments")
 
 
 @app.route("/it_support/credit-payments/sale")
@@ -5468,6 +5859,7 @@ def it_support_credit_sale_detail():
     sale_id = request.args.get("sale_id", type=int)
     if not shop_id or not sale_id:
         abort(404)
+    shop = _get_shop_or_404(shop_id)
     try:
         from database import get_shop_credit_sale_detail
 
@@ -5476,11 +5868,24 @@ def it_support_credit_sale_detail():
         d = {}
     if not d.get("sale"):
         abort(404)
+    sale = d["sale"]
+    customer_name = (sale.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (sale.get("customer_phone") or "").strip() or "-"
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
     return render_template(
         "it_support_credit_sale_detail.html",
+        shop=shop,
         shop_id=shop_id,
-        sale=d["sale"],
+        sale=sale,
         items=d.get("items") or [],
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        embed_record_payment=True,
+        credit_payment_return_to="sale",
+        focus_sale_id=sale_id,
+        **note_ctx,
     )
 
 
@@ -7984,10 +8389,13 @@ def shop_receipts(shop_id: int):
         "shop_receipts.html",
         shop=shop,
         analytics_filter=analytics_filter,
+        analytics_scope=_analytics_scope_from_request(),
         receipt_rows=rows,
         receipt_rows_total=len(rows),
         receipt_q=rq,
+        can_mark_receipts=shop_shell_can("receipt_mark"),
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        shop_portal=True,
         pos_inventory_mode=_pos_inventory_mode(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -8274,6 +8682,287 @@ def shop_credit_payments(shop_id: int):
     )
 
 
+def _all_time_analytics_filter() -> dict:
+    """Wide date range for full customer account credit note."""
+    return {
+        "mode": "period",
+        "single_day": date.today().isoformat(),
+        "start_date": "2000-01-01",
+        "end_date": "2099-12-31",
+        "month": date.today().strftime("%Y-%m"),
+        "year": str(date.today().year),
+        "range_start": "2000-01-01",
+        "range_end_exclusive": "2100-01-01",
+        "range_label": "Full account",
+    }
+
+
+def _credit_sale_is_unpaid(sale_id: int, credit_acct_by_id: dict) -> bool:
+    acct = credit_acct_by_id.get(int(sale_id) or 0)
+    if not acct:
+        return False
+    if (acct.get("credit_status") or "").strip().lower() == "paid":
+        return False
+    return float(acct.get("remaining_amount") or 0) > 0.0001
+
+
+def _credit_note_unpaid_lists(
+    credit_sales_period: list,
+    credit_acct_by_id: dict,
+    items_by_sale_id: dict,
+) -> tuple:
+    """Outstanding credit sales and line items for the credit note."""
+    unpaid: list = []
+    for tx in credit_sales_period or []:
+        try:
+            sale_id = int(tx.get("id") or 0)
+        except Exception:
+            sale_id = 0
+        if sale_id <= 0 or not _credit_sale_is_unpaid(sale_id, credit_acct_by_id):
+            continue
+        unpaid.append(tx)
+    unpaid_ids = {int(tx.get("id") or 0) for tx in unpaid if int(tx.get("id") or 0) > 0}
+    note_items = {k: v for k, v in (items_by_sale_id or {}).items() if k in unpaid_ids}
+    unpaid_balance = sum(
+        float(credit_acct_by_id.get(int(tx.get("id") or 0), {}).get("remaining_amount") or 0)
+        for tx in unpaid
+    )
+    return unpaid, note_items, unpaid_balance, len(unpaid)
+
+
+def _shop_customer_credit_note_context(
+    shop_id: int,
+    customer_name: str,
+    customer_phone: str,
+    *,
+    analytics_filter: Optional[dict] = None,
+    analytics_scope: str = "general",
+) -> dict:
+    """Shared template context for shop customer credit note (period or full account)."""
+    f = analytics_filter if analytics_filter is not None else _all_time_analytics_filter()
+    all_time = f.get("range_label") == "Full account"
+    items_by_sale_id: Dict[int, list] = {}
+    credit_account_txs: list = []
+    credit_payments_all: list = []
+    credit_sales_period: list = []
+    credit_payments_period: list = []
+    try:
+        from database import (
+            get_it_support_customer_transaction_items,
+            get_it_support_customer_transactions,
+            get_shop_customer_credit_payments,
+            get_shop_customer_credit_transactions,
+        )
+
+        credit_account_txs = get_shop_customer_credit_transactions(
+            shop_id=shop_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+        )
+        credit_payments_all = get_shop_customer_credit_payments(
+            shop_id=shop_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+        )
+        if all_time:
+            credit_sales_period = [
+                {
+                    "id": int(t.get("id") or 0),
+                    "total_amount": float(t.get("total_amount") or 0),
+                    "created_at": t.get("created_at"),
+                    "employee_name": t.get("employee_name") or "Unknown",
+                    "employee_code": t.get("employee_code") or "",
+                    "sale_type": "credit",
+                }
+                for t in credit_account_txs
+            ]
+            credit_payments_period = list(credit_payments_all)
+        else:
+            transactions = get_it_support_customer_transactions(
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                analytics_filter=f,
+                shop_id=shop_id,
+                limit=3000,
+                analytics_scope=analytics_scope,
+            )
+            credit_sales_period = [
+                t
+                for t in transactions
+                if (t.get("sale_type") or "").strip().lower() == "credit"
+                and _row_in_analytics_filter(t, f)
+            ]
+            credit_payments_period = [
+                p for p in credit_payments_all if _row_in_analytics_filter(p, f)
+            ]
+        tx_item_rows = get_it_support_customer_transaction_items(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=8000,
+            analytics_filter=f,
+            shop_id=shop_id,
+            analytics_scope=analytics_scope,
+        )
+        for row in tx_item_rows or []:
+            if (row.get("sale_type") or "").strip().lower() != "credit":
+                continue
+            try:
+                sale_id = int(row.get("sale_id") or 0)
+            except Exception:
+                sale_id = 0
+            if sale_id <= 0:
+                continue
+            items_by_sale_id.setdefault(sale_id, []).append(
+                {
+                    "item_name": row.get("item_name") or "Item",
+                    "qty": int(row.get("qty") or 0),
+                    "amount": float(row.get("amount") or 0),
+                }
+            )
+    except Exception:
+        pass
+    account_credit_total = sum(float(t.get("total_amount") or 0) for t in credit_account_txs)
+    account_paid_total = sum(float(t.get("paid_amount") or 0) for t in credit_account_txs)
+    account_balance_due = max(account_credit_total - account_paid_total, 0.0)
+    period_credit_total = sum(float(t.get("total_amount") or 0) for t in credit_sales_period)
+    period_payments_total = sum(float(p.get("amount") or 0) for p in credit_payments_period)
+    credit_acct_by_id = {
+        int(t.get("id") or 0): t for t in credit_account_txs if int(t.get("id") or 0) > 0
+    }
+    credit_sales_unpaid, credit_note_items_by_sale_id, unpaid_balance_total, unpaid_sales_count = (
+        _credit_note_unpaid_lists(credit_sales_period, credit_acct_by_id, items_by_sale_id)
+    )
+    return {
+        "f": f,
+        "analytics_scope": analytics_scope,
+        "transaction_items_by_sale_id": items_by_sale_id,
+        "credit_note_items_by_sale_id": credit_note_items_by_sale_id,
+        "credit_account_txs": credit_account_txs,
+        "credit_acct_by_id": credit_acct_by_id,
+        "credit_sales_period": credit_sales_period,
+        "credit_sales_unpaid": credit_sales_unpaid,
+        "credit_payments_period": credit_payments_period,
+        "credit_payments_all": credit_payments_all,
+        "account_credit_total": account_credit_total,
+        "account_paid_total": account_paid_total,
+        "account_balance_due": account_balance_due,
+        "period_credit_total": period_credit_total,
+        "period_payments_total": period_payments_total,
+        "unpaid_balance_total": unpaid_balance_total,
+        "unpaid_sales_count": unpaid_sales_count,
+        "credit_note_ref": f"CN-{shop_id}-{datetime.utcnow().strftime('%Y%m%d')}",
+        "credit_note_all_time": all_time,
+    }
+
+
+def _company_customer_credit_note_context(customer_name: str, customer_phone: str) -> dict:
+    """Credit note + payments context for company-wide customer credit page."""
+    f = _all_time_analytics_filter()
+    credit_account_txs: list = []
+    credit_payments_all: list = []
+    items_by_sale_id: Dict[int, list] = {}
+    try:
+        from database import (
+            get_company_customer_credit_items,
+            get_company_customer_credit_payments,
+            get_company_customer_credit_transactions,
+        )
+
+        credit_account_txs = get_company_customer_credit_transactions(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+        )
+        payments_raw = get_company_customer_credit_payments(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+        )
+        item_rows = get_company_customer_credit_items(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=20000,
+        )
+        for p in payments_raw or []:
+            parts = [p.get("shop_name") or ""]
+            method = (p.get("payment_method") or "").strip().upper()
+            if method:
+                parts.append(method)
+            raw_note = (p.get("note") or "").strip()
+            if raw_note and raw_note.lower() not in ("method=cash", "method=mpesa", "method=bank", "method=other"):
+                parts.append(raw_note)
+            credit_payments_all.append(
+                {
+                    "amount": float(p.get("amount") or 0),
+                    "created_at": p.get("created_at"),
+                    "note": " · ".join(x for x in parts if x),
+                }
+            )
+        for row in item_rows or []:
+            try:
+                sale_id = int(row.get("sale_id") or 0)
+            except Exception:
+                sale_id = 0
+            if sale_id <= 0:
+                continue
+            items_by_sale_id.setdefault(sale_id, []).append(
+                {
+                    "item_name": row.get("item_name") or "Item",
+                    "qty": int(row.get("qty") or 0),
+                    "amount": float(row.get("line_total") or 0),
+                    "shop_name": row.get("shop_name") or "",
+                }
+            )
+    except Exception:
+        pass
+    account_credit_total = sum(float(t.get("total_amount") or 0) for t in credit_account_txs)
+    account_paid_total = sum(float(t.get("paid_amount") or 0) for t in credit_account_txs)
+    account_balance_due = max(account_credit_total - account_paid_total, 0.0)
+    credit_sales_period = [
+        {
+            "id": int(t.get("id") or 0),
+            "total_amount": float(t.get("total_amount") or 0),
+            "created_at": t.get("created_at"),
+            "employee_name": t.get("employee_name") or "Unknown",
+            "employee_code": t.get("employee_code") or "",
+            "sale_type": "credit",
+            "shop_name": t.get("shop_name") or "",
+        }
+        for t in credit_account_txs
+    ]
+    credit_payments_period = list(credit_payments_all)
+    credit_acct_by_id = {
+        int(t.get("id") or 0): t for t in credit_account_txs if int(t.get("id") or 0) > 0
+    }
+    credit_sales_unpaid, credit_note_items_by_sale_id, unpaid_balance_total, unpaid_sales_count = (
+        _credit_note_unpaid_lists(credit_sales_period, credit_acct_by_id, items_by_sale_id)
+    )
+    return {
+        "f": f,
+        "analytics_scope": "general",
+        "company_credit_scope": True,
+        "transaction_items_by_sale_id": items_by_sale_id,
+        "credit_note_items_by_sale_id": credit_note_items_by_sale_id,
+        "credit_account_txs": credit_account_txs,
+        "credit_acct_by_id": credit_acct_by_id,
+        "credit_sales_period": credit_sales_period,
+        "credit_sales_unpaid": credit_sales_unpaid,
+        "credit_payments_period": credit_payments_period,
+        "credit_payments_all": credit_payments_all,
+        "account_credit_total": account_credit_total,
+        "account_paid_total": account_paid_total,
+        "account_balance_due": account_balance_due,
+        "period_credit_total": account_credit_total,
+        "period_payments_total": sum(float(p.get("amount") or 0) for p in credit_payments_period),
+        "unpaid_balance_total": unpaid_balance_total,
+        "unpaid_sales_count": unpaid_sales_count,
+        "credit_note_ref": f"CN-CO-{datetime.utcnow().strftime('%Y%m%d')}",
+        "credit_note_all_time": True,
+    }
+
+
 @app.route("/shops/<int:shop_id>/shop-credit-payments/customer")
 def shop_credit_payments_customer(shop_id: int):
     shop = _get_shop_or_404(shop_id)
@@ -8284,26 +8973,18 @@ def shop_credit_payments_customer(shop_id: int):
         return redirect(url_for("shop_dashboard", shop_id=shop_id))
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
-    try:
-        from database import get_shop_customer_credit_transactions
-
-        txs = get_shop_customer_credit_transactions(
-            shop_id=shop_id, customer_name=customer_name, customer_phone=customer_phone, limit=3000
-        )
-    except Exception:
-        txs = []
-    total_credit = sum(float(t.get("total_amount") or 0) for t in txs)
-    total_paid = sum(float(t.get("paid_amount") or 0) for t in txs)
-    total_due = max(total_credit - total_paid, 0.0)
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
     return render_template(
         "shop_credit_payments_customer.html",
         shop=shop,
         customer_name=customer_name,
         customer_phone=customer_phone,
-        transactions=txs,
-        total_credit=total_credit,
-        total_paid=total_paid,
-        total_due=total_due,
+        embed_record_payment=True,
+        payment_return_to="customer",
+        pos_allow_credit_sale=True,
+        **note_ctx,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -8357,14 +9038,29 @@ def shop_credit_payments_pay(shop_id: int):
             flash(f"Payment applied. Unused amount: {unused:.2f}", "success")
         else:
             flash("Payment applied successfully.", "success")
-    return redirect(
-        url_for(
+    return_to = (request.form.get("return_to") or "customer").strip().lower()
+    if return_to == "analytics":
+        redirect_kwargs = {
+            "shop_id": shop_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "mode": (request.form.get("mode") or "single_day").strip(),
+            "single_day": (request.form.get("single_day") or date.today().isoformat()).strip(),
+            "start_date": (request.form.get("start_date") or date.today().isoformat()).strip(),
+            "end_date": (request.form.get("end_date") or date.today().isoformat()).strip(),
+            "month": (request.form.get("month") or date.today().strftime("%Y-%m")).strip(),
+            "year": (request.form.get("year") or str(date.today().year)).strip(),
+            "analytics_scope": (request.form.get("analytics_scope") or "general").strip(),
+        }
+        target = url_for("shop_customer_analytics_detail", **redirect_kwargs)
+    else:
+        target = url_for(
             "shop_credit_payments_customer",
             shop_id=shop_id,
             customer_name=customer_name,
             customer_phone=customer_phone,
         )
-    )
+    return redirect(f"{target}#shop-credit-payments")
 
 
 @app.route("/shops/<int:shop_id>/shop-credit-payments/sale/<int:sale_id>")
@@ -9296,48 +9992,7 @@ def _load_shop_stock_live_report_rows(
 
 @app.route("/shops/<int:shop_id>/shop-stock-analytics")
 def shop_stock_analytics(shop_id: int):
-    shop = _get_shop_or_404(shop_id)
-    gate = _require_shop_access(shop)
-    if gate is not None:
-        return gate
-    analytics_filter = _build_analytics_filter()
-    reorder_threshold = request.args.get("reorder_threshold", type=int)
-    if reorder_threshold is None:
-        reorder_threshold = 5
-    reorder_threshold = max(0, min(500, int(reorder_threshold)))
-    stock_data: Dict[str, Any] = {
-        "tx_count": 0,
-        "qty_in": 0,
-        "qty_out": 0,
-        "net_qty": 0,
-        "distinct_items": 0,
-        "top_in_items": [],
-        "top_out_items": [],
-        "daily": [],
-        "source_rows": [],
-    }
-    sku_count = 0
-    try:
-        from database import get_shop_stock_analytics
-
-        stock_data = get_shop_stock_analytics(shop_id=shop_id, analytics_filter=analytics_filter)
-        sku_count = _shop_active_sku_count(shop_id)
-    except Exception:
-        pass
-    return render_template(
-        "shop_stock_analytics.html",
-        shop=shop,
-        analytics_filter=analytics_filter,
-        stock_data=stock_data,
-        shop_stock_sidebar_focus="analytics",
-        sku_count=sku_count,
-        reorder_threshold=reorder_threshold,
-        theme_key=f"richcom-theme-shop-{shop['id']}",
-        theme_default=shop.get("default_theme") or "dark",
-        font_family=shop.get("font_family") or "Plus Jakarta Sans",
-        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
-        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
-    )
+    return _render_shop_analytics_view(shop_id, "stock")
 
 
 def _shop_stock_reports_canonical_query(
@@ -9874,10 +10529,50 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
                 "distinct_customers": 0,
                 "customers": [],
             }
+    stock_data = None
+    shop_sku_count = None
+    reorder_threshold = 5
+    if analytics_view == "stock":
+        reorder_threshold = request.args.get("reorder_threshold", type=int)
+        if reorder_threshold is None:
+            reorder_threshold = 5
+        reorder_threshold = max(0, min(500, int(reorder_threshold)))
+        stock_data = {
+            "tx_count": 0,
+            "qty_in": 0,
+            "qty_out": 0,
+            "net_qty": 0,
+            "distinct_items": 0,
+            "top_in_items": [],
+            "top_out_items": [],
+            "daily": [],
+            "source_rows": [],
+        }
+        try:
+            from database import get_shop_stock_analytics
+
+            stock_data = get_shop_stock_analytics(
+                shop_id=shop_id, analytics_filter=analytics_filter
+            )
+            shop_sku_count = _shop_active_sku_count(shop_id)
+        except Exception:
+            pass
+    shop_view_data_by_view = {
+        "revenue": revenue_data,
+        "item": item_data,
+        "period": period_data,
+        "sales": sales_data,
+        "credit": credit_data,
+        "customer": customer_data,
+        "stock": stock_data,
+    }
+    shop_view_data = shop_view_data_by_view.get(analytics_view)
     return render_template(
         "shop_analytics.html",
         shop=shop,
+        shop_view=analytics_view,
         analytics_view=analytics_view,
+        shop_view_data=shop_view_data,
         analytics_filter=analytics_filter,
         analytics_scope=analytics_scope,
         revenue_data=revenue_data,
@@ -9886,6 +10581,11 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         sales_data=sales_data,
         credit_data=credit_data,
         customer_data=customer_data,
+        stock_data=stock_data,
+        shop_sku_count=shop_sku_count,
+        reorder_threshold=reorder_threshold if analytics_view == "stock" else None,
+        shop_portal=True,
+        selected_shop_id=shop_id,
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -9930,6 +10630,35 @@ def shop_customer_analytics(shop_id: int):
     return _render_shop_analytics_view(shop_id, "customer")
 
 
+def _parse_row_created_at(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    s = str(value).strip()
+    if not s:
+        return None
+    try:
+        if len(s) >= 19:
+            return datetime.strptime(s[:19].replace("T", " "), "%Y-%m-%d %H:%M:%S")
+        return datetime.strptime(s[:10], "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _row_in_analytics_filter(row: dict, analytics_filter: dict, key: str = "created_at") -> bool:
+    dt = _parse_row_created_at(row.get(key))
+    if not dt:
+        return True
+    try:
+        d = dt.date()
+        rs = date.fromisoformat(str(analytics_filter.get("range_start") or ""))
+        re = date.fromisoformat(str(analytics_filter.get("range_end_exclusive") or ""))
+        return rs <= d < re
+    except Exception:
+        return True
+
+
 @app.route("/shops/<int:shop_id>/shop-customer-analytics/detail")
 def shop_customer_analytics_detail(shop_id: int):
     shop = _get_shop_or_404(shop_id)
@@ -9940,9 +10669,11 @@ def shop_customer_analytics_detail(shop_id: int):
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
+    items_by_sale_id: Dict[int, list] = {}
     try:
         from database import (
             get_it_support_customer_detail_analytics,
+            get_it_support_customer_transaction_items,
             get_it_support_customer_transactions,
         )
 
@@ -9961,6 +10692,28 @@ def shop_customer_analytics_detail(shop_id: int):
             limit=3000,
             analytics_scope=analytics_scope,
         )
+        tx_item_rows = get_it_support_customer_transaction_items(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            limit=5000,
+            analytics_filter=analytics_filter,
+            shop_id=shop_id,
+            analytics_scope=analytics_scope,
+        )
+        for row in tx_item_rows or []:
+            try:
+                sale_id = int(row.get("sale_id") or 0)
+            except Exception:
+                sale_id = 0
+            if sale_id <= 0:
+                continue
+            items_by_sale_id.setdefault(sale_id, []).append(
+                {
+                    "item_name": row.get("item_name") or "Item",
+                    "qty": int(row.get("qty") or 0),
+                    "amount": float(row.get("amount") or 0),
+                }
+            )
     except Exception:
         customer_analytics = {
             "total_amount": 0.0,
@@ -9974,11 +10727,24 @@ def shop_customer_analytics_detail(shop_id: int):
             "avg_ticket": 0.0,
             "daily": [],
             "hourly": [],
+            "daily_sale": [],
+            "daily_credit": [],
+            "hourly_sale": [],
+            "hourly_credit": [],
             "shops": [],
             "employees": [],
             "top_items": [],
         }
         transactions = []
+        items_by_sale_id = {}
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id,
+        customer_name,
+        customer_phone,
+        analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
+    )
+    allow_credit = _shop_pos_allow_credit_sale(shop)
     return render_template(
         "shop_customer_analytics_detail.html",
         shop=shop,
@@ -9988,7 +10754,11 @@ def shop_customer_analytics_detail(shop_id: int):
         analytics_scope=analytics_scope,
         customer_analytics=customer_analytics,
         transactions=transactions,
-        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        transaction_items_by_sale_id=items_by_sale_id,
+        embed_record_payment=allow_credit,
+        payment_return_to="analytics",
+        pos_allow_credit_sale=allow_credit,
+        **note_ctx,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",

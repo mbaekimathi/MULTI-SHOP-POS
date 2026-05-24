@@ -1,0 +1,38 @@
+{# Payment history for this credit customer #}
+{% set payments = credit_payments_all if credit_payments_all is defined else (credit_payments_period or []) %}
+{% set payments_total = namespace(value=0) %}
+{% for p in payments %}{% set payments_total.value = payments_total.value + (p.amount|float) %}{% endfor %}
+
+<section id="shop-credit-payments" class="shop-cust-tx-section no-print" aria-labelledby="shop-cust-tx-payments-heading">
+  <div class="shop-cust-tx-section__head">
+    <div>
+      <h3 id="shop-cust-tx-payments-heading" class="shop-cust-tx-section__title">Payment history</h3>
+      <p class="shop-cust-tx-section__desc">{{ payments|length }} payment{% if payments|length != 1 %}s{% endif %} · {{ "%.2f"|format(payments_total.value) }} received</p>
+    </div>
+  </div>
+
+  {% if not payments %}
+  <p class="shop-cust-tx-empty">No payments recorded yet. Use <strong>Update payment</strong> above when the customer pays.</p>
+  {% else %}
+  <div class="shop-cn-items-table-wrap">
+    <table class="shop-cn-items-table shop-cn-items-table--payments">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Note</th>
+          <th scope="col" class="num">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments|reverse %}
+        <tr>
+          <td class="whitespace-nowrap">{{ p.created_at or '—' }}</td>
+          <td>{{ p.note or '—' }}</td>
+          <td class="num tabular-nums shop-cn-pay-amount">{{ "%.2f"|format(p.amount or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>

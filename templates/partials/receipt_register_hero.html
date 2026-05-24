@@ -1,0 +1,26 @@
+{# Expects: rcpt_title, rcpt_desc (html), rcpt_range_label, optional rcpt_primary_url, rcpt_primary_label #}
+<section class="rev-panel rcpt-hero{% if rcpt_variant == 'shop' %} rcpt-hero--shop{% endif %}">
+  <div class="rcpt-hero__accent" aria-hidden="true"></div>
+  <div class="rev-panel__head rev-panel--shop-meta rcpt-hero__head">
+    <div class="rcpt-hero__intro min-w-0">
+      <div class="rcpt-hero__icon-wrap" aria-hidden="true">
+        <svg class="rcpt-hero__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="rev-panel__eyebrow">Receipt register</p>
+        <h2 class="rev-panel__title">{{ rcpt_title }}</h2>
+        <p class="rev-panel__desc">{{ rcpt_desc|safe }}</p>
+      </div>
+    </div>
+    <div class="rcpt-hero__aside">
+      {% if rcpt_range_label is defined and rcpt_range_label %}
+      <span class="rcpt-hero__period"{% if rcpt_range_label_id %} id="{{ rcpt_range_label_id }}"{% endif %}>{{ rcpt_range_label }}</span>
+      {% endif %}
+      {% if rcpt_primary_url %}
+      <a href="{{ rcpt_primary_url }}" class="rcpt-hero__cta">{{ rcpt_primary_label or 'Open POS' }}</a>
+      {% endif %}
+    </div>
+  </div>
+</section>

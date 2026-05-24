@@ -1,115 +1,35 @@
 {% extends "shop_layout.html" %}
-{% block title %}Customer credit — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}Customer credit{% endblock %}
+{% block title %}Credit note — {{ customer_name }} — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Customer credit note{% endblock %}
 {% block shop_sidebar_links %}
   <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments</a>
+  <a href="{{ url_for('shop_credit_analytics', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]">Credit analytics</a>
 {% endblock %}
 {% block shop_content %}
-  {% include "partials/shop_credit_workspace_assets.html" %}
-  <div class="it-credit-page it-credit-analytics sa-shop-credit">
-  <div class="it-credit-workspace mt-4 flex flex-col gap-2 sm:gap-4">
-    <section class="it-credit-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
-      <div class="it-credit-hero-top px-4 py-4 sm:px-6 sm:py-5">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div class="min-w-0">
-            <p class="it-credit-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Customer credit</p>
-            <h2 class="it-credit-hero-title mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">{{ customer_name }}</h2>
-            <p class="it-credit-hero-desc mt-1 text-sm text-[rgb(var(--rc-muted))]">Phone: {{ customer_phone }}</p>
-          </div>
-          <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost it-credit-btn shrink-0">Back</a>
-        </div>
-      </div>
-    </section>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=7" />
 
-    <div class="it-credit-stats it-credit-stats--3" role="group" aria-label="Balance summary">
-      <div class="it-credit-stat it-credit-stat--amber">
-        <p class="it-credit-stat__label">Credit total</p>
-        <p class="it-credit-stat__value">{{ "%.2f"|format(total_credit or 0) }}</p>
-      </div>
-      <div class="it-credit-stat it-credit-stat--emerald">
-        <p class="it-credit-stat__label">Paid</p>
-        <p class="it-credit-stat__value">{{ "%.2f"|format(total_paid or 0) }}</p>
-      </div>
-      <div class="it-credit-stat it-credit-stat--rose">
-        <p class="it-credit-stat__label">Balance</p>
-        <p class="it-credit-stat__value">{{ "%.2f"|format(total_due or 0) }}</p>
-      </div>
+  <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
+    <div class="shop-cust-credit-page__toolbar no-print">
+      <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="rev-btn rev-btn--ghost">← Credit payments</a>
+      <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
     </div>
 
-    <section class="it-credit-panel">
-      <div class="it-credit-panel__head">
-        <h3 class="it-credit-panel__title">Receive payment (FIFO)</h3>
-      </div>
-      <form method="post" action="{{ url_for('shop_credit_payments_pay', shop_id=shop.id) }}" class="it-credit-pay-form">
-        <input type="hidden" name="customer_name" value="{{ customer_name }}" />
-        <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
-        <div class="it-credit-field">
-          <label class="it-credit-label">Amount paid</label>
-          <input name="amount" type="number" step="0.01" min="0" required class="it-credit-input" placeholder="0.00" />
-        </div>
-        <div class="it-credit-field">
-          <label class="it-credit-label">Note (optional)</label>
-          <input name="note" type="text" class="it-credit-input" placeholder="e.g. Cash payment" />
-        </div>
-        <div class="it-credit-pay-form__submit">
-          <button type="submit" class="btn-rc btn-rc-primary it-credit-btn">Record payment</button>
-        </div>
-      </form>
-    </section>
+    {% with compact_only=true %}
+      {% include "partials/shop_customer_credit_note.html" %}
+    {% endwith %}
 
-    <section class="it-credit-panel">
-      <div class="it-credit-panel__head">
-        <h3 class="it-credit-panel__title">Credit transactions</h3>
-      </div>
-      {% if not transactions %}
-        <p class="text-sm text-[rgb(var(--rc-muted))]">No credit transactions for this customer.</p>
-      {% else %}
-        <div class="it-credit-table-wrap">
-          <div class="it-credit-table-wrap__scroll">
-            <table class="it-credit-table min-w-[40rem]">
-              <thead>
-                <tr>
-                  <th scope="col">Date</th>
-                  <th scope="col">Sale</th>
-                  <th scope="col" class="text-right">Amount</th>
-                  <th scope="col" class="text-right">Paid</th>
-                  <th scope="col" class="text-right">Balance</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Employee</th>
-                  <th scope="col"><span class="sr-only">View</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for tx in transactions %}
-                <tr>
-                  <td class="whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ tx.created_at }}</td>
-                  <td class="font-semibold">#{{ tx.id }}</td>
-                  <td class="text-right tabular-nums it-credit-amount--credit">{{ "%.2f"|format(tx.total_amount) }}</td>
-                  <td class="text-right tabular-nums it-credit-amount--paid">{{ "%.2f"|format(tx.paid_amount) }}</td>
-                  <td class="text-right tabular-nums it-credit-amount--balance">{{ "%.2f"|format(tx.remaining_amount) }}</td>
-                  <td>
-                    {% if tx.credit_status == 'paid' %}
-                      <span class="it-credit-badge it-credit-badge--paid">Paid</span>
-                    {% elif tx.credit_status == 'partially_paid' %}
-                      <span class="it-credit-badge it-credit-badge--partial">Partial</span>
-                    {% else %}
-                      <span class="it-credit-badge it-credit-badge--unpaid">Unpaid</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-[rgb(var(--rc-muted))]">{{ tx.employee_name }}{% if tx.employee_code %} ({{ tx.employee_code }}){% endif %}</td>
-                  <td>
-                    <a href="{{ url_for('shop_credit_sale_detail', shop_id=shop.id, sale_id=tx.id) }}" class="it-credit-action-btn" aria-label="View sale">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" /></svg>
-                    </a>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-    </section>
+    {% if embed_record_payment %}
+      {% include "partials/shop_customer_record_payment.html" %}
+    {% endif %}
+
+    {% include "partials/shop_customer_credit_transactions.html" %}
   </div>
-  </div>
+  <script>
+    (function () {
+      if (window.location.hash !== "#shop-credit-payments") return;
+      var el = document.getElementById("shop-credit-payments");
+      if (el) requestAnimationFrame(function () { el.scrollIntoView({ behavior: "smooth", block: "start" }); });
+    })();
+  </script>
 {% endblock %}

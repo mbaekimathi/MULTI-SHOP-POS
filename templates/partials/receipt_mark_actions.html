@@ -1,0 +1,28 @@
+{# Mark confirmed / cancelled — expects can_mark_receipts or can_mark #}
+<div class="rcpt-mark-actions" aria-label="Mark selected receipts">
+  <div class="rcpt-mark-actions__head">
+    <p class="rcpt-mark-actions__label">
+      <span class="rcpt-mark-actions__label-icon" aria-hidden="true">✓</span>
+      <span class="rcpt-mark-actions__label-text">Mark selected</span>
+    </p>
+    <span class="rcpt-mark-actions__selected">
+      <span class="rcpt-mark-actions__selected-label">Selected</span>
+      <span id="receipt-selected-count" class="rcpt-mark-actions__selected-count">0</span>
+    </span>
+  </div>
+  <div class="rcpt-mark-actions__buttons">
+    <button type="button" data-mark-action="confirmed" class="rcpt-mark-btn rcpt-mark-btn--confirmed" aria-label="Mark selected receipts as confirmed">
+      <span class="rcpt-mark-btn__icon" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      </span>
+      <span class="rcpt-mark-btn__label">Confirmed</span>
+    </button>
+    <button type="button" data-mark-action="cancelled" class="rcpt-mark-btn rcpt-mark-btn--cancelled" aria-label="Mark selected receipts as cancelled">
+      <span class="rcpt-mark-btn__icon" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </span>
+      <span class="rcpt-mark-btn__label">Cancelled</span>
+    </button>
+  </div>
+  <p id="receipt-mark-msg" class="rcpt-mark-actions__msg" role="status" aria-live="polite"></p>
+</div>

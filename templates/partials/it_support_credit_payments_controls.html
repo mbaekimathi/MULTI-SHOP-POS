@@ -1,0 +1,112 @@
+{# Credit payments — compact toolbar (rev + Tailwind, matches receipts) #}
+{% set _mode = f.mode or 'single_day' %}
+{% set _inp = 'block w-full min-h-9 rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30' %}
+{% set _lbl = 'block text-[10px] font-bold uppercase tracking-[0.1em] text-[rgb(var(--rc-muted))] mb-0.5' %}
+<div class="rev-toolbar cp-credit-toolbar" id="cp-credit-toolbar">
+  <form
+    method="get"
+    action="{{ url_for('it_support_credit_payments') }}"
+    class="rev-toolbar__inner cp-credit-toolbar__inner"
+    id="it-analytics-filter-form"
+    data-analytics-key="credit-payments"
+    data-live-filter="credit-payments"
+  >
+    <div class="flex flex-wrap items-end justify-between gap-2" id="cp-credit-period-fields">
+      <div class="flex min-w-0 flex-1 flex-wrap items-end gap-2">
+        {% if shop_list %}
+        <div class="rev-field w-[10.5rem] shrink-0">
+          <label for="cp-filter-shop" class="{{ _lbl }}">Shop</label>
+          <select id="cp-filter-shop" name="shop_id" class="{{ _inp }}">
+            <option value="">All shops</option>
+            {% for sh in shop_list %}
+              <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="rev-field w-[5.75rem] shrink-0">
+          <label for="analytics-filter-mode" class="{{ _lbl }}">Period</label>
+          <select id="analytics-filter-mode" name="mode" class="{{ _inp }}">
+            <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Day</option>
+            <option value="period" {% if _mode == 'period' %}selected{% endif %}>Range</option>
+            <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if _mode == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+
+        <div id="filter-single-day" class="rev-field w-[9.5rem] shrink-0 {% if _mode != 'single_day' %}hidden{% endif %}">
+          <label for="analytics-single-day" class="{{ _lbl }}">Date</label>
+          <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="{{ _inp }}" />
+        </div>
+
+        <div id="filter-period" class="flex flex-wrap items-end gap-2 {% if _mode != 'period' %}hidden{% endif %}">
+          <div class="rev-field w-[9.5rem] shrink-0">
+            <label for="analytics-start-date" class="{{ _lbl }}">From</label>
+            <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="{{ _inp }}" />
+          </div>
+          <div class="rev-field w-[9.5rem] shrink-0">
+            <label for="analytics-end-date" class="{{ _lbl }}">To</label>
+            <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="{{ _inp }}" />
+          </div>
+        </div>
+
+        <div id="filter-month" class="rev-field w-[9.5rem] shrink-0 {% if _mode != 'month' %}hidden{% endif %}">
+          <label for="analytics-month" class="{{ _lbl }}">Month</label>
+          <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="{{ _inp }}" />
+        </div>
+
+        <div id="filter-year" class="rev-field w-[5.5rem] shrink-0 {% if _mode != 'year' %}hidden{% endif %}">
+          <label for="analytics-year" class="{{ _lbl }}">Year</label>
+          <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" placeholder="2026" class="{{ _inp }}" />
+        </div>
+
+        <div class="rev-field min-w-[8.5rem] max-w-[12rem] flex-1 shrink">
+          <label for="cp-customer-q" class="{{ _lbl }}">Customer</label>
+          <div class="relative">
+            <svg class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[rgb(var(--rc-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              id="cp-customer-q"
+              type="search"
+              name="customer_q"
+              value="{{ customer_q or '' }}"
+              placeholder="Name or phone…"
+              autocomplete="off"
+              class="{{ _inp }} !pl-7"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2" aria-live="polite">
+        <span class="rev-chip rev-chip--live !py-0.5 !text-[10px]" title="Filters apply automatically">
+          <span class="rev-chip__dot" aria-hidden="true"></span>
+          Live
+        </span>
+        {% if credit_all_time %}
+          <span class="rev-chip rev-chip--scope !py-0.5 !text-[10px]">All time</span>
+        {% elif f.range_label %}
+          <span class="rev-chip rev-chip--scope !py-0.5 !text-[10px]">{{ f.range_label }}</span>
+        {% endif %}
+        {% if filter_shop_id %}
+          <span class="rev-chip !py-0.5 !text-[10px]">Shop</span>
+        {% endif %}
+        {% if customer_q %}
+          <span class="rev-chip !py-0.5 !text-[10px]" title="{{ customer_q }}">{{ customer_q|truncate(16, True, '…') }}</span>
+        {% endif %}
+        <a href="{{ filter_clear_url or url_for('it_support_credit_payments') }}" class="rev-btn rev-btn--ghost !min-h-9 !px-2.5 !text-xs" title="Clear filters">
+          <svg class="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          Clear
+        </a>
+        {% if show_print and filter_print_url %}
+        <a href="{{ filter_print_url }}" class="rev-btn rev-btn--ghost !min-h-9 !px-2.5 !text-xs" title="Print list">
+          <svg class="h-3.5 w-3.5 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Print
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>

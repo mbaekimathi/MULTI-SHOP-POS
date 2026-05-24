@@ -1,0 +1,99 @@
+{# Shop receipts — same toolbar pattern as shop analytics (live period filters) #}
+{% set _mode = f.mode or 'single_day' %}
+<div class="rev-toolbar">
+  <form
+    method="get"
+    action="{{ url_for('shop_receipts', shop_id=shop.id) }}"
+    class="rev-toolbar__inner"
+    id="it-analytics-filter-form"
+    data-analytics-key="receipts"
+  >
+    <div class="rev-toolbar__row rev-toolbar__row--filters">
+      <div class="rev-filters-box">
+        <div class="rev-filters rev-filters--period">
+          <p class="rev-filters-heading">Report period</p>
+
+          <div class="rev-field">
+            <label for="analytics-filter-mode" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period type</label>
+            <select
+              id="analytics-filter-mode"
+              name="mode"
+              class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30"
+            >
+              <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Single day</option>
+              <option value="period" {% if _mode == 'period' %}selected{% endif %}>Date range</option>
+              <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>
+              <option value="year" {% if _mode == 'year' %}selected{% endif %}>Year</option>
+            </select>
+          </div>
+
+          <div id="filter-single-day" class="rev-field {% if _mode != 'single_day' %}hidden{% endif %}">
+            <label for="analytics-single-day" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Date</label>
+            <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+          </div>
+
+          <div id="filter-period" class="rev-filter-group {% if _mode != 'period' %}hidden{% endif %}">
+            <div class="rev-field">
+              <label for="analytics-start-date" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">From</label>
+              <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+            </div>
+            <div class="rev-field">
+              <label for="analytics-end-date" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">To</label>
+              <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+            </div>
+          </div>
+
+          <div id="filter-month" class="rev-field {% if _mode != 'month' %}hidden{% endif %}">
+            <label for="analytics-month" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+          </div>
+
+          <div id="filter-year" class="rev-field {% if _mode != 'year' %}hidden{% endif %}">
+            <label for="analytics-year" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+          </div>
+        </div>
+      </div>
+
+      <div class="rev-filters-box">
+        <div class="rev-filters rev-filters--period rev-filters--receipt">
+          <p class="rev-filters-heading">Receipt search</p>
+          <div class="rev-field rev-field--grow rcpt-search-field">
+            <label for="receipt-live-search" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Filter loaded list</label>
+            <div class="rcpt-search-combobox">
+              <input
+                id="receipt-live-search"
+                type="search"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="receipt-live-suggestions"
+                placeholder="Type receipt number…"
+                value="{{ receipt_q or '' }}"
+                class="rcpt-search-combobox__input block w-full min-h-10 rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30"
+              />
+              <div
+                id="receipt-live-suggestions"
+                class="rcpt-suggestions rcpt-suggestions--dropdown hidden"
+                role="listbox"
+                aria-label="Receipt suggestions"
+                hidden
+              ></div>
+            </div>
+            <input type="hidden" name="receipt_q" id="receipt-q-hidden" value="{{ receipt_q or '' }}" />
+            <p class="rcpt-search-meta mt-1.5 text-xs text-[rgb(var(--rc-muted))]">
+              Showing <span id="receipt-visible-count" class="font-bold text-[rgb(var(--rc-page-fg))]">0</span> of
+              <span id="receipt-loaded-count" class="font-bold text-[rgb(var(--rc-page-fg))]">{{ receipt_rows_total or 0 }}</span> loaded
+            </p>
+          </div>
+          {% if can_mark_receipts|default(false) %}
+          <div class="rcpt-mark-actions-wrap">
+            {% include 'partials/receipt_mark_actions.html' %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </form>
+</div>

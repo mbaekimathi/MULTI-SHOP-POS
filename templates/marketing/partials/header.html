@@ -1,7 +1,8 @@
 {% set nav = [
   ('index', 'Home', url_for('index')),
-  ('marketing_features', 'Solutions', url_for('marketing_features')),
+  ('marketing_features', 'Features', url_for('marketing_features')),
   ('marketing_pricing', 'Pricing', url_for('marketing_pricing')),
+  ('marketing_about', 'About', url_for('marketing_about')),
   ('marketing_contact', 'Contact', url_for('marketing_contact')),
 ] %}
 {% set ep = request.endpoint %}
@@ -47,12 +48,12 @@
       <a
         href="{{ url_for('public_shop_login') }}"
         class="mk-header-cta-ghost hidden rounded-md px-2.5 py-2 text-[13px] font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white sm:px-3 md:inline-block"
-        >Shop</a
+        >Shop sign-in</a
       >
       <a
         href="{{ url_for('employee_login') }}"
         class="mk-header-cta-primary hidden rounded-full bg-violet-600 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm transition hover:bg-violet-500 sm:px-4 md:inline-block"
-        >Log in</a
+        >Employee sign-in</a
       >
       <button
         type="button"

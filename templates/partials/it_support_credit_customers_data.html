@@ -1,4 +1,4 @@
-{# Company credit customers list — table (tablet+) + cards (mobile). Expects: credit_sales #}
+{# Company credit sales — analytics-style KPIs + table. Expects: credit_sales #}
 {% set ns = namespace(count=0, credit=0.0, paid=0.0, balance=0.0) %}
 {% for s in credit_sales %}
   {% set ns.count = ns.count + 1 %}
@@ -7,153 +7,92 @@
   {% set ns.balance = ns.balance + (s.remaining_amount|float) %}
 {% endfor %}
 
-<section class="it-credit-panel" id="credit-sales-print-area" aria-labelledby="credit-customers-heading">
-  <div class="it-credit-panel__head">
-    <div class="min-w-0">
-      <h2 id="credit-customers-heading" class="it-credit-panel__title">Customer balances</h2>
-      <p class="it-credit-panel__desc">Combined credit totals per customer across all shops.</p>
-    </div>
-    {% if credit_sales %}
-      <span class="it-credit-panel__badge">{{ ns.count }} customer{% if ns.count != 1 %}s{% endif %}</span>
-    {% endif %}
+<div class="rev-content" id="credit-sales-print-area">
+  <div class="rev-kpi rev-kpi--4" role="list" aria-label="Credit summary">
+    <article class="rev-kpi__card rev-kpi__card--tx" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+      </div>
+      <div class="rev-kpi__label" title="Credit sales"><span class="rev-kpi__label-short">Sales</span><span class="rev-kpi__label-full">Credit sales</span></div>
+      <div class="rev-kpi__value">{{ ns.count }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--credit" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2z" /></svg>
+      </div>
+      <div class="rev-kpi__label" title="Credit total"><span class="rev-kpi__label-short">Credit</span><span class="rev-kpi__label-full">Credit total</span></div>
+      <div class="rev-kpi__value rev-kpi__value--credit">{{ "%.2f"|format(ns.credit) }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--cash" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4m0-4V7a2 2 0 00-2-2h-2" /></svg>
+      </div>
+      <div class="rev-kpi__label" title="Paid to date"><span class="rev-kpi__label-short">Paid</span><span class="rev-kpi__label-full">Paid to date</span></div>
+      <div class="rev-kpi__value rev-kpi__value--cash">{{ "%.2f"|format(ns.paid) }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--total" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      </div>
+      <div class="rev-kpi__label" title="Outstanding balance"><span class="rev-kpi__label-short">Due</span><span class="rev-kpi__label-full">Outstanding</span></div>
+      <div class="rev-kpi__value rev-kpi__value--accent">{{ "%.2f"|format(ns.balance) }}</div>
+    </article>
   </div>
 
-  {% if not credit_sales %}
-    {% set empty_title = "No customers found" %}
-    {% set empty_message = "Try widening your date range, clearing filters, or searching with a different name or phone number." %}
-    {% include "partials/it_support_credit_empty.html" %}
-  {% else %}
-    <div class="it-credit-stats" role="group" aria-label="Summary totals">
-      <div class="it-credit-stat">
-        <p class="it-credit-stat__label">Customers</p>
-        <p class="it-credit-stat__value">{{ ns.count }}</p>
+  <section class="rev-panel" aria-labelledby="credit-sales-table-heading">
+    <div class="rev-panel__head">
+      <div class="min-w-0">
+        <h3 class="rev-panel__title" id="credit-sales-table-heading">Credit sales</h3>
+        <p class="rev-panel__desc">Customer, sale reference, due date, and balance — open a row with the view icon.</p>
       </div>
-      <div class="it-credit-stat it-credit-stat--amber">
-        <p class="it-credit-stat__label">Credit total</p>
-        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.credit) }}</p>
-      </div>
-      <div class="it-credit-stat it-credit-stat--emerald">
-        <p class="it-credit-stat__label">Paid</p>
-        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.paid) }}</p>
-      </div>
-      <div class="it-credit-stat it-credit-stat--rose">
-        <p class="it-credit-stat__label">Outstanding</p>
-        <p class="it-credit-stat__value">{{ "%.2f"|format(ns.balance) }}</p>
-      </div>
+      <span class="rev-panel__count">{{ ns.count }} sale{% if ns.count != 1 %}s{% endif %}</span>
     </div>
 
-    <div class="it-credit-cards" aria-label="Customer list">
-      {% for s in credit_sales %}
-        <article class="it-credit-row-card">
-          <div class="it-credit-row-card__top">
-            <div class="min-w-0">
-              <p class="it-credit-row-card__name">{{ s.customer_name }}</p>
-              <p class="it-credit-row-card__sub">{{ s.customer_phone }}</p>
-            </div>
-            <a href="{{ url_for('company_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}"
-               class="it-credit-action-btn shrink-0"
-               aria-label="View {{ s.customer_name }}">
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </a>
-          </div>
-          <div class="it-credit-row-card__metrics">
-            <div>
-              <p class="it-credit-metric__label">Credit sales</p>
-              <p class="it-credit-metric__value text-[rgb(var(--rc-muted))]">{{ s.tx_count }}</p>
-            </div>
-            <div>
-              <p class="it-credit-metric__label">Credit total</p>
-              <p class="it-credit-metric__value it-credit-amount--credit">{{ "%.2f"|format(s.total_amount) }}</p>
-            </div>
-            <div>
-              <p class="it-credit-metric__label">Paid</p>
-              <p class="it-credit-metric__value it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</p>
-            </div>
-            <div>
-              <p class="it-credit-metric__label">Balance</p>
-              <p class="it-credit-metric__value it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</p>
-            </div>
-          </div>
-        </article>
-      {% endfor %}
-    </div>
-
-    <p class="it-credit-scroll-hint" aria-hidden="true">
-      <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-      Swipe table for more columns
-    </p>
-
-    <div class="it-credit-table-desktop">
-      <div class="it-credit-table-wrap">
-        <div class="it-credit-table-wrap__scroll">
-          <table class="it-credit-table min-w-[680px]">
-            <thead>
-              <tr>
-                <th scope="col">Customer</th>
-                <th scope="col">Credit sales</th>
-                <th scope="col">Credit total</th>
-                <th scope="col">Paid</th>
-                <th scope="col">Balance</th>
-                <th scope="col"><span class="sr-only">View</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for s in credit_sales %}
-                <tr>
-                  <td class="col-customer max-w-[18rem]">
-                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.customer_name }}</div>
-                    <div class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ s.customer_phone }}</div>
-                  </td>
-                  <td class="col-tx text-[rgb(var(--rc-muted))]">{{ s.tx_count }}</td>
-                  <td class="col-total it-credit-amount--credit">{{ "%.2f"|format(s.total_amount) }}</td>
-                  <td class="col-paid it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</td>
-                  <td class="col-balance it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</td>
-                  <td class="col-view">
-                    <a href="{{ url_for('company_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}"
-                       class="it-credit-action-btn"
-                       aria-label="View customer credit sales">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
-                      </svg>
-                    </a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="print-only-table mt-3 hidden">
-      <table class="w-full text-sm">
-        <thead>
-          <tr>
-            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
-            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit sales</th>
-            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit total</th>
-            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
-            <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in credit_sales %}
+    {% if not credit_sales %}
+      <p class="rev-empty">No credit sales match your filters. Widen the date range, clear filters, or try another customer search.</p>
+    {% else %}
+      <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+        <table class="rev-data rev-data--wide rev-data--tx min-w-[40rem]">
+          <thead>
             <tr>
-              <td class="px-3 py-2.5">
-                <div class="font-semibold">{{ s.customer_name }}</div>
-                <div class="text-xs">{{ s.customer_phone }}</div>
-              </td>
-              <td class="px-3 py-2.5">{{ s.tx_count }}</td>
-              <td class="px-3 py-2.5 tabular-nums">{{ "%.2f"|format(s.total_amount) }}</td>
-              <td class="px-3 py-2.5 tabular-nums">{{ "%.2f"|format(s.paid_amount) }}</td>
-              <td class="px-3 py-2.5 tabular-nums font-semibold">{{ "%.2f"|format(s.remaining_amount) }}</td>
+              <th scope="col">Customer</th>
+              <th scope="col">Credit sale</th>
+              <th scope="col">Due date</th>
+              <th scope="col" class="num">Balance</th>
+              <th scope="col" class="rev-col-action"><span class="sr-only">View</span></th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
-</section>
+          </thead>
+          <tbody>
+            {% for s in credit_sales %}
+              <tr>
+                <td class="min-w-[10rem]">
+                  <span class="cell-strong">{{ s.customer_name }}</span>
+                  <span class="block text-xs text-[rgb(var(--rc-muted))]">{{ s.customer_phone }}</span>
+                </td>
+                <td class="min-w-[9rem]">
+                  <span class="cell-strong font-mono">#{{ s.id }}</span>
+                  <span class="block text-xs text-[rgb(var(--rc-muted))]">{{ s.shop_name }} · {{ s.created_at }}</span>
+                </td>
+                <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-page-fg))]">{{ s.credit_due_date or '—' }}</td>
+                <td class="num cell-credit">{{ "%.2f"|format(s.remaining_amount) }}</td>
+                <td class="rev-col-action">
+                  <a
+                    href="{{ url_for('it_support_credit_sale_detail', shop_id=s.shop_id, sale_id=s.id) }}"
+                    class="rev-tx-view-btn"
+                    title="View credit sale #{{ s.id }}"
+                    aria-label="View credit sale #{{ s.id }}"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                      <path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/>
+                    </svg>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </section>
+</div>

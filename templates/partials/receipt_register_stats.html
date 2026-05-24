@@ -1,0 +1,42 @@
+{# Summary KPIs — pass receipt_rows #}
+{% set ns = namespace(count=0, amount=0.0, sales=0, credit=0, pending=0) %}
+{% for row in receipt_rows or [] %}
+  {% set ns.count = ns.count + 1 %}
+  {% set ns.amount = ns.amount + (row.total_amount|float) %}
+  {% if (row.sale_type or '')|lower == 'credit' %}
+    {% set ns.credit = ns.credit + 1 %}
+  {% else %}
+    {% set ns.sales = ns.sales + 1 %}
+  {% endif %}
+  {% if (row.receipt_mark_status or 'pending')|lower == 'pending' %}
+    {% set ns.pending = ns.pending + 1 %}
+  {% endif %}
+{% endfor %}
+
+<section class="rcpt-stats" aria-label="Receipt summary">
+  <article class="rcpt-stat rcpt-stat--primary">
+    <p class="rcpt-stat__label">Receipts</p>
+    <p class="rcpt-stat__value">{{ ns.count }}</p>
+    <p class="rcpt-stat__hint">In selected period</p>
+  </article>
+  <article class="rcpt-stat rcpt-stat--emerald">
+    <p class="rcpt-stat__label">Total value</p>
+    <p class="rcpt-stat__value">{{ "%.2f"|format(ns.amount) }}</p>
+    <p class="rcpt-stat__hint">All loaded rows</p>
+  </article>
+  <article class="rcpt-stat">
+    <p class="rcpt-stat__label">Cash sales</p>
+    <p class="rcpt-stat__value">{{ ns.sales }}</p>
+    <p class="rcpt-stat__hint">Sale type</p>
+  </article>
+  <article class="rcpt-stat rcpt-stat--amber">
+    <p class="rcpt-stat__label">Credit sales</p>
+    <p class="rcpt-stat__value">{{ ns.credit }}</p>
+    <p class="rcpt-stat__hint">On account</p>
+  </article>
+  <article class="rcpt-stat rcpt-stat--muted">
+    <p class="rcpt-stat__label">Pending mark</p>
+    <p class="rcpt-stat__value">{{ ns.pending }}</p>
+    <p class="rcpt-stat__hint">Not confirmed yet</p>
+  </article>
+</section>

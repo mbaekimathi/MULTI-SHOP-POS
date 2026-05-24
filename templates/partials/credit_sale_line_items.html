@@ -1,0 +1,53 @@
+{# Compact line items for a single credit sale #}
+<section class="shop-cust-sale-focus no-print" aria-labelledby="credit-sale-focus-heading">
+  <div class="shop-cust-sale-focus__head">
+    <div>
+      <p class="shop-cust-sale-focus__eyebrow">Credit sale</p>
+      <h3 id="credit-sale-focus-heading" class="shop-cust-sale-focus__title">Sale #{{ sale.id }}</h3>
+      <p class="shop-cust-sale-focus__meta">{{ sale.created_at }}{% if shop %} · {{ shop.shop_name }}{% endif %}</p>
+      <p class="shop-cust-sale-focus__meta">
+        Customer: <strong>{{ sale.customer_name }}</strong> ({{ sale.customer_phone }})
+        {% if sale.employee_name %} · {{ sale.employee_name }}{% if sale.employee_code %} ({{ sale.employee_code }}){% endif %}{% endif %}
+      </p>
+    </div>
+    <div class="shop-cust-sale-focus__stats">
+      <div class="shop-cust-sale-focus__stat">
+        <span class="shop-cust-sale-focus__stat-label">Amount</span>
+        <span class="shop-cust-sale-focus__stat-value">{{ "%.2f"|format(sale.total_amount or 0) }}</span>
+      </div>
+      <div class="shop-cust-sale-focus__stat shop-cust-sale-focus__stat--paid">
+        <span class="shop-cust-sale-focus__stat-label">Paid</span>
+        <span class="shop-cust-sale-focus__stat-value">{{ "%.2f"|format(sale.paid_amount or 0) }}</span>
+      </div>
+      <div class="shop-cust-sale-focus__stat shop-cust-sale-focus__stat--due">
+        <span class="shop-cust-sale-focus__stat-label">Balance</span>
+        <span class="shop-cust-sale-focus__stat-value">{{ "%.2f"|format(sale.remaining_amount or 0) }}</span>
+      </div>
+    </div>
+  </div>
+
+  {% if items %}
+  <div class="shop-cn-items-table-wrap shop-cust-sale-focus__table">
+    <table class="shop-cn-items-table">
+      <thead>
+        <tr>
+          <th scope="col">Item</th>
+          <th scope="col" class="num">Qty</th>
+          <th scope="col" class="num">Unit</th>
+          <th scope="col" class="num">Line total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>{{ it.item_name }}</td>
+          <td class="num tabular-nums">{{ it.qty }}</td>
+          <td class="num tabular-nums">{{ "%.2f"|format(it.unit_price or 0) }}</td>
+          <td class="num tabular-nums">{{ "%.2f"|format(it.line_total or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>

@@ -1,0 +1,46 @@
+{# Expects: receipt_rows, can_mark, show_shop_column, empty_colspan, table_subtitle #}
+<section class="rev-panel rcpt-list-panel">
+  <div class="rev-panel__head">
+    <div>
+      <h3 class="rev-panel__title">Receipt list</h3>
+      <p class="rev-panel__desc">{{ table_subtitle or 'Sorted newest first' }}</p>
+    </div>
+    <span class="rev-panel__count">{{ receipt_rows_total or (receipt_rows or [])|length }} rows</span>
+  </div>
+  <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+    <table class="rev-data rev-data--wide rev-data--tx rcpt-table" id="receipt-register-table">
+      <thead>
+        <tr>
+          {% if can_mark %}
+          <th scope="col" class="rev-col-action rcpt-col-sticky rcpt-col-check">
+            <input id="receipt-select-all" type="checkbox" class="h-4 w-4 rounded border-[rgb(var(--rc-border))]" aria-label="Select all receipts" />
+          </th>
+          {% endif %}
+          <th scope="col" class="rcpt-col-sticky rcpt-col-receipt">Receipt #</th>
+          {% if show_shop_column %}<th scope="col" class="rcpt-col-shop">Shop</th>{% endif %}
+          <th scope="col" class="num rcpt-col-items">Items</th>
+          <th scope="col" class="num rcpt-col-total">Total</th>
+          <th scope="col" class="rcpt-col-recorded">Recorded</th>
+          <th scope="col" class="rcpt-col-type-pay">Type / Payment</th>
+          <th scope="col" class="rcpt-col-customer">Customer</th>
+          <th scope="col" class="rev-col-action rcpt-col-view">View</th>
+        </tr>
+      </thead>
+      <tbody id="receipt-register-tbody">
+        {% for row in receipt_rows or [] %}
+          {% include 'partials/receipt_register_row.html' with context %}
+        {% else %}
+          <tr data-sale-id="__none__">
+            <td colspan="{{ empty_colspan }}" class="rcpt-empty-cell">
+              <div class="rcpt-empty">
+                <span class="rcpt-empty__icon" aria-hidden="true">📄</span>
+                <p class="rcpt-empty__title">No receipts found</p>
+                <p class="rcpt-empty__desc">Try a wider date range or clear the receipt search.</p>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

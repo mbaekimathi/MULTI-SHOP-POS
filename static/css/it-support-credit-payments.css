@@ -1,0 +1,55 @@
+/* IT Support — credit payments (compact toolbar tweaks) */
+
+.cp-credit-toolbar.rev-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.cp-credit-toolbar::before {
+  height: 2px;
+}
+
+.cp-credit-toolbar__inner {
+  padding: 0.5rem 0.65rem !important;
+}
+
+@media (min-width: 768px) {
+  .cp-credit-toolbar__inner {
+    padding: 0.45rem 0.75rem !important;
+  }
+}
+
+.cp-credit-toolbar .rev-field {
+  margin: 0;
+}
+
+.cp-credit-toolbar .rev-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.cp-credit-toolbar--loading {
+  opacity: 0.88;
+  pointer-events: none;
+}
+
+.cp-credit-toolbar--loading .rev-chip--live .rev-chip__dot {
+  animation: cp-credit-pulse 0.85s ease-in-out infinite;
+}
+
+@keyframes cp-credit-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media print {
+  .cp-credit-toolbar {
+    display: none !important;
+  }
+}

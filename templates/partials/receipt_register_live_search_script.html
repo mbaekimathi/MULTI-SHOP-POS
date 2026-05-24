@@ -1,0 +1,217 @@
+<script>
+  (function () {
+    function initReceiptLiveSearch() {
+      var live = document.getElementById("receipt-live-search");
+      var hidden = document.getElementById("receipt-q-hidden");
+      var scopeForm = document.getElementById("it-analytics-filter-form");
+      var badge = document.getElementById("receipt-visible-count");
+      var suggestionsBox = document.getElementById("receipt-live-suggestions");
+      if (!live || !suggestionsBox) return;
+
+      var MAX_SUGGESTIONS = 12;
+
+      function getTbody() {
+        return document.getElementById("receipt-register-tbody");
+      }
+
+      function escHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function rowHaystack(tr) {
+        var rec = String(tr.getAttribute("data-receipt-no") || "").toLowerCase();
+        var id = String(tr.getAttribute("data-sale-id") || "").toLowerCase();
+        return (rec + " " + id).trim();
+      }
+
+      function collectMatches(raw) {
+        var tbody = getTbody();
+        if (!tbody || !raw) return [];
+        var needle = raw.replace(/^#/, "").toLowerCase();
+        if (!needle) return [];
+        var out = [];
+        tbody.querySelectorAll("tr[data-sale-id]").forEach(function (tr) {
+          if (tr.getAttribute("data-sale-id") === "__none__") return;
+          var saleId = String(tr.getAttribute("data-sale-id") || "");
+          var rec = String(tr.getAttribute("data-receipt-no") || "").trim();
+          if (rowHaystack(tr).indexOf(needle) === -1) return;
+          out.push({
+            saleId: saleId,
+            receiptNo: rec || "T-" + saleId,
+          });
+        });
+        return out.slice(0, MAX_SUGGESTIONS);
+      }
+
+      function hideSuggestions() {
+        suggestionsBox.classList.add("hidden");
+        suggestionsBox.setAttribute("hidden", "");
+        suggestionsBox.innerHTML = "";
+        live.setAttribute("aria-expanded", "false");
+      }
+
+      function showSuggestions(raw) {
+        var matches = collectMatches(raw);
+        if (!matches.length) {
+          hideSuggestions();
+          return;
+        }
+        suggestionsBox.innerHTML = matches
+          .map(function (m, i) {
+            return (
+              '<button type="button" role="option" id="receipt-sug-' +
+              escHtml(m.saleId) +
+              '" class="rcpt-suggestion-row receipt-suggestion-row" data-sale-id="' +
+              escHtml(m.saleId) +
+              '"><span class="rcpt-suggestion-row__receipt">' +
+              escHtml(m.receiptNo) +
+              '</span><span class="rcpt-suggestion-row__sale">sale #' +
+              escHtml(m.saleId) +
+              "</span></button>"
+            );
+          })
+          .join("");
+        suggestionsBox.classList.remove("hidden");
+        suggestionsBox.removeAttribute("hidden");
+        live.setAttribute("aria-expanded", "true");
+      }
+
+      function applyTableFilter(raw) {
+        var tbody = getTbody();
+        if (!tbody) return 0;
+        var needle = raw.replace(/^#/, "").toLowerCase();
+        var n = 0;
+        tbody.querySelectorAll("tr[data-sale-id]").forEach(function (tr) {
+          if (tr.getAttribute("data-sale-id") === "__none__") return;
+          var show = !needle || rowHaystack(tr).indexOf(needle) !== -1;
+          tr.classList.toggle("hidden", !show);
+          if (show) n++;
+        });
+        if (badge) badge.textContent = String(n);
+        return n;
+      }
+
+      function runFilter() {
+        var raw = String(live.value || "").trim();
+        applyTableFilter(raw);
+        if (raw.length > 0) {
+          showSuggestions(raw);
+        } else {
+          hideSuggestions();
+        }
+      }
+
+      function scrollRowCheckboxIntoView(row) {
+        if (!row) return;
+        var cb = row.querySelector(".receipt-select-one");
+        var scrollHost = row.closest(".rev-scroll");
+        row.classList.add("rcpt-row--search-target");
+        window.setTimeout(function () {
+          row.classList.remove("rcpt-row--search-target");
+        }, 2400);
+
+        row.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+        if (scrollHost && scrollHost.scrollWidth > scrollHost.clientWidth) {
+          var checkCell = row.querySelector(".rcpt-col-check") || row.querySelector(".rcpt-col-receipt");
+          if (checkCell) {
+            window.setTimeout(function () {
+              var hostRect = scrollHost.getBoundingClientRect();
+              var cellRect = checkCell.getBoundingClientRect();
+              if (cellRect.left < hostRect.left) {
+                scrollHost.scrollLeft -= hostRect.left - cellRect.left + 8;
+              } else if (cellRect.right > hostRect.right) {
+                scrollHost.scrollLeft += cellRect.right - hostRect.right + 8;
+              }
+            }, 280);
+          }
+        }
+
+        window.setTimeout(function () {
+          if (cb) {
+            cb.focus({ preventScroll: true });
+          } else {
+            var viewBtn = row.querySelector(".receipt-view-btn");
+            if (viewBtn) viewBtn.focus({ preventScroll: true });
+          }
+        }, 320);
+      }
+
+      function pickSuggestion(saleId) {
+        var row = getTbody() ? getTbody().querySelector('tr[data-sale-id="' + saleId + '"]') : null;
+        if (!row) return;
+        var rec = String(row.getAttribute("data-receipt-no") || "").trim();
+        live.value = rec || "T-" + saleId;
+        if (hidden) hidden.value = live.value;
+        applyTableFilter(live.value);
+        row.classList.remove("hidden");
+        hideSuggestions();
+        live.blur();
+        scrollRowCheckboxIntoView(row);
+      }
+
+      live.addEventListener("input", runFilter);
+      live.addEventListener("focus", function () {
+        if (String(live.value || "").trim().length > 0) {
+          showSuggestions(live.value.trim());
+        }
+      });
+      live.addEventListener("blur", function () {
+        window.setTimeout(function () {
+          if (!suggestionsBox.matches(":hover") && document.activeElement !== live) {
+            hideSuggestions();
+          }
+        }, 150);
+      });
+      live.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+          hideSuggestions();
+          return;
+        }
+        if (e.key === "Enter" && !suggestionsBox.classList.contains("hidden")) {
+          var first = suggestionsBox.querySelector(".receipt-suggestion-row");
+          if (first) {
+            e.preventDefault();
+            pickSuggestion(String(first.getAttribute("data-sale-id") || ""));
+          }
+        }
+      });
+
+      if (scopeForm && hidden) {
+        scopeForm.addEventListener("submit", function () {
+          hidden.value = String(live.value || "").trim();
+        });
+      }
+
+      suggestionsBox.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+      });
+
+      suggestionsBox.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest(".receipt-suggestion-row") : null;
+        if (!btn) return;
+        var saleId = String(btn.getAttribute("data-sale-id") || "").trim();
+        if (saleId) pickSuggestion(saleId);
+      });
+
+      document.addEventListener("click", function (e) {
+        if (suggestionsBox.classList.contains("hidden")) return;
+        var combo = live.closest(".rcpt-search-combobox");
+        if (combo && combo.contains(e.target)) return;
+        hideSuggestions();
+      });
+
+      applyTableFilter(String(live.value || "").trim());
+      hideSuggestions();
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initReceiptLiveSearch);
+    } else {
+      initReceiptLiveSearch();
+    }
+  })();
+</script>

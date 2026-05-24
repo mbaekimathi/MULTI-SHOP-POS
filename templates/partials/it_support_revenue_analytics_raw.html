@@ -1,0 +1,150 @@
+{# Revenue analytics — tables view #}
+{% set rd = revenue_data or {} %}
+{% set shops = rd.shops or [] %}
+{% set transactions = rd.transactions or [] %}
+{% set txm = rd.transactions_meta or {} %}
+
+  <div class="rev-content" id="it-analytics-live-root" aria-live="polite" aria-busy="false">
+  <div class="rev-kpi" role="list" aria-label="Summary">
+    <article class="rev-kpi__card rev-kpi__card--total" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+        </svg>
+      </div>
+      <div class="rev-kpi__label" title="Total revenue"><span class="rev-kpi__label-short">Total</span><span class="rev-kpi__label-full">Total revenue</span></div>
+      <div class="rev-kpi__value rev-kpi__value--accent" id="rev-kpi-total">{{ "%.2f"|format(rd.total_amount or 0) }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--credit" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <div class="rev-kpi__label" title="Credit sales"><span class="rev-kpi__label-short">Credit</span><span class="rev-kpi__label-full">Credit sales</span></div>
+      <div class="rev-kpi__value rev-kpi__value--credit" id="rev-kpi-credit">{{ "%.2f"|format(rd.credit_amount or 0) }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--cash" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4m0-4V7a2 2 0 00-2-2h-2" />
+        </svg>
+      </div>
+      <div class="rev-kpi__label" title="Cash paid"><span class="rev-kpi__label-short">Cash</span><span class="rev-kpi__label-full">Cash paid</span></div>
+      <div class="rev-kpi__value rev-kpi__value--cash" id="rev-kpi-cash">{{ "%.2f"|format(rd.cash_paid_total or 0) }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--mpesa" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <div class="rev-kpi__label" title="M-Pesa paid"><span class="rev-kpi__label-short">M-Pesa</span><span class="rev-kpi__label-full">M-Pesa paid</span></div>
+      <div class="rev-kpi__value rev-kpi__value--mpesa" id="rev-kpi-mpesa">{{ "%.2f"|format(rd.mpesa_paid_total or 0) }}</div>
+    </article>
+    <article class="rev-kpi__card rev-kpi__card--tx" role="listitem">
+      <div class="rev-kpi__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      </div>
+      <div class="rev-kpi__label" title="Transactions"><span class="rev-kpi__label-short">Txns</span><span class="rev-kpi__label-full">Transactions</span></div>
+      <div class="rev-kpi__value" id="rev-kpi-tx">{{ rd.tx_count or 0 }}</div>
+    </article>
+  </div>
+
+  <section class="rev-panel" aria-labelledby="rev-shops-title">
+    <div class="rev-panel__head">
+      <h3 class="rev-panel__title" id="rev-shops-title">By shop</h3>
+      <span class="rev-panel__count" id="rev-shops-count">{{ shops|length }} {{ 'shop' if shops|length == 1 else 'shops' }}</span>
+    </div>
+    <div id="rev-shops-body">
+    {% if not shops %}
+      <p class="rev-empty">No shop revenue for this period.</p>
+    {% else %}
+      <div class="rev-scroll rev-scroll--hint">
+        <table class="rev-data rev-data--wide rev-data--shops">
+          <thead>
+            <tr>
+              <th scope="col">Shop</th>
+              <th scope="col" class="num">Sales</th>
+              <th scope="col" class="num">Credit</th>
+              <th scope="col" class="num">Cash</th>
+              <th scope="col" class="num">M-Pesa</th>
+              <th scope="col" class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in shops %}
+              <tr>
+                <td class="cell-strong">{{ row.shop_name }}</td>
+                <td class="num cell-sale">{{ "%.2f"|format(row.sale_amount) }}</td>
+                <td class="num cell-credit">{{ "%.2f"|format(row.credit_amount) }}</td>
+                <td class="num">{{ "%.2f"|format(row.cash_paid or 0) }}</td>
+                <td class="num">{{ "%.2f"|format(row.mpesa_paid or 0) }}</td>
+                <td class="num cell-strong">{{ "%.2f"|format(row.total_amount) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+    </div>
+  </section>
+
+  <section class="rev-panel" aria-labelledby="rev-tx-title">
+    <div class="rev-panel__head">
+      <h3 class="rev-panel__title" id="rev-tx-title">Transactions</h3>
+      <span class="rev-panel__count" id="rev-tx-count">{{ txm.loaded_count|default(transactions|length) }} / {{ txm.total_count|default(rd.tx_count or 0) }}</span>
+    </div>
+    <div id="rev-tx-body" class="rev-tx-body">
+    {% if not transactions %}
+      <p class="rev-empty">No transactions for this period.</p>
+    {% else %}
+      <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+        <table class="rev-data rev-data--wide rev-data--tx">
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Shop</th>
+              <th scope="col">Type</th>
+              <th scope="col" class="num">Amount</th>
+              <th scope="col">Payment</th>
+              <th scope="col" class="num">Cash</th>
+              <th scope="col" class="num">M-Pesa</th>
+              <th scope="col" class="num">Items</th>
+              <th scope="col">Customer</th>
+              <th scope="col">Phone</th>
+              <th scope="col">Employee</th>
+            </tr>
+          </thead>
+          <tbody id="rev-tx-tbody">
+            {% for tx in transactions %}
+              <tr>
+                <td class="cell-muted whitespace-nowrap">{{ tx.created_at }}</td>
+                <td class="whitespace-nowrap">{{ tx.shop_name }}</td>
+                <td>
+                  <span class="rev-tag {% if tx.sale_type == 'sale' %}rev-tag--sale{% else %}rev-tag--credit{% endif %}">
+                    {{ tx.sale_type|upper }}
+                  </span>
+                </td>
+                <td class="num cell-strong">{{ "%.2f"|format(tx.total_amount) }}</td>
+                <td class="cell-muted whitespace-nowrap">{{ (tx.payment_method or '—')|upper }}</td>
+                <td class="num">{{ "%.2f"|format(tx.cash_amount or 0) }}</td>
+                <td class="num">{{ "%.2f"|format(tx.mpesa_amount or 0) }}</td>
+                <td class="num cell-muted">{{ tx.item_count }}</td>
+                <td class="cell-ellipsis" title="{{ tx.customer_name or '' }}">{{ tx.customer_name or '—' }}</td>
+                <td class="cell-muted whitespace-nowrap">{{ tx.customer_phone or '—' }}</td>
+                <td class="cell-ellipsis" title="{{ tx.employee_name or '' }}">{{ tx.employee_name or '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+    </div>
+    <div class="rev-tx-footer" id="rev-tx-footer">
+      <button type="button" class="rev-tx-load-more" id="rev-tx-load-more" data-label-default="Load more transactions" {% if not txm.has_more %}hidden{% endif %}>Load more transactions</button>
+    </div>
+  </section>
+  </div>

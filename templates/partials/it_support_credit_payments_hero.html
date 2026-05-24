@@ -1,0 +1,22 @@
+{# Credit payments hub — page intro (analytics / receipts style). #}
+{% set _fm = f.mode or 'single_day' %}
+<section class="rev-panel rcpt-hero">
+  <div class="rcpt-hero__accent" aria-hidden="true"></div>
+  <div class="rev-panel__head rcpt-hero__head">
+    <div class="rcpt-hero__intro min-w-0">
+      <div class="rcpt-hero__icon-wrap" aria-hidden="true">
+        <svg class="rcpt-hero__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="rev-panel__eyebrow">Company credit</p>
+        <h2 class="rev-panel__title">{{ credit_shell_title or 'Credit payments' }}</h2>
+        <p class="rev-panel__desc">{{ credit_shell_desc or 'Outstanding and settled credit sales across all shops.' }}</p>
+      </div>
+    </div>
+    <div class="rcpt-hero__aside">
+      <span class="rcpt-hero__period">Live filters below</span>
+    </div>
+  </div>
+</section>

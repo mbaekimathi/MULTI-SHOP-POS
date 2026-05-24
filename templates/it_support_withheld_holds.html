@@ -2,6 +2,11 @@
 {% block title %}Withheld orders (all shops) — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Withheld orders{% endblock %}
 
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=1" />
+{% endblock %}
+
 {% block sidebar_links %}
   {% set receipts_sidebar_active = 'withheld' %}
   {% include "partials/it_support_receipts_sidebar_nav.html" %}
@@ -9,56 +14,44 @@
 
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
-  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Withheld POS — saved holds</h2>
-    <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
-      Every <strong class="text-[rgb(var(--rc-page-fg))]">Save &amp; hold</strong> snapshot is listed here. <strong class="text-emerald-700 dark:text-emerald-300">Completed</strong> means the tab was finalized as a sale;
-      <strong class="text-amber-800 dark:text-amber-200">Returned</strong> means the open hold was voided before sale (no committed stock);
-      <strong class="text-slate-700 dark:text-slate-300">Pending</strong> means the order is still open or saved with stock committed and not yet checked out.
-      Range <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or '' }}</span>.
-    </p>
-  </div>
+  <div class="rcpt-page it-analytics-page--modern">
+    {% set rcpt_title = 'Withheld POS — saved holds' %}
+    {% set rcpt_desc = 'Every <strong>Save &amp; hold</strong> snapshot is listed here. <strong>Completed</strong> = finalized sale; <strong>Returned</strong> = voided before sale; <strong>Pending</strong> = still open or not checked out.' %}
+    {% set rcpt_range_label = f.range_label or '' %}
+    {% include 'partials/receipt_register_hero.html' %}
 
-  {% set form_action = url_for('it_support_withheld_holds') %}
-  {% set receipt_q = '' %}
-  {% set receipt_rows_total = hold_rows_total %}
-  {% set show_shop_picker = True %}
-  {% set hide_receipt_live_search = True %}
-  <div class="mt-4">
+    {% set form_action = url_for('it_support_withheld_holds') %}
+    {% set receipt_q = '' %}
+    {% set receipt_rows_total = hold_rows_total %}
+    {% set show_shop_picker = True %}
+    {% set hide_receipt_live_search = True %}
     {% include "partials/receipt_register_filters.html" with context %}
-  </div>
 
-  <div class="mt-6 min-w-0 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-    <div class="border-b border-[rgb(var(--rc-border))]/80 px-3 py-3 sm:px-4">
-      <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Held orders</h3>
-      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Sorted by last activity · up to 8,000 rows</p>
+  <section class="rev-panel rcpt-table-panel">
+    <div class="rev-panel__head">
+      <div>
+        <h3 class="rev-panel__title">Held orders</h3>
+        <p class="rev-panel__desc">Sorted by last activity · up to 8,000 rows</p>
+      </div>
+      <span class="rev-panel__count">{{ hold_rows_total or (hold_rows or [])|length }} rows</span>
     </div>
-    <div class="min-w-0 overflow-x-auto overscroll-x-contain">
-      <table class="w-full min-w-[22rem] table-fixed text-[11px] sm:text-xs">
-        <colgroup>
-          <col class="w-[14%]" />
-          <col class="w-[18%]" />
-          <col class="w-[12%]" />
-          <col class="w-[26%]" />
-          <col class="w-[12%]" />
-          <col class="w-[12%]" />
-          <col class="w-9 sm:w-10" />
-        </colgroup>
-        <thead class="bg-[rgb(var(--rc-surface-2))]/70 text-[rgb(var(--rc-muted))]">
+    <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+      <table class="rev-data rev-data--wide rev-data--tx min-w-[22rem]">
+        <thead>
           <tr>
-            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Order</th>
-            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Shop</th>
-            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Status</th>
-            <th class="min-w-0 px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Customer / table</th>
-            <th class="px-1.5 py-2 text-right font-bold uppercase tracking-wider sm:px-2.5">Total</th>
-            <th class="px-1.5 py-2 text-left font-bold uppercase tracking-wider sm:px-2.5">Last activity</th>
-            <th class="px-1.5 py-2 text-center text-[10px] font-bold uppercase tracking-wider sm:px-2.5 sm:text-xs">View</th>
+            <th scope="col">Order</th>
+            <th scope="col">Shop</th>
+            <th scope="col">Status</th>
+            <th scope="col">Customer / table</th>
+            <th scope="col" class="num">Total</th>
+            <th scope="col">Last activity</th>
+            <th scope="col" class="rev-col-action">View</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-[rgb(var(--rc-border))]/70">
+        <tbody>
           {% for row in hold_rows or [] %}
             <tr class="hover:bg-[rgb(var(--rc-surface-2))]/30">
-              <td class="px-1.5 py-2 align-top font-mono font-bold text-[rgb(var(--rc-page-fg))] sm:px-2.5">
+              <td class="align-top font-mono cell-strong">
                 #{{ '%04d'|format(row.hold_id or 0) }}
                 <div class="mt-0.5 text-[10px] font-normal text-[rgb(var(--rc-muted))]">Saves: {{ row.saves_count or 0 }}</div>
               </td>
@@ -89,10 +82,10 @@
               <td class="min-w-0 px-1.5 py-2 align-top text-[rgb(var(--rc-muted))] sm:px-2.5 sm:whitespace-nowrap">
                 {{ row.last_save_at_iso or row.updated_at_iso or row.created_at_iso or '—' }}
               </td>
-              <td class="px-1.5 py-2 text-center align-top sm:px-2.5">
+              <td class="rev-col-action align-top">
                 <button
                   type="button"
-                  class="hold-view-btn inline-flex h-7 w-7 items-center justify-center rounded-lg text-[rgb(var(--rc-primary))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+                  class="hold-view-btn rev-tx-view-btn"
                   data-shop-id="{{ row.shop_id }}"
                   data-hold-id="{{ row.hold_id }}"
                   title="View saved lines"
@@ -107,12 +100,13 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No held orders in this date range.</td>
+              <td colspan="7" class="rev-empty">No held orders in this date range.</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+  </section>
   </div>
 
   <div id="hold-detail-backdrop" class="fixed inset-0 z-50 hidden bg-black/50" aria-hidden="true"></div>

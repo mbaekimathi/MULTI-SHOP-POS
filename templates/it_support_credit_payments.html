@@ -1,44 +1,78 @@
 {% extends "employee_layout.html" %}
 {% block title %}Credit payments — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Credit payments{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=11" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-credit-payments.css') }}?v=4" />
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+{% endblock %}
 {% block sidebar_links %}
   {% include "partials/it_support_credit_sidebar_nav.html" %}
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   {% set shop_list = shops or [] %}
-  {% include "partials/it_support_credit_hub_assets.html" %}
-  <div class="it-credit-page it-credit-analytics">
-  <div class="it-credit-workspace mt-4 flex flex-col gap-2 sm:gap-4">
-    {% set credit_shell_title = 'Company credit customers' %}
-    {% set credit_shell_desc = 'Credit from all shops is combined per customer (same name and phone), so new credits add to existing customer totals.' %}
-    {% set credit_shell_badge = 'Overview' %}
-    {% set filter_form_id = 'credit-payments-filter-form' %}
-    {% set filter_clear_url = url_for('it_support_credit_payments') %}
-    {% set show_payment_scope = false %}
-    {% set show_print = true %}
-    {% set filter_print_url = url_for('it_support_credit_payments', all_time=1, print=1) %}
-    {% include "partials/it_support_credit_hero_filter.html" %}
-    {% include "partials/it_support_credit_customers_data.html" %}
+  {% set credit_shell_title = 'Company credit sales' %}
+  {% set credit_shell_desc = 'Track credit sales, due dates, and balances across every shop. Use live filters below — results refresh instantly.' %}
+  {% set _anav = analytics_nav or {} %}
+  {% set filter_clear_url = url_for('it_support_credit_payments') %}
+  {% set show_print = true %}
+
+  <style>
+    .it-analytics-page--credit {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: clip;
+      box-sizing: border-box;
+    }
+    .it-analytics-page--credit .rev-scroll,
+    .it-analytics-page--credit .rev-scroll--lg {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 900px) {
+      .it-analytics-page--credit .rev-scroll--lg {
+        max-height: min(52dvh, 26rem);
+        overflow-y: auto;
+      }
+    }
+    @media print {
+      .cp-credit-toolbar,
+      .rev-toolbar,
+      .rcpt-hero,
+      nav,
+      header,
+      aside,
+      .rev-btn { display: none !important; }
+      .it-analytics-page--credit .rev-panel {
+        border: none;
+        box-shadow: none;
+      }
+      .it-analytics-page--credit .rev-col-action { display: none; }
+    }
+  </style>
+
+  <div class="it-analytics-page it-analytics-page--modern it-analytics-page--revenue it-analytics-page--credit">
+    <div class="rev-page rev-page--fluid mx-auto w-full min-w-0 max-w-6xl px-0 sm:px-1">
+      {% include "partials/it_support_credit_payments_hero.html" %}
+      {% include "partials/it_support_credit_payments_controls.html" %}
+      {% include "partials/it_support_credit_customers_data.html" %}
+    </div>
   </div>
-  </div>
+
 {% endblock %}
 {% block scripts %}
   {{ super() }}
-  <style>
-    @media print {
-      #credit-payments-filter-form,
-      .it-credit-hero,
-      nav, header, aside, .btn-rc { display: none !important; }
-      #credit-sales-print-area { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
-      .it-credit-table-desktop { display: block !important; }
-      .print-only-table { display: block !important; }
-      .col-shop, .col-view { display: none !important; }
-    }
-  </style>
+  <script src="{{ url_for('static', filename='js/it-support-credit-payments-filters.js') }}?v=5" defer></script>
+  {% if credit_should_print %}
   <script>
-    {% if credit_should_print %}
     window.addEventListener("load", function () { window.print(); });
-    {% endif %}
   </script>
+  {% endif %}
 {% endblock %}

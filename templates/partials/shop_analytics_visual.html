@@ -1,0 +1,86 @@
+{# Shop portal — chart panels (matches IT Support shop analytics visual) #}
+{% set sv = shop_view or analytics_view or 'revenue' %}
+{% set svd = shop_view_data or {} %}
+{% if sv == 'revenue' %}
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash vs credit (this shop)</h3>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Mix for the selected period.</p>
+      <div class="relative mt-4 h-56 sm:h-64">
+        <canvas id="it-chart-shop-rev-mix" aria-label="Shop cash versus credit"></canvas>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily trend</h3>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Sales and credit by day.</p>
+      <div class="relative mt-4 h-64 sm:h-72">
+        <canvas id="it-chart-shop-rev-daily" aria-label="Shop daily revenue"></canvas>
+      </div>
+    </div>
+  </div>
+{% elif sv == 'item' %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items</h3>
+    <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Best sellers at this shop.</p>
+    <div class="relative mt-4 h-80 sm:h-96">
+      <canvas id="it-chart-shop-item-top" aria-label="Shop top items"></canvas>
+    </div>
+  </div>
+{% elif sv == 'sales' or sv == 'credit' or sv == 'period' %}
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily trend</h3>
+      <div class="relative mt-4 h-56 sm:h-64">
+        <canvas id="it-chart-shop-trend-daily" aria-label="Shop daily trend"></canvas>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly trend</h3>
+      <div class="relative mt-4 h-56 sm:h-64">
+        <canvas id="it-chart-shop-trend-hourly" aria-label="Shop hourly trend"></canvas>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By employee</h3>
+      <div class="relative mt-4 h-64 sm:h-72">
+        <canvas id="it-chart-shop-emp" aria-label="Shop employee performance"></canvas>
+      </div>
+    </div>
+  </div>
+  {% if sv == 'credit' %}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit by customer</h3>
+      <div class="relative mt-4 h-64 sm:h-72">
+        <canvas id="it-chart-shop-cr-cust" aria-label="Shop credit by customer"></canvas>
+      </div>
+    </div>
+  {% endif %}
+{% elif sv == 'customer' %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customers by spend</h3>
+    <div class="relative mt-4 h-[28rem] max-h-[85vh] sm:h-[32rem]">
+      <canvas id="it-chart-shop-cust-bar" aria-label="Shop customers"></canvas>
+    </div>
+  </div>
+{% elif sv == 'stock' %}
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock in</h3>
+      <div class="relative mt-4 h-64 sm:h-72">
+        <canvas id="it-chart-shop-stock-in" aria-label="Shop stock in"></canvas>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top stock out</h3>
+      <div class="relative mt-4 h-64 sm:h-72">
+        <canvas id="it-chart-shop-stock-out" aria-label="Shop stock out"></canvas>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily movement</h3>
+      <div class="relative mt-4 h-64 sm:h-72">
+        <canvas id="it-chart-shop-stock-daily" aria-label="Shop daily stock"></canvas>
+      </div>
+    </div>
+  </div>
+{% endif %}

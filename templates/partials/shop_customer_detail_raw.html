@@ -1,0 +1,191 @@
+{% set a = customer_analytics or {} %}
+{% set tx_items_map = transaction_items_by_sale_id or {} %}
+
+<section class="rev-panel rev-panel--shop-meta">
+  <div class="rev-panel__head rev-panel__head--split">
+    <div class="min-w-0">
+      <p class="rev-panel__eyebrow">Customer detail</p>
+      <h3 class="rev-panel__title">{{ customer_name }}</h3>
+      <p class="rev-panel__desc">Phone {{ customer_phone }} · {{ shop.shop_name }} · {{ f.range_label or 'Selected period' }}</p>
+    </div>
+    <a href="{{ url_for('shop_customer_analytics', shop_id=shop.id, **(analytics_nav or {})) }}" class="rev-btn rev-btn--ghost shrink-0">← Customer list</a>
+  </div>
+</section>
+
+<div class="rev-kpi rev-kpi--shop rev-kpi--5 mt-3" role="list">
+  <article class="rev-kpi__card rev-kpi__card--total" role="listitem">
+    <div class="rev-kpi__label">Total revenue</div>
+    <div class="rev-kpi__value">{{ "%.2f"|format(a.total_amount or 0) }}</div>
+    <div class="rev-kpi__foot">{{ a.total_tx_count or 0 }} transactions</div>
+  </article>
+  <article class="rev-kpi__card rev-kpi__card--cash" role="listitem">
+    <div class="rev-kpi__label">Cash sales</div>
+    <div class="rev-kpi__value rev-kpi__value--cash">{{ "%.2f"|format(a.sale_amount or 0) }}</div>
+    <div class="rev-kpi__foot">{{ a.sale_tx_count or 0 }} tx</div>
+  </article>
+  <article class="rev-kpi__card rev-kpi__card--credit" role="listitem">
+    <div class="rev-kpi__label">Credit</div>
+    <div class="rev-kpi__value rev-kpi__value--credit">{{ "%.2f"|format(a.credit_amount or 0) }}</div>
+    <div class="rev-kpi__foot">{{ a.credit_tx_count or 0 }} tx</div>
+  </article>
+  <article class="rev-kpi__card" role="listitem">
+    <div class="rev-kpi__label">Items bought</div>
+    <div class="rev-kpi__value">{{ a.total_item_qty or 0 }}</div>
+    <div class="rev-kpi__foot">{{ a.distinct_items or 0 }} distinct SKUs</div>
+  </article>
+  <article class="rev-kpi__card" role="listitem">
+    <div class="rev-kpi__label">Avg ticket</div>
+    <div class="rev-kpi__value">{{ "%.2f"|format(a.avg_ticket or 0) }}</div>
+  </article>
+</div>
+
+<div class="rev-panels-grid rev-panels-grid--2 mt-3">
+  <section class="rev-panel">
+    <div class="rev-panel__head"><h3 class="rev-panel__title">Top items</h3></div>
+    {% if not a.top_items %}<p class="rev-empty">No item lines for this period.</p>{% else %}
+    <div class="rev-scroll rev-scroll--hint">
+      <table class="rev-data">
+        <thead><tr><th scope="col">Item</th><th scope="col" class="num">Qty</th><th scope="col" class="num">Revenue</th></tr></thead>
+        <tbody>
+          {% for row in a.top_items %}
+          <tr>
+            <td class="cell-strong">{{ row.item_name }}</td>
+            <td class="num cell-muted">{{ row.qty_sold }}</td>
+            <td class="num cell-sale">{{ "%.2f"|format(row.revenue) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="rev-panel">
+    <div class="rev-panel__head"><h3 class="rev-panel__title">Staff who served</h3></div>
+    {% if not a.employees %}<p class="rev-empty">No employee rows.</p>{% else %}
+    <div class="rev-scroll rev-scroll--hint">
+      <table class="rev-data rev-data--wide">
+        <thead>
+          <tr>
+            <th scope="col">Employee</th>
+            <th scope="col">Code</th>
+            <th scope="col" class="num">Tx</th>
+            <th scope="col" class="num">Sales</th>
+            <th scope="col" class="num">Credit</th>
+            <th scope="col" class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in a.employees %}
+          <tr>
+            <td class="cell-strong">{{ row.employee_name }}</td>
+            <td class="cell-muted">{{ row.employee_code }}</td>
+            <td class="num cell-muted">{{ row.tx_count }}</td>
+            <td class="num cell-sale">{{ "%.2f"|format(row.sale_amount) }}</td>
+            <td class="num cell-credit">{{ "%.2f"|format(row.credit_amount) }}</td>
+            <td class="num cell-strong">{{ "%.2f"|format(row.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+<div class="rev-panels-grid rev-panels-grid--2 mt-3">
+  <section class="rev-panel">
+    <div class="rev-panel__head"><h3 class="rev-panel__title">Daily activity</h3></div>
+    {% if not a.daily %}<p class="rev-empty">No daily rows.</p>{% else %}
+    <div class="rev-scroll rev-scroll--hint">
+      <table class="rev-data">
+        <thead><tr><th scope="col">Day</th><th scope="col" class="num">Tx</th><th scope="col" class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for row in a.daily %}
+          <tr><td>{{ row.day }}</td><td class="num cell-muted">{{ row.tx_count }}</td><td class="num cell-strong">{{ "%.2f"|format(row.amount) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+  <section class="rev-panel">
+    <div class="rev-panel__head"><h3 class="rev-panel__title">Hourly activity</h3></div>
+    {% if not a.hourly %}<p class="rev-empty">No hourly rows.</p>{% else %}
+    <div class="rev-scroll rev-scroll--hint">
+      <table class="rev-data">
+        <thead><tr><th scope="col">Hour</th><th scope="col" class="num">Tx</th><th scope="col" class="num">Amount</th></tr></thead>
+        <tbody>
+          {% for row in a.hourly %}
+          <tr><td>{{ row.hour }}</td><td class="num cell-muted">{{ row.tx_count }}</td><td class="num cell-strong">{{ "%.2f"|format(row.amount) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+<section class="rev-panel mt-3">
+  <div class="rev-panel__head">
+    <h3 class="rev-panel__title">All transactions</h3>
+    <p class="rev-panel__desc">Expand a row to see line items purchased.</p>
+  </div>
+  {% if not transactions %}
+  <p class="rev-empty">No transactions for this customer in the selected period.</p>
+  {% else %}
+  <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+    <table class="rev-data rev-data--wide rev-data--tx">
+      <thead>
+        <tr>
+          <th scope="col">Receipt</th>
+          <th scope="col" class="rev-col-action" aria-label="Items"></th>
+          <th scope="col" class="num">Amount</th>
+          <th scope="col">When</th>
+          <th scope="col">Type</th>
+          <th scope="col" class="num">Items</th>
+          <th scope="col">Served by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in transactions %}
+        {% set sale_items = tx_items_map.get(tx.id, []) %}
+        <tr>
+          <td class="cell-strong">#{{ tx.id }}</td>
+          <td class="rev-col-action">
+            <button type="button" class="rev-tx-view-btn shop-cust-tx-items-toggle" data-target="shop-tx-items-{{ tx.id }}" aria-expanded="false" title="View items" aria-label="View items">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/></svg>
+            </button>
+          </td>
+          <td class="num cell-strong">{{ "%.2f"|format(tx.total_amount) }}</td>
+          <td class="cell-muted whitespace-nowrap">{{ tx.created_at or '—' }}</td>
+          <td>{% if tx.sale_type == 'credit' %}<span class="rounded-full border border-amber-300/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">credit</span>{% else %}<span class="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">sale</span>{% endif %}</td>
+          <td class="num cell-muted">{{ tx.item_count or sale_items|length }}</td>
+          <td class="cell-muted">{{ tx.employee_name }}{% if tx.employee_code %} ({{ tx.employee_code }}){% endif %}</td>
+        </tr>
+        <tr id="shop-tx-items-{{ tx.id }}" class="rev-tx-items-row hidden">
+          <td colspan="7">
+            {% if not sale_items %}
+            <p class="rev-empty text-sm">No line items recorded.</p>
+            {% else %}
+            <table class="rev-data rev-data--nested">
+              <thead><tr><th scope="col">Item</th><th scope="col" class="num">Qty</th><th scope="col" class="num">Amount</th></tr></thead>
+              <tbody>
+                {% for it in sale_items %}
+                <tr>
+                  <td class="cell-strong">{{ it.item_name }}</td>
+                  <td class="num cell-muted">{{ it.qty }}</td>
+                  <td class="num cell-sale">{{ "%.2f"|format(it.amount) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>

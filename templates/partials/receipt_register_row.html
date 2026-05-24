@@ -1,0 +1,54 @@
+{# One receipt row: row, can_mark (bool), show_shop_column (bool) #}
+<tr
+  data-sale-id="{{ row.sale_id }}"
+  {% if show_shop_column %}data-shop-id="{{ row.shop_id }}"{% endif %}
+  data-receipt-no="{{ row.receipt_number or '' }}"
+  data-total-amount="{{ '%.2f'|format(row.total_amount or 0) }}"
+  data-mark-status="{{ row.receipt_mark_status or 'pending' }}"
+  class="rcpt-row"
+>
+  {% if can_mark %}
+  <td class="rev-col-action align-top rcpt-col-sticky rcpt-col-check" data-label="Select">
+    <input type="checkbox" class="receipt-select-one h-4 w-4 rounded border-[rgb(var(--rc-border))]" value="{{ row.sale_id }}" aria-label="Select receipt {{ row.receipt_number or row.sale_id }}" />
+  </td>
+  {% endif %}
+  <td class="cell-strong align-top font-mono rcpt-col-sticky rcpt-col-receipt" data-label="Receipt #">
+    <div class="rcpt-receipt-no">{{ row.receipt_number or ('#' ~ row.sale_id) }}</div>
+    {% set mark = row.receipt_mark_status or 'pending' %}
+    {% include 'partials/receipt_mark_badge.html' %}
+  </td>
+  {% if show_shop_column %}
+  <td class="align-top min-w-0 rcpt-col-shop" data-label="Shop" title="{{ row.shop_name or ('#' ~ row.shop_id) }}{% if row.shop_code %} ({{ row.shop_code }}){% endif %}">
+    <div class="truncate cell-strong">{{ row.shop_name or ('#' ~ row.shop_id) }}</div>
+    <div class="truncate text-xs text-[rgb(var(--rc-muted))]">{{ row.shop_code or '' }}</div>
+  </td>
+  {% endif %}
+  <td class="num align-top cell-muted rcpt-col-items" data-label="Items">{{ row.item_count or 0 }}</td>
+  <td class="num align-top rcpt-col-total rcpt-amount" data-label="Total">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+  <td class="align-top cell-muted truncate rcpt-col-recorded" data-label="Recorded" title="{{ row.employee_name or '' }}">{{ row.employee_name or '—' }}</td>
+  <td class="align-top rcpt-col-type-pay" data-label="Type / Payment" title="{{ row.payment_method or '' }}">
+    <div class="rcpt-type-pay">
+      {% if row.sale_type == 'credit' %}
+        <span class="rcpt-type-pill rcpt-type-pill--credit">Credit</span>
+      {% else %}
+        <span class="rcpt-type-pill rcpt-type-pill--sale">Sale</span>
+      {% endif %}
+      <div class="rcpt-type-pay__method cell-muted truncate">{{ row.payment_method or '—' }}</div>
+    </div>
+  </td>
+  <td class="align-top cell-muted truncate rcpt-col-customer" data-label="Customer" title="{{ (row.customer_name or '') }} {{ (row.customer_phone or '') }}">
+    {{ (row.customer_name or 'Walk-in')|truncate(22, True) }}
+  </td>
+  <td class="rev-col-action align-top rcpt-col-view" data-label="View">
+    <button
+      type="button"
+      class="rev-tx-view-btn receipt-view-btn rcpt-view-btn"
+      data-sale-id="{{ row.sale_id }}"
+      {% if show_shop_column %}data-shop-id="{{ row.shop_id }}"{% endif %}
+      title="View receipt items"
+      aria-label="View receipt items"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/></svg>
+    </button>
+  </td>
+</tr>

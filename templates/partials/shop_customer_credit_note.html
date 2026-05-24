@@ -1,0 +1,155 @@
+{# Customer credit note — outstanding (unpaid) credit only #}
+{% set company = site_settings.company_name if site_settings else 'Point of Sale' %}
+{% set compact_only = compact_only|default(false) %}
+{% set note_items_map = credit_note_items_by_sale_id if credit_note_items_by_sale_id is defined else (transaction_items_by_sale_id or {}) %}
+{% set unpaid_sales = credit_sales_unpaid if credit_sales_unpaid is defined else [] %}
+
+<div class="shop-credit-note" id="shop-customer-credit-note-print">
+  <article class="shop-credit-note__doc">
+    <header class="shop-credit-note__head">
+      <div>
+        <p class="shop-credit-note__brand">{{ company }}</p>
+        <p class="shop-credit-note__shop">{{ shop.shop_name }}</p>
+        {% if company_credit_scope|default(false) %}
+        <p class="text-xs text-[rgb(var(--rc-muted))] mt-0.5">All branches combined</p>
+        {% elif shop.shop_code %}
+        <p class="text-xs text-[rgb(var(--rc-muted))] mt-0.5">Code {{ shop.shop_code }}</p>
+        {% endif %}
+      </div>
+      <div class="shop-credit-note__type">
+        <h2>Credit note</h2>
+        <p class="shop-credit-note__ref">Ref {{ credit_note_ref }}</p>
+        <p class="shop-credit-note__ref">{% if credit_note_all_time|default(false) %}Outstanding balance — full account{% else %}Outstanding — {{ f.range_label or 'period' }}{% endif %}</p>
+      </div>
+    </header>
+
+    <dl class="shop-credit-note__meta">
+      <div>
+        <dt>Customer</dt>
+        <dd>{{ customer_name }}</dd>
+      </div>
+      <div>
+        <dt>Phone</dt>
+        <dd>{{ customer_phone }}</dd>
+      </div>
+      <div>
+        <dt>{% if credit_note_all_time|default(false) %}Statement{% else %}Period{% endif %}</dt>
+        <dd>{{ f.range_label or 'Selected period' }}</dd>
+      </div>
+      {% if not credit_note_all_time|default(false) %}
+      <div>
+        <dt>Data scope</dt>
+        <dd>{{ 'Actual receipts' if analytics_scope == 'actual' else 'General' }}</dd>
+      </div>
+      {% endif %}
+    </dl>
+
+    <div class="shop-credit-note__summary" role="group" aria-label="Outstanding balances">
+      <div class="shop-credit-note__stat shop-credit-note__stat--due">
+        <p class="shop-credit-note__stat-label">Balance due</p>
+        <p class="shop-credit-note__stat-value">{{ "%.2f"|format(account_balance_due or 0) }}</p>
+      </div>
+      <div class="shop-credit-note__stat shop-credit-note__stat--due">
+        <p class="shop-credit-note__stat-label">Outstanding</p>
+        <p class="shop-credit-note__stat-value">{{ "%.2f"|format(unpaid_balance_total or 0) }}</p>
+      </div>
+      <div class="shop-credit-note__stat">
+        <p class="shop-credit-note__stat-label">Unpaid sales</p>
+        <p class="shop-credit-note__stat-value">{{ unpaid_sales_count|default(0) }}</p>
+      </div>
+      <div class="shop-credit-note__stat shop-credit-note__stat--paid">
+        <p class="shop-credit-note__stat-label">Paid to date</p>
+        <p class="shop-credit-note__stat-value">{{ "%.2f"|format(account_paid_total or 0) }}</p>
+      </div>
+    </div>
+
+    {% macro credit_note_unpaid_list(show_doc_footer=true) %}
+    <div class="shop-credit-note__body">
+      <div class="shop-cn-outstanding__head">
+        <div class="shop-cn-outstanding__head-text">
+          <h3 class="shop-cn-outstanding__title">Unpaid items</h3>
+          <p class="shop-cn-outstanding__desc">All items on outstanding credit sales</p>
+        </div>
+      </div>
+
+      {% if not unpaid_sales %}
+      <div class="shop-cn-outstanding__empty">
+        <span class="shop-cn-outstanding__empty-icon" aria-hidden="true">✓</span>
+        <p class="shop-cn-outstanding__empty-title">All settled</p>
+        <p class="shop-cn-outstanding__empty-desc">No outstanding credit{% if not credit_note_all_time|default(false) %} in this period{% endif %}.</p>
+      </div>
+      {% else %}
+      {% set ns = namespace(has_rows=false) %}
+      <div class="shop-cn-items-table-wrap">
+        <table class="shop-cn-items-table">
+          <thead>
+            <tr>
+              {% if company_credit_scope|default(false) %}<th scope="col">Shop</th>{% endif %}
+              <th scope="col">Item</th>
+              <th scope="col" class="num">Qty</th>
+              <th scope="col" class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tx in unpaid_sales %}
+            {% set sale_items = note_items_map.get(tx.id, []) %}
+            {% for it in sale_items %}
+            {% set ns.has_rows = true %}
+            <tr>
+              {% if company_credit_scope|default(false) %}<td class="text-xs text-[rgb(var(--rc-muted))]">{{ it.shop_name or tx.shop_name or '—' }}</td>{% endif %}
+              <td>{{ it.item_name }}</td>
+              <td class="num tabular-nums">{{ it.qty }}</td>
+              <td class="num tabular-nums">{{ "%.2f"|format(it.amount) }}</td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            {% if not ns.has_rows %}
+            {% for tx in unpaid_sales %}
+            {% set acct = credit_acct_by_id.get(tx.id) if credit_acct_by_id is defined else none %}
+            <tr>
+              {% if company_credit_scope|default(false) %}<td class="text-xs text-[rgb(var(--rc-muted))]">{{ tx.shop_name or '—' }}</td>{% endif %}
+              <td>Credit sale #{{ tx.id }}</td>
+              <td class="num">—</td>
+              <td class="num tabular-nums">{% if acct %}{{ "%.2f"|format(acct.remaining_amount or tx.total_amount or 0) }}{% else %}{{ "%.2f"|format(tx.total_amount or 0) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if show_doc_footer %}
+      <footer class="shop-credit-note__foot">
+        {% if unpaid_sales %}
+        Please settle the balance due at your earliest convenience.
+        {% else %}
+        This customer has no outstanding credit{% if company_credit_scope|default(false) %} across any shop{% else %} at {{ shop.shop_name }}{% endif %}.
+        {% endif %}
+      </footer>
+      {% endif %}
+    </div>
+    {% endmacro %}
+
+    {% if compact_only %}
+    {{ credit_note_unpaid_list(false) }}
+    <footer class="shop-credit-note__foot shop-credit-note__foot--compact">
+      {% if unpaid_sales %}
+      Update payment below; history is listed underneath.
+      {% else %}
+      No payment required — account is fully settled.
+      {% endif %}
+    </footer>
+    {% else %}
+    {{ credit_note_unpaid_list() }}
+    {% if not embed_record_payment|default(false) %}
+    <div class="shop-credit-note__actions no-print">
+      <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
+      {% if pos_allow_credit_sale|default(false) %}
+      <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=customer_name, customer_phone=customer_phone) }}#shop-record-payment" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider">Update payment</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </article>
+</div>

@@ -1,0 +1,10 @@
+{# Receipt register body — table #}
+<div class="rev-content it-analytics-live-root mt-3" id="receipt-register-root" aria-live="polite">
+  <p id="receipt-page-msg" class="rev-empty hidden mt-2" role="status"></p>
+
+  {% set can_mark = can_mark_receipts %}
+  {% set show_shop_column = False %}
+  {% set empty_colspan = 7 if can_mark_receipts else 6 %}
+  {% set table_subtitle = 'Pending first · then partial return, returned, cancelled, confirmed · newest within each group' %}
+  {% include 'partials/receipt_register_table.html' %}
+</div>

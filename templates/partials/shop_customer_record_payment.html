@@ -1,0 +1,49 @@
+{# Record payment — updates customer credit (FIFO) #}
+<section id="shop-record-payment" class="shop-cust-pay-card no-print" aria-labelledby="shop-record-payment-heading">
+  <div class="shop-cust-pay-card__accent" aria-hidden="true"></div>
+  <div class="shop-cust-pay-card__inner">
+    <div class="shop-cust-pay-card__head">
+      <div class="shop-cust-pay-card__icon" aria-hidden="true">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="min-w-0 flex-1">
+        <h3 id="shop-record-payment-heading" class="shop-cust-pay-card__title">Update payment</h3>
+        <p class="shop-cust-pay-card__desc">Amount is applied FIFO to the oldest unpaid credit sales at {{ shop.shop_name }}.</p>
+      </div>
+      <div class="shop-cust-pay-card__due">
+        <span class="shop-cust-pay-card__due-label">Balance due</span>
+        <span class="shop-cust-pay-card__due-value">{{ "%.2f"|format(account_balance_due or 0) }}</span>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('shop_credit_payments_pay', shop_id=shop.id) }}" class="shop-cust-pay-card__form">
+      <input type="hidden" name="customer_name" value="{{ customer_name }}" />
+      <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
+      <input type="hidden" name="return_to" value="{{ payment_return_to|default('customer') }}" />
+      {% if payment_return_to|default('customer') == 'analytics' and f is defined %}
+      <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
+      <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
+      <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
+      <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
+      <input type="hidden" name="month" value="{{ f.month or '' }}" />
+      <input type="hidden" name="year" value="{{ f.year or '' }}" />
+      <input type="hidden" name="analytics_scope" value="{{ analytics_scope|default('general') }}" />
+      {% endif %}
+      <div class="shop-cust-pay-card__fields">
+        <div class="shop-cust-pay-card__field">
+          <label for="shop-pay-amount">Amount paid</label>
+          <input id="shop-pay-amount" name="amount" type="number" step="0.01" min="0" required placeholder="0.00" />
+        </div>
+        <div class="shop-cust-pay-card__field">
+          <label for="shop-pay-note">Note <span class="font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">(optional)</span></label>
+          <input id="shop-pay-note" name="note" type="text" placeholder="e.g. Cash, M-Pesa ref…" />
+        </div>
+        <div class="shop-cust-pay-card__submit">
+          <button type="submit" class="shop-cust-pay-card__btn">Update payment</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>

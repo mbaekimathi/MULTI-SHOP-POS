@@ -2693,6 +2693,39 @@ def get_shop_customer_credit_transactions(shop_id: int, customer_name: str, cust
         return []
 
 
+def get_shop_customer_credit_payments(
+    shop_id: int, customer_name: str, customer_phone: str, limit: int = 5000
+):
+    """Payment receipts recorded against a customer's credit at one shop."""
+    ensure_shop_credit_payments_schema()
+    n = (customer_name or "").strip() or "WALK IN"
+    p = (customer_phone or "").strip() or "-"
+    sql = """
+    SELECT id, amount, note, created_at
+    FROM shop_credit_payments
+    WHERE shop_id=%s
+      AND COALESCE(NULLIF(customer_name, ''), 'WALK IN')=%s
+      AND COALESCE(NULLIF(customer_phone, ''), '-')=%s
+    ORDER BY created_at ASC, id ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(shop_id), n, p, int(limit)))
+            rows = cur.fetchall() or []
+        return [
+            {
+                "id": int(r.get("id") or 0),
+                "amount": float(r.get("amount") or 0),
+                "note": (r.get("note") or "").strip(),
+                "created_at": r.get("created_at"),
+            }
+            for r in rows
+        ]
+    except pymysql.Error:
+        return []
+
+
 def apply_shop_credit_payment_fifo(
     shop_id: int,
     customer_name: str,
@@ -2932,6 +2965,7 @@ def list_all_shops_credit_customers_with_balance(
 def list_all_shops_credit_sales(
     limit: int = 5000,
     analytics_filter: Optional[dict] = None,
+    analytics_scope: str = "general",
     shop_id: Optional[int] = None,
     customer_q: Optional[str] = None,
 ):
@@ -2944,6 +2978,10 @@ def list_all_shops_credit_sales(
         rw, rp = _analytics_where_clause(analytics_filter, "sps")
         where_parts.append(f"({rw})")
         params.extend(rp)
+
+    sw, sp = _analytics_receipt_scope_clause(analytics_scope, "sps")
+    where_parts.append(f"({sw})")
+    params.extend(sp)
 
     if shop_id is not None:
         where_parts.append("sps.shop_id = %s")
@@ -2969,6 +3007,7 @@ def list_all_shops_credit_sales(
         sps.total_amount,
         sps.credit_paid_amount,
         COALESCE(sps.credit_status, 'not_paid') AS credit_status,
+        sps.credit_due_date,
         sps.item_count,
         COALESCE(NULLIF(sps.employee_name, ''), 'Unknown') AS employee_name,
         COALESCE(NULLIF(sps.employee_code, ''), '-') AS employee_code,
@@ -3008,6 +3047,7 @@ def list_all_shops_credit_sales(
                     "paid_amount": paid,
                     "remaining_amount": remaining,
                     "credit_status": status,
+                    "credit_due_date": r.get("credit_due_date"),
                     "item_count": int(r.get("item_count") or 0),
                     "employee_name": r.get("employee_name") or "Unknown",
                     "employee_code": r.get("employee_code") or "-",
@@ -3499,6 +3539,7 @@ def get_company_customer_credit_payments(customer_name: str, customer_phone: str
                     "shop_code": r.get("shop_code") or "",
                     "amount": float(r.get("amount") or 0),
                     "payment_method": method,
+                    "note": raw_note,
                     "created_at": r.get("created_at"),
                 }
             )
@@ -5594,6 +5635,19 @@ def get_shop_revenue_analytics(
     return out
 
 
+def _receipt_mark_status_sort_sql(alias: str = "s") -> str:
+    """SQL expression: pending → partial_return → returned → cancelled → confirmed."""
+    col = f"{alias}.receipt_mark_status" if alias else "receipt_mark_status"
+    return f"""CASE COALESCE({col}, 'pending')
+        WHEN 'pending' THEN 1
+        WHEN 'partial_return' THEN 2
+        WHEN 'returned' THEN 3
+        WHEN 'cancelled' THEN 4
+        WHEN 'confirmed' THEN 5
+        ELSE 6
+    END"""
+
+
 def list_shop_pos_sales_receipt_rows(
     shop_id: int,
     analytics_filter: Optional[dict],
@@ -5654,7 +5708,7 @@ def list_shop_pos_sales_receipt_rows(
         s.inventory_mode
     FROM shop_pos_sales s
     WHERE {where_sql}
-    ORDER BY s.created_at DESC, s.id DESC
+    ORDER BY {_receipt_mark_status_sort_sql("s")}, s.created_at DESC, s.id DESC
     LIMIT %s
     """
     params.append(lim)
@@ -5761,7 +5815,7 @@ def list_all_shops_pos_sales_receipt_rows(
     FROM shop_pos_sales s
     LEFT JOIN shops sh ON sh.id = s.shop_id
     WHERE {where_sql}
-    ORDER BY s.created_at DESC, s.id DESC
+    ORDER BY {_receipt_mark_status_sort_sql("s")}, s.created_at DESC, s.id DESC
     LIMIT %s
     """
     params.append(lim)
@@ -5941,9 +5995,27 @@ def bulk_mark_shop_pos_receipts(
 
 
 def get_it_support_revenue_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    *,
+    transactions_limit: int = 150,
+    transactions_offset: int = 0,
+    include_transactions: bool = True,
 ):
-    """Revenue analytics across all shops for IT support/super admin."""
+    """Revenue analytics across all shops for IT support/super admin.
+
+    Loads aggregates and shop/day breakdowns always. Transaction rows are paginated
+    (default 150) so bulk periods stay fast; use transactions_offset for "load more".
+    """
+    try:
+        tx_limit = max(1, min(500, int(transactions_limit)))
+    except (TypeError, ValueError):
+        tx_limit = 150
+    try:
+        tx_offset = max(0, int(transactions_offset))
+    except (TypeError, ValueError):
+        tx_offset = 0
+
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
     where_sql = f"{range_where} AND {scope_where}"
@@ -5952,7 +6024,9 @@ def get_it_support_revenue_analytics(
     SELECT
         COUNT(*) AS tx_count,
         COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
-        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount
+        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount,
+        COALESCE(SUM(sps.cash_amount), 0) AS cash_paid_total,
+        COALESCE(SUM(sps.mpesa_amount), 0) AS mpesa_paid_total
     FROM shop_pos_sales sps
     WHERE {where_sql}
     """
@@ -5985,18 +6059,6 @@ def get_it_support_revenue_analytics(
     ORDER BY day DESC
     LIMIT 31
     """
-    payment_methods_sql = f"""
-    SELECT
-        COALESCE(NULLIF(LOWER(sps.payment_method), ''), CASE WHEN sps.sale_type='credit' THEN 'credit' ELSE 'cash' END) AS payment_method,
-        COUNT(*) AS tx_count,
-        COALESCE(SUM(sps.total_amount), 0) AS amount_total,
-        COALESCE(SUM(sps.cash_amount), 0) AS cash_paid,
-        COALESCE(SUM(sps.mpesa_amount), 0) AS mpesa_paid
-    FROM shop_pos_sales sps
-    WHERE {where_sql}
-    GROUP BY COALESCE(NULLIF(LOWER(sps.payment_method), ''), CASE WHEN sps.sale_type='credit' THEN 'credit' ELSE 'cash' END)
-    ORDER BY amount_total DESC
-    """
     transactions_sql = f"""
     SELECT
         sps.id,
@@ -6018,7 +6080,7 @@ def get_it_support_revenue_analytics(
     LEFT JOIN shops s ON s.id = sps.shop_id
     WHERE {where_sql}
     ORDER BY sps.created_at DESC, sps.id DESC
-    LIMIT 2000
+    LIMIT %s OFFSET %s
     """
     out = {
         "tx_count": 0,
@@ -6027,10 +6089,16 @@ def get_it_support_revenue_analytics(
         "total_amount": 0.0,
         "cash_paid_total": 0.0,
         "mpesa_paid_total": 0.0,
-        "payment_methods": [],
         "shops": [],
         "daily": [],
         "transactions": [],
+        "transactions_meta": {
+            "limit": tx_limit,
+            "offset": tx_offset,
+            "loaded_count": 0,
+            "total_count": 0,
+            "has_more": False,
+        },
     }
     try:
         with get_cursor() as cur:
@@ -6040,6 +6108,9 @@ def get_it_support_revenue_analytics(
             out["sale_amount"] = float(t.get("sale_amount") or 0)
             out["credit_amount"] = float(t.get("credit_amount") or 0)
             out["total_amount"] = out["sale_amount"] + out["credit_amount"]
+            out["cash_paid_total"] = float(t.get("cash_paid_total") or 0)
+            out["mpesa_paid_total"] = float(t.get("mpesa_paid_total") or 0)
+            out["transactions_meta"]["total_count"] = out["tx_count"]
 
             cur.execute(by_shop_sql, tuple(params))
             out["shops"] = [
@@ -6071,55 +6142,63 @@ def get_it_support_revenue_analytics(
                 for r in (cur.fetchall() or [])
             ]
 
-            cur.execute(payment_methods_sql, tuple(params))
-            out["payment_methods"] = [
-                {
-                    "payment_method": (r.get("payment_method") or "").strip().lower() or "cash",
-                    "tx_count": int(r.get("tx_count") or 0),
-                    "amount_total": float(r.get("amount_total") or 0),
-                    "cash_paid": float(r.get("cash_paid") or 0),
-                    "mpesa_paid": float(r.get("mpesa_paid") or 0),
-                }
-                for r in (cur.fetchall() or [])
-            ]
-            out["cash_paid_total"] = sum(float(r.get("cash_paid") or 0) for r in out["payment_methods"])
-            out["mpesa_paid_total"] = sum(float(r.get("mpesa_paid") or 0) for r in out["payment_methods"])
-
-            cur.execute(transactions_sql, tuple(params))
-            out["transactions"] = [
-                {
-                    "id": int(r.get("id") or 0),
-                    "shop_id": r.get("shop_id"),
-                    "shop_name": r.get("shop_name") or "Shop",
-                    "shop_code": r.get("shop_code") or "",
-                    "sale_type": (r.get("sale_type") or "").strip().lower(),
-                    "payment_method": (r.get("payment_method") or "").strip().lower(),
-                    "cash_amount": float(r.get("cash_amount") or 0),
-                    "mpesa_amount": float(r.get("mpesa_amount") or 0),
-                    "total_amount": float(r.get("total_amount") or 0),
-                    "item_count": int(r.get("item_count") or 0),
-                    "customer_name": (r.get("customer_name") or "").strip(),
-                    "customer_phone": (r.get("customer_phone") or "").strip(),
-                    "employee_name": (r.get("employee_name") or "").strip(),
-                    "employee_code": (r.get("employee_code") or "").strip(),
-                    "created_at": r.get("created_at"),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            if include_transactions:
+                cur.execute(transactions_sql, tuple(params + [tx_limit, tx_offset]))
+                out["transactions"] = [
+                    {
+                        "id": int(r.get("id") or 0),
+                        "shop_id": r.get("shop_id"),
+                        "shop_name": r.get("shop_name") or "Shop",
+                        "shop_code": r.get("shop_code") or "",
+                        "sale_type": (r.get("sale_type") or "").strip().lower(),
+                        "payment_method": (r.get("payment_method") or "").strip().lower(),
+                        "cash_amount": float(r.get("cash_amount") or 0),
+                        "mpesa_amount": float(r.get("mpesa_amount") or 0),
+                        "total_amount": float(r.get("total_amount") or 0),
+                        "item_count": int(r.get("item_count") or 0),
+                        "customer_name": (r.get("customer_name") or "").strip(),
+                        "customer_phone": (r.get("customer_phone") or "").strip(),
+                        "employee_name": (r.get("employee_name") or "").strip(),
+                        "employee_code": (r.get("employee_code") or "").strip(),
+                        "created_at": r.get("created_at"),
+                    }
+                    for r in (cur.fetchall() or [])
+                ]
+            loaded = len(out["transactions"])
+            out["transactions_meta"] = {
+                "limit": tx_limit,
+                "offset": tx_offset,
+                "loaded_count": tx_offset + loaded,
+                "total_count": out["tx_count"],
+                "has_more": (tx_offset + loaded) < out["tx_count"],
+            }
     except pymysql.Error:
         return out
     return out
 
 
 def get_it_support_item_analytics(
-    analytics_filter: dict, analytics_scope: str = "general", top_items_limit: int = 100
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    top_items_limit: int = 100,
+    *,
+    lines_limit: int = 150,
+    lines_offset: int = 0,
+    include_lines: bool = True,
 ):
     """Item analytics across all shops for IT support/super admin.
 
     ``top_items_limit`` caps the grouped SKU list (defaults to 100 for dashboards).
-    Pass ``0`` or a negative value to omit ``LIMIT`` (all SKUs). Use a high cap (e.g. 8000)
-    when you need a bounded but large list.
+    Line rows are paginated (default 150) for fast bulk periods.
     """
+    try:
+        lines_lim = max(1, min(500, int(lines_limit)))
+    except (TypeError, ValueError):
+        lines_lim = 150
+    try:
+        lines_off = max(0, int(lines_offset))
+    except (TypeError, ValueError):
+        lines_off = 0
     try:
         tl_raw = int(top_items_limit) if top_items_limit is not None else 100
     except (TypeError, ValueError):
@@ -6216,7 +6295,7 @@ def get_it_support_item_analytics(
     LEFT JOIN shops sh ON sh.id = si.shop_id
     WHERE {where_sql}
     ORDER BY s.created_at DESC, si.id DESC
-    LIMIT 3000
+    LIMIT %s OFFSET %s
     """
 
     out = {
@@ -6227,6 +6306,13 @@ def get_it_support_item_analytics(
         "top_items": [],
         "shops": [],
         "lines": [],
+        "lines_meta": {
+            "limit": lines_lim,
+            "offset": lines_off,
+            "loaded_count": 0,
+            "total_count": 0,
+            "has_more": False,
+        },
     }
     try:
         with get_cursor() as cur:
@@ -6236,6 +6322,7 @@ def get_it_support_item_analytics(
             out["total_revenue"] = float(t.get("total_revenue") or 0)
             out["line_count"] = int(t.get("line_count") or 0)
             out["distinct_items"] = int(t.get("distinct_items") or 0)
+            out["lines_meta"]["total_count"] = out["line_count"]
 
             merged: Dict[int, Dict[str, Any]] = {}
 
@@ -6291,28 +6378,37 @@ def get_it_support_item_analytics(
                 for r in (cur.fetchall() or [])
             ]
 
-            cur.execute(lines_sql, tuple(params))
-            out["lines"] = [
-                {
-                    "id": int(r.get("id") or 0),
-                    "sale_id": r.get("sale_id"),
-                    "shop_id": r.get("shop_id"),
-                    "shop_name": r.get("shop_name") or "Shop",
-                    "shop_code": r.get("shop_code") or "",
-                    "item_id": r.get("item_id"),
-                    "item_name": r.get("item_name") or "Item",
-                    "qty": int(r.get("qty") or 0),
-                    "unit_price": float(r.get("unit_price") or 0),
-                    "line_total": float(r.get("line_total") or 0),
-                    "sale_type": (r.get("sale_type") or "").strip().lower(),
-                    "employee_name": (r.get("employee_name") or "").strip(),
-                    "employee_code": (r.get("employee_code") or "").strip(),
-                    "customer_name": (r.get("customer_name") or "").strip(),
-                    "customer_phone": (r.get("customer_phone") or "").strip(),
-                    "created_at": r.get("created_at"),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            if include_lines:
+                cur.execute(lines_sql, tuple(params + [lines_lim, lines_off]))
+                out["lines"] = [
+                    {
+                        "id": int(r.get("id") or 0),
+                        "sale_id": r.get("sale_id"),
+                        "shop_id": r.get("shop_id"),
+                        "shop_name": r.get("shop_name") or "Shop",
+                        "shop_code": r.get("shop_code") or "",
+                        "item_id": r.get("item_id"),
+                        "item_name": r.get("item_name") or "Item",
+                        "qty": int(r.get("qty") or 0),
+                        "unit_price": float(r.get("unit_price") or 0),
+                        "line_total": float(r.get("line_total") or 0),
+                        "sale_type": (r.get("sale_type") or "").strip().lower(),
+                        "employee_name": (r.get("employee_name") or "").strip(),
+                        "employee_code": (r.get("employee_code") or "").strip(),
+                        "customer_name": (r.get("customer_name") or "").strip(),
+                        "customer_phone": (r.get("customer_phone") or "").strip(),
+                        "created_at": r.get("created_at"),
+                    }
+                    for r in (cur.fetchall() or [])
+                ]
+            loaded_lines = len(out["lines"])
+            out["lines_meta"] = {
+                "limit": lines_lim,
+                "offset": lines_off,
+                "loaded_count": lines_off + loaded_lines,
+                "total_count": out["line_count"],
+                "has_more": (lines_off + loaded_lines) < out["line_count"],
+            }
     except pymysql.Error:
         return out
     return out
@@ -7225,9 +7321,22 @@ def get_it_support_credit_analytics(
 
 
 def get_it_support_customer_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    *,
+    customers_limit: int = 150,
+    customers_offset: int = 0,
+    include_customers: bool = True,
 ):
     """Customer analytics across all shops within selected period."""
+    try:
+        cust_lim = max(1, min(500, int(customers_limit)))
+    except (TypeError, ValueError):
+        cust_lim = 150
+    try:
+        cust_off = max(0, int(customers_offset))
+    except (TypeError, ValueError):
+        cust_off = 0
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
     where_sql = f"{range_where} AND {scope_where}"
@@ -7257,13 +7366,20 @@ def get_it_support_customer_analytics(
     WHERE {where_sql}
     GROUP BY customer_name, customer_phone
     ORDER BY last_tx_at DESC, tx_count DESC, total_amount DESC, customer_name ASC
-    LIMIT 2000
+    LIMIT %s OFFSET %s
     """
     out = {
         "total_tx_count": 0,
         "total_amount": 0.0,
         "distinct_customers": 0,
         "customers": [],
+        "customers_meta": {
+            "limit": cust_lim,
+            "offset": cust_off,
+            "loaded_count": 0,
+            "total_count": 0,
+            "has_more": False,
+        },
     }
     try:
         with get_cursor() as cur:
@@ -7272,20 +7388,30 @@ def get_it_support_customer_analytics(
             out["total_tx_count"] = int(t.get("tx_count") or 0)
             out["total_amount"] = float(t.get("total_amount") or 0)
             out["distinct_customers"] = int(t.get("distinct_customers") or 0)
+            out["customers_meta"]["total_count"] = out["distinct_customers"]
 
-            cur.execute(customers_sql, tuple(params))
-            out["customers"] = [
-                {
-                    "customer_name": r.get("customer_name") or "WALK IN",
-                    "customer_phone": r.get("customer_phone") or "-",
-                    "tx_count": int(r.get("tx_count") or 0),
-                    "last_tx_at": r.get("last_tx_at"),
-                    "total_amount": float(r.get("total_amount") or 0),
-                    "sale_amount": float(r.get("sale_amount") or 0),
-                    "credit_amount": float(r.get("credit_amount") or 0),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            if include_customers:
+                cur.execute(customers_sql, tuple(params + [cust_lim, cust_off]))
+                out["customers"] = [
+                    {
+                        "customer_name": r.get("customer_name") or "WALK IN",
+                        "customer_phone": r.get("customer_phone") or "-",
+                        "tx_count": int(r.get("tx_count") or 0),
+                        "last_tx_at": r.get("last_tx_at"),
+                        "total_amount": float(r.get("total_amount") or 0),
+                        "sale_amount": float(r.get("sale_amount") or 0),
+                        "credit_amount": float(r.get("credit_amount") or 0),
+                    }
+                    for r in (cur.fetchall() or [])
+                ]
+            loaded = len(out["customers"])
+            out["customers_meta"] = {
+                "limit": cust_lim,
+                "offset": cust_off,
+                "loaded_count": cust_off + loaded,
+                "total_count": out["distinct_customers"],
+                "has_more": (cust_off + loaded) < out["distinct_customers"],
+            }
     except pymysql.Error:
         return out
     return out

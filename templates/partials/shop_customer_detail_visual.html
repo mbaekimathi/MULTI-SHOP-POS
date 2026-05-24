@@ -1,0 +1,52 @@
+{# Shop customer detail — charts #}
+{% set a = customer_analytics or {} %}
+<div class="grid gap-4 lg:grid-cols-2">
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash sales — daily</h3>
+    <div class="relative mt-4 h-56 sm:h-64">
+      <canvas id="customer-chart-sale-day" aria-label="Daily cash sales"></canvas>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash sales — hourly</h3>
+    <div class="relative mt-4 h-56 sm:h-64">
+      <canvas id="customer-chart-sale-hour" aria-label="Hourly cash sales"></canvas>
+    </div>
+  </div>
+</div>
+{% if (a.credit_amount or 0) > 0 or (a.credit_tx_count or 0) > 0 %}
+<div class="mt-4 grid gap-4 lg:grid-cols-2">
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit — daily</h3>
+    <div class="relative mt-4 h-56 sm:h-64">
+      <canvas id="customer-chart-credit-day" aria-label="Daily credit"></canvas>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit — hourly</h3>
+    <div class="relative mt-4 h-56 sm:h-64">
+      <canvas id="customer-chart-credit-hour" aria-label="Hourly credit"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+<div class="mt-4 grid gap-4 lg:grid-cols-2">
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm lg:col-span-2">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Top items by quantity</h3>
+    <div class="relative mt-4 h-72 sm:h-80">
+      <canvas id="customer-chart-items" aria-label="Top items"></canvas>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily spend (all types)</h3>
+    <div class="relative mt-4 h-56 sm:h-64">
+      <canvas id="shop-cust-chart-daily" aria-label="Daily total"></canvas>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">By employee</h3>
+    <div class="relative mt-4 h-56 sm:h-64">
+      <canvas id="shop-cust-chart-emp" aria-label="Employee totals"></canvas>
+    </div>
+  </div>
+</div>

@@ -1,15 +1,12 @@
 {% extends "employee_layout.html" %}
 {% block title %}Analytics — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Analytics{% endblock %}
+{% block head %}
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=1"></script>
+{% endblock %}
 {% block sidebar_links %}
-  <a href="{{ url_for('it_support_revenue_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Revenue analytics</a>
-  <a href="{{ url_for('it_support_item_analytics_page') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Item analytics</a>
-  <a href="{{ url_for('it_support_sales_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Sales analytics</a>
-  <a href="{{ url_for('it_support_credit_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Credit analytics</a>
-  <a href="{{ url_for('it_support_period_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Period analytics</a>
-  <a href="{{ url_for('it_support_employee_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Employee analytics</a>
-  <a href="{{ url_for('it_support_customer_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Customer analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop analytics</a>
+  {% set analytics_key = 'item' %}
+  {% include "partials/it_support_analytics_sidebar_links.html" %}
   <a href="{{ url_for('it_support_receipts') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Receipts</a>
   {% if company_pos_cart_mode_withhold|default(false) %}
   <a href="{{ url_for('it_support_withheld_holds') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_withheld_holds' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Withheld orders</a>

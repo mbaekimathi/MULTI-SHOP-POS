@@ -1,0 +1,395 @@
+{# IT Support shop analytics — aligned with shop portal (admin) analytics detail & layout #}
+{% set svd = shop_view_data or {} %}
+{% set sv = shop_view or 'revenue' %}
+{% set _anav = analytics_nav or {} %}
+{% set shop_portal = shop_portal|default(false) %}
+{% set ns = namespace(shop_label='') %}
+{% if shop_portal and shop is defined %}
+  {% set ns.shop_label = shop.shop_name %}
+{% else %}
+  {% for s in shops or [] %}
+    {% if selected_shop_id and s.id|int == selected_shop_id|int %}{% set ns.shop_label = s.shop_name %}{% endif %}
+  {% endfor %}
+{% endif %}
+
+{% if sv == 'revenue' %}
+  {% set _shop_report_title = 'Revenue overview' %}
+  {% set _shop_report_desc = 'Sale and credit revenue combined for this shop.' %}
+{% elif sv == 'item' %}
+  {% set _shop_report_title = 'Item performance' %}
+  {% set _shop_report_desc = 'Top selling items by quantity and revenue.' %}
+{% elif sv == 'period' %}
+  {% set _shop_report_title = 'Period insights' %}
+  {% set _shop_report_desc = 'Sales patterns by day, hour, and employee.' %}
+{% elif sv == 'sales' %}
+  {% set _shop_report_title = 'Sales-only' %}
+  {% set _shop_report_desc = 'Cash sales only; credit transactions excluded.' %}
+{% elif sv == 'credit' %}
+  {% set _shop_report_title = 'Credit analytics' %}
+  {% set _shop_report_desc = 'Credit-only transactions; direct cash sales excluded.' %}
+{% elif sv == 'customer' %}
+  {% set _shop_report_title = 'Customer analytics' %}
+  {% set _shop_report_desc = 'Customer purchase activity for this shop.' %}
+{% elif sv == 'stock' %}
+  {% set _shop_report_title = 'Stock status' %}
+  {% set _shop_report_desc = 'Stock movement summary for the selected period.' %}
+{% else %}
+  {% set _shop_report_title = sv|replace('_', ' ')|title %}
+  {% set _shop_report_desc = 'Analytics for the selected date range.' %}
+{% endif %}
+
+<div class="rev-content rev-shop-content it-analytics-live-root" id="it-analytics-live-root" aria-live="polite" aria-busy="false">
+{% if not selected_shop_id and not shop_portal %}
+  <section class="rev-panel">
+    <div class="rev-panel__head"><h3 class="rev-panel__title">Shop analytics</h3></div>
+    <p class="rev-empty">Select a shop above to load revenue, item, sales, credit, period, customer, and stock analytics for that branch.</p>
+  </section>
+{% else %}
+  <section class="rev-panel rev-panel--shop-meta">
+    <div class="rev-panel__head">
+      <div class="min-w-0">
+        <p class="rev-panel__eyebrow">Shop analytics</p>
+        <h3 class="rev-panel__title" id="rev-shop-title">{{ ns.shop_label or ('Shop #' ~ selected_shop_id) }}</h3>
+        <p class="rev-panel__desc">{{ _shop_report_title }} — {{ _shop_report_desc }}</p>
+      </div>
+      <span class="rev-panel__count" id="rev-shop-view-label">{{ sv|replace('_', ' ')|title }} · {{ f.range_label or analytics_filter.range_label or '' }}</span>
+    </div>
+  </section>
+
+  {% if sv == 'revenue' %}
+    {% set sale = svd.sale or {} %}
+    {% set credit = svd.credit or {} %}
+    {% set _tc = (svd.total_count or 0)|int %}
+    {% set _ta = (svd.total_amount or 0)|float %}
+    {% set _avg = (_ta / _tc) if _tc > 0 else 0 %}
+    <div class="rev-kpi rev-kpi--shop rev-kpi--4" role="list">
+      <article class="rev-kpi__card rev-kpi__card--cash" role="listitem">
+        <div class="rev-kpi__label">Sale revenue</div>
+        <div class="rev-kpi__value rev-kpi__value--cash">{{ "%.2f"|format((sale.amount or 0)|float) }}</div>
+        <div class="rev-kpi__foot">{{ sale.count or 0 }} sale transactions</div>
+      </article>
+      <article class="rev-kpi__card rev-kpi__card--credit" role="listitem">
+        <div class="rev-kpi__label">Credit revenue</div>
+        <div class="rev-kpi__value rev-kpi__value--credit">{{ "%.2f"|format((credit.amount or 0)|float) }}</div>
+        <div class="rev-kpi__foot">{{ credit.count or 0 }} credit transactions</div>
+      </article>
+      <article class="rev-kpi__card rev-kpi__card--total" role="listitem">
+        <div class="rev-kpi__label">Total revenue</div>
+        <div class="rev-kpi__value rev-kpi__value--accent">{{ "%.2f"|format(_ta) }}</div>
+        <div class="rev-kpi__foot">{{ _tc }} total transactions</div>
+      </article>
+      <article class="rev-kpi__card rev-kpi__card--avg" role="listitem">
+        <div class="rev-kpi__label">Avg. per transaction</div>
+        <div class="rev-kpi__value">{{ "%.2f"|format(_avg) }}</div>
+        <div class="rev-kpi__foot">Mean ticket over the selected range</div>
+      </article>
+    </div>
+    <section class="rev-panel" aria-labelledby="rev-shop-daily-title">
+      <div class="rev-panel__head">
+        <h3 class="rev-panel__title" id="rev-shop-daily-title">Daily breakdown</h3>
+        <span class="rev-panel__count">Sale vs credit · {{ (svd.daily or [])|length }} days</span>
+      </div>
+      {% if not svd.daily %}<p class="rev-empty">No revenue data for this period.</p>{% else %}
+      <div class="rev-scroll rev-scroll--hint">
+        <table class="rev-data rev-data--wide">
+          <thead><tr><th scope="col">Date</th><th scope="col" class="num">Sale</th><th scope="col" class="num">Credit</th><th scope="col" class="num">Total</th><th scope="col" class="num">Tx</th></tr></thead>
+          <tbody>
+            {% for r in svd.daily %}
+            <tr>
+              <td class="cell-strong">{{ r.day }}</td>
+              <td class="num cell-sale">{{ "%.2f"|format(r.sale_amount or 0) }}</td>
+              <td class="num cell-credit">{{ "%.2f"|format(r.credit_amount or 0) }}</td>
+              <td class="num cell-strong">{{ "%.2f"|format(r.total_amount or 0) }}</td>
+              <td class="num cell-muted">{{ r.tx_count or 0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+
+  {% elif sv == 'item' %}
+    {% set peak_day = svd.peak_day or {} %}
+    {% set peak_hour = svd.peak_hour or {} %}
+    <div class="rev-kpi rev-kpi--shop rev-kpi--4" role="list">
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Qty sold</div><div class="rev-kpi__value">{{ svd.total_qty or 0 }}</div></article>
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Items sold</div><div class="rev-kpi__value">{{ svd.distinct_items or 0 }}</div></article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Most sold day</div>
+        <div class="rev-kpi__value rev-kpi__value--sm">{{ peak_day.day or '—' }}</div>
+        <div class="rev-kpi__foot">{{ peak_day.qty_sold or 0 }} qty sold</div>
+      </article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Most sold time</div>
+        <div class="rev-kpi__value rev-kpi__value--sm">{{ peak_hour.hour or '—' }}</div>
+        <div class="rev-kpi__foot">{{ peak_hour.qty_sold or 0 }} qty sold</div>
+      </article>
+    </div>
+    <section class="rev-panel">
+      <div class="rev-panel__head"><h3 class="rev-panel__title">Top sold items</h3><span class="rev-panel__count">Quantity and revenue</span></div>
+      {% if not svd.top_items %}<p class="rev-empty">No item sales for this period.</p>{% else %}
+      <div class="rev-scroll rev-scroll--hint">
+        <table class="rev-data rev-data--wide">
+          <thead><tr><th scope="col">Item</th><th scope="col" class="num">Qty sold</th><th scope="col" class="num">Revenue</th><th scope="col" class="num">Sale lines</th></tr></thead>
+          <tbody>
+            {% for r in svd.top_items %}
+            <tr>
+              <td class="cell-strong">{{ r.item_name }}</td>
+              <td class="num cell-strong">{{ r.qty_sold or 0 }}</td>
+              <td class="num cell-sale">{{ "%.2f"|format(r.revenue or 0) }}</td>
+              <td class="num cell-muted">{{ r.sale_lines or 0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+
+  {% elif sv == 'sales' %}
+    {% set _sa_tx = (svd.total_tx_count or 0)|int %}
+    {% set _sa_rev = (svd.total_revenue or 0)|float %}
+    {% set _sa_avg = (_sa_rev / _sa_tx) if _sa_tx > 0 else 0 %}
+    <div class="rev-kpi rev-kpi--shop rev-kpi--3" role="list">
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Transactions</div><div class="rev-kpi__value">{{ _sa_tx }}</div><div class="rev-kpi__foot">Cash sales in selected period</div></article>
+      <article class="rev-kpi__card rev-kpi__card--cash" role="listitem"><div class="rev-kpi__label">Revenue</div><div class="rev-kpi__value rev-kpi__value--cash">{{ "%.2f"|format(_sa_rev) }}</div><div class="rev-kpi__foot">Total cash collected</div></article>
+      <article class="rev-kpi__card rev-kpi__card--avg" role="listitem"><div class="rev-kpi__label">Avg. ticket</div><div class="rev-kpi__value">{{ "%.2f"|format(_sa_avg) }}</div><div class="rev-kpi__foot">Mean per transaction</div></article>
+    </div>
+    <section class="rev-panel">
+      <div class="rev-panel__head">
+        <h3 class="rev-panel__title">Daily breakdown</h3>
+        <span class="rev-panel__count">{{ (svd.daily or [])|length }} day{% if (svd.daily or [])|length != 1 %}s{% endif %}</span>
+      </div>
+      {% if not svd.daily %}<p class="rev-empty">No sales for this period.</p>{% else %}
+      <div class="rev-scroll rev-scroll--hint rev-scroll--sales-daily">
+        <table class="rev-data rev-data--wide rev-data--sales-daily">
+          <thead><tr><th scope="col">Date</th><th scope="col" class="num">Transactions</th><th scope="col" class="num">Revenue</th></tr></thead>
+          <tbody>
+            {% for r in svd.daily %}
+            <tr><td class="cell-strong">{{ r.day }}</td><td class="num cell-muted">{{ r.tx_count or 0 }}</td><td class="num cell-sale">{{ "%.2f"|format(r.revenue or 0) }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot><tr><td class="cell-strong">Total</td><td class="num cell-strong">{{ _sa_tx }}</td><td class="num cell-sale">{{ "%.2f"|format(_sa_rev) }}</td></tr></tfoot>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+
+  {% elif sv == 'credit' %}
+    {% set peak_day = svd.peak_day or {} %}
+    {% set peak_hour = svd.peak_hour or {} %}
+    <p class="rev-shop-banner" role="note">Credit-only analysis (direct sales excluded).</p>
+    <div class="rev-kpi rev-kpi--shop rev-kpi--4" role="list">
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Credit transactions</div><div class="rev-kpi__value">{{ svd.total_tx_count or 0 }}</div></article>
+      <article class="rev-kpi__card rev-kpi__card--credit" role="listitem"><div class="rev-kpi__label">Credit revenue</div><div class="rev-kpi__value rev-kpi__value--credit">{{ "%.2f"|format(svd.total_revenue or 0) }}</div></article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Peak credit day</div>
+        <div class="rev-kpi__value rev-kpi__value--sm">{{ peak_day.day or '—' }}</div>
+        <div class="rev-kpi__foot">{{ "%.2f"|format(peak_day.revenue or 0) }} revenue</div>
+      </article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Peak credit time</div>
+        <div class="rev-kpi__value rev-kpi__value--sm">{{ peak_hour.hour or '—' }}</div>
+        <div class="rev-kpi__foot">{{ "%.2f"|format(peak_hour.revenue or 0) }} revenue</div>
+      </article>
+    </div>
+    <section class="rev-panel">
+      <div class="rev-panel__head"><h3 class="rev-panel__title">Credit customers</h3><span class="rev-panel__count">{{ (svd.customers or [])|length }} customers</span></div>
+      {% if not svd.customers %}<p class="rev-empty">No credit customers for this period.</p>{% else %}
+      <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+        <table class="rev-data rev-data--wide rev-data--tx">
+          <thead><tr><th scope="col">Customer</th><th scope="col" class="num">Tx</th><th scope="col" class="num">Amount due</th><th scope="col" class="rev-col-action">View</th></tr></thead>
+          <tbody>
+            {% for r in svd.customers %}
+            {% set c_key = (r.customer_name or 'Unknown customer') ~ '|||' ~ (r.customer_phone or '-') %}
+            <tr>
+              <td>
+                <span class="cell-strong">{{ r.customer_name }}</span>
+                <span class="block text-xs text-[rgb(var(--rc-muted))]">{{ r.customer_phone or '—' }}</span>
+              </td>
+              <td class="num cell-muted">{{ r.tx_count or 0 }}</td>
+              <td class="num cell-credit">{{ "%.2f"|format(r.amount_due or r.credit_total or 0) }}</td>
+              <td class="rev-col-action">
+                {% if shop_portal and shop is defined %}
+                <a href="{{ url_for('shop_customer_analytics_detail', shop_id=shop.id, customer_name=r.customer_name, customer_phone=r.customer_phone, **_anav) }}" class="rev-tx-view-btn" title="View customer page" aria-label="View customer page">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/></svg>
+                </a>
+                {% else %}
+                <button type="button" class="rev-tx-view-btn it-credit-customer-view" data-customer-key="{{ c_key }}" title="View credit details" aria-label="View credit details">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/></svg>
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+
+  {% elif sv == 'period' %}
+    {% set top_emp = svd.top_employee or {} %}
+    {% set least_emp = svd.least_employee or {} %}
+    {% set peak_day = svd.peak_day or {} %}
+    {% set peak_hour = svd.peak_hour or {} %}
+    <div class="rev-kpi rev-kpi--shop rev-kpi--4" role="list">
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Transactions</div><div class="rev-kpi__value">{{ svd.total_tx_count or 0 }}</div></article>
+      <article class="rev-kpi__card rev-kpi__card--total" role="listitem"><div class="rev-kpi__label">Revenue</div><div class="rev-kpi__value rev-kpi__value--accent">{{ "%.2f"|format(svd.total_revenue or 0) }}</div></article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Peak day</div>
+        <div class="rev-kpi__value rev-kpi__value--sm">{{ peak_day.day or '—' }}</div>
+        <div class="rev-kpi__foot">{{ "%.2f"|format(peak_day.revenue or 0) }} revenue</div>
+      </article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Peak time</div>
+        <div class="rev-kpi__value rev-kpi__value--sm">{{ peak_hour.hour or '—' }}</div>
+        <div class="rev-kpi__foot">{{ "%.2f"|format(peak_hour.revenue or 0) }} revenue</div>
+      </article>
+    </div>
+    {% if top_emp.employee_name or least_emp.employee_name %}
+    <div class="rev-emp-highlights">
+      <article class="rev-emp-highlight rev-emp-highlight--top">
+        <p class="rev-emp-highlight__label">Most sales</p>
+        <p class="rev-emp-highlight__name">{{ top_emp.employee_name or '—' }}</p>
+        <p class="rev-emp-highlight__meta">{{ top_emp.employee_code or '' }}{% if top_emp.employee_code %} · {% endif %}{{ "%.2f"|format(top_emp.revenue or 0) }}</p>
+      </article>
+      <article class="rev-emp-highlight rev-emp-highlight--least">
+        <p class="rev-emp-highlight__label">Least sales</p>
+        <p class="rev-emp-highlight__name">{{ least_emp.employee_name or '—' }}</p>
+        <p class="rev-emp-highlight__meta">{{ least_emp.employee_code or '' }}{% if least_emp.employee_code %} · {% endif %}{{ "%.2f"|format(least_emp.revenue or 0) }}</p>
+      </article>
+    </div>
+    {% endif %}
+    <div class="rev-panels-grid rev-panels-grid--2">
+      <section class="rev-panel">
+        <div class="rev-panel__head"><h3 class="rev-panel__title">Daily trend</h3></div>
+        {% if not svd.daily %}<p class="rev-empty">No daily rows.</p>{% else %}
+        <div class="rev-scroll rev-scroll--hint">
+          <table class="rev-data"><thead><tr><th scope="col">Day</th><th scope="col" class="num">Tx</th><th scope="col" class="num">Revenue</th></tr></thead>
+            <tbody>{% for r in svd.daily %}<tr><td>{{ r.day }}</td><td class="num cell-muted">{{ r.tx_count or 0 }}</td><td class="num cell-sale">{{ "%.2f"|format(r.revenue or 0) }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+        {% endif %}
+      </section>
+      <section class="rev-panel">
+        <div class="rev-panel__head"><h3 class="rev-panel__title">Hourly trend</h3></div>
+        {% if not svd.hourly %}<p class="rev-empty">No hourly rows.</p>{% else %}
+        <div class="rev-scroll rev-scroll--hint">
+          <table class="rev-data"><thead><tr><th scope="col">Hour</th><th scope="col" class="num">Tx</th><th scope="col" class="num">Revenue</th></tr></thead>
+            <tbody>{% for r in svd.hourly %}<tr><td>{{ r.hour }}</td><td class="num cell-muted">{{ r.tx_count or 0 }}</td><td class="num cell-sale">{{ "%.2f"|format(r.revenue or 0) }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+    <section class="rev-panel">
+      <div class="rev-panel__head"><h3 class="rev-panel__title">Employee sales ranking</h3><span class="rev-panel__count">Most to least</span></div>
+      {% if not svd.employees %}<p class="rev-empty">No employee data for this period.</p>{% else %}
+      <div class="rev-scroll rev-scroll--hint">
+        <table class="rev-data rev-data--wide">
+          <thead><tr><th scope="col">Employee</th><th scope="col">Code</th><th scope="col" class="num">Transactions</th><th scope="col" class="num">Revenue</th></tr></thead>
+          <tbody>
+            {% for r in svd.employees %}
+            <tr>
+              <td class="cell-strong">{{ r.employee_name }}</td>
+              <td class="cell-muted">{{ r.employee_code or '—' }}</td>
+              <td class="num cell-muted">{{ r.tx_count or 0 }}</td>
+              <td class="num cell-sale">{{ "%.2f"|format(r.revenue or 0) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+
+  {% elif sv == 'customer' %}
+    <div class="rev-kpi rev-kpi--shop rev-kpi--3" role="list">
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Customers</div><div class="rev-kpi__value">{{ svd.distinct_customers or 0 }}</div></article>
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Transactions</div><div class="rev-kpi__value">{{ svd.total_tx_count or 0 }}</div></article>
+      <article class="rev-kpi__card rev-kpi__card--total" role="listitem"><div class="rev-kpi__label">Amount bought</div><div class="rev-kpi__value rev-kpi__value--accent">{{ "%.2f"|format(svd.total_amount or 0) }}</div></article>
+    </div>
+    <section class="rev-panel">
+      <div class="rev-panel__head"><h3 class="rev-panel__title">Customer analytics for this shop</h3><span class="rev-panel__count">Shop scope only</span></div>
+      {% if not svd.customers %}<p class="rev-empty">No customers for this period.</p>{% else %}
+      <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
+        <table class="rev-data rev-data--wide rev-data--tx">
+          <thead><tr><th scope="col">Customer</th><th scope="col">Phone</th><th scope="col" class="num">Tx</th><th scope="col" class="num">Sales</th><th scope="col" class="num">Credit</th><th scope="col" class="num">Total</th><th scope="col" class="rev-col-action">View</th></tr></thead>
+          <tbody>
+            {% for r in svd.customers %}
+            <tr>
+              <td class="cell-strong">{{ r.customer_name }}</td>
+              <td class="cell-muted whitespace-nowrap">{{ r.customer_phone }}</td>
+              <td class="num cell-muted">{{ r.tx_count or 0 }}</td>
+              <td class="num cell-sale">{{ "%.2f"|format(r.sale_amount or 0) }}</td>
+              <td class="num cell-credit">{{ "%.2f"|format(r.credit_amount or 0) }}</td>
+              <td class="num cell-strong">{{ "%.2f"|format(r.total_amount or 0) }}</td>
+              <td class="rev-col-action">
+                {% if shop_portal and shop is defined %}
+                <a href="{{ url_for('shop_customer_analytics_detail', shop_id=shop.id, customer_name=r.customer_name, customer_phone=r.customer_phone, **_anav) }}" class="rev-tx-view-btn" title="View customer detail" aria-label="View customer detail">
+                {% else %}
+                <a href="{{ url_for('it_support_customer_transactions', customer_name=r.customer_name, customer_phone=r.customer_phone, shop_id=selected_shop_id, **_anav) }}" class="rev-tx-view-btn" title="View transactions" aria-label="View transactions">
+                {% endif %}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/></svg>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+
+  {% elif sv == 'stock' %}
+    <div class="rev-kpi rev-kpi--shop rev-kpi--5" role="list">
+      <article class="rev-kpi__card rev-kpi__card--cash" role="listitem"><div class="rev-kpi__label">Qty in</div><div class="rev-kpi__value rev-kpi__value--cash">{{ svd.qty_in or 0 }}</div></article>
+      <article class="rev-kpi__card rev-kpi__card--credit" role="listitem"><div class="rev-kpi__label">Qty out</div><div class="rev-kpi__value rev-kpi__value--credit">{{ svd.qty_out or 0 }}</div></article>
+      <article class="rev-kpi__card" role="listitem">
+        <div class="rev-kpi__label">Net</div>
+        <div class="rev-kpi__value {% if (svd.net_qty or 0) >= 0 %}rev-kpi__value--cash{% else %}rev-kpi__value--credit{% endif %}">{% if (svd.net_qty or 0) > 0 %}+{% endif %}{{ svd.net_qty or 0 }}</div>
+      </article>
+      <article class="rev-kpi__card" role="listitem"><div class="rev-kpi__label">Items moved</div><div class="rev-kpi__value">{{ svd.distinct_items or 0 }}</div></article>
+      <article class="rev-kpi__card rev-kpi__card--sku" role="listitem">
+        <div class="rev-kpi__label">SKUs in catalog</div>
+        <div class="rev-kpi__value">{{ shop_sku_count or 0 }}</div>
+        <div class="rev-kpi__foot">{{ svd.tx_count or 0 }} movements</div>
+      </article>
+    </div>
+    <p class="rev-stock-hint text-sm text-[rgb(var(--rc-muted))]">
+      {% if shop_portal and shop is defined %}
+      Detailed line-level reports:
+      <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, view='low_stock', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '', reorder_threshold=reorder_threshold or 5) }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">open stock reports</a>.
+      {% else %}
+      Line-level stock reports are available in the shop portal stock workspace for each branch.
+      {% endif %}
+    </p>
+    <div class="rev-panels-grid rev-panels-grid--2">
+      <section class="rev-panel">
+        <div class="rev-panel__head"><h3 class="rev-panel__title">Top stock in</h3></div>
+        {% if not svd.top_in_items %}<p class="rev-empty">No stock-in records.</p>{% else %}
+        <div class="rev-scroll rev-scroll--hint"><table class="rev-data"><thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col" class="num">Qty</th></tr></thead>
+          <tbody>{% for r in svd.top_in_items %}<tr><td class="cell-strong">{{ r.name }}</td><td class="cell-muted">{{ r.category }}</td><td class="num cell-sale">{{ r.qty }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+      </section>
+      <section class="rev-panel">
+        <div class="rev-panel__head"><h3 class="rev-panel__title">Top stock out</h3></div>
+        {% if not svd.top_out_items %}<p class="rev-empty">No stock-out records.</p>{% else %}
+        <div class="rev-scroll rev-scroll--hint"><table class="rev-data"><thead><tr><th scope="col">Item</th><th scope="col">Category</th><th scope="col" class="num">Qty</th></tr></thead>
+          <tbody>{% for r in svd.top_out_items %}<tr><td class="cell-strong">{{ r.name }}</td><td class="cell-muted">{{ r.category }}</td><td class="num cell-credit">{{ r.qty }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+      </section>
+    </div>
+    <section class="rev-panel">
+      <div class="rev-panel__head"><h3 class="rev-panel__title">Daily stock movement</h3></div>
+      {% if not svd.daily %}<p class="rev-empty">No daily movement.</p>{% else %}
+      <div class="rev-scroll rev-scroll--hint">
+        <table class="rev-data rev-data--wide"><thead><tr><th scope="col">Day</th><th scope="col" class="num">Tx</th><th scope="col" class="num">In</th><th scope="col" class="num">Out</th><th scope="col" class="num">Net</th></tr></thead>
+          <tbody>{% for r in svd.daily %}<tr><td>{{ r.day }}</td><td class="num cell-muted">{{ r.tx_count or 0 }}</td><td class="num cell-sale">{{ r.qty_in or 0 }}</td><td class="num cell-credit">{{ r.qty_out or 0 }}</td><td class="num {% if (r.net_qty or 0) >= 0 %}cell-sale{% else %}cell-credit{% endif %}">{{ r.net_qty or 0 }}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endif %}
+</div>

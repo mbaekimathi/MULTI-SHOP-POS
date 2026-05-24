@@ -1,0 +1,34 @@
+{# Revenue analytics — charts view #}
+  <div class="rev-content">
+  <div class="rev-insights">
+    <section class="rev-chart-card">
+      <div class="rev-chart-card__head">
+        <h3 class="rev-chart-card__title">Payment mix</h3>
+        <p class="rev-chart-card__desc">Cash sales compared to credit for this period</p>
+      </div>
+      <div class="rev-chart-card__canvas">
+        <canvas id="it-chart-rev-mix" aria-label="Cash versus credit chart"></canvas>
+      </div>
+    </section>
+
+    <section class="rev-chart-card">
+      <div class="rev-chart-card__head">
+        <h3 class="rev-chart-card__title">Daily trend</h3>
+        <p class="rev-chart-card__desc">Cash and credit over time</p>
+      </div>
+      <div class="rev-chart-card__canvas">
+        <canvas id="it-chart-rev-daily" aria-label="Daily revenue chart"></canvas>
+      </div>
+    </section>
+
+    <section class="rev-chart-card rev-insights__wide">
+      <div class="rev-chart-card__head">
+        <h3 class="rev-chart-card__title">Revenue by shop</h3>
+        <p class="rev-chart-card__desc">Branch comparison — cash and credit</p>
+      </div>
+      <div class="rev-chart-card__canvas rev-chart-card__canvas--tall">
+        <canvas id="it-chart-rev-shops" aria-label="Revenue by shop chart"></canvas>
+      </div>
+    </section>
+  </div>
+  </div>
