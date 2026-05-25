@@ -231,7 +231,10 @@
       if (target.checked) {
         selected.add(id);
         updateSelectedUi();
-        clearLiveSearchForNextInput();
+        var searchActive = !!(liveSearch && String(liveSearch.value || "").trim().length > 0);
+        if (searchActive) {
+          clearLiveSearchForNextInput();
+        }
       } else {
         selected.delete(id);
         updateSelectedUi();

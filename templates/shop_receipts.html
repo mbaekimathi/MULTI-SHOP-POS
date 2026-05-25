@@ -70,9 +70,19 @@
 
       .it-analytics-page .rev-scroll--lg {
 
-        max-height: min(50dvh, 24rem);
+        max-height: min(78dvh, 46rem);
 
         overflow-y: auto;
+
+      }
+
+    }
+
+    @media (min-width: 1280px) {
+
+      .it-analytics-page .rev-scroll--lg {
+
+        max-height: min(82dvh, 56rem);
 
       }
 
@@ -138,7 +148,7 @@
 
   <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=1" defer></script>
 
-  <script src="{{ url_for('static', filename='js/receipt-register.js') }}?v=5" defer></script>
+  <script src="{{ url_for('static', filename='js/receipt-register.js') }}?v=6" defer></script>
 
   {% include 'partials/receipt_register_live_search_script.html' %}
 
