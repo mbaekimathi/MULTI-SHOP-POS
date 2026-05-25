@@ -5118,20 +5118,36 @@
           <button type="button" id="pos-stockin-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold">Close</button>
         </div>
         <form id="pos-stockin-form" method="post" action="{{ url_for('shop_pos_stock_in', shop_id=shop.id) }}" class="grid gap-3 p-4 sm:grid-cols-2">
+          {% if is_store_stock_mode %}
+            <div class="sm:col-span-2 rounded-xl border border-[rgb(var(--rc-primary))]/30 bg-[rgb(var(--rc-primary))]/5 px-3 py-2 text-[11px] font-semibold text-[rgb(var(--rc-page-fg))]">
+              <span class="uppercase tracking-wider text-[rgb(var(--rc-muted))]">Both mode:</span>
+              showing registered <strong>store stock items</strong>. These shelf SKUs are tracked separately and do not appear on the POS selling grid.
+            </div>
+          {% endif %}
           <div class="sm:col-span-2">
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search item</label>
             <input id="pos-stockin-search" type="search" placeholder="Search by name or category..." class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
           </div>
           <div class="sm:col-span-2">
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Item</label>
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              {% if is_store_stock_mode %}Store stock item{% else %}Item{% endif %}
+            </label>
             <select id="pos-stockin-item-id" name="item_id" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
-              <option value="">Select item</option>
-              {% for it in items %}
-                <option value="{{ it.id }}" data-search="{{ ((it.name or '') ~ ' ' ~ (it.category or ''))|lower|e }}">
-                  {{ it.name }}{% if it.category %} — {{ it.category }}{% endif %}
+              <option value="">
+                {% if is_store_stock_mode %}Select store stock item{% else %}Select item{% endif %}
+              </option>
+              {% for it in (buy_items_catalog or items) %}
+                <option
+                  value="{{ it.id }}"
+                  data-search="{{ ((it.name or '') ~ ' ' ~ (it.category or '') ~ ' ' ~ (it.measure_unit or ''))|lower|e }}"
+                >
+                  {{ it.name }}{% if it.category %} — {{ it.category }}{% endif %}{% if is_store_stock_mode and it.measure_unit %} · {{ (it.measure_unit or '')|upper }}{% endif %}
                 </option>
               {% endfor %}
             </select>
+            {% if is_store_stock_mode and not (buy_items_catalog or []) %}
+              <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]">No registered store stock items yet for this shop. Register from IT support → Register stock item.</p>
+            {% endif %}
           </div>
           <div>
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>

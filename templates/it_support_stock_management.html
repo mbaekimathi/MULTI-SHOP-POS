@@ -50,9 +50,15 @@
   <div class="mx-auto min-w-0 max-w-[110rem] max-md:-mx-4 sm:max-md:-mx-6">
     <div class="mb-6 flex flex-col gap-3 px-4 md:px-0 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock management</h2>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if is_store_stock %}Store stock management (Both mode){% else %}Company stock management{% endif %}
+        </h2>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Choose <strong class="text-[rgb(var(--rc-page-fg))]">Stock in</strong> or <strong class="text-[rgb(var(--rc-page-fg))]">Stock out</strong>, fill rows, then submit. Only rows with quantity are saved. Stock in: pick <strong class="text-[rgb(var(--rc-page-fg))]">payment</strong> from the dropdown on each stocked line (no default). You cannot save a line unless quantity, price, seller, and payment are all set; stray values on other lines are blocked. Use <strong class="text-[rgb(var(--rc-page-fg))]">Copy to lines with quantity</strong> for bulk phone/name/payment or stock-out reason/refund.
+          {% if is_store_stock %}
+            Only registered store stock items appear here while the POS is set to <strong class="text-[rgb(var(--rc-page-fg))]">Both</strong> (kitchen + shelf). These SKUs are tracked separately from the sales catalog and never appear on the POS selling page.
+          {% else %}
+            Choose <strong class="text-[rgb(var(--rc-page-fg))]">Stock in</strong> or <strong class="text-[rgb(var(--rc-page-fg))]">Stock out</strong>, fill rows, then submit. Only rows with quantity are saved. Stock in: pick <strong class="text-[rgb(var(--rc-page-fg))]">payment</strong> from the dropdown on each stocked line (no default). You cannot save a line unless quantity, price, seller, and payment are all set; stray values on other lines are blocked. Use <strong class="text-[rgb(var(--rc-page-fg))]">Copy to lines with quantity</strong> for bulk phone/name/payment or stock-out reason/refund.
+          {% endif %}
         </p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
@@ -101,7 +107,13 @@
 
     {% if not items %}
       <section class="border-b border-[rgb(var(--rc-border))] px-4 py-6 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:px-5 md:shadow-sm">
-        <p class="text-sm text-[rgb(var(--rc-muted))]">No eligible items found.</p>
+        <p class="text-sm text-[rgb(var(--rc-muted))]">
+          {% if is_store_stock %}
+            No registered store stock items yet. Use <a class="font-semibold text-[rgb(var(--rc-primary))] hover:underline" href="{{ url_for('it_support_register_stock_item') }}">Register stock item</a> to add one for every Both-mode shop.
+          {% else %}
+            No eligible items found.
+          {% endif %}
+        </p>
       </section>
     {% else %}
       <form
@@ -115,6 +127,9 @@
           <table class="min-w-[50rem] w-full text-xs sm:min-w-[54rem] md:min-w-[58rem] md:text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
+                {% if is_store_stock %}
+                  <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Shop</th>
+                {% endif %}
                 <th class="sticky left-0 z-10 min-w-[10rem] max-w-[14rem] bg-[rgb(var(--rc-surface-2))] px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:min-w-[12rem] sm:max-w-[16rem] sm:px-3 sm:py-3 sm:text-xs">Item</th>
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Stock</th>
                 <th class="min-w-[10rem] px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 sm:min-w-0 sm:px-3 sm:py-3 sm:text-xs">Qty in</th>
@@ -122,7 +137,9 @@
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 sm:px-3 sm:py-3 sm:text-xs">Phone</th>
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 sm:px-3 sm:py-3 sm:text-xs">Seller name</th>
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 sm:px-3 sm:py-3 sm:text-xs">Payment</th>
-                <th class="px-2 py-2.5 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Log</th>
+                {% if not is_store_stock %}
+                  <th class="px-2 py-2.5 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Log</th>
+                {% endif %}
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -131,7 +148,7 @@
                 {% set cat = (it.category or 'Uncategorized') %}
                 {% if ns_in.prev != cat %}
                   <tr class="bg-emerald-500/10">
-                    <td colspan="8" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 sm:px-3 sm:text-xs">
+                    <td colspan="{% if is_store_stock %}9{% else %}8{% endif %}" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 sm:px-3 sm:text-xs">
                       {{ cat }}
                     </td>
                   </tr>
@@ -140,10 +157,13 @@
                 {% set desc = (it.description or '') %}
                 <tr
                   class="hover:bg-[rgb(var(--rc-surface-2))]/40 stock-row js-bulk-in-row"
-                  data-stock-search="{{ ((it.name or '') ~ ' ' ~ (cat or '') ~ ' ' ~ desc)|lower }}"
+                  data-stock-search="{{ ((it.name or '') ~ ' ' ~ (cat or '') ~ ' ' ~ desc ~ ' ' ~ (it.shop_name or ''))|lower }}"
                   data-stock-category="{{ cat|lower }}"
                   data-item-id="{{ it.id }}"
                 >
+                  {% if is_store_stock %}
+                    <td class="px-2 py-2 align-top text-[11px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))] sm:px-3 sm:py-2.5 sm:text-xs">{{ it.shop_name or "—" }}</td>
+                  {% endif %}
                   <td class="sticky left-0 z-10 min-w-[10rem] max-w-[14rem] bg-[rgb(var(--rc-surface))] px-2 py-2 shadow-[1px_0_0_rgb(var(--rc-border))] sm:min-w-[12rem] sm:max-w-[16rem] sm:px-3 sm:py-2.5">
                     <div class="flex items-start gap-2">
                       {% set _item_img = static_upload_url(it.image_path) %}
@@ -154,7 +174,9 @@
                       {% endif %}
                       <div class="min-w-0 flex-1">
                         <div class="truncate font-semibold leading-tight text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
-                        <div class="truncate text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--rc-muted))] sm:text-[11px]">{{ cat }}</div>
+                        <div class="truncate text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--rc-muted))] sm:text-[11px]">
+                          {{ cat }}{% if is_store_stock and it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}
+                        </div>
                         <div class="text-[10px] tabular-nums text-[rgb(var(--rc-muted))] sm:text-[11px]">#{{ it.id }}</div>
                       </div>
                     </div>
@@ -218,9 +240,11 @@
                       <option value="paid">Paid</option>
                     </select>
                   </td>
-                  <td class="px-2 py-2 text-right sm:px-3 sm:py-2.5">
-                    <a href="{{ url_for('it_support_stock_in', item_id=it.id) }}" class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">In</a>
-                  </td>
+                  {% if not is_store_stock %}
+                    <td class="px-2 py-2 text-right sm:px-3 sm:py-2.5">
+                      <a href="{{ url_for('it_support_stock_in', item_id=it.id) }}" class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">In</a>
+                    </td>
+                  {% endif %}
                 </tr>
               {% endfor %}
             </tbody>
@@ -289,13 +313,18 @@
           <table class="min-w-[46rem] w-full text-xs sm:min-w-[52rem] md:min-w-[58rem] md:text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
+                {% if is_store_stock %}
+                  <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Shop</th>
+                {% endif %}
                 <th class="sticky left-0 z-10 min-w-[10rem] max-w-[14rem] bg-[rgb(var(--rc-surface-2))] px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:min-w-[12rem] sm:max-w-[16rem] sm:px-3 sm:py-3 sm:text-xs">Item</th>
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Stock</th>
                 <th class="min-w-[10rem] px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 sm:min-w-0 sm:px-3 sm:py-3 sm:text-xs">Qty out</th>
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 sm:px-3 sm:py-3 sm:text-xs">Reason</th>
                 <th class="px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 sm:px-3 sm:py-3 sm:text-xs">Refund?</th>
                 <th class="min-w-[10rem] px-2 py-2.5 text-left text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 sm:min-w-0 sm:px-3 sm:py-3 sm:text-xs">Refund $</th>
-                <th class="px-2 py-2.5 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Log</th>
+                {% if not is_store_stock %}
+                  <th class="px-2 py-2.5 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:py-3 sm:text-xs">Log</th>
+                {% endif %}
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -304,7 +333,7 @@
                 {% set cat = (it.category or 'Uncategorized') %}
                 {% if ns_out.prev != cat %}
                   <tr class="bg-rose-500/10">
-                    <td colspan="7" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300 sm:px-3 sm:text-xs">
+                    <td colspan="{% if is_store_stock %}8{% else %}7{% endif %}" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300 sm:px-3 sm:text-xs">
                       {{ cat }}
                     </td>
                   </tr>
@@ -313,11 +342,14 @@
                 {% set desc = (it.description or '') %}
                 <tr
                   class="hover:bg-[rgb(var(--rc-surface-2))]/40 stock-row js-bulk-out-row"
-                  data-stock-search="{{ ((it.name or '') ~ ' ' ~ (cat or '') ~ ' ' ~ desc)|lower }}"
+                  data-stock-search="{{ ((it.name or '') ~ ' ' ~ (cat or '') ~ ' ' ~ desc ~ ' ' ~ (it.shop_name or ''))|lower }}"
                   data-stock-category="{{ cat|lower }}"
                   data-item-id="{{ it.id }}"
                   data-last-buy-price="{% if it.last_buying_price is not none %}{{ it.last_buying_price }}{% else %}0{% endif %}"
                 >
+                  {% if is_store_stock %}
+                    <td class="px-2 py-2 align-top text-[11px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))] sm:px-3 sm:py-2.5 sm:text-xs">{{ it.shop_name or "—" }}</td>
+                  {% endif %}
                   <td class="sticky left-0 z-10 min-w-[10rem] max-w-[14rem] bg-[rgb(var(--rc-surface))] px-2 py-2 shadow-[1px_0_0_rgb(var(--rc-border))] sm:min-w-[12rem] sm:max-w-[16rem] sm:px-3 sm:py-2.5">
                     <div class="flex items-start gap-2">
                       {% set _item_img = static_upload_url(it.image_path) %}
@@ -328,7 +360,9 @@
                       {% endif %}
                       <div class="min-w-0 flex-1">
                         <div class="truncate font-semibold leading-tight text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
-                        <div class="truncate text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--rc-muted))] sm:text-[11px]">{{ cat }}</div>
+                        <div class="truncate text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--rc-muted))] sm:text-[11px]">
+                          {{ cat }}{% if is_store_stock and it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}
+                        </div>
                         <div class="text-[10px] tabular-nums text-[rgb(var(--rc-muted))] sm:text-[11px]">#{{ it.id }}</div>
                       </div>
                     </div>
@@ -379,9 +413,11 @@
                       data-item-id="{{ it.id }}"
                     />
                   </td>
-                  <td class="px-2 py-2 text-right sm:px-3 sm:py-2.5">
-                    <a href="{{ url_for('it_support_stock_out', item_id=it.id) }}" class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">Out</a>
-                  </td>
+                  {% if not is_store_stock %}
+                    <td class="px-2 py-2 text-right sm:px-3 sm:py-2.5">
+                      <a href="{{ url_for('it_support_stock_out', item_id=it.id) }}" class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">Out</a>
+                    </td>
+                  {% endif %}
                 </tr>
               {% endfor %}
             </tbody>

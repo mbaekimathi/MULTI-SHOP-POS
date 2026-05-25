@@ -34,6 +34,40 @@
             </p>
           </header>
 
+          <div class="simple-home__install" data-pwa-install-host hidden>
+            <div class="simple-home__install-glow" aria-hidden="true"></div>
+            <div class="simple-home__install-body">
+              <p class="simple-home__install-eyebrow">Get the app</p>
+              <h2 class="simple-home__install-title">Install {{ pub_brand_name }} on this device</h2>
+              <p class="simple-home__install-desc">
+                One-tap launch, full-screen workspace, faster loads, and offline-aware. No app store needed.
+              </p>
+              <button type="button" class="simple-home__install-btn" data-pwa-install>
+                <span class="simple-home__install-btn-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
+                  </svg>
+                </span>
+                Install app
+              </button>
+            </div>
+          </div>
+
+          <script>
+            (function () {
+              var host = document.querySelector('[data-pwa-install-host]');
+              if (!host) return;
+              function inStandalone() {
+                try {
+                  if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+                } catch (e) {}
+                return window.navigator.standalone === true;
+              }
+              if (inStandalone()) return;
+              host.hidden = false;
+            })();
+          </script>
+
           <div class="simple-home__actions" role="navigation" aria-label="Sign in">
             <a class="simple-home__action simple-home__action--shop" href="{{ url_for('public_shop_login') }}">
               <span class="simple-home__action-icon" aria-hidden="true">

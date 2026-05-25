@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    Maskable icon: design lives inside an 80% safe zone (centered).
+    The full 512x512 background fills the OS-applied mask (circle, squircle, etc).
+  -->
+  <defs>
+    <linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="0.55" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#ea580c"/>
+    </linearGradient>
+    <radialGradient id="mr" cx="30%" cy="22%" r="80%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" fill="url(#mg)"/>
+  <rect x="0" y="0" width="512" height="512" fill="url(#mr)"/>
+  <!-- Letter P (POS), scaled into ~60% safe area, centered at 256,256 -->
+  <g transform="translate(256 256) scale(0.78) translate(-256 -256)">
+    <path d="M176 356V156h118c23 0 42 6 56 18 14 12 22 29 22 50 0 20-7 36-20 48-13 12-31 18-54 18h-64v66h-58zm58-112h52c10 0 18-3 23-8 6-5 9-12 9-21 0-9-3-16-9-21-6-5-14-8-24-8h-51v58z" fill="#0b1220" fill-opacity="0.92"/>
+  </g>
+</svg>

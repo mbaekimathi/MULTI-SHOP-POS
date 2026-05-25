@@ -1857,6 +1857,7 @@ def init_store_stock_items_table() -> bool:
         name VARCHAR(255) NOT NULL,
         description TEXT NULL,
         measure_unit VARCHAR(50) NOT NULL,
+        stock_qty DECIMAL(14,4) NOT NULL DEFAULT 0,
         status ENUM('active','inactive') NOT NULL DEFAULT 'active',
         created_by_employee_id INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1868,10 +1869,51 @@ def init_store_stock_items_table() -> bool:
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql)
+            if not column_exists("store_stock_items", "stock_qty"):
+                cur.execute(
+                    "ALTER TABLE store_stock_items ADD COLUMN stock_qty DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER measure_unit"
+                )
         logger.info("Table store_stock_items is ready.")
         return True
     except pymysql.Error as e:
         logger.warning("Could not init store_stock_items: %s", e)
+        return False
+
+
+def init_store_stock_transactions_table() -> bool:
+    """Movement log for ``store_stock_items`` (Both-mode shelf SKUs separate from sales catalog)."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS store_stock_transactions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        store_stock_item_id INT NOT NULL,
+        shop_id INT NOT NULL,
+        direction ENUM('in','out') NOT NULL,
+        qty DECIMAL(14,4) NOT NULL,
+        stock_before DECIMAL(14,4) NOT NULL,
+        stock_after DECIMAL(14,4) NOT NULL,
+        buying_price DECIMAL(12,2) NULL,
+        place_brought_from VARCHAR(255) NULL,
+        seller_phone VARCHAR(40) NULL,
+        stock_out_reason VARCHAR(50) NULL,
+        refunded TINYINT(1) NOT NULL DEFAULT 0,
+        refund_amount DECIMAL(12,2) NULL,
+        payment_status ENUM('pending_payment','partially_paid','paid') NOT NULL DEFAULT 'pending_payment',
+        amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        note VARCHAR(255) NULL,
+        created_by_employee_id INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_sst_item (store_stock_item_id),
+        KEY idx_sst_shop (shop_id),
+        KEY idx_sst_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table store_stock_transactions is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init store_stock_transactions: %s", e)
         return False
 
 
@@ -1931,8 +1973,9 @@ def list_store_stock_items(shop_id: int, *, limit: int = 5000, active_only: bool
     where = "WHERE shop_id=%s"
     if active_only:
         where += " AND status='active'"
+    qty_col = "stock_qty" if column_exists("store_stock_items", "stock_qty") else "0 AS stock_qty"
     sql = f"""
-    SELECT id, shop_id, category, name, description, measure_unit, status, created_at
+    SELECT id, shop_id, category, name, description, measure_unit, {qty_col}, status, created_at
     FROM store_stock_items
     {where}
     ORDER BY category ASC, name ASC, id DESC
@@ -1940,7 +1983,462 @@ def list_store_stock_items(shop_id: int, *, limit: int = 5000, active_only: bool
     """
     with get_cursor() as cur:
         cur.execute(sql, (sid, int(limit)))
+        rows = cur.fetchall() or []
+    for r in rows:
+        try:
+            r["stock_qty"] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            r["stock_qty"] = 0.0
+    return rows
+
+
+def list_store_stock_items_for_management(limit: int = 2000) -> list:
+    """Cross-shop list of store_stock_items for the IT support stock-management page.
+
+    Includes ``shop_name`` and ``last_buying_price`` (from latest stock in) so the
+    bulk grid can prefill buying price and show shop grouping for Both-mode SKUs.
+    """
+    if not column_exists("store_stock_items", "id"):
+        init_store_stock_items_table()
+    init_store_stock_transactions_table()
+    qty_col = "ssi.stock_qty" if column_exists("store_stock_items", "stock_qty") else "0"
+    sql = f"""
+    SELECT
+        ssi.id,
+        ssi.shop_id,
+        ssi.category,
+        ssi.name,
+        ssi.description,
+        ssi.measure_unit,
+        {qty_col} AS stock_qty,
+        ssi.status,
+        COALESCE(s.shop_name, CONCAT('Shop #', ssi.shop_id)) AS shop_name,
+        (
+            SELECT sst.buying_price
+            FROM store_stock_transactions sst
+            WHERE sst.store_stock_item_id = ssi.id
+              AND sst.direction = 'in'
+              AND sst.buying_price IS NOT NULL
+            ORDER BY sst.id DESC
+            LIMIT 1
+        ) AS last_buying_price
+    FROM store_stock_items ssi
+    LEFT JOIN shops s ON s.id = ssi.shop_id
+    WHERE ssi.status = 'active'
+    ORDER BY ssi.category ASC, ssi.name ASC, shop_name ASC, ssi.id DESC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (int(limit),))
+        rows = cur.fetchall() or []
+    for r in rows:
+        try:
+            r["stock_qty"] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            r["stock_qty"] = 0.0
+        lp = r.get("last_buying_price")
+        try:
+            r["last_buying_price"] = float(lp) if lp is not None else None
+        except (TypeError, ValueError):
+            r["last_buying_price"] = None
+        r["image_path"] = None
+    return rows
+
+
+def list_store_stock_transactions(
+    store_item_id: int,
+    direction: Optional[str] = None,
+    limit: int = 200,
+) -> list:
+    """Movement history for a single ``store_stock_items`` row."""
+    init_store_stock_transactions_table()
+    try:
+        sid = int(store_item_id)
+    except (TypeError, ValueError):
+        return []
+    if sid <= 0:
+        return []
+    where = "WHERE sst.store_stock_item_id = %s"
+    params: list = [sid]
+    if direction in ("in", "out"):
+        where += " AND sst.direction = %s"
+        params.append(direction)
+    sql = f"""
+    SELECT
+        sst.id,
+        sst.direction,
+        sst.qty,
+        sst.stock_before,
+        sst.stock_after,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.stock_out_reason,
+        sst.refunded,
+        sst.refund_amount,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at
+    FROM store_stock_transactions sst
+    {where}
+    ORDER BY sst.id DESC
+    LIMIT %s
+    """
+    params.append(int(limit))
+    with get_cursor() as cur:
+        cur.execute(sql, tuple(params))
         return cur.fetchall() or []
+
+
+def _apply_store_stock_transaction_on_cursor(
+    cur,
+    *,
+    store_stock_item_id: int,
+    direction: str,
+    qty,
+    buying_price: Optional[float] = None,
+    place_brought_from: Optional[str] = None,
+    seller_phone: Optional[str] = None,
+    stock_out_reason: Optional[str] = None,
+    refunded: bool = False,
+    refund_amount: Optional[float] = None,
+    note: Optional[str] = None,
+    created_by_employee_id: Optional[int] = None,
+    payment_status: Optional[str] = None,
+    amount_paid: Optional[float] = None,
+) -> bool:
+    """Apply one stock movement against ``store_stock_items`` using an open cursor."""
+    if direction not in ("in", "out"):
+        return False
+    n = normalize_stock_move_qty(qty)
+    if n is None:
+        return False
+
+    cur.execute(
+        """
+        SELECT shop_id, stock_qty, status
+        FROM store_stock_items
+        WHERE id=%s
+        FOR UPDATE
+        """,
+        (int(store_stock_item_id),),
+    )
+    row = cur.fetchone()
+    if not row:
+        return False
+    if (row.get("status") or "") != "active":
+        return False
+
+    shop_id_val = int(row.get("shop_id") or 0)
+    before = round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+    if direction == "in":
+        after = round(before + n, STOCK_QTY_DECIMAL_PLACES)
+    else:
+        after = round(before - n, STOCK_QTY_DECIMAL_PLACES)
+        if after < 0:
+            return False
+
+    cur.execute(
+        "UPDATE store_stock_items SET stock_qty=%s WHERE id=%s",
+        (after, int(store_stock_item_id)),
+    )
+
+    if direction == "in":
+        ps = (payment_status or "pending_payment").strip().lower()
+        if ps not in {"pending_payment", "partially_paid", "paid"}:
+            ps = "pending_payment"
+        if amount_paid is not None:
+            try:
+                ap = max(0.0, float(amount_paid))
+                if not math.isfinite(ap):
+                    ap = 0.0
+            except (TypeError, ValueError):
+                ap = 0.0
+        elif ps == "paid":
+            bp = float(buying_price or 0.0)
+            ap = max(0.0, round(float(n) * bp, 2))
+        else:
+            ap = 0.0
+    else:
+        ps = "pending_payment"
+        ap = 0.0
+
+    cur.execute(
+        """
+        INSERT INTO store_stock_transactions
+            (
+                store_stock_item_id, shop_id, direction, qty, stock_before, stock_after,
+                buying_price, place_brought_from, seller_phone, stock_out_reason, refunded, refund_amount,
+                payment_status, amount_paid,
+                note, created_by_employee_id
+            )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            int(store_stock_item_id),
+            shop_id_val,
+            direction,
+            n,
+            before,
+            after,
+            buying_price if buying_price is not None else None,
+            place_brought_from or None,
+            seller_phone or None,
+            stock_out_reason or None,
+            1 if refunded else 0,
+            refund_amount if refund_amount is not None else None,
+            ps,
+            ap,
+            note or None,
+            created_by_employee_id,
+        ),
+    )
+    return True
+
+
+def create_store_stock_transactions_batch(
+    *,
+    operations: list,
+    created_by_employee_id: Optional[int] = None,
+) -> tuple:
+    """Apply multiple store-stock movements atomically (all succeed or none)."""
+    if not operations:
+        return False, "No line items to apply."
+    init_store_stock_transactions_table()
+    try:
+        with get_cursor(commit=True) as cur:
+            for op in operations:
+                ok = _apply_store_stock_transaction_on_cursor(
+                    cur,
+                    store_stock_item_id=int(op["store_stock_item_id"]),
+                    direction=str(op["direction"]),
+                    qty=op["qty"],
+                    buying_price=op.get("buying_price"),
+                    place_brought_from=op.get("place_brought_from"),
+                    seller_phone=op.get("seller_phone"),
+                    stock_out_reason=op.get("stock_out_reason"),
+                    refunded=bool(op.get("refunded")),
+                    refund_amount=op.get("refund_amount"),
+                    note=op.get("note"),
+                    created_by_employee_id=created_by_employee_id,
+                    payment_status=op.get("payment_status"),
+                    amount_paid=op.get("amount_paid"),
+                )
+                if not ok:
+                    return False, (
+                        f"Could not apply line for store item #{op.get('store_stock_item_id')} "
+                        "(check quantity vs current shelf stock and that the SKU is active)."
+                    )
+    except Exception:
+        return False, "Could not update store stock. Check database connection and item eligibility."
+
+    n = len(operations)
+    d0 = str(operations[0].get("direction") or "")
+    dir_label = "stock in" if d0 == "in" else "stock out"
+    return True, f"Applied {dir_label} for {n} store stock item(s)."
+
+
+def list_store_stock_items_for_shop_buy(shop_id: int, limit: int = 2000) -> list:
+    """Per-shop active store stock SKUs for the POS Buy items dropdown (Both mode)."""
+    if not column_exists("store_stock_items", "id"):
+        init_store_stock_items_table()
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return []
+    if sid <= 0:
+        return []
+    qty_col = "stock_qty" if column_exists("store_stock_items", "stock_qty") else "0 AS stock_qty"
+    sql = f"""
+    SELECT id, shop_id, category, name, measure_unit, {qty_col}, status
+    FROM store_stock_items
+    WHERE shop_id=%s AND status='active'
+    ORDER BY category ASC, name ASC, id ASC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (sid, int(limit)))
+        rows = cur.fetchall() or []
+    for r in rows:
+        try:
+            r["stock_qty"] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            r["stock_qty"] = 0.0
+    return rows
+
+
+def shop_manual_store_stock_in(
+    *,
+    shop_id: int,
+    store_stock_item_id: int,
+    qty,
+    buying_price,
+    place_brought_from: str,
+    seller_phone: str,
+    payment_status: str = "pending_payment",
+    note: Optional[str] = None,
+    created_by_employee_id: Optional[int] = None,
+) -> bool:
+    """Manual POS stock-in against a ``store_stock_items`` SKU (Both-mode shelf)."""
+    place_brought_from = (place_brought_from or "").strip()
+    if not place_brought_from:
+        return False
+    seller_phone = _normalize_phone(seller_phone)
+    if len(re.sub(r"\D", "", seller_phone)) < 7:
+        return False
+
+    if buying_price is None:
+        bp = 0.0
+    elif isinstance(buying_price, str):
+        s = buying_price.strip().replace("\u00a0", "").replace(" ", "")
+        if not s:
+            bp = 0.0
+        else:
+            if "," in s and "." not in s:
+                s = s.replace(",", ".")
+            try:
+                bp = float(s)
+            except ValueError:
+                return False
+            if not math.isfinite(bp):
+                return False
+    else:
+        try:
+            bp = float(buying_price)
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(bp):
+            return False
+    if bp < 0:
+        return False
+
+    init_store_stock_transactions_table()
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT shop_id, status FROM store_stock_items WHERE id=%s LIMIT 1",
+                (int(store_stock_item_id),),
+            )
+            row = cur.fetchone()
+            if not row or int(row.get("shop_id") or 0) != int(shop_id):
+                return False
+            if (row.get("status") or "") != "active":
+                return False
+            return _apply_store_stock_transaction_on_cursor(
+                cur,
+                store_stock_item_id=int(store_stock_item_id),
+                direction="in",
+                qty=qty,
+                buying_price=bp,
+                place_brought_from=place_brought_from.upper(),
+                seller_phone=seller_phone,
+                stock_out_reason=None,
+                refunded=False,
+                refund_amount=None,
+                note=(note.strip().upper() if isinstance(note, str) and note.strip() else None),
+                created_by_employee_id=created_by_employee_id,
+                payment_status=payment_status,
+                amount_paid=None,
+            )
+    except Exception:
+        return False
+
+
+def get_latest_shop_manual_store_stock_in_tx_id(
+    shop_id: int,
+    store_stock_item_id: int,
+    created_by_employee_id: Optional[int] = None,
+) -> Optional[int]:
+    """Most recent store-stock manual stock-in tx id for receipt redirects."""
+    init_store_stock_transactions_table()
+    params: list = [int(shop_id), int(store_stock_item_id)]
+    where_emp = ""
+    if created_by_employee_id:
+        where_emp = " AND created_by_employee_id=%s"
+        params.append(int(created_by_employee_id))
+    sql = f"""
+    SELECT id
+    FROM store_stock_transactions
+    WHERE shop_id=%s
+      AND store_stock_item_id=%s
+      AND direction='in'
+      {where_emp}
+    ORDER BY id DESC
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone() or {}
+            tid = int(row.get("id") or 0)
+            return tid if tid > 0 else None
+    except pymysql.Error:
+        return None
+
+
+def get_shop_store_stock_in_receipt_row(shop_id: int, tx_id: int):
+    """Single store-stock stock-in tx row enriched for receipt printing.
+
+    Returns the same shape as ``get_shop_stock_in_receipt_row`` so the existing
+    ``shop_stock_in_receipt.html`` template can render it without changes.
+    """
+    init_store_stock_transactions_table()
+    sql = """
+    SELECT
+        sst.id,
+        sst.shop_id,
+        sst.store_stock_item_id AS item_id,
+        'manual' AS source,
+        sst.direction,
+        sst.qty,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at,
+        sh.shop_name,
+        sh.shop_code,
+        sh.shop_location,
+        ssi.name AS item_name,
+        ssi.category AS item_category,
+        COALESCE(e.full_name, 'UNKNOWN') AS served_by
+    FROM store_stock_transactions sst
+    JOIN shops sh ON sh.id = sst.shop_id
+    JOIN store_stock_items ssi ON ssi.id = sst.store_stock_item_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE sst.shop_id=%s AND sst.id=%s AND sst.direction='in'
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(shop_id), int(tx_id)))
+            row = cur.fetchone() or None
+    except pymysql.Error:
+        return None
+    if not row:
+        return None
+    r = dict(row)
+    try:
+        r["qty"] = float(r.get("qty") or 0)
+    except (TypeError, ValueError):
+        r["qty"] = 0.0
+    try:
+        r["buying_price"] = float(r.get("buying_price") or 0.0)
+    except (TypeError, ValueError):
+        r["buying_price"] = 0.0
+    try:
+        r["amount_paid"] = float(r.get("amount_paid") or 0.0)
+    except (TypeError, ValueError):
+        r["amount_paid"] = 0.0
+    r["total_cost"] = float(r["qty"] * r["buying_price"])
+    r["place_brought_from"] = (r.get("place_brought_from") or "").strip() or "-"
+    r["seller_phone"] = (r.get("seller_phone") or "").strip() or "-"
+    r["served_by"] = (r.get("served_by") or "").strip() or "UNKNOWN"
+    r["payment_status"] = (r.get("payment_status") or "pending_payment").strip().lower()
+    return r
 
 
 def init_shop_printer_settings_table():

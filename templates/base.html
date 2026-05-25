@@ -39,10 +39,32 @@
         }
       })();
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     {% set _app_icon = (site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg') %}
+    {% set _app_name = (site_settings.company_name if site_settings and site_settings.company_name else 'Point of Sale') %}
+    {% set _app_short_name = (_app_name.split()[0] if _app_name else 'POS')[:12] %}
+    {% set _primary_hex = (site_settings.primary_color if site_settings and site_settings.primary_color else '#f97316') %}
     <link rel="icon" href="{{ url_for('static', filename=_app_icon) }}" />
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/app-icon-192.png') }}" />
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
+    <link rel="apple-touch-icon" sizes="192x192" href="{{ url_for('static', filename='icons/app-icon-192.png') }}" />
+    <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
     <link rel="apple-touch-icon" href="{{ url_for('static', filename=_app_icon) }}" />
+    <link rel="mask-icon" href="{{ url_for('static', filename='icons/app-icon-monochrome.svg') }}" color="{{ _primary_hex }}" />
+    <link rel="manifest" href="{{ url_for('pwa_manifest') }}" />
+    <meta name="theme-color" content="{{ _primary_hex }}" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="{{ _app_short_name }}" />
+    <meta name="application-name" content="{{ _app_name }}" />
+    <meta name="msapplication-TileColor" content="{{ _primary_hex }}" />
+    <meta name="msapplication-TileImage" content="{{ url_for('static', filename=_app_icon) }}" />
+    <meta name="format-detection" content="telephone=no" />
     <title>{% block title %}{{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}</title>
     <meta
       name="description"
@@ -1336,10 +1358,103 @@
         -webkit-background-clip: text;
         background-clip: text;
       }
+      .simple-home__install {
+        position: relative;
+        margin-top: 1.5rem;
+        padding: 1.1rem 1.1rem 1.15rem;
+        border-radius: 1.15rem;
+        border: 1px solid rgba(var(--rc-primary), 0.32);
+        background: linear-gradient(
+          135deg,
+          rgba(var(--rc-primary), 0.14),
+          rgba(var(--rc-accent), 0.12) 55%,
+          rgba(var(--rc-surface-2), 0.45)
+        );
+        overflow: hidden;
+        animation: simple-home-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+        animation-delay: 0.1s;
+      }
+      .simple-home__install-glow {
+        position: absolute;
+        inset: -1px;
+        pointer-events: none;
+        background:
+          radial-gradient(120% 80% at 0% 0%, rgba(var(--rc-primary), 0.35), transparent 55%),
+          radial-gradient(120% 80% at 100% 100%, rgba(var(--rc-accent), 0.3), transparent 55%);
+        opacity: 0.85;
+        mix-blend-mode: screen;
+      }
+      .simple-home__install-body {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 0.5rem;
+      }
+      .simple-home__install-eyebrow {
+        margin: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgb(var(--rc-primary));
+      }
+      .simple-home__install-title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        line-height: 1.25;
+      }
+      .simple-home__install-desc {
+        margin: 0;
+        font-size: 0.86rem;
+        line-height: 1.5;
+        color: rgb(var(--rc-page-fg) / 0.78);
+      }
+      .simple-home__install-btn {
+        margin-top: 0.35rem;
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.62rem 1.1rem;
+        border-radius: 0.85rem;
+        border: 1px solid transparent;
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #fff;
+        cursor: pointer;
+        background-image: linear-gradient(135deg, rgb(var(--rc-primary)), rgb(var(--rc-accent)));
+        box-shadow: 0 14px 28px -14px rgba(var(--rc-primary) / 0.7);
+        transition: transform 0.18s ease, box-shadow 0.2s ease;
+      }
+      .simple-home__install-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 18px 34px -14px rgba(var(--rc-primary) / 0.8);
+      }
+      .simple-home__install-btn:active {
+        transform: translateY(0);
+      }
+      .simple-home__install-btn:focus-visible {
+        outline: 2px solid rgb(var(--rc-primary));
+        outline-offset: 3px;
+      }
+      .simple-home__install-btn-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 1.15rem;
+        height: 1.15rem;
+        border-radius: 9999px;
+        background: rgba(255, 255, 255, 0.22);
+      }
+      .simple-home__install-btn-icon svg {
+        width: 0.85rem;
+        height: 0.85rem;
+      }
       .simple-home__actions {
         display: grid;
         gap: 0.65rem;
-        margin-top: 1.75rem;
+        margin-top: 1.25rem;
       }
       @media (min-width: 480px) {
         .simple-home__actions {
@@ -2859,8 +2974,42 @@
   </head>
   <body class="antialiased transition-[background-color,color] duration-200 font-sans">
     {% block body %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa-install.css') }}" />
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/pwa-install.js') }}" defer></script>
+    <script>
+      (function () {
+        if (!("serviceWorker" in navigator)) return;
+        if (window.__rcSwRegistered) return;
+        window.__rcSwRegistered = true;
+        window.addEventListener("load", function () {
+          navigator.serviceWorker
+            .register("/pos-sw.js", { scope: "/" })
+            .then(function (reg) {
+              if (!reg) return;
+              if (reg.waiting) {
+                try { reg.waiting.postMessage("SKIP_WAITING"); } catch (e) {}
+              }
+              reg.addEventListener && reg.addEventListener("updatefound", function () {
+                var nw = reg.installing;
+                if (!nw) return;
+                nw.addEventListener("statechange", function () {
+                  if (nw.state === "installed" && navigator.serviceWorker.controller) {
+                    try { nw.postMessage("SKIP_WAITING"); } catch (e) {}
+                  }
+                });
+              });
+            })
+            .catch(function () {});
+        });
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function () {
+          if (refreshing) return;
+          refreshing = true;
+        });
+      })();
+    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

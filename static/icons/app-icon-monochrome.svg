@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Monochrome variant: a single solid fill is required by some OSes (Android themed icon). -->
+  <rect x="48" y="48" width="416" height="416" rx="96" fill="#000"/>
+  <path d="M176 356V156h118c23 0 42 6 56 18 14 12 22 29 22 50 0 20-7 36-20 48-13 12-31 18-54 18h-64v66h-58zm58-112h52c10 0 18-3 23-8 6-5 9-12 9-21 0-9-3-16-9-21-6-5-14-8-24-8h-51v58z" fill="#fff"/>
+</svg>

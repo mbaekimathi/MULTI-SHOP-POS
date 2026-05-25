@@ -2746,6 +2746,11 @@ def _it_support_stock_management_post():
     if direction not in ("in", "out"):
         flash("Invalid action.", "error")
         return redirect(url_for("it_support_stock_management"))
+
+    is_store_stock = _global_pos_inventory_mode() == "both"
+    if is_store_stock:
+        return _it_support_store_stock_management_post(direction)
+
     try:
         from database import (
             create_stock_transactions_batch,
@@ -2902,6 +2907,166 @@ def _it_support_stock_management_post():
     return redirect(url_for("it_support_stock_management"))
 
 
+def _it_support_store_stock_management_post(direction: str):
+    """Bulk stock in/out for the ``store_stock_items`` catalog (Both mode)."""
+    try:
+        from database import (
+            create_store_stock_transactions_batch,
+            list_store_stock_items_for_management,
+            normalize_stock_move_qty,
+            resolve_seller_name_and_phone,
+        )
+
+        items = list_store_stock_items_for_management(limit=2000)
+    except Exception:
+        items = []
+    if not items:
+        flash("No registered store stock items found.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    allowed_reasons = {"return", "waste", "display"}
+    allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
+    errors: list[str] = []
+    operations: list[dict] = []
+
+    for it in items:
+        try:
+            iid = int(it.get("id"))
+        except Exception:
+            continue
+        label_name = it.get("name") or f"Store item #{iid}"
+        shop_label = it.get("shop_name") or ""
+        label = f"{label_name} ({shop_label})" if shop_label else label_name
+
+        if direction == "in":
+            qty_raw = (request.form.get(f"in_qty_{iid}") or "").strip()
+            bp_raw = (request.form.get(f"in_buying_price_{iid}") or "").strip()
+            place = (request.form.get(f"in_place_{iid}") or "").strip()
+            phone_raw = (request.form.get(f"in_seller_phone_{iid}") or "").strip()
+            pay_raw = (request.form.get(f"in_payment_status_{iid}") or "").strip().lower()
+            pay_selected = pay_raw in allowed_pay
+            partial_without_qty = bool(bp_raw or place or phone_raw or pay_selected)
+
+            if not qty_raw:
+                if partial_without_qty:
+                    errors.append(
+                        f"{label}: enter a stock-in quantity or clear buying price, seller, phone, and payment."
+                    )
+                continue
+            qty = normalize_stock_move_qty(qty_raw)
+            if qty is None:
+                errors.append(f"{label}: invalid quantity.")
+                continue
+            if not bp_raw:
+                errors.append(f"{label}: buying price is required when quantity is set.")
+                continue
+            if not place:
+                errors.append(f"{label}: place bought is required when quantity is set.")
+                continue
+            if pay_raw not in allowed_pay:
+                errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
+                continue
+            payment_status = pay_raw
+            place_final = place.upper()
+            resolved_phone = None
+            if phone_raw:
+                rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+                if not rn or not rp:
+                    errors.append(
+                        f"{label}: seller phone must be valid (07… or 254…). "
+                        "If new, enter seller name in the seller field."
+                    )
+                    continue
+                place_final = (rn or place).strip().upper()
+                resolved_phone = rp
+            try:
+                buying_price = float(bp_raw)
+                if buying_price < 0:
+                    raise ValueError()
+            except Exception:
+                errors.append(f"{label}: buying price must be a valid number.")
+                continue
+            operations.append(
+                {
+                    "store_stock_item_id": iid,
+                    "direction": "in",
+                    "qty": qty,
+                    "buying_price": buying_price,
+                    "place_brought_from": place_final,
+                    "seller_phone": resolved_phone,
+                    "stock_out_reason": None,
+                    "refunded": False,
+                    "refund_amount": None,
+                    "note": None,
+                    "payment_status": payment_status,
+                    "amount_paid": None,
+                }
+            )
+        else:
+            qty_raw = (request.form.get(f"out_qty_{iid}") or "").strip()
+            reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
+            ram = (request.form.get(f"out_refund_amount_{iid}") or "").strip()
+            partial_out = reason in allowed_reasons or bool(ram)
+
+            if not qty_raw:
+                if partial_out:
+                    errors.append(
+                        f"{label}: enter a quantity out or clear reason and refund amount for this row."
+                    )
+                continue
+            qty = normalize_stock_move_qty(qty_raw)
+            if qty is None:
+                errors.append(f"{label}: invalid quantity.")
+                continue
+            if reason not in allowed_reasons:
+                errors.append(f"{label}: choose a stock out reason.")
+                continue
+            refunded_raw = (request.form.get(f"out_refunded_{iid}") or "").strip().lower()
+            if refunded_raw not in ("yes", "no"):
+                errors.append(f"{label}: choose whether this line is refunded.")
+                continue
+            refunded = refunded_raw == "yes"
+            refund_amount = None
+            if refunded:
+                if not ram:
+                    errors.append(f"{label}: refund amount is required when refunded is yes.")
+                    continue
+                try:
+                    refund_amount = float(ram)
+                    if refund_amount < 0:
+                        raise ValueError()
+                except Exception:
+                    errors.append(f"{label}: refund amount must be a valid number.")
+                    continue
+            operations.append(
+                {
+                    "store_stock_item_id": iid,
+                    "direction": "out",
+                    "qty": qty,
+                    "buying_price": None,
+                    "place_brought_from": None,
+                    "stock_out_reason": reason.upper(),
+                    "refunded": refunded,
+                    "refund_amount": refund_amount,
+                    "note": None,
+                }
+            )
+
+    if errors:
+        flash(" ".join(errors[:6]) + (" …" if len(errors) > 6 else ""), "error")
+        return redirect(url_for("it_support_stock_management"))
+    if not operations:
+        flash("Enter a quantity on at least one row to apply.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    ok, msg = create_store_stock_transactions_batch(
+        operations=operations,
+        created_by_employee_id=session.get("employee_id"),
+    )
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("it_support_stock_management"))
+
+
 @app.route("/it_support/item-management/stock-management", methods=["GET", "POST"])
 @login_required
 def it_support_stock_management():
@@ -2909,18 +3074,32 @@ def it_support_stock_management():
     _it_support_only()
     if request.method == "POST":
         return _it_support_stock_management_post()
-    show_register_stock_item_link = False
+    global_mode = _global_pos_inventory_mode()
+    is_store_stock = global_mode == "both"
+    show_register_stock_item_link = is_store_stock
+    items: list = []
     try:
-        from database import list_stock_manage_items
+        if is_store_stock:
+            from database import (
+                init_store_stock_items_table,
+                init_store_stock_transactions_table,
+                list_store_stock_items_for_management,
+            )
 
-        items = list_stock_manage_items(limit=500)
-        show_register_stock_item_link = _global_pos_inventory_mode() == "both"
+            init_store_stock_items_table()
+            init_store_stock_transactions_table()
+            items = list_store_stock_items_for_management(limit=2000)
+        else:
+            from database import list_stock_manage_items
+
+            items = list_stock_manage_items(limit=500)
     except Exception:
         items = []
     return render_template(
         "it_support_stock_management.html",
         items=items,
         show_register_stock_item_link=show_register_stock_item_link,
+        is_store_stock=is_store_stock,
     )
 
 
@@ -6173,13 +6352,37 @@ def shop_pos(shop_id: int):
         items = _load_shop_pos_catalog_rows(shop_id)
     except Exception:
         items = []
+
+    inventory_mode = _pos_inventory_mode(shop)
+    is_store_stock_mode = inventory_mode == "both"
+    buy_items_catalog: list = []
+    if is_store_stock_mode:
+        try:
+            from database import (
+                init_store_stock_items_table,
+                init_store_stock_transactions_table,
+                list_store_stock_items_for_shop_buy,
+            )
+
+            init_store_stock_items_table()
+            init_store_stock_transactions_table()
+            buy_items_catalog = list_store_stock_items_for_shop_buy(
+                shop_id=shop_id, limit=2000
+            )
+        except Exception:
+            buy_items_catalog = []
+    else:
+        buy_items_catalog = items
+
     pri_rgb, acc_rgb = _effective_pos_theme_colors(shop)
     return render_template(
         "shop_pos.html",
         shop=shop,
         items=items,
+        buy_items_catalog=buy_items_catalog,
+        is_store_stock_mode=is_store_stock_mode,
         pos_printing_settings=_effective_printing_settings_for_shop(shop),
-        pos_inventory_mode=_pos_inventory_mode(shop),
+        pos_inventory_mode=inventory_mode,
         pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -6258,16 +6461,34 @@ def pwa_manifest():
     }.get(icon_ext, "image/svg+xml")
     icons = [
         {
-            "src": icon_url,
-            "sizes": "any" if icon_ext == "svg" else "512x512",
-            "type": icon_mime,
+            "src": url_for("static", filename="icons/app-icon-192.png"),
+            "sizes": "192x192",
+            "type": "image/png",
             "purpose": "any",
         },
         {
-            "src": url_for("static", filename="icons/app-icon-maskable.svg"),
-            "sizes": "any",
-            "type": "image/svg+xml",
+            "src": url_for("static", filename="icons/app-icon-512.png"),
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any",
+        },
+        {
+            "src": url_for("static", filename="icons/app-icon-192-maskable.png"),
+            "sizes": "192x192",
+            "type": "image/png",
             "purpose": "maskable",
+        },
+        {
+            "src": url_for("static", filename="icons/app-icon-512-maskable.png"),
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable",
+        },
+        {
+            "src": icon_url,
+            "sizes": "any",
+            "type": icon_mime,
+            "purpose": "any",
         },
         {
             "src": url_for("static", filename="icons/app-icon-monochrome.svg"),
@@ -6297,14 +6518,26 @@ def pwa_manifest():
                 "short_name": "POS",
                 "description": "Jump to your shop point of sale.",
                 "url": "/?source=pwa-shortcut-pos",
-                "icons": [{"src": icon_url, "sizes": "any", "type": icon_mime}],
+                "icons": [
+                    {
+                        "src": url_for("static", filename="icons/app-icon-192.png"),
+                        "sizes": "192x192",
+                        "type": "image/png",
+                    }
+                ],
             },
             {
                 "name": "Sign in",
                 "short_name": "Sign in",
                 "description": "Employee or shop sign in.",
                 "url": "/?source=pwa-shortcut-signin",
-                "icons": [{"src": icon_url, "sizes": "any", "type": icon_mime}],
+                "icons": [
+                    {
+                        "src": url_for("static", filename="icons/app-icon-192.png"),
+                        "sizes": "192x192",
+                        "type": "image/png",
+                    }
+                ],
             },
         ],
         "prefer_related_applications": False,
@@ -6338,6 +6571,8 @@ def shop_pos_stock_in(shop_id: int):
             return jsonify({"ok": False, "error": msg}), 403
         flash(msg, "error")
         return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    is_store_stock_mode = _pos_inventory_mode(shop) == "both"
 
     item_id_raw = (request.form.get("item_id") or "").strip()
     qty_raw = (request.form.get("qty") or "").strip()
@@ -6375,14 +6610,8 @@ def shop_pos_stock_in(shop_id: int):
 
     tx_id = None
     try:
-        from database import (
-            ensure_shop_items_for_shop,
-            get_latest_shop_manual_stock_in_tx_id,
-            resolve_seller_name_and_phone,
-            shop_manual_stock_in,
-        )
+        from database import resolve_seller_name_and_phone
 
-        ensure_shop_items_for_shop(shop_id)
         resolved_name, resolved_phone = resolve_seller_name_and_phone(
             seller_phone=seller_phone,
             seller_name=seller_name,
@@ -6392,23 +6621,55 @@ def shop_pos_stock_in(shop_id: int):
                 return jsonify({"ok": False, "error": "Seller phone must be valid. If new, provide seller name to register."}), 400
             flash("Seller phone must be valid. If new, provide seller name to register.", "error")
             return redirect(url_for("shop_pos", shop_id=shop_id))
-        ok = shop_manual_stock_in(
-            shop_id=shop_id,
-            item_id=item_id,
-            qty=qty,
-            buying_price=buying_price_raw,
-            place_brought_from=resolved_name,
-            seller_phone=resolved_phone,
-            payment_status=payment_status,
-            note=note or None,
-            created_by_employee_id=created_by_employee_id,
-        )
-        if ok:
-            tx_id = get_latest_shop_manual_stock_in_tx_id(
+
+        if is_store_stock_mode:
+            from database import (
+                get_latest_shop_manual_store_stock_in_tx_id,
+                shop_manual_store_stock_in,
+            )
+
+            ok = shop_manual_store_stock_in(
                 shop_id=shop_id,
-                item_id=item_id,
+                store_stock_item_id=item_id,
+                qty=qty,
+                buying_price=buying_price_raw,
+                place_brought_from=resolved_name,
+                seller_phone=resolved_phone,
+                payment_status=payment_status,
+                note=note or None,
                 created_by_employee_id=created_by_employee_id,
             )
+            if ok:
+                tx_id = get_latest_shop_manual_store_stock_in_tx_id(
+                    shop_id=shop_id,
+                    store_stock_item_id=item_id,
+                    created_by_employee_id=created_by_employee_id,
+                )
+        else:
+            from database import (
+                ensure_shop_items_for_shop,
+                get_latest_shop_manual_stock_in_tx_id,
+                shop_manual_stock_in,
+            )
+
+            ensure_shop_items_for_shop(shop_id)
+            ok = shop_manual_stock_in(
+                shop_id=shop_id,
+                item_id=item_id,
+                qty=qty,
+                buying_price=buying_price_raw,
+                place_brought_from=resolved_name,
+                seller_phone=resolved_phone,
+                payment_status=payment_status,
+                note=note or None,
+                created_by_employee_id=created_by_employee_id,
+            )
+            if ok:
+                tx_id = get_latest_shop_manual_stock_in_tx_id(
+                    shop_id=shop_id,
+                    item_id=item_id,
+                    created_by_employee_id=created_by_employee_id,
+                )
     except Exception:
         ok = False
 
@@ -6418,16 +6679,22 @@ def shop_pos_stock_in(shop_id: int):
         flash("Could not stock in item. Check item and input details.", "error")
     else:
         if wants_json:
+            receipt_url = None
+            if tx_id:
+                if is_store_stock_mode:
+                    receipt_url = url_for(
+                        "shop_stock_in_receipt", shop_id=shop_id, tx_id=tx_id, kind="store"
+                    )
+                else:
+                    receipt_url = url_for(
+                        "shop_stock_in_receipt", shop_id=shop_id, tx_id=tx_id
+                    )
             return jsonify(
                 {
                     "ok": True,
                     "message": "Item stocked in successfully.",
                     "tx_id": tx_id,
-                    "receipt_url": (
-                        url_for("shop_stock_in_receipt", shop_id=shop_id, tx_id=tx_id)
-                        if tx_id
-                        else None
-                    ),
+                    "receipt_url": receipt_url,
                 }
             )
         flash("Item stocked in successfully.", "success")
@@ -6440,10 +6707,16 @@ def shop_stock_in_receipt(shop_id: int, tx_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    kind = (request.args.get("kind") or "").strip().lower()
     try:
-        from database import get_shop_stock_in_receipt_row
+        if kind == "store":
+            from database import get_shop_store_stock_in_receipt_row
 
-        receipt = get_shop_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+            receipt = get_shop_store_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+        else:
+            from database import get_shop_stock_in_receipt_row
+
+            receipt = get_shop_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
     except Exception:
         receipt = None
     if not receipt:

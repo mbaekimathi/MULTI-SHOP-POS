@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}You're offline — {{ site_settings.company_name if site_settings else pub_brand_name }}{% endblock %}
+{% block body %}
+  <main class="pwa-offline">
+    <div class="pwa-offline__ambient" aria-hidden="true">
+      <span class="pwa-offline__orb pwa-offline__orb--a"></span>
+      <span class="pwa-offline__orb pwa-offline__orb--b"></span>
+      <span class="pwa-offline__orb pwa-offline__orb--c"></span>
+    </div>
+
+    <section class="pwa-offline__card glass">
+      <div class="pwa-offline__icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 24a36 36 0 0 1 54 0" opacity=".35" />
+          <path d="M13 33a24 24 0 0 1 38 0" opacity=".55" />
+          <path d="M22 42a12 12 0 0 1 20 0" opacity=".85" />
+          <circle cx="32" cy="52" r="2.6" fill="currentColor" stroke="none" />
+          <path d="M8 8l48 48" stroke-width="3" />
+        </svg>
+      </div>
+      <p class="pwa-offline__eyebrow">Connection lost</p>
+      <h1 class="pwa-offline__title">You're offline</h1>
+      <p class="pwa-offline__lead">
+        We can't reach our servers right now. Your installed app keeps working, but live data,
+        sign-in, and reporting need a connection.
+      </p>
+
+      <ul class="pwa-offline__checklist" role="list">
+        <li>Check your Wi-Fi or mobile data</li>
+        <li>If on a guest network, re-accept the captive portal</li>
+        <li>Routers sometimes need a quick power cycle</li>
+      </ul>
+
+      <div class="pwa-offline__actions">
+        <button type="button" class="pwa-offline__btn pwa-offline__btn--primary" onclick="window.location.reload()">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v6h6M20 20v-6h-6M5 9a8 8 0 0 1 14-3M19 15a8 8 0 0 1-14 3" />
+          </svg>
+          Try again
+        </button>
+        <a class="pwa-offline__btn pwa-offline__btn--ghost" href="/">Go to home</a>
+      </div>
+
+      <p class="pwa-offline__hint">
+        Tip: once back online, the app will resume automatically.
+      </p>
+    </section>
+  </main>
+
+  <style>
+    .pwa-offline {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(1.25rem, 4vw, 2.5rem);
+      overflow: hidden;
+    }
+    .pwa-offline__ambient {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      filter: blur(60px);
+      opacity: 0.55;
+    }
+    .pwa-offline__orb {
+      position: absolute;
+      width: 28rem;
+      height: 28rem;
+      border-radius: 9999px;
+      mix-blend-mode: screen;
+      animation: pwa-offline-float 14s ease-in-out infinite;
+    }
+    .pwa-offline__orb--a {
+      top: -10%;
+      left: -8%;
+      background: radial-gradient(circle, rgba(var(--rc-primary) / 0.55), transparent 65%);
+    }
+    .pwa-offline__orb--b {
+      bottom: -12%;
+      right: -10%;
+      background: radial-gradient(circle, rgba(var(--rc-accent) / 0.55), transparent 65%);
+      animation-delay: -5s;
+    }
+    .pwa-offline__orb--c {
+      top: 35%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 22rem;
+      height: 22rem;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.35), transparent 65%);
+      animation-delay: -9s;
+    }
+    @keyframes pwa-offline-float {
+      0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+      50% { transform: translate3d(2%, -3%, 0) scale(1.05); }
+    }
+    .pwa-offline__card {
+      position: relative;
+      width: min(100%, 30rem);
+      padding: clamp(1.75rem, 4vw, 2.5rem);
+      border-radius: 1.5rem;
+      text-align: center;
+    }
+    .pwa-offline__icon {
+      width: 4.5rem;
+      height: 4.5rem;
+      margin: 0 auto 1rem;
+      display: grid;
+      place-items: center;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, rgba(var(--rc-primary) / 0.18), rgba(var(--rc-accent) / 0.18));
+      color: rgb(var(--rc-primary));
+      border: 1px solid rgba(var(--rc-primary) / 0.32);
+    }
+    .pwa-offline__icon svg { width: 2.25rem; height: 2.25rem; }
+    .pwa-offline__eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: rgb(var(--rc-primary));
+      margin: 0 0 0.5rem;
+    }
+    .pwa-offline__title {
+      font-size: clamp(1.6rem, 4vw, 2.1rem);
+      font-weight: 800;
+      margin: 0 0 0.65rem;
+      letter-spacing: -0.01em;
+    }
+    .pwa-offline__lead {
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: rgb(var(--rc-page-fg) / 0.78);
+      margin: 0 auto 1.25rem;
+      max-width: 28rem;
+    }
+    .pwa-offline__checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1.5rem;
+      display: grid;
+      gap: 0.5rem;
+      text-align: left;
+    }
+    .pwa-offline__checklist li {
+      position: relative;
+      padding: 0.55rem 0.75rem 0.55rem 2rem;
+      border-radius: 0.75rem;
+      background: rgb(var(--rc-surface) / 0.65);
+      border: 1px solid rgb(var(--rc-border));
+      font-size: 0.88rem;
+    }
+    .pwa-offline__checklist li::before {
+      content: "";
+      position: absolute;
+      left: 0.7rem;
+      top: 50%;
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 9999px;
+      background: rgb(var(--rc-primary));
+      transform: translateY(-50%);
+      box-shadow: 0 0 0 3px rgba(var(--rc-primary) / 0.18);
+    }
+    .pwa-offline__actions {
+      display: flex;
+      gap: 0.65rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .pwa-offline__btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1.15rem;
+      border-radius: 0.85rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .pwa-offline__btn--primary {
+      background: linear-gradient(135deg, rgb(var(--rc-primary)), rgb(var(--rc-accent)));
+      color: #fff;
+      box-shadow: 0 14px 32px -16px rgba(var(--rc-primary) / 0.7);
+    }
+    .pwa-offline__btn--primary:hover { transform: translateY(-1px); }
+    .pwa-offline__btn--ghost {
+      background: rgb(var(--rc-surface) / 0.8);
+      border-color: rgb(var(--rc-border));
+      color: rgb(var(--rc-page-fg));
+      text-decoration: none;
+    }
+    .pwa-offline__btn--ghost:hover { background: rgb(var(--rc-surface)); }
+    .pwa-offline__hint {
+      font-size: 0.78rem;
+      color: rgb(var(--rc-page-fg) / 0.55);
+      margin: 0;
+    }
+  </style>
+{% endblock %}
