@@ -2212,8 +2212,15 @@ def init_shop_pos_sales_table():
         return False
 
 
+_ENSURED_POS_SALES_INVENTORY_MODE = False
+_ENSURED_POS_SALES_RECEIPT_COLUMNS = False
+
+
 def ensure_shop_pos_sales_inventory_mode_column() -> bool:
     """Persist checkout inventory mode (shop / kitchen / none) for sales-based kitchen analytics."""
+    global _ENSURED_POS_SALES_INVENTORY_MODE
+    if _ENSURED_POS_SALES_INVENTORY_MODE:
+        return True
     init_shop_pos_sales_table()
     try:
         with get_cursor(commit=True) as cur:
@@ -2226,6 +2233,7 @@ def ensure_shop_pos_sales_inventory_mode_column() -> bool:
                     AFTER employee_name
                     """
                 )
+        _ENSURED_POS_SALES_INVENTORY_MODE = True
         return True
     except pymysql.Error as e:
         logger.warning("Could not add shop_pos_sales.inventory_mode: %s", e)
@@ -2233,7 +2241,14 @@ def ensure_shop_pos_sales_inventory_mode_column() -> bool:
 
 
 def ensure_shop_pos_sales_receipt_columns() -> bool:
-    """Persist server-generated receipt identity per POS checkout."""
+    """Persist server-generated receipt identity per POS checkout.
+
+    Cached per process: the first call performs schema migration, later calls
+    are a no-op so receipt list pages don't pay an ALTER TABLE round-trip.
+    """
+    global _ENSURED_POS_SALES_RECEIPT_COLUMNS
+    if _ENSURED_POS_SALES_RECEIPT_COLUMNS:
+        return True
     init_shop_pos_sales_table()
     try:
         with get_cursor(commit=True) as cur:
@@ -2261,6 +2276,7 @@ def ensure_shop_pos_sales_receipt_columns() -> bool:
                     AFTER receipt_scope_key
                     """
                 )
+            need_modify = False
             if not column_exists("shop_pos_sales", "receipt_mark_status"):
                 cur.execute(
                     """
@@ -2269,13 +2285,32 @@ def ensure_shop_pos_sales_receipt_columns() -> bool:
                     AFTER receipt_sequence
                     """
                 )
-            # Keep enum definition in sync on older databases that were created before partial returns.
-            cur.execute(
-                """
-                ALTER TABLE shop_pos_sales
-                MODIFY COLUMN receipt_mark_status ENUM('pending','confirmed','cancelled','partial_return','returned') NOT NULL DEFAULT 'pending'
-                """
-            )
+            else:
+                # Only run MODIFY if the enum definition is out of date.
+                try:
+                    cur.execute(
+                        """
+                        SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'shop_pos_sales' AND COLUMN_NAME = 'receipt_mark_status'
+                        LIMIT 1
+                        """,
+                        (get_database_name(),),
+                    )
+                    row = cur.fetchone()
+                    col_type = ""
+                    if row:
+                        col_type = str((row.get("COLUMN_TYPE") if isinstance(row, dict) else row[0]) or "").lower()
+                    if "partial_return" not in col_type or "returned" not in col_type:
+                        need_modify = True
+                except pymysql.Error:
+                    need_modify = True
+            if need_modify:
+                cur.execute(
+                    """
+                    ALTER TABLE shop_pos_sales
+                    MODIFY COLUMN receipt_mark_status ENUM('pending','confirmed','cancelled','partial_return','returned') NOT NULL DEFAULT 'pending'
+                    """
+                )
             if not column_exists("shop_pos_sales", "receipt_return_restocked"):
                 cur.execute(
                     """
@@ -2293,6 +2328,17 @@ def ensure_shop_pos_sales_receipt_columns() -> bool:
                 )
             except pymysql.Error:
                 pass
+            # Composite index that backs the receipts register list query.
+            try:
+                cur.execute(
+                    """
+                    CREATE INDEX idx_shop_pos_sales_shop_created
+                    ON shop_pos_sales (shop_id, created_at)
+                    """
+                )
+            except pymysql.Error:
+                pass
+        _ENSURED_POS_SALES_RECEIPT_COLUMNS = True
         return True
     except pymysql.Error as e:
         logger.warning("Could not add shop_pos_sales receipt columns: %s", e)

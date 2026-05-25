@@ -6192,7 +6192,133 @@ def shop_pos(shop_id: int):
 @app.route("/pos-sw.js")
 def pos_service_worker():
     """Serve POS service worker from app root for broad scope."""
-    return send_from_directory(app.static_folder, "pos-sw.js")
+    resp = send_from_directory(app.static_folder, "pos-sw.js")
+    try:
+        resp.headers["Service-Worker-Allowed"] = "/"
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    except Exception:
+        pass
+    return resp
+
+
+def _pwa_brand_context():
+    """Resolve current PWA branding (name, short_name, icon path, colors)."""
+    try:
+        from database import get_site_settings
+
+        stored = (
+            get_site_settings(
+                [
+                    "company_name",
+                    "app_icon",
+                    "primary_color",
+                    "accent_color",
+                    "default_theme",
+                ]
+            )
+            or {}
+        )
+    except Exception:
+        stored = {}
+    name = (stored.get("company_name") or "Point of Sale").strip() or "Point of Sale"
+    short = name
+    if len(short) > 12:
+        short = short.split()[0][:12]
+    icon_rel = (stored.get("app_icon") or "").strip()
+    icon_path = icon_rel if icon_rel else "app-icon.svg"
+    primary = (stored.get("primary_color") or "#f97316").strip() or "#f97316"
+    accent = (stored.get("accent_color") or "#fb923c").strip() or "#fb923c"
+    default_theme = (stored.get("default_theme") or "dark").strip().lower()
+    bg = "#0b1220" if default_theme != "light" else "#f8fafc"
+    return {
+        "name": name,
+        "short_name": short,
+        "icon_url": url_for("static", filename=icon_path),
+        "primary": primary,
+        "accent": accent,
+        "background_color": bg,
+        "theme_color": primary,
+    }
+
+
+@app.route("/manifest.webmanifest")
+def pwa_manifest():
+    """Dynamic Web App Manifest reflecting current branding."""
+    brand = _pwa_brand_context()
+    icon_url = brand["icon_url"]
+    icon_ext = (icon_url.rsplit(".", 1)[-1] or "").lower().split("?")[0]
+    icon_mime = {
+        "svg": "image/svg+xml",
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
+        "webp": "image/webp",
+        "ico": "image/x-icon",
+    }.get(icon_ext, "image/svg+xml")
+    icons = [
+        {
+            "src": icon_url,
+            "sizes": "any" if icon_ext == "svg" else "512x512",
+            "type": icon_mime,
+            "purpose": "any",
+        },
+        {
+            "src": url_for("static", filename="icons/app-icon-maskable.svg"),
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable",
+        },
+        {
+            "src": url_for("static", filename="icons/app-icon-monochrome.svg"),
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "monochrome",
+        },
+    ]
+    manifest = {
+        "name": brand["name"],
+        "short_name": brand["short_name"],
+        "description": f"{brand['name']} — multi-shop point of sale, stock, and reports.",
+        "start_url": "/?source=pwa",
+        "scope": "/",
+        "display": "standalone",
+        "display_override": ["standalone", "minimal-ui"],
+        "orientation": "any",
+        "background_color": brand["background_color"],
+        "theme_color": brand["theme_color"],
+        "lang": "en",
+        "dir": "ltr",
+        "categories": ["business", "productivity", "finance"],
+        "icons": icons,
+        "shortcuts": [
+            {
+                "name": "Open POS",
+                "short_name": "POS",
+                "description": "Jump to your shop point of sale.",
+                "url": "/?source=pwa-shortcut-pos",
+                "icons": [{"src": icon_url, "sizes": "any", "type": icon_mime}],
+            },
+            {
+                "name": "Sign in",
+                "short_name": "Sign in",
+                "description": "Employee or shop sign in.",
+                "url": "/?source=pwa-shortcut-signin",
+                "icons": [{"src": icon_url, "sizes": "any", "type": icon_mime}],
+            },
+        ],
+        "prefer_related_applications": False,
+    }
+    resp = jsonify(manifest)
+    resp.headers["Content-Type"] = "application/manifest+json; charset=utf-8"
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
+
+
+@app.route("/offline")
+def offline_page():
+    """Lightweight offline fallback page served by the service worker."""
+    return render_template("offline.html")
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/stock-in", methods=["POST"])
@@ -7217,12 +7343,12 @@ def it_support_receipts():
     try:
         from database import list_all_shops_pos_sales_receipt_rows, list_shops
 
-        shops = list_shops(limit=5000) or []
+        shops = list_shops(limit=500) or []
         rows = list_all_shops_pos_sales_receipt_rows(
             analytics_filter,
             shop_id=shop_filter_id,
             sale_id_search=rq,
-            limit=8000,
+            limit=2000,
         )
     except Exception:
         logger.exception("it_support_receipts list failed")
@@ -7230,7 +7356,7 @@ def it_support_receipts():
         try:
             from database import list_shops
 
-            shops = list_shops(limit=5000) or []
+            shops = list_shops(limit=500) or []
         except Exception:
             shops = []
 
@@ -8380,7 +8506,7 @@ def shop_receipts(shop_id: int):
             int(shop_id),
             analytics_filter,
             sale_id_search=rq,
-            limit=5000,
+            limit=2000,
         )
     except Exception:
         logger.exception("shop_receipts list failed shop_id=%s", shop_id)
@@ -8415,7 +8541,7 @@ def shop_receipts_list_json(shop_id: int):
     analytics_filter = _build_analytics_filter()
     rq = (request.args.get("receipt_q") or "").strip()
     lim_raw = request.args.get("limit", type=int)
-    lim = int(lim_raw) if lim_raw is not None else 5000
+    lim = int(lim_raw) if lim_raw is not None else 2000
     lim = max(1, min(lim, 5000))
     try:
         from database import list_shop_pos_sales_receipt_rows
