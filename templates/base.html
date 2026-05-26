@@ -1191,47 +1191,664 @@
       .auth-simple-content--home {
         max-width: min(32rem, 100%);
       }
-      .simple-home-ambient {
+
+      /* === My Accountant home: professional split-panel framing === */
+      .myacct-ambient {
         pointer-events: none;
         position: fixed;
         inset: 0;
         z-index: 0;
         overflow: hidden;
       }
-      .simple-home-ambient__orb {
+      .myacct-ambient__orb {
         position: absolute;
         border-radius: 50%;
-        filter: blur(64px);
-        opacity: 0.55;
-        animation: simple-home-float 14s ease-in-out infinite;
+        filter: blur(80px);
+        opacity: 0.5;
+        animation: myacct-float 18s ease-in-out infinite;
       }
-      .simple-home-ambient__orb--teal {
-        width: min(22rem, 55vw);
-        height: min(22rem, 55vw);
-        top: 8%;
-        left: -8%;
-        background: rgba(13, 148, 136, 0.45);
+      .myacct-ambient__orb--teal {
+        width: min(24rem, 60vw);
+        height: min(24rem, 60vw);
+        top: 6%;
+        left: -10%;
+        background: rgba(13, 148, 136, 0.42);
       }
-      .simple-home-ambient__orb--violet {
-        width: min(26rem, 60vw);
-        height: min(26rem, 60vw);
-        right: -12%;
-        bottom: 12%;
-        background: rgba(124, 58, 237, 0.4);
-        animation-delay: -5s;
+      .myacct-ambient__orb--violet {
+        width: min(28rem, 65vw);
+        height: min(28rem, 65vw);
+        right: -14%;
+        bottom: 8%;
+        background: rgba(124, 58, 237, 0.38);
+        animation-delay: -7s;
       }
-      html[data-theme="light"] .simple-home-ambient__orb {
-        opacity: 0.35;
+      html[data-theme="light"] .myacct-ambient__orb {
+        opacity: 0.3;
       }
-      @keyframes simple-home-float {
-        0%,
-        100% {
-          transform: translate(0, 0) scale(1);
+      @keyframes myacct-float {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(14px, -22px) scale(1.06); }
+      }
+
+      /* Outer page shell — centers the frame vertically, room for install pill below */
+      .myacct-shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 64rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 2rem;
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+      }
+      @media (min-width: 640px) {
+        .myacct-shell {
+          padding: 2.5rem 1.5rem 2.5rem;
+          gap: 1.25rem;
         }
-        50% {
-          transform: translate(12px, -18px) scale(1.05);
+      }
+
+      /* The framed split-panel "workspace" card */
+      .myacct-frame {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        border-radius: 1.6rem;
+        overflow: hidden;
+        background: rgb(var(--rc-surface));
+        border: 1px solid rgba(var(--rc-border), 0.6);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.05) inset,
+          0 30px 80px -32px rgba(15, 23, 42, 0.35),
+          0 14px 38px -22px rgba(13, 148, 136, 0.22);
+        animation: myacct-fade-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      html[data-theme="dark"] .myacct-frame {
+        border-color: rgba(255, 255, 255, 0.08);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.04) inset,
+          0 40px 110px -40px rgba(0, 0, 0, 0.75),
+          0 18px 48px -24px rgba(124, 58, 237, 0.3);
+      }
+      @keyframes myacct-fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @media (min-width: 900px) {
+        .myacct-frame {
+          grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
         }
       }
+
+      /* ----- Left brand panel ----- */
+      .myacct-frame__brand {
+        position: relative;
+        padding: 2rem 1.75rem 2rem;
+        color: #fff;
+        background:
+          radial-gradient(110% 70% at 0% 0%, rgba(45, 212, 191, 0.55), transparent 55%),
+          radial-gradient(110% 70% at 100% 100%, rgba(167, 139, 250, 0.5), transparent 55%),
+          linear-gradient(155deg, #0f766e 0%, #1e1b4b 60%, #312e81 100%);
+        overflow: hidden;
+        isolation: isolate;
+      }
+      /* Shop variant: teal-forward identity */
+      .myacct-frame--shop .myacct-frame__brand {
+        background:
+          radial-gradient(110% 70% at 0% 0%, rgba(94, 234, 212, 0.55), transparent 55%),
+          radial-gradient(110% 70% at 100% 100%, rgba(45, 212, 191, 0.45), transparent 55%),
+          linear-gradient(155deg, #0d9488 0%, #115e59 55%, #134e4a 100%);
+      }
+      /* Employee variant: violet-forward identity */
+      .myacct-frame--employee .myacct-frame__brand {
+        background:
+          radial-gradient(110% 70% at 0% 0%, rgba(196, 181, 253, 0.55), transparent 55%),
+          radial-gradient(110% 70% at 100% 100%, rgba(124, 58, 237, 0.45), transparent 55%),
+          linear-gradient(155deg, #6d28d9 0%, #312e81 55%, #1e1b4b 100%);
+      }
+      @media (min-width: 900px) {
+        .myacct-frame__brand {
+          padding: 2.75rem 2.5rem;
+        }
+      }
+      .myacct-frame__brand-glow {
+        position: absolute;
+        inset: -1px;
+        pointer-events: none;
+        background: radial-gradient(100% 55% at 50% 0%, rgba(255, 255, 255, 0.18), transparent 65%);
+        mix-blend-mode: screen;
+      }
+      .myacct-frame__brand-grid {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.22;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+        background-size: 28px 28px;
+        mask-image: radial-gradient(60% 60% at 30% 30%, #000, transparent 85%);
+        -webkit-mask-image: radial-gradient(60% 60% at 30% 30%, #000, transparent 85%);
+      }
+      .myacct-frame__brand-inner {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+      }
+      .myacct-frame__brand-lockup {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-decoration: none;
+      }
+      .myacct-frame__brand-logo {
+        display: inline-flex;
+        padding: 3px;
+        border-radius: 0.95rem;
+        background: linear-gradient(135deg, rgb(45 212 191), rgb(196 181 253));
+        box-shadow: 0 10px 24px -10px rgba(45, 212, 191, 0.55);
+      }
+      .myacct-frame__brand-logo img {
+        display: block;
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 0.7rem;
+        object-fit: cover;
+        background: rgb(15 23 42);
+      }
+      .myacct-frame__brand-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        color: #fff;
+        background: linear-gradient(145deg, rgb(15 118 110), rgb(76 29 149));
+      }
+      .myacct-frame__brand-name {
+        font-size: 1.05rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #fff;
+      }
+      .myacct-frame__brand-eyebrow {
+        margin: 0.25rem 0 -0.35rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.78);
+      }
+      .myacct-frame__brand-tagline {
+        margin: 0;
+        font-size: clamp(1.6rem, 3.6vw, 2.1rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        color: #fff;
+      }
+      .myacct-frame__brand-sub {
+        margin: 0;
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.82);
+        max-width: 28rem;
+      }
+      .myacct-frame__brand-bullets {
+        margin: 0.5rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.55rem;
+      }
+      .myacct-frame__brand-bullets li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.9);
+      }
+      .myacct-frame__brand-check {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.2rem;
+        height: 1.2rem;
+        border-radius: 9999px;
+        color: #052e2b;
+        background: linear-gradient(135deg, rgb(45 212 191), rgb(167 243 208));
+      }
+      .myacct-frame__brand-check svg {
+        width: 0.75rem;
+        height: 0.75rem;
+      }
+
+      /* ----- Right sign-in panel ----- */
+      .myacct-frame__panel {
+        padding: 2rem 1.75rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.4rem;
+        background: rgb(var(--rc-surface));
+      }
+      @media (min-width: 900px) {
+        .myacct-frame__panel {
+          padding: 2.75rem 2.5rem;
+        }
+      }
+      .myacct-frame__panel-head {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      .myacct-frame__panel-eyebrow {
+        margin: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgb(var(--rc-primary));
+      }
+      html[data-theme="dark"] .myacct-frame__panel-eyebrow {
+        color: rgb(45 212 191);
+      }
+      .myacct-frame__panel-heading {
+        margin: 0;
+        font-size: clamp(1.45rem, 3vw, 1.7rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        color: rgb(var(--rc-page-fg));
+      }
+      .myacct-frame__panel-sub {
+        margin: 0;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: rgb(var(--rc-muted));
+      }
+      .myacct-frame__panel-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+      }
+      .myacct-frame__panel-foot {
+        margin: 0.25rem 0 0;
+        padding-top: 1rem;
+        border-top: 1px dashed rgba(var(--rc-border), 0.7);
+        text-align: center;
+        font-size: 0.875rem;
+        color: rgb(var(--rc-muted));
+      }
+      .myacct-frame__panel-foot + .myacct-frame__panel-foot {
+        margin-top: 0.5rem;
+        padding-top: 0.75rem;
+        border-top: 0;
+      }
+      .myacct-frame__panel-foot--quiet {
+        font-size: 0.8rem;
+        opacity: 0.85;
+      }
+      .myacct-frame__panel-foot a {
+        margin-left: 0.3rem;
+        font-weight: 700;
+        color: rgb(var(--rc-primary));
+        text-decoration: none;
+        border-bottom: 1px solid rgba(var(--rc-primary), 0.3);
+        padding-bottom: 1px;
+        transition: color 0.2s ease, border-color 0.2s ease;
+      }
+      .myacct-frame__panel-foot a:hover {
+        color: rgb(var(--rc-accent));
+        border-color: rgba(var(--rc-accent), 0.6);
+      }
+      html[data-theme="dark"] .myacct-frame__panel-foot a {
+        color: rgb(196 181 253);
+        border-color: rgba(196, 181, 253, 0.35);
+      }
+      .myacct-frame--shop .myacct-frame__panel-eyebrow { color: rgb(13 148 136); }
+      html[data-theme="dark"] .myacct-frame--shop .myacct-frame__panel-eyebrow { color: rgb(45 212 191); }
+      .myacct-frame--shop .myacct-frame__panel-foot a { color: rgb(13 148 136); border-color: rgba(13, 148, 136, 0.3); }
+      .myacct-frame--shop .myacct-frame__panel-foot a:hover { color: rgb(20 184 166); border-color: rgba(20, 184, 166, 0.6); }
+      html[data-theme="dark"] .myacct-frame--shop .myacct-frame__panel-foot a { color: rgb(45 212 191); border-color: rgba(45, 212, 191, 0.35); }
+
+      .myacct-frame--employee .myacct-frame__panel-eyebrow { color: rgb(109 40 217); }
+      html[data-theme="dark"] .myacct-frame--employee .myacct-frame__panel-eyebrow { color: rgb(196 181 253); }
+      .myacct-frame--employee .myacct-frame__panel-foot a { color: rgb(109 40 217); border-color: rgba(109, 40, 217, 0.3); }
+      .myacct-frame--employee .myacct-frame__panel-foot a:hover { color: rgb(124 58 237); border-color: rgba(124, 58, 237, 0.6); }
+      html[data-theme="dark"] .myacct-frame--employee .myacct-frame__panel-foot a { color: rgb(196 181 253); border-color: rgba(196, 181, 253, 0.35); }
+
+      /* Form fields living inside a myacct-frame panel */
+      .myacct-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.95rem;
+      }
+      .myacct-field { display: flex; flex-direction: column; gap: 0.4rem; }
+      .myacct-field__label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: rgb(var(--rc-page-fg));
+      }
+      .myacct-field__hint {
+        margin: 0;
+        font-size: 0.75rem;
+        color: rgb(var(--rc-muted));
+      }
+      .myacct-frame__panel .form-input-wrap {
+        margin-top: 0;
+      }
+      .myacct-frame__panel .btn-modern {
+        margin-top: 0.25rem;
+      }
+
+      /* Remember-this-device toggle (styled native checkbox) */
+      .myacct-remember {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgb(var(--rc-border));
+        background: rgb(var(--rc-surface-2));
+        cursor: pointer;
+        transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .myacct-remember:hover {
+        border-color: rgb(13 148 136);
+        background: rgb(var(--rc-surface));
+      }
+      .myacct-remember:has(input:checked) {
+        border-color: rgb(13 148 136);
+        box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.25);
+      }
+      .myacct-frame--employee .myacct-remember:hover,
+      .myacct-frame--employee .myacct-remember:has(input:checked) {
+        border-color: rgb(124 58 237);
+      }
+      .myacct-frame--employee .myacct-remember:has(input:checked) {
+        box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.28);
+      }
+
+      .myacct-remember input[type="checkbox"] {
+        flex: 0 0 auto;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        margin: 0.1rem 0 0;
+        width: 1.4rem;
+        height: 1.4rem;
+        border-radius: 0.4rem;
+        border: 2px solid rgb(100 116 139);
+        background: #ffffff;
+        cursor: pointer;
+        display: inline-grid;
+        place-content: center;
+        transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+      }
+      .myacct-remember input[type="checkbox"]::before {
+        content: "";
+        width: 0.8rem;
+        height: 0.8rem;
+        transform: scale(0);
+        transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+        background-color: #ffffff;
+        clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+      }
+      .myacct-remember input[type="checkbox"]:checked {
+        background-image: linear-gradient(135deg, rgb(13 148 136), rgb(20 184 166));
+        border-color: rgb(13 148 136);
+      }
+      .myacct-frame--employee .myacct-remember input[type="checkbox"]:checked {
+        background-image: linear-gradient(135deg, rgb(109 40 217), rgb(124 58 237));
+        border-color: rgb(109 40 217);
+      }
+      .myacct-remember input[type="checkbox"]:checked::before {
+        transform: scale(1);
+      }
+      .myacct-remember input[type="checkbox"]:focus-visible {
+        outline: 2px solid rgb(13 148 136);
+        outline-offset: 2px;
+      }
+      .myacct-frame--employee .myacct-remember input[type="checkbox"]:focus-visible {
+        outline-color: rgb(124 58 237);
+      }
+      html[data-theme="dark"] .myacct-remember input[type="checkbox"] {
+        background: rgb(15 23 42);
+        border-color: rgb(71 85 105);
+      }
+
+      .myacct-remember__text {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        font-size: 0.8rem;
+        line-height: 1.4;
+        color: rgb(var(--rc-page-fg));
+      }
+      .myacct-remember__text strong {
+        font-weight: 700;
+        font-size: 0.875rem;
+      }
+      .myacct-remember__text span {
+        color: rgb(var(--rc-muted));
+      }
+
+      /* ----- CTAs ----- */
+      .myacct-cta {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border-radius: 0.85rem;
+        text-decoration: none;
+        font-family: inherit;
+        text-align: left;
+        color: inherit;
+        transition:
+          transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+          box-shadow 0.22s ease,
+          background-color 0.2s ease,
+          border-color 0.2s ease;
+      }
+      .myacct-cta:focus-visible {
+        outline: 2px solid rgb(var(--rc-primary));
+        outline-offset: 3px;
+      }
+      .myacct-cta:hover { transform: translateY(-1px); }
+      .myacct-cta:active { transform: translateY(0); }
+
+      .myacct-cta--primary {
+        color: #fff;
+        background-image: linear-gradient(135deg, rgb(13 148 136), rgb(109 40 217));
+        box-shadow:
+          0 16px 32px -16px rgba(13, 148, 136, 0.55),
+          0 10px 26px -16px rgba(109, 40, 217, 0.5);
+      }
+      .myacct-cta--primary:hover {
+        box-shadow:
+          0 20px 38px -16px rgba(13, 148, 136, 0.6),
+          0 14px 30px -14px rgba(109, 40, 217, 0.55);
+      }
+      .myacct-cta--ghost {
+        color: rgb(var(--rc-page-fg));
+        background-color: rgba(var(--rc-surface-2), 0.6);
+        border: 1px solid rgba(var(--rc-border), 0.7);
+      }
+      .myacct-cta--ghost:hover {
+        background-color: rgba(var(--rc-surface-2), 0.95);
+        border-color: rgba(var(--rc-primary), 0.4);
+      }
+      html[data-theme="dark"] .myacct-cta--ghost {
+        background-color: rgba(255, 255, 255, 0.04);
+      }
+      html[data-theme="dark"] .myacct-cta--ghost:hover {
+        background-color: rgba(255, 255, 255, 0.07);
+      }
+
+      .myacct-cta__icon {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.35rem;
+        height: 2.35rem;
+        border-radius: 0.65rem;
+      }
+      .myacct-cta__icon svg {
+        width: 1.2rem;
+        height: 1.2rem;
+      }
+      .myacct-cta--primary .myacct-cta__icon {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
+      .myacct-cta--ghost .myacct-cta__icon {
+        background: linear-gradient(145deg, rgba(13, 148, 136, 0.16), rgba(124, 58, 237, 0.16));
+        color: rgb(13 148 136);
+      }
+      html[data-theme="dark"] .myacct-cta--ghost .myacct-cta__icon {
+        color: rgb(45 212 191);
+      }
+
+      .myacct-cta__body {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      .myacct-cta__label {
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        line-height: 1.2;
+      }
+      .myacct-cta__hint {
+        font-size: 0.78rem;
+        line-height: 1.3;
+        opacity: 0.88;
+      }
+      .myacct-cta--ghost .myacct-cta__hint {
+        color: rgb(var(--rc-muted));
+        opacity: 1;
+      }
+      .myacct-cta__arrow {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        opacity: 0.85;
+        transition: transform 0.2s ease, opacity 0.2s ease;
+      }
+      .myacct-cta__arrow svg {
+        width: 0.95rem;
+        height: 0.95rem;
+      }
+      .myacct-cta:hover .myacct-cta__arrow {
+        transform: translateX(2px);
+        opacity: 1;
+      }
+
+      /* ----- Slim install pill (below the frame) ----- */
+      .myacct-install {
+        width: 100%;
+        max-width: 36rem;
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 0.55rem 0.7rem 0.55rem 0.85rem;
+        border-radius: 9999px;
+        background: rgba(var(--rc-surface), 0.75);
+        border: 1px solid rgba(var(--rc-border), 0.6);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .myacct-install__icon {
+        flex: 0 0 auto;
+        display: inline-grid;
+        place-items: center;
+        width: 1.85rem;
+        height: 1.85rem;
+        border-radius: 9999px;
+        color: #fff;
+        background: linear-gradient(135deg, rgb(13 148 136), rgb(109 40 217));
+        box-shadow: 0 8px 20px -10px rgba(13, 148, 136, 0.6);
+      }
+      .myacct-install__icon svg { width: 0.9rem; height: 0.9rem; }
+      .myacct-install__text {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        text-align: left;
+        font-size: 0.75rem;
+        line-height: 1.3;
+      }
+      .myacct-install__text strong {
+        font-weight: 700;
+        color: rgb(var(--rc-page-fg));
+        font-size: 0.82rem;
+      }
+      .myacct-install__text span { color: rgb(var(--rc-muted)); }
+      .myacct-install__btn {
+        flex: 0 0 auto;
+        padding: 0.45rem 0.95rem;
+        border-radius: 9999px;
+        border: 0;
+        font-weight: 700;
+        font-size: 0.78rem;
+        color: #fff;
+        cursor: pointer;
+        background-image: linear-gradient(135deg, rgb(var(--rc-primary)), rgb(var(--rc-accent)));
+        box-shadow: 0 8px 22px -10px rgba(var(--rc-primary) / 0.7);
+        transition: transform 0.15s ease, box-shadow 0.2s ease;
+      }
+      .myacct-install__btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 26px -10px rgba(var(--rc-primary) / 0.85);
+      }
+      .myacct-install__btn:focus-visible {
+        outline: 2px solid rgb(var(--rc-primary));
+        outline-offset: 3px;
+      }
+
+      .myacct-footnote {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.02em;
+        color: rgb(var(--rc-muted));
+        opacity: 0.75;
+      }
+
+      @media (max-width: 460px) {
+        .myacct-install {
+          flex-wrap: wrap;
+          border-radius: 1rem;
+          padding: 0.85rem;
+          gap: 0.65rem;
+        }
+        .myacct-install__text { flex: 1 1 60%; }
+        .myacct-install__btn { margin-left: auto; }
+      }
+
+      /* === Legacy simple-home (kept as fallback if referenced elsewhere) === */
       .simple-home {
         position: relative;
         width: 100%;
@@ -1591,13 +2208,17 @@
         .simple-home__badge,
         .simple-home__title,
         .simple-home__tagline,
-        .simple-home__action {
+        .simple-home__action,
+        .myacct-frame {
           animation: none;
         }
-        .simple-home-ambient__orb {
+        .simple-home-ambient__orb,
+        .myacct-ambient__orb {
           animation: none;
         }
-        .simple-home__action:hover {
+        .simple-home__action:hover,
+        .myacct-cta:hover,
+        .myacct-install__btn:hover {
           transform: none;
         }
       }

@@ -34,6 +34,16 @@
   HR authorization
 </a>
 <a
+  href="{{ url_for('it_support_hr_analytics') }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _hr == 'analytics' %}bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if _hr == 'analytics' %}aria-current="page"{% endif %}
+>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18M7 15l4-4 4 4 5-7" />
+  </svg>
+  HR analytics
+</a>
+<a
   href="{{ url_for('it_support_hr_settings') }}"
   class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _hr == 'settings' %}bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
   {% if _hr == 'settings' %}aria-current="page"{% endif %}

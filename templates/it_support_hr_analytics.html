@@ -1,0 +1,1640 @@
+{% extends "employee_layout.html" %}
+{% block title %}HR analytics — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}HR analytics{% endblock %}
+{% block sidebar_links %}
+  {% set hr_nav_active = 'analytics' %}
+  {% include "partials/it_support_hr_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #hr-analytics-page .hr-an-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-analytics-page .hr-an-hero {
+      background-image: linear-gradient(135deg, rgba(56, 189, 248, 0.08), transparent 42%);
+    }
+    #hr-analytics-page .hr-an-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    #hr-analytics-page .hr-an-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.85), rgba(168, 85, 247, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    #hr-analytics-page .hr-an-emp-card {
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
+      cursor: pointer;
+    }
+    #hr-analytics-page .hr-an-emp-card:hover {
+      border-color: rgba(var(--rc-primary), 0.45);
+      box-shadow: 0 18px 32px -22px rgba(15, 23, 42, 0.55);
+      transform: translateY(-1px);
+    }
+    #hr-analytics-page .hr-an-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #hr-analytics-page .hr-an-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #hr-analytics-page .hr-an-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.14s ease;
+    }
+    #hr-analytics-page .hr-an-table tbody tr:hover {
+      background: rgba(148, 163, 184, 0.10);
+    }
+    #hr-analytics-modal:not(.hidden) {
+      animation: hr-an-modal-fade 0.25s ease-out;
+    }
+    @keyframes hr-an-modal-fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    #hr-analytics-modal .hr-an-modal-panel {
+      animation: hr-an-modal-slide 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes hr-an-modal-slide {
+      from {
+        opacity: 0;
+        transform: translateY(1.5rem) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #hr-analytics-modal,
+      #hr-analytics-modal .hr-an-modal-panel {
+        animation: none !important;
+      }
+    }
+    .hr-an-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.125rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      ring: 1px;
+    }
+    #hr-analytics-page .hr-an-tab-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgb(var(--rc-muted));
+      transition: all 0.15s ease;
+    }
+    #hr-analytics-page .hr-an-tab-btn:hover {
+      color: rgb(var(--rc-page-fg));
+      background: rgba(var(--rc-surface-2), 0.6);
+    }
+    #hr-analytics-page .hr-an-tab-btn[aria-selected="true"] {
+      color: rgb(var(--rc-page-fg));
+      background: rgb(var(--rc-surface-2));
+      box-shadow: inset 0 0 0 1px rgba(var(--rc-border), 0.85);
+    }
+    #hr-analytics-page .hr-an-chart-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      background: rgb(var(--rc-surface));
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-analytics-page .hr-an-chart-canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: clamp(260px, 42vh, 380px);
+    }
+    #hr-analytics-page .hr-an-chart-canvas-wrap.hr-an-chart-tall {
+      height: clamp(320px, 60vh, 480px);
+    }
+    #hr-analytics-page .hr-an-chart-canvas-wrap canvas {
+      max-width: 100%;
+    }
+    #hr-analytics-page .hr-an-chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      color: rgb(var(--rc-muted));
+      font-size: 0.875rem;
+      border: 1px dashed rgba(var(--rc-border), 0.85);
+      border-radius: 0.75rem;
+    }
+    /* Responsive table column visibility for tablets/phones */
+    @media (max-width: 1023px) {
+      #hr-analytics-page .hr-an-table th.hr-an-col-lg,
+      #hr-analytics-page .hr-an-table td.hr-an-col-lg {
+        display: none;
+      }
+    }
+    @media (max-width: 859px) {
+      #hr-analytics-page .hr-an-table th.hr-an-col-md,
+      #hr-analytics-page .hr-an-table td.hr-an-col-md {
+        display: none;
+      }
+    }
+    /* Tab buttons fill the row on phones */
+    @media (max-width: 639px) {
+      #hr-analytics-page .hr-an-tab-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+      }
+    }
+    /* Snug heading + form layout on small screens */
+    @media (max-width: 639px) {
+      #hr-analytics-page .hr-an-hero-form {
+        width: 100%;
+      }
+      #hr-analytics-page .hr-an-hero-form input[type="number"] {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+    @keyframes hr-an-live-dot-pulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+      }
+      70% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+    }
+    .hr-an-live-pill .hr-an-live-dot {
+      animation: hr-an-live-dot-pulse 1.8s ease-in-out infinite;
+    }
+    .hr-an-live-pill[data-state="paused"] {
+      background: rgba(148, 163, 184, 0.18);
+      color: rgb(148, 163, 184);
+    }
+    .hr-an-live-pill[data-state="paused"] .hr-an-live-dot {
+      background: rgb(148, 163, 184);
+      animation: none;
+    }
+    .hr-an-live-pill[data-state="error"] {
+      background: rgba(244, 63, 94, 0.18);
+      color: rgb(248, 113, 113);
+    }
+    .hr-an-live-pill[data-state="error"] .hr-an-live-dot {
+      background: rgb(248, 113, 113);
+      animation: none;
+    }
+    @keyframes hr-an-flash-bg {
+      0% { background-color: rgba(16, 185, 129, 0.18); }
+      100% { background-color: transparent; }
+    }
+    .hr-an-flash {
+      animation: hr-an-flash-bg 1.5s ease-out 1;
+    }
+    @keyframes hr-an-row-flash {
+      0% { background-color: rgba(56, 189, 248, 0.18); }
+      100% { background-color: transparent; }
+    }
+    .hr-an-row-flash {
+      animation: hr-an-row-flash 1.5s ease-out 1;
+    }
+    .hr-an-ticking {
+      position: relative;
+    }
+    .hr-an-ticking::after {
+      content: "";
+      position: absolute;
+      right: -0.65rem;
+      top: 50%;
+      height: 0.32rem;
+      width: 0.32rem;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.95);
+      transform: translateY(-50%);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+      animation: hr-an-live-dot-pulse 1.4s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hr-an-live-pill .hr-an-live-dot,
+      .hr-an-flash,
+      .hr-an-row-flash,
+      .hr-an-ticking::after {
+        animation: none !important;
+      }
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  {% set emp_list = employees or [] %}
+  {% set totals = analytics_totals or {} %}
+  <div
+    id="hr-analytics-page"
+    class="space-y-6"
+    data-lookback="{{ lookback_days or 90 }}"
+    data-live-url="{{ url_for('it_support_hr_analytics_data') }}"
+    data-live-interval="15000"
+  >
+    <div class="hr-an-card hr-an-hero rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5 lg:p-6">
+      <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div class="min-w-0 flex-1">
+          <h2 class="flex flex-wrap items-center gap-2 text-base font-semibold text-[rgb(var(--rc-page-fg))] sm:gap-3 sm:text-lg">
+            HR analytics
+            <span
+              id="hr-an-live-pill"
+              class="hr-an-live-pill inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30"
+              role="status"
+              aria-live="polite"
+              title="Updates every 15 seconds"
+            >
+              <span class="hr-an-live-dot inline-block h-2 w-2 rounded-full bg-emerald-400"></span>
+              <span id="hr-an-live-label">Live</span>
+            </span>
+          </h2>
+          <p class="mt-1 max-w-2xl text-xs text-[rgb(var(--rc-muted))] sm:text-sm">
+            Click any employee to see their session hours, login/logout pattern, and the
+            register / edit / delete / update activity they have done in the last {{ lookback_days or 90 }} days.
+          </p>
+          <p class="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-[rgb(var(--rc-muted))] sm:text-xs">
+            <span>Updated <span id="hr-an-updated-rel" data-server-time="" class="font-semibold text-[rgb(var(--rc-page-fg))]">just now</span>.</span>
+            <button
+              type="button"
+              id="hr-an-live-toggle"
+              class="inline-flex items-center gap-1 rounded-md border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))]"
+              aria-pressed="true"
+              title="Pause live updates"
+            >
+              <span id="hr-an-live-toggle-text">Pause</span>
+            </button>
+          </p>
+        </div>
+        <form method="get" action="{{ url_for('it_support_hr_analytics') }}" class="hr-an-hero-form flex flex-wrap items-center gap-2 sm:shrink-0">
+          <label for="hr-an-lookback" class="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Lookback (days)</label>
+          <input
+            id="hr-an-lookback"
+            type="number"
+            name="lookback"
+            min="1"
+            max="3650"
+            step="1"
+            value="{{ lookback_days or 90 }}"
+            class="w-24 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-1.5 text-sm text-[rgb(var(--rc-page-fg))] focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            inputmode="numeric"
+          />
+          <button type="submit" class="btn-rc btn-rc-info px-3 py-1.5 text-xs font-bold uppercase">Apply</button>
+        </form>
+      </div>
+
+      <div class="mt-4 grid gap-2 grid-cols-2 sm:mt-5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-5">
+        <div class="hr-an-stat rounded-xl border p-3 sm:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Employees</div>
+          <div class="mt-1 text-xl font-extrabold text-[rgb(var(--rc-page-fg))] sm:text-2xl" data-hr-an-stat="employees" data-hr-an-format="int" data-current="{{ totals.employees or 0 }}">{{ totals.employees or 0 }}</div>
+        </div>
+        <div class="hr-an-stat rounded-xl border p-3 sm:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Active today</div>
+          <div class="mt-1 text-xl font-extrabold text-emerald-400 sm:text-2xl" data-hr-an-stat="active_today" data-hr-an-format="int" data-current="{{ totals.active_today or 0 }}">{{ totals.active_today or 0 }}</div>
+        </div>
+        <div class="hr-an-stat rounded-xl border p-3 sm:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Sessions ({{ lookback_days or 90 }}d)</div>
+          <div class="mt-1 text-xl font-extrabold text-sky-400 sm:text-2xl" data-hr-an-stat="sessions" data-hr-an-format="int" data-current="{{ totals.sessions or 0 }}">{{ totals.sessions or 0 }}</div>
+        </div>
+        <div class="hr-an-stat rounded-xl border p-3 sm:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Hours logged</div>
+          <div class="mt-1 text-xl font-extrabold text-violet-400 sm:text-2xl" data-hr-an-stat="hours" data-hr-an-format="hours" data-current="{{ '%.1f'|format(totals.hours or 0) }}">{{ '%.1f'|format(totals.hours or 0) }}h</div>
+        </div>
+        <div class="hr-an-stat col-span-2 rounded-xl border p-3 sm:col-span-1 sm:p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Change actions</div>
+          <div class="mt-1 text-xl font-extrabold text-amber-400 sm:text-2xl" data-hr-an-stat="changes" data-hr-an-format="int" data-current="{{ totals.changes or 0 }}">{{ totals.changes or 0 }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hr-an-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm" role="tablist" aria-label="HR analytics views">
+      <div class="flex flex-wrap gap-1">
+        <button type="button" class="hr-an-tab-btn" role="tab" id="hr-an-tab-list" aria-selected="true" aria-controls="hr-an-panel-list" data-hr-an-tab="list">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+          </svg>
+          Employees
+        </button>
+        <button type="button" class="hr-an-tab-btn" role="tab" id="hr-an-tab-visual" aria-selected="false" aria-controls="hr-an-panel-visual" data-hr-an-tab="visual">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v18h18M7 14l3-3 3 3 5-7" />
+          </svg>
+          Visual analytics
+        </button>
+      </div>
+    </div>
+
+    <div id="hr-an-panel-list" role="tabpanel" aria-labelledby="hr-an-tab-list">
+    {% if not emp_list %}
+      <div class="hr-an-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-8 shadow-sm">
+        <p class="text-sm text-[rgb(var(--rc-muted))]">No employees found.</p>
+      </div>
+    {% else %}
+      <div class="hr-an-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+        <label for="hr-an-search" class="sr-only">Search employees</label>
+        <div class="relative">
+          <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[rgb(var(--rc-muted))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M15 11a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <input
+            id="hr-an-search"
+            type="search"
+            placeholder="Search by name, code, email, role or shop…"
+            autocomplete="off"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-2 pl-9 pr-3 text-sm text-[rgb(var(--rc-page-fg))] focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          />
+        </div>
+      </div>
+
+      {# Mobile: clickable cards #}
+      <div class="grid gap-3 md:hidden" id="hr-an-card-list">
+        {% for e in emp_list %}
+          {% set s = e.activity_summary or {} %}
+          <button
+            type="button"
+            class="hr-an-emp-card hr-an-card flex w-full flex-col gap-2 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 text-left shadow-sm"
+            data-emp-id="{{ e.id }}"
+            data-emp-name="{{ e.full_name or '' }}"
+            data-emp-search="{{ ((e.full_name or '') ~ ' ' ~ (e.employee_code or '') ~ ' ' ~ (e.email or '') ~ ' ' ~ (e.role or '') ~ ' ' ~ (e.shop_name or '') ~ ' ' ~ (e.shops_access_concat or ''))|lower }}"
+            data-total-seconds="{{ s.total_seconds or 0 }}"
+            data-last-login="{{ s.last_login_at.isoformat(sep=' ', timespec='seconds') if s.last_login_at else '' }}"
+            data-last-logout="{{ s.last_logout_at.isoformat(sep=' ', timespec='seconds') if s.last_logout_at else '' }}"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ e.full_name }}</p>
+                <p class="mt-1 truncate text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ e.employee_code }} · {{ (e.role or '')|upper }}</p>
+                <p class="mt-1 truncate text-sm text-[rgb(var(--rc-muted))]">{{ e.email }}</p>
+              </div>
+              <span class="rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ring-1 {% if e.status == 'active' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% elif e.status == 'suspended' %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% else %}bg-amber-500/10 text-amber-300 ring-amber-400/20{% endif %}">
+                {{ (e.status or '')|replace('_',' ') }}
+              </span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs text-[rgb(var(--rc-muted))]">
+              <div>
+                <div class="font-bold uppercase tracking-wider text-[10px]">Sessions</div>
+                <div class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]" data-hr-an-cell="session_count">{{ s.session_count or 0 }}</div>
+              </div>
+              <div>
+                <div class="font-bold uppercase tracking-wider text-[10px]">Total hours</div>
+                <div class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]" data-hr-an-cell="total_hours_label">{{ s.total_hours_label or '0h 0m' }}</div>
+              </div>
+              <div>
+                <div class="font-bold uppercase tracking-wider text-[10px]">Last login</div>
+                <div class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]" data-hr-an-cell="last_login_at">{{ s.last_login_at.strftime('%Y-%m-%d %H:%M') if s.last_login_at else '—' }}</div>
+              </div>
+              <div>
+                <div class="font-bold uppercase tracking-wider text-[10px]">Changes</div>
+                <div class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]" data-hr-an-cell="change_count">{{ s.change_count or 0 }}</div>
+              </div>
+            </div>
+            <div class="text-right text-xs font-bold uppercase tracking-wider text-brand-400">View details →</div>
+          </button>
+        {% endfor %}
+      </div>
+
+      {# Tablet/PC: table #}
+      <div class="hr-an-card hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm md:block">
+        <div class="hr-an-table-wrap overflow-x-auto">
+          <table class="hr-an-table min-w-[760px] w-full text-sm lg:min-w-[1000px]">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Employee</th>
+                <th class="hr-an-col-md px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Role</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Status</th>
+                <th class="hr-an-col-md px-3 py-3 text-right text-xs font-black uppercase tracking-wider sm:px-4">Sessions</th>
+                <th class="px-3 py-3 text-right text-xs font-black uppercase tracking-wider sm:px-4">Total hours</th>
+                <th class="px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Last login</th>
+                <th class="hr-an-col-lg px-3 py-3 text-left text-xs font-black uppercase tracking-wider sm:px-4">Last logout</th>
+                <th class="hr-an-col-md px-3 py-3 text-right text-xs font-black uppercase tracking-wider sm:px-4">Changes</th>
+                <th class="px-3 py-3 text-right text-xs font-black uppercase tracking-wider sm:px-4"></th>
+              </tr>
+            </thead>
+            <tbody id="hr-an-row-list" class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for e in emp_list %}
+                {% set s = e.activity_summary or {} %}
+                <tr
+                  class="js-hr-an-row"
+                  data-emp-id="{{ e.id }}"
+                  data-emp-name="{{ e.full_name or '' }}"
+                  data-emp-search="{{ ((e.full_name or '') ~ ' ' ~ (e.employee_code or '') ~ ' ' ~ (e.email or '') ~ ' ' ~ (e.role or '') ~ ' ' ~ (e.shop_name or '') ~ ' ' ~ (e.shops_access_concat or ''))|lower }}"
+                  data-total-seconds="{{ s.total_seconds or 0 }}"
+                  data-last-login="{{ s.last_login_at.isoformat(sep=' ', timespec='seconds') if s.last_login_at else '' }}"
+                  data-last-logout="{{ s.last_logout_at.isoformat(sep=' ', timespec='seconds') if s.last_logout_at else '' }}"
+                >
+                  <td class="px-3 py-3 sm:px-4">
+                    <div class="min-w-0">
+                      <p class="truncate font-semibold text-[rgb(var(--rc-page-fg))]">{{ e.full_name }}</p>
+                      <p class="truncate text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ e.employee_code }} · {{ e.email }}</p>
+                    </div>
+                  </td>
+                  <td class="hr-an-col-md px-3 py-3 text-[rgb(var(--rc-muted))] sm:px-4">{{ (e.role or '')|upper }}</td>
+                  <td class="px-3 py-3 sm:px-4">
+                    <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 sm:px-3 {% if e.status == 'active' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% elif e.status == 'suspended' %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% else %}bg-amber-500/10 text-amber-300 ring-amber-400/20{% endif %}" data-hr-an-cell="status_badge">
+                      {{ (e.status or '')|replace('_',' ') }}
+                    </span>
+                  </td>
+                  <td class="hr-an-col-md px-3 py-3 text-right font-semibold text-[rgb(var(--rc-page-fg))] sm:px-4" data-hr-an-cell="session_count">{{ s.session_count or 0 }}</td>
+                  <td class="px-3 py-3 text-right font-semibold text-[rgb(var(--rc-page-fg))] sm:px-4" data-hr-an-cell="total_hours_label">{{ s.total_hours_label or '0h 0m' }}</td>
+                  <td class="px-3 py-3 text-[rgb(var(--rc-muted))] sm:px-4" data-hr-an-cell="last_login_at">{{ s.last_login_at.strftime('%Y-%m-%d %H:%M') if s.last_login_at else '—' }}</td>
+                  <td class="hr-an-col-lg px-3 py-3 text-[rgb(var(--rc-muted))] sm:px-4" data-hr-an-cell="last_logout_at">{{ s.last_logout_at.strftime('%Y-%m-%d %H:%M') if s.last_logout_at else '—' }}</td>
+                  <td class="hr-an-col-md px-3 py-3 text-right font-semibold text-[rgb(var(--rc-page-fg))] sm:px-4" data-hr-an-cell="change_count">{{ s.change_count or 0 }}</td>
+                  <td class="px-3 py-3 text-right sm:px-4">
+                    <button type="button" class="btn-rc btn-rc-info px-2.5 py-1.5 text-[11px] font-bold uppercase js-open-hr-an-modal" data-emp-id="{{ e.id }}" data-emp-name="{{ e.full_name or '' }}">Details</button>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="hr-an-empty-state" class="hidden border-t border-[rgb(var(--rc-border))] px-4 py-6 text-center text-sm text-[rgb(var(--rc-muted))]">
+          No employees match your search.
+        </div>
+      </div>
+    {% endif %}
+    </div>
+
+    <div id="hr-an-panel-visual" role="tabpanel" aria-labelledby="hr-an-tab-visual" hidden>
+      <div class="space-y-4">
+        <div class="hr-an-card rounded-2xl border border-[rgb(var(--rc-border))] p-4 shadow-sm sm:p-5">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Comparing all employees</h3>
+              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">
+                Visual comparison across employees for the last {{ lookback_days or 90 }} days. Numbers exclude open sessions.
+              </p>
+            </div>
+            <div class="hidden gap-2 sm:flex">
+              <div class="rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ analytics_totals.employees or 0 }} staff</div>
+              <div class="rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ '%.1f'|format(analytics_totals.hours or 0) }} hrs total</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <div class="hr-an-chart-card rounded-2xl border p-3 sm:p-4 lg:p-5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Top hours in session</h4>
+                <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Total session hours by employee (login → logout pairs).</p>
+              </div>
+              <span class="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">Hours</span>
+            </div>
+            <div class="hr-an-chart-canvas-wrap mt-3 sm:mt-4"><canvas id="hr-an-chart-hours"></canvas></div>
+            <div id="hr-an-chart-hours-empty" class="hr-an-chart-empty mt-4 hidden">No session hours recorded yet.</div>
+          </div>
+
+          <div class="hr-an-chart-card rounded-2xl border p-3 sm:p-4 lg:p-5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Sessions completed</h4>
+                <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">How many sign-in sessions each employee closed.</p>
+              </div>
+              <span class="rounded-full bg-sky-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-sky-300 ring-1 ring-sky-400/30">Sessions</span>
+            </div>
+            <div class="hr-an-chart-canvas-wrap mt-3 sm:mt-4"><canvas id="hr-an-chart-sessions"></canvas></div>
+            <div id="hr-an-chart-sessions-empty" class="hr-an-chart-empty mt-4 hidden">No sessions recorded yet.</div>
+          </div>
+
+          <div class="hr-an-chart-card rounded-2xl border p-3 sm:p-4 lg:col-span-2 lg:p-5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Activity mix per employee</h4>
+                <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Stacked bars of register, edit, update, delete, login and logout events for the most active staff.</p>
+              </div>
+              <span class="rounded-full bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-violet-300 ring-1 ring-violet-400/30">Stacked</span>
+            </div>
+            <div class="hr-an-chart-canvas-wrap hr-an-chart-tall mt-3 sm:mt-4"><canvas id="hr-an-chart-mix"></canvas></div>
+            <div id="hr-an-chart-mix-empty" class="hr-an-chart-empty mt-4 hidden">No activities recorded yet.</div>
+          </div>
+
+          <div class="hr-an-chart-card rounded-2xl border p-3 sm:p-4 lg:p-5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Top change-makers</h4>
+                <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Employees with the highest register/edit/update/delete count.</p>
+              </div>
+              <span class="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/30">Changes</span>
+            </div>
+            <div class="hr-an-chart-canvas-wrap mt-3 sm:mt-4"><canvas id="hr-an-chart-changes"></canvas></div>
+            <div id="hr-an-chart-changes-empty" class="hr-an-chart-empty mt-4 hidden">No change actions recorded yet.</div>
+          </div>
+
+          <div class="hr-an-chart-card rounded-2xl border p-3 sm:p-4 lg:p-5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">By role</h4>
+                <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Hours and sessions grouped by employee role.</p>
+              </div>
+              <span class="rounded-full bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-rose-300 ring-1 ring-rose-400/30">Roles</span>
+            </div>
+            <div class="hr-an-chart-canvas-wrap mt-3 sm:mt-4"><canvas id="hr-an-chart-roles"></canvas></div>
+            <div id="hr-an-chart-roles-empty" class="hr-an-chart-empty mt-4 hidden">No role activity yet.</div>
+          </div>
+
+          <div class="hr-an-chart-card rounded-2xl border p-3 sm:p-4 lg:col-span-2 lg:p-5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Daily activity timeline</h4>
+                <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">All-employee daily totals of logins, logouts, and change actions.</p>
+              </div>
+              <span class="rounded-full bg-teal-500/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-teal-300 ring-1 ring-teal-400/30">Trend</span>
+            </div>
+            <div class="hr-an-chart-canvas-wrap mt-3 sm:mt-4"><canvas id="hr-an-chart-daily"></canvas></div>
+            <div id="hr-an-chart-daily-empty" class="hr-an-chart-empty mt-4 hidden">No activity recorded in this window.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script id="hr-an-chart-payload" type="application/json">{{ chart_payload|tojson }}</script>
+
+  {# Detail modal — populated dynamically via JS #}
+  <div id="hr-analytics-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="hr-an-modal-title">
+    <div class="hr-an-modal-backdrop absolute inset-0 bg-slate-950/70 backdrop-blur-sm" data-hr-an-close="1"></div>
+    <div class="relative z-10 mx-auto flex h-full w-full max-w-5xl items-start justify-center p-2 sm:p-4 lg:p-6">
+      <div class="hr-an-modal-panel flex max-h-[100dvh] sm:max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
+        <div class="flex shrink-0 items-start justify-between gap-2 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
+          <div class="min-w-0">
+            <p id="hr-an-modal-title" class="truncate text-sm font-bold text-[rgb(var(--rc-page-fg))] sm:text-base">Employee activity</p>
+            <p id="hr-an-modal-sub" class="mt-0.5 truncate text-[11px] font-medium text-[rgb(var(--rc-muted))] sm:text-xs">Loading details…</p>
+          </div>
+          <button type="button" class="shrink-0 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1.5 text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))] sm:p-2" data-hr-an-close="1" aria-label="Close">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div id="hr-an-modal-body" class="min-h-[14rem] overflow-y-auto px-3 py-3 sm:px-5 sm:py-5">
+          <div class="flex items-center justify-center py-10 text-sm text-[rgb(var(--rc-muted))]">
+            <svg class="mr-2 h-5 w-5 animate-spin text-[rgb(var(--rc-muted))]" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            Loading…
+          </div>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-3 py-2 sm:px-5 sm:py-3">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+            Lookback: <span id="hr-an-modal-lookback">{{ lookback_days or 90 }}</span> days
+          </p>
+          <button type="button" class="btn-rc btn-rc-secondary px-3 py-1.5 text-xs font-bold uppercase sm:px-4 sm:py-2" data-hr-an-close="1">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var page = document.getElementById('hr-analytics-page');
+      if (!page) return;
+      var lookback = parseInt(page.getAttribute('data-lookback') || '90', 10) || 90;
+
+      var modal = document.getElementById('hr-analytics-modal');
+      var modalTitle = document.getElementById('hr-an-modal-title');
+      var modalSub = document.getElementById('hr-an-modal-sub');
+      var modalBody = document.getElementById('hr-an-modal-body');
+      var modalLookback = document.getElementById('hr-an-modal-lookback');
+
+      function closeModal() {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+      function openModal() {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      }
+      modal.addEventListener('click', function (e) {
+        var t = e.target;
+        if (t && t.getAttribute && t.getAttribute('data-hr-an-close') === '1') closeModal();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+      });
+
+      function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function fmtTs(s) {
+        if (!s) return '—';
+        return escapeHtml(s);
+      }
+
+      function kindBadgeClass(kind) {
+        switch (kind) {
+          case 'login':
+            return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30';
+          case 'logout':
+            return 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30';
+          case 'register':
+            return 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/30';
+          case 'edit':
+          case 'update':
+            return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/30';
+          case 'delete':
+            return 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/30';
+          case 'suspend':
+            return 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-400/30';
+          case 'unsuspend':
+          case 'approve':
+            return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30';
+          default:
+            return 'bg-slate-500/15 text-slate-300 ring-1 ring-slate-400/30';
+        }
+      }
+
+      function renderDetail(data) {
+        if (!data || !data.ok) {
+          modalBody.innerHTML = '<p class="py-8 text-center text-sm text-rose-400">Could not load this employee\'s activity.</p>';
+          return;
+        }
+        var emp = data.employee || {};
+        var a = data.analytics || {};
+        var sessions = data.sessions || [];
+        var activities = data.recent_activities || [];
+        var kc = a.kind_counts || {};
+
+        modalTitle.textContent = (emp.full_name || 'Employee') + ' · ' + (emp.employee_code || '');
+        modalSub.textContent = (emp.role ? emp.role.toUpperCase() : '') +
+          (emp.shop_name ? ' · ' + emp.shop_name : '') +
+          (emp.email ? ' · ' + emp.email : '');
+        modalLookback.textContent = a.lookback_days || lookback;
+
+        var statCards =
+          '<div class="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">' +
+            '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3">' +
+              '<div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total hours in session</div>' +
+              '<div class="mt-1 text-xl font-extrabold text-emerald-400">' + escapeHtml(a.total_hours_label || '0h 0m') + '</div>' +
+              '<div class="mt-0.5 text-[11px] text-[rgb(var(--rc-muted))]">' + escapeHtml((a.total_hours_decimal || 0) + ' decimal hours') + '</div>' +
+            '</div>' +
+            '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3">' +
+              '<div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Sessions completed</div>' +
+              '<div class="mt-1 text-xl font-extrabold text-sky-400">' + escapeHtml(a.session_count || 0) + '</div>' +
+              '<div class="mt-0.5 text-[11px] text-[rgb(var(--rc-muted))]">' + (a.open_session_count ? escapeHtml(a.open_session_count) + ' currently open' : 'no open sessions') + '</div>' +
+            '</div>' +
+            '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3">' +
+              '<div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Average session</div>' +
+              '<div class="mt-1 text-xl font-extrabold text-violet-400">' + escapeHtml(a.avg_session_label || '0m') + '</div>' +
+              '<div class="mt-0.5 text-[11px] text-[rgb(var(--rc-muted))]">Longest: ' + escapeHtml(a.longest_session_label || '0m') + '</div>' +
+            '</div>' +
+            '<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3">' +
+              '<div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Last login / logout</div>' +
+              '<div class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">In: ' + escapeHtml(a.last_login_at || '—') + '</div>' +
+              '<div class="mt-0.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Out: ' + escapeHtml(a.last_logout_at || '—') + '</div>' +
+            '</div>' +
+          '</div>';
+
+        var kinds = ['login', 'logout', 'register', 'edit', 'update', 'delete', 'suspend', 'unsuspend', 'approve'];
+        var actionCells = '';
+        kinds.forEach(function (k) {
+          var count = parseInt(kc[k] || 0, 10) || 0;
+          actionCells +=
+            '<div class="flex items-center justify-between gap-2 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">' +
+              '<span class="hr-an-badge ' + kindBadgeClass(k) + '">' + escapeHtml(k) + '</span>' +
+              '<span class="text-sm font-extrabold text-[rgb(var(--rc-page-fg))]">' + count + '</span>' +
+            '</div>';
+        });
+        var actionsCard =
+          '<div class="mt-5">' +
+            '<h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">What this user has been doing</h3>' +
+            '<p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Counts of register, edit, delete, update and other activities in the last ' + escapeHtml(a.lookback_days || lookback) + ' days.</p>' +
+            '<div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">' + actionCells + '</div>' +
+          '</div>';
+
+        var sessionRows;
+        if (!sessions.length) {
+          sessionRows = '<tr><td colspan="4" class="px-3 py-4 text-center text-sm text-[rgb(var(--rc-muted))]">No sessions recorded in this window.</td></tr>';
+        } else {
+          sessionRows = sessions.map(function (s) {
+            var openBadge = s.open
+              ? '<span class="hr-an-badge bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30">open</span>'
+              : '';
+            return (
+              '<tr class="border-b border-[rgb(var(--rc-border))]/60">' +
+                '<td class="px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">' + fmtTs(s.login_at) + '</td>' +
+                '<td class="px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">' + fmtTs(s.logout_at) + ' ' + openBadge + '</td>' +
+                '<td class="px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">' + escapeHtml(s.duration_label) + '</td>' +
+                '<td class="px-3 py-2 text-sm text-[rgb(var(--rc-muted))]">' + escapeHtml(s.ip_address || '—') + '</td>' +
+              '</tr>'
+            );
+          }).join('');
+        }
+        var sessionsCard =
+          '<div class="mt-5">' +
+            '<h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Login &amp; logout sessions</h3>' +
+            '<p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Pair of login → logout events with computed session duration.</p>' +
+            '<div class="mt-3 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">' +
+              '<table class="min-w-[480px] w-full text-sm">' +
+                '<thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">' +
+                  '<tr>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">Login</th>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">Logout</th>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">Duration</th>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">IP</th>' +
+                  '</tr>' +
+                '</thead>' +
+                '<tbody>' + sessionRows + '</tbody>' +
+              '</table>' +
+            '</div>' +
+          '</div>';
+
+        var actRows;
+        if (!activities.length) {
+          actRows = '<tr><td colspan="4" class="px-3 py-4 text-center text-sm text-[rgb(var(--rc-muted))]">No activity recorded yet.</td></tr>';
+        } else {
+          actRows = activities.map(function (act) {
+            var kindBadge = '<span class="hr-an-badge ' + kindBadgeClass(act.action_kind) + '">' + escapeHtml(act.action_kind || 'other') + '</span>';
+            var target = (act.target_type ? act.target_type : '');
+            if (act.target_id) target += (target ? ' ' : '') + '#' + escapeHtml(act.target_id);
+            return (
+              '<tr class="border-b border-[rgb(var(--rc-border))]/60">' +
+                '<td class="px-3 py-2 text-sm text-[rgb(var(--rc-muted))] whitespace-nowrap">' + fmtTs(act.created_at) + '</td>' +
+                '<td class="px-3 py-2 whitespace-nowrap">' + kindBadge + '</td>' +
+                '<td class="px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">' + escapeHtml(act.description || target || '—') + '</td>' +
+                '<td class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">' + escapeHtml(act.ip_address || '—') + '</td>' +
+              '</tr>'
+            );
+          }).join('');
+        }
+        var activitiesCard =
+          '<div class="mt-5">' +
+            '<h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Recent activities</h3>' +
+            '<p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Latest register / edit / update / delete / login / logout events.</p>' +
+            '<div class="mt-3 overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]">' +
+              '<table class="min-w-[520px] w-full text-sm">' +
+                '<thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">' +
+                  '<tr>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">When</th>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">Action</th>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">Details</th>' +
+                    '<th class="px-3 py-2 text-left text-[11px] font-black uppercase tracking-wider">IP</th>' +
+                  '</tr>' +
+                '</thead>' +
+                '<tbody>' + actRows + '</tbody>' +
+              '</table>' +
+            '</div>' +
+          '</div>';
+
+        modalBody.innerHTML = statCards + actionsCard + sessionsCard + activitiesCard;
+      }
+
+      function loadEmployee(empId, empName) {
+        if (!empId) return;
+        modalTitle.textContent = empName ? empName : 'Employee activity';
+        modalSub.textContent = 'Loading details…';
+        modalBody.innerHTML =
+          '<div class="flex items-center justify-center py-10 text-sm text-[rgb(var(--rc-muted))]">' +
+            '<svg class="mr-2 h-5 w-5 animate-spin text-[rgb(var(--rc-muted))]" fill="none" viewBox="0 0 24 24" aria-hidden="true">' +
+              '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>' +
+              '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>' +
+            '</svg>Loading…' +
+          '</div>';
+        openModal();
+        var url = "{{ url_for('it_support_hr_analytics_employee_detail', emp_id=0) }}".replace('/0.json', '/' + encodeURIComponent(empId) + '.json');
+        url += '?lookback=' + encodeURIComponent(lookback);
+        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.json();
+          })
+          .then(renderDetail)
+          .catch(function () {
+            modalBody.innerHTML = '<p class="py-8 text-center text-sm text-rose-400">Could not load employee details. Please try again.</p>';
+          });
+      }
+
+      function bindRow(el) {
+        el.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('.js-open-hr-an-modal') : null;
+          var empId = (btn && btn.getAttribute('data-emp-id')) || el.getAttribute('data-emp-id');
+          var empName = (btn && btn.getAttribute('data-emp-name')) || el.getAttribute('data-emp-name');
+          if (!empId) return;
+          e.preventDefault();
+          loadEmployee(empId, empName);
+        });
+      }
+      document.querySelectorAll('.js-hr-an-row, .hr-an-emp-card').forEach(bindRow);
+
+      var search = document.getElementById('hr-an-search');
+      if (search) {
+        var emptyState = document.getElementById('hr-an-empty-state');
+        search.addEventListener('input', function () {
+          var q = (this.value || '').toLowerCase().trim();
+          var visibleRows = 0;
+          document.querySelectorAll('.js-hr-an-row').forEach(function (row) {
+            var hay = row.getAttribute('data-emp-search') || '';
+            var match = !q || hay.indexOf(q) !== -1;
+            row.style.display = match ? '' : 'none';
+            if (match) visibleRows += 1;
+          });
+          document.querySelectorAll('.hr-an-emp-card').forEach(function (card) {
+            var hay = card.getAttribute('data-emp-search') || '';
+            var match = !q || hay.indexOf(q) !== -1;
+            card.style.display = match ? '' : 'none';
+          });
+          if (emptyState) emptyState.classList.toggle('hidden', visibleRows > 0);
+        });
+      }
+
+      var tabList = document.getElementById('hr-an-tab-list');
+      var tabVisual = document.getElementById('hr-an-tab-visual');
+      var panelList = document.getElementById('hr-an-panel-list');
+      var panelVisual = document.getElementById('hr-an-panel-visual');
+      var visualRendered = false;
+      var STORAGE_TAB_KEY = 'hr-an-active-tab';
+
+      function setActiveTab(tab) {
+        var isVisual = tab === 'visual';
+        tabList.setAttribute('aria-selected', isVisual ? 'false' : 'true');
+        tabVisual.setAttribute('aria-selected', isVisual ? 'true' : 'false');
+        panelList.hidden = isVisual;
+        panelVisual.hidden = !isVisual;
+        try {
+          localStorage.setItem(STORAGE_TAB_KEY, isVisual ? 'visual' : 'list');
+        } catch (e) {}
+        if (isVisual && !visualRendered) {
+          visualRendered = true;
+          loadChartsLib(function () {
+            renderAllCharts();
+          });
+        }
+      }
+      tabList.addEventListener('click', function () {
+        setActiveTab('list');
+      });
+      tabVisual.addEventListener('click', function () {
+        setActiveTab('visual');
+      });
+
+      var initial = 'list';
+      try {
+        var stored = localStorage.getItem(STORAGE_TAB_KEY);
+        if (stored === 'visual' || stored === 'list') initial = stored;
+      } catch (e) {}
+      setActiveTab(initial);
+
+      function loadChartsLib(cb) {
+        if (typeof window.Chart !== 'undefined') {
+          cb();
+          return;
+        }
+        var existing = document.getElementById('hr-an-chartjs-script');
+        if (existing) {
+          existing.addEventListener('load', cb);
+          return;
+        }
+        var s = document.createElement('script');
+        s.id = 'hr-an-chartjs-script';
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+        s.async = true;
+        s.onload = cb;
+        s.onerror = function () {
+          var ids = ['hours', 'sessions', 'mix', 'changes', 'roles', 'daily'];
+          ids.forEach(function (id) {
+            var emp = document.getElementById('hr-an-chart-' + id + '-empty');
+            if (emp) {
+              emp.textContent = 'Could not load chart library.';
+              emp.classList.remove('hidden');
+            }
+          });
+        };
+        document.head.appendChild(s);
+      }
+
+      function readChartPayload() {
+        var el = document.getElementById('hr-an-chart-payload');
+        if (!el) return null;
+        try {
+          return JSON.parse(el.textContent || '{}');
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function getThemeColors() {
+        var styles = getComputedStyle(document.documentElement);
+        function rgb(name, fallback) {
+          var v = (styles.getPropertyValue(name) || '').trim();
+          if (!v) return fallback;
+          return 'rgb(' + v + ')';
+        }
+        function rgba(name, alpha, fallback) {
+          var v = (styles.getPropertyValue(name) || '').trim();
+          if (!v) return fallback;
+          return 'rgba(' + v + ',' + alpha + ')';
+        }
+        return {
+          fg: rgb('--rc-page-fg', '#0f172a'),
+          muted: rgb('--rc-muted', '#64748b'),
+          grid: rgba('--rc-border', 0.35, 'rgba(148,163,184,0.25)'),
+        };
+      }
+
+      function truncateLabel(s, n) {
+        s = (s == null ? '' : String(s));
+        if (s.length <= n) return s;
+        return s.slice(0, Math.max(0, n - 1)) + '…';
+      }
+
+      var KIND_COLORS = {
+        login: 'rgba(16, 185, 129, 0.85)',
+        logout: 'rgba(56, 189, 248, 0.85)',
+        register: 'rgba(168, 85, 247, 0.85)',
+        edit: 'rgba(245, 158, 11, 0.85)',
+        update: 'rgba(234, 179, 8, 0.85)',
+        delete: 'rgba(244, 63, 94, 0.85)',
+        suspend: 'rgba(249, 115, 22, 0.85)',
+        unsuspend: 'rgba(34, 197, 94, 0.85)',
+        approve: 'rgba(20, 184, 166, 0.85)',
+      };
+
+      var chartInstances = {};
+
+      function destroyChart(id) {
+        if (chartInstances[id]) {
+          try {
+            chartInstances[id].destroy();
+          } catch (e) {}
+          chartInstances[id] = null;
+        }
+      }
+
+      function showEmpty(id, empty) {
+        var canvas = document.getElementById('hr-an-chart-' + id);
+        var emp = document.getElementById('hr-an-chart-' + id + '-empty');
+        if (canvas) canvas.style.display = empty ? 'none' : '';
+        if (emp) emp.classList.toggle('hidden', !empty);
+      }
+
+      function renderHoursChart(payload, colors) {
+        var rows = (payload && payload.top_hours) || [];
+        destroyChart('hours');
+        if (!rows.length) { showEmpty('hours', true); return; }
+        showEmpty('hours', false);
+        var labels = rows.map(function (r) { return truncateLabel(r.name, 22); });
+        var data = rows.map(function (r) { return r.total_hours || 0; });
+        chartInstances.hours = new window.Chart(document.getElementById('hr-an-chart-hours'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Hours',
+              data: data,
+              backgroundColor: 'rgba(16, 185, 129, 0.75)',
+              borderColor: 'rgba(16, 185, 129, 1)',
+              borderWidth: 1,
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    var r = rows[ctx.dataIndex] || {};
+                    return ' ' + (r.total_hours_label || (ctx.parsed.x + ' h')) + ' · ' + (r.session_count || 0) + ' sessions';
+                  },
+                },
+              },
+            },
+            scales: {
+              x: { ticks: { color: colors.muted }, grid: { color: colors.grid } },
+              y: { ticks: { color: colors.fg, font: { size: 11 } }, grid: { display: false } },
+            },
+          },
+        });
+      }
+
+      function renderSessionsChart(payload, colors) {
+        var rows = (payload && payload.top_sessions) || [];
+        destroyChart('sessions');
+        if (!rows.length) { showEmpty('sessions', true); return; }
+        showEmpty('sessions', false);
+        var labels = rows.map(function (r) { return truncateLabel(r.name, 22); });
+        var data = rows.map(function (r) { return r.session_count || 0; });
+        chartInstances.sessions = new window.Chart(document.getElementById('hr-an-chart-sessions'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Sessions',
+              data: data,
+              backgroundColor: 'rgba(56, 189, 248, 0.75)',
+              borderColor: 'rgba(56, 189, 248, 1)',
+              borderWidth: 1,
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    var r = rows[ctx.dataIndex] || {};
+                    return ' ' + (r.session_count || 0) + ' sessions · ' + (r.total_hours_label || '0h 0m');
+                  },
+                },
+              },
+            },
+            scales: {
+              x: { beginAtZero: true, ticks: { color: colors.muted, precision: 0 }, grid: { color: colors.grid } },
+              y: { ticks: { color: colors.fg, font: { size: 11 } }, grid: { display: false } },
+            },
+          },
+        });
+      }
+
+      function renderMixChart(payload, colors) {
+        var rows = (payload && payload.activity_mix) || [];
+        destroyChart('mix');
+        if (!rows.length) { showEmpty('mix', true); return; }
+        showEmpty('mix', false);
+        var labels = rows.map(function (r) { return truncateLabel(r.name, 22); });
+        var kinds = ['login', 'logout', 'register', 'edit', 'update', 'delete'];
+        var datasets = kinds.map(function (k) {
+          return {
+            label: k.charAt(0).toUpperCase() + k.slice(1),
+            data: rows.map(function (r) { return (r.kind_counts && r.kind_counts[k]) || 0; }),
+            backgroundColor: KIND_COLORS[k] || 'rgba(100,116,139,0.7)',
+            borderWidth: 0,
+            borderRadius: 3,
+          };
+        });
+        chartInstances.mix = new window.Chart(document.getElementById('hr-an-chart-mix'), {
+          type: 'bar',
+          data: { labels: labels, datasets: datasets },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: colors.fg, boxWidth: 10, padding: 12 } },
+              tooltip: {
+                callbacks: {
+                  footer: function (items) {
+                    if (!items || !items.length) return '';
+                    var r = rows[items[0].dataIndex] || {};
+                    return 'Total hours: ' + (r.total_hours_label || '0h 0m');
+                  },
+                },
+              },
+            },
+            scales: {
+              x: { stacked: true, beginAtZero: true, ticks: { color: colors.muted, precision: 0 }, grid: { color: colors.grid } },
+              y: { stacked: true, ticks: { color: colors.fg, font: { size: 11 } }, grid: { display: false } },
+            },
+          },
+        });
+      }
+
+      function renderChangesChart(payload, colors) {
+        var rows = (payload && payload.top_changes) || [];
+        destroyChart('changes');
+        if (!rows.length) { showEmpty('changes', true); return; }
+        showEmpty('changes', false);
+        var labels = rows.map(function (r) { return truncateLabel(r.name, 22); });
+        var data = rows.map(function (r) { return r.change_count || 0; });
+        chartInstances.changes = new window.Chart(document.getElementById('hr-an-chart-changes'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Changes',
+              data: data,
+              backgroundColor: 'rgba(245, 158, 11, 0.75)',
+              borderColor: 'rgba(245, 158, 11, 1)',
+              borderWidth: 1,
+              borderRadius: 4,
+            }],
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { beginAtZero: true, ticks: { color: colors.muted, precision: 0 }, grid: { color: colors.grid } },
+              y: { ticks: { color: colors.fg, font: { size: 11 } }, grid: { display: false } },
+            },
+          },
+        });
+      }
+
+      function renderRolesChart(payload, colors) {
+        var rows = (payload && payload.roles) || [];
+        destroyChart('roles');
+        if (!rows.length) { showEmpty('roles', true); return; }
+        showEmpty('roles', false);
+        var labels = rows.map(function (r) { return (r.role || '').toUpperCase() + ' (' + (r.employees || 0) + ')'; });
+        chartInstances.roles = new window.Chart(document.getElementById('hr-an-chart-roles'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Hours',
+                data: rows.map(function (r) { return r.total_hours || 0; }),
+                backgroundColor: 'rgba(168, 85, 247, 0.75)',
+                borderWidth: 0,
+                borderRadius: 4,
+                yAxisID: 'y',
+              },
+              {
+                label: 'Sessions',
+                data: rows.map(function (r) { return r.session_count || 0; }),
+                backgroundColor: 'rgba(56, 189, 248, 0.75)',
+                borderWidth: 0,
+                borderRadius: 4,
+                yAxisID: 'y1',
+              },
+              {
+                label: 'Changes',
+                data: rows.map(function (r) { return r.change_count || 0; }),
+                backgroundColor: 'rgba(245, 158, 11, 0.75)',
+                borderWidth: 0,
+                borderRadius: 4,
+                yAxisID: 'y1',
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: colors.fg, boxWidth: 10, padding: 12 } },
+            },
+            scales: {
+              x: { ticks: { color: colors.fg, font: { size: 10 } }, grid: { display: false } },
+              y: {
+                beginAtZero: true,
+                position: 'left',
+                title: { display: true, text: 'Hours', color: colors.muted },
+                ticks: { color: colors.muted },
+                grid: { color: colors.grid },
+              },
+              y1: {
+                beginAtZero: true,
+                position: 'right',
+                title: { display: true, text: 'Count', color: colors.muted },
+                ticks: { color: colors.muted, precision: 0 },
+                grid: { display: false },
+              },
+            },
+          },
+        });
+      }
+
+      function renderDailyChart(payload, colors) {
+        var rows = (payload && payload.daily) || [];
+        destroyChart('daily');
+        var anyActivity = rows.some(function (r) { return (r.total || 0) > 0; });
+        if (!rows.length || !anyActivity) { showEmpty('daily', true); return; }
+        showEmpty('daily', false);
+        var labels = rows.map(function (r) { return r.date; });
+        function ds(key, label, color) {
+          return {
+            label: label,
+            data: rows.map(function (r) { return r[key] || 0; }),
+            borderColor: color,
+            backgroundColor: color.replace(/[\d.]+\)$/, '0.15)'),
+            tension: 0.3,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            borderWidth: 2,
+          };
+        }
+        chartInstances.daily = new window.Chart(document.getElementById('hr-an-chart-daily'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              ds('login', 'Login', 'rgba(16, 185, 129, 1)'),
+              ds('logout', 'Logout', 'rgba(56, 189, 248, 1)'),
+              ds('register', 'Register', 'rgba(168, 85, 247, 1)'),
+              ds('edit', 'Edit', 'rgba(245, 158, 11, 1)'),
+              ds('update', 'Update', 'rgba(234, 179, 8, 1)'),
+              ds('delete', 'Delete', 'rgba(244, 63, 94, 1)'),
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { color: colors.fg, boxWidth: 10, padding: 12 } } },
+            scales: {
+              x: { ticks: { color: colors.muted, maxRotation: 0, autoSkip: true, autoSkipPadding: 16 }, grid: { color: colors.grid } },
+              y: { beginAtZero: true, ticks: { color: colors.muted, precision: 0 }, grid: { color: colors.grid } },
+            },
+          },
+        });
+      }
+
+      function renderAllCharts() {
+        if (typeof window.Chart === 'undefined') return;
+        var payload = readChartPayload();
+        var colors = getThemeColors();
+        try { renderHoursChart(payload, colors); } catch (e) {}
+        try { renderSessionsChart(payload, colors); } catch (e) {}
+        try { renderMixChart(payload, colors); } catch (e) {}
+        try { renderChangesChart(payload, colors); } catch (e) {}
+        try { renderRolesChart(payload, colors); } catch (e) {}
+        try { renderDailyChart(payload, colors); } catch (e) {}
+      }
+
+      var themeObserver = null;
+      try {
+        themeObserver = new MutationObserver(function () {
+          if (panelVisual && !panelVisual.hidden && typeof window.Chart !== 'undefined') {
+            renderAllCharts();
+          }
+        });
+        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+      } catch (e) {}
+
+      // ---------------------------------------------------------------------
+      // Live polling + counters
+      // ---------------------------------------------------------------------
+      var LIVE_URL = page.getAttribute('data-live-url') || '';
+      var LIVE_INTERVAL = parseInt(page.getAttribute('data-live-interval') || '15000', 10) || 15000;
+      var STORAGE_LIVE_KEY = 'hr-an-live-on';
+      var livePill = document.getElementById('hr-an-live-pill');
+      var liveLabel = document.getElementById('hr-an-live-label');
+      var liveToggle = document.getElementById('hr-an-live-toggle');
+      var liveToggleText = document.getElementById('hr-an-live-toggle-text');
+      var updatedRel = document.getElementById('hr-an-updated-rel');
+      var livePollTimer = null;
+      var liveInFlight = false;
+      var liveEnabled = true;
+      try {
+        var stored = localStorage.getItem(STORAGE_LIVE_KEY);
+        if (stored === 'off') liveEnabled = false;
+      } catch (e) {}
+      var lastServerEpochMs = Date.now();
+      var lastChartSignature = null;
+
+      function setLiveState(state) {
+        if (!livePill) return;
+        if (state === 'live') {
+          livePill.setAttribute('data-state', 'live');
+          if (liveLabel) liveLabel.textContent = 'Live';
+        } else if (state === 'paused') {
+          livePill.setAttribute('data-state', 'paused');
+          if (liveLabel) liveLabel.textContent = 'Paused';
+        } else if (state === 'error') {
+          livePill.setAttribute('data-state', 'error');
+          if (liveLabel) liveLabel.textContent = 'Offline';
+        } else if (state === 'updating') {
+          livePill.setAttribute('data-state', 'live');
+          if (liveLabel) liveLabel.textContent = 'Updating…';
+        }
+      }
+      setLiveState(liveEnabled ? 'live' : 'paused');
+      if (liveToggle && liveToggleText) {
+        liveToggleText.textContent = liveEnabled ? 'Pause' : 'Resume';
+        liveToggle.setAttribute('aria-pressed', liveEnabled ? 'true' : 'false');
+        liveToggle.addEventListener('click', function () {
+          liveEnabled = !liveEnabled;
+          try { localStorage.setItem(STORAGE_LIVE_KEY, liveEnabled ? 'on' : 'off'); } catch (e) {}
+          liveToggleText.textContent = liveEnabled ? 'Pause' : 'Resume';
+          liveToggle.setAttribute('aria-pressed', liveEnabled ? 'true' : 'false');
+          if (liveEnabled) {
+            setLiveState('live');
+            schedulePoll(0);
+            pollNow();
+          } else {
+            setLiveState('paused');
+            if (livePollTimer) {
+              clearTimeout(livePollTimer);
+              livePollTimer = null;
+            }
+          }
+        });
+      }
+
+      function relTimeString(ms) {
+        var diff = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+        if (diff < 5) return 'just now';
+        if (diff < 60) return diff + 's ago';
+        var m = Math.floor(diff / 60);
+        if (m < 60) return m + 'm ago';
+        var h = Math.floor(m / 60);
+        return h + 'h ago';
+      }
+      function refreshRelLabel() {
+        if (!updatedRel) return;
+        updatedRel.textContent = relTimeString(lastServerEpochMs);
+      }
+      setInterval(refreshRelLabel, 5000);
+      refreshRelLabel();
+
+      function formatHmsFromSeconds(total) {
+        total = Math.max(0, Math.floor(total || 0));
+        var h = Math.floor(total / 3600);
+        var m = Math.floor((total % 3600) / 60);
+        if (h <= 0) return m + 'm';
+        return h + 'h ' + m + 'm';
+      }
+
+      function animateCount(el, toValue, format) {
+        if (!el) return;
+        var from = parseFloat(el.getAttribute('data-current') || '0') || 0;
+        if (!isFinite(toValue)) toValue = from;
+        if (from === toValue) {
+          el.setAttribute('data-current', String(toValue));
+          el.textContent = renderNumber(toValue, format);
+          return;
+        }
+        var start = performance.now();
+        var duration = 600;
+        function step(ts) {
+          var t = Math.min(1, (ts - start) / duration);
+          var eased = 1 - Math.pow(1 - t, 3);
+          var v = from + (toValue - from) * eased;
+          el.textContent = renderNumber(v, format);
+          if (t < 1) requestAnimationFrame(step);
+          else {
+            el.setAttribute('data-current', String(toValue));
+            el.textContent = renderNumber(toValue, format);
+          }
+        }
+        requestAnimationFrame(step);
+      }
+      function renderNumber(v, format) {
+        if (format === 'hours') {
+          var n = Number(v || 0);
+          return n.toFixed(1) + 'h';
+        }
+        // default: integer
+        return String(Math.round(Number(v || 0)));
+      }
+
+      function flash(el) {
+        if (!el) return;
+        el.classList.remove('hr-an-flash');
+        // force reflow so animation restarts
+        void el.offsetWidth;
+        el.classList.add('hr-an-flash');
+      }
+      function flashRow(el) {
+        if (!el) return;
+        el.classList.remove('hr-an-row-flash');
+        void el.offsetWidth;
+        el.classList.add('hr-an-row-flash');
+      }
+
+      function applyTotals(totals) {
+        if (!totals) return;
+        var map = {
+          employees: totals.employees,
+          active_today: totals.active_today,
+          sessions: totals.sessions,
+          hours: totals.hours,
+          changes: totals.changes,
+        };
+        Object.keys(map).forEach(function (k) {
+          var els = document.querySelectorAll('[data-hr-an-stat="' + k + '"]');
+          els.forEach(function (el) {
+            var fmt = el.getAttribute('data-hr-an-format') || 'int';
+            var newVal = Number(map[k] || 0);
+            var oldVal = parseFloat(el.getAttribute('data-current') || '0') || 0;
+            if (Math.abs(newVal - oldVal) > 0.0001) {
+              flash(el);
+            }
+            animateCount(el, newVal, fmt);
+          });
+        });
+      }
+
+      function parseServerTimestampMs(s) {
+        if (!s) return Date.now();
+        // The backend serializes naive local datetimes ("YYYY-MM-DD HH:MM:SS"). Treat
+        // them as local time so the resulting epoch lines up with Date.now().
+        var t = String(s).trim().replace(' ', 'T');
+        var d = new Date(t);
+        if (isNaN(d.getTime())) return Date.now();
+        return d.getTime();
+      }
+
+      function buildLookup(arr) {
+        var out = {};
+        (arr || []).forEach(function (r) {
+          if (!r || r.id == null) return;
+          out[String(r.id)] = r;
+        });
+        return out;
+      }
+
+      function updateEmployeeRowsAndCards(employees) {
+        var byId = buildLookup(employees);
+        var nodes = document.querySelectorAll('.js-hr-an-row, .hr-an-emp-card');
+        nodes.forEach(function (node) {
+          var id = node.getAttribute('data-emp-id');
+          if (!id) return;
+          var r = byId[String(id)];
+          if (!r) return;
+
+          var prevSessions = parseInt(node.querySelector('[data-hr-an-cell="session_count"]') ? node.querySelector('[data-hr-an-cell="session_count"]').textContent : '0', 10) || 0;
+          var prevChanges = parseInt(node.querySelector('[data-hr-an-cell="change_count"]') ? node.querySelector('[data-hr-an-cell="change_count"]').textContent : '0', 10) || 0;
+
+          // Refresh dataset attributes used for the live ticker.
+          node.setAttribute('data-total-seconds', String(r.total_seconds || 0));
+          node.setAttribute('data-last-login', r.last_login_at || '');
+          node.setAttribute('data-last-logout', r.last_logout_at || '');
+
+          function setCell(name, value) {
+            var el = node.querySelector('[data-hr-an-cell="' + name + '"]');
+            if (!el) return;
+            var newText = (value == null || value === '') ? '—' : String(value);
+            if (el.textContent !== newText) {
+              el.textContent = newText;
+            }
+          }
+          setCell('session_count', r.session_count || 0);
+          setCell('change_count', r.change_count || 0);
+          setCell('total_hours_label', r.total_hours_label || '0h 0m');
+          setCell('last_login_at', r.last_login_at ? formatTimestampShort(r.last_login_at) : '—');
+          setCell('last_logout_at', r.last_logout_at ? formatTimestampShort(r.last_logout_at) : '—');
+
+          var statusEl = node.querySelector('[data-hr-an-cell="status_badge"]');
+          if (statusEl) {
+            var label = (r.status || '').replace(/_/g, ' ');
+            if (label && statusEl.textContent.trim() !== label) {
+              statusEl.textContent = label;
+            }
+          }
+
+          if ((r.session_count || 0) > prevSessions || (r.change_count || 0) > prevChanges) {
+            flashRow(node);
+          }
+        });
+      }
+
+      function formatTimestampShort(s) {
+        if (!s) return '—';
+        var t = String(s).trim().replace(' ', 'T');
+        var d = new Date(t);
+        if (isNaN(d.getTime())) return s;
+        function pad(n) { return n < 10 ? '0' + n : '' + n; }
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
+
+      function chartSignature(payload) {
+        if (!payload) return '';
+        try {
+          return JSON.stringify({
+            t: payload.totals || {},
+            h: (payload.top_hours || []).map(function (r) { return [r.id, r.total_hours]; }),
+            s: (payload.top_sessions || []).map(function (r) { return [r.id, r.session_count]; }),
+            c: (payload.top_changes || []).map(function (r) { return [r.id, r.change_count]; }),
+            m: (payload.activity_mix || []).map(function (r) { return [r.id, r.kind_counts]; }),
+            d: (payload.daily || []).map(function (r) { return [r.date, r.total]; }),
+            r: payload.roles || [],
+          });
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function applyChartPayload(chartPayload) {
+        var el = document.getElementById('hr-an-chart-payload');
+        if (el) el.textContent = JSON.stringify(chartPayload || {});
+        var sig = chartSignature(chartPayload);
+        if (sig === lastChartSignature) return;
+        lastChartSignature = sig;
+        // Only re-render if the visual tab is already initialized and visible.
+        if (visualRendered && panelVisual && !panelVisual.hidden && typeof window.Chart !== 'undefined') {
+          renderAllCharts();
+        }
+      }
+
+      function applyPayload(payload) {
+        if (!payload || payload.ok === false) {
+          setLiveState('error');
+          return;
+        }
+        lastServerEpochMs = parseServerTimestampMs(payload.server_time);
+        refreshRelLabel();
+        applyTotals(payload.totals);
+        updateEmployeeRowsAndCards(payload.employees);
+        applyChartPayload(payload.chart_payload);
+        setLiveState(liveEnabled ? 'live' : 'paused');
+      }
+
+      function pollNow() {
+        if (!LIVE_URL || liveInFlight) return;
+        if (!liveEnabled) return;
+        if (document.hidden) return;
+        liveInFlight = true;
+        setLiveState('updating');
+        var lookback = parseInt(page.getAttribute('data-lookback') || '90', 10) || 90;
+        var url = LIVE_URL + '?lookback=' + encodeURIComponent(lookback);
+        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.json();
+          })
+          .then(applyPayload)
+          .catch(function () {
+            setLiveState('error');
+          })
+          .then(function () {
+            liveInFlight = false;
+            schedulePoll(LIVE_INTERVAL);
+          });
+      }
+
+      function schedulePoll(delay) {
+        if (livePollTimer) clearTimeout(livePollTimer);
+        if (!liveEnabled) return;
+        livePollTimer = setTimeout(pollNow, Math.max(1000, delay || LIVE_INTERVAL));
+      }
+
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+          if (livePollTimer) { clearTimeout(livePollTimer); livePollTimer = null; }
+        } else if (liveEnabled) {
+          setLiveState('live');
+          pollNow();
+        }
+      });
+      window.addEventListener('focus', function () {
+        if (liveEnabled && !livePollTimer && !document.hidden) pollNow();
+      });
+
+      // Kick off the first poll shortly after page load so we don't slam the server right away.
+      if (LIVE_URL) {
+        lastServerEpochMs = Date.now();
+        schedulePoll(LIVE_INTERVAL);
+      }
+
+      // ---------------------------------------------------------------------
+      // Local "ticker" — increments total session hours every second for any
+      // employee whose last_login is more recent than last_logout (i.e. they
+      // currently have an open session). Keeps the page feeling alive even
+      // between server polls.
+      // ---------------------------------------------------------------------
+      function tickOpenSessions() {
+        var now = Date.now();
+        var nodes = document.querySelectorAll('.js-hr-an-row, .hr-an-emp-card');
+        nodes.forEach(function (node) {
+          var li = node.getAttribute('data-last-login');
+          var lo = node.getAttribute('data-last-logout');
+          var liMs = li ? parseServerTimestampMs(li) : 0;
+          var loMs = lo ? parseServerTimestampMs(lo) : 0;
+          var isOpen = liMs > 0 && liMs > loMs;
+          var cell = node.querySelector('[data-hr-an-cell="total_hours_label"]');
+          if (!cell) return;
+          if (!isOpen) {
+            cell.classList.remove('hr-an-ticking');
+            return;
+          }
+          cell.classList.add('hr-an-ticking');
+          var baseSeconds = parseInt(node.getAttribute('data-total-seconds') || '0', 10) || 0;
+          var elapsedExtra = Math.max(0, Math.floor((now - Math.max(liMs, lastServerEpochMs)) / 1000));
+          var total = baseSeconds + elapsedExtra;
+          cell.textContent = formatHmsFromSeconds(total);
+        });
+      }
+      setInterval(tickOpenSessions, 1000);
+      tickOpenSessions();
+    })();
+  </script>
+{% endblock %}

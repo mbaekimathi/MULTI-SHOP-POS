@@ -496,6 +496,577 @@ def init_employee_payroll_advances_table():
         return False
 
 
+HR_ACTIVITY_ACTION_KINDS: tuple[str, ...] = (
+    "login",
+    "logout",
+    "register",
+    "edit",
+    "update",
+    "delete",
+    "suspend",
+    "unsuspend",
+    "approve",
+    "view",
+    "other",
+)
+
+
+def init_hr_activity_log_table():
+    """Activity log feeding the IT HR analytics page (logins, logouts, CRUD audit)."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS hr_activity_log (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        employee_id INT NULL,
+        employee_full_name VARCHAR(200) NULL,
+        employee_role VARCHAR(40) NULL,
+        action_kind VARCHAR(40) NOT NULL,
+        target_type VARCHAR(40) NULL,
+        target_id INT NULL,
+        description VARCHAR(500) NULL,
+        ip_address VARCHAR(64) NULL,
+        user_agent VARCHAR(255) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_hr_activity_employee (employee_id, created_at),
+        KEY idx_hr_activity_kind (action_kind, created_at),
+        KEY idx_hr_activity_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table hr_activity_log is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init hr_activity_log: %s", e)
+        return False
+
+
+def log_hr_activity(
+    employee_id: Optional[int],
+    action_kind: str,
+    *,
+    target_type: Optional[str] = None,
+    target_id: Optional[int] = None,
+    description: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    employee_full_name: Optional[str] = None,
+    employee_role: Optional[str] = None,
+) -> bool:
+    """Append a row to hr_activity_log. Silent on failure so callers never break."""
+    kind = (action_kind or "other").strip().lower() or "other"
+    if kind not in HR_ACTIVITY_ACTION_KINDS:
+        kind = "other"
+    emp_id_val: Optional[int]
+    try:
+        emp_id_val = int(employee_id) if employee_id is not None else None
+        if emp_id_val is not None and emp_id_val <= 0:
+            emp_id_val = None
+    except (TypeError, ValueError):
+        emp_id_val = None
+    name_snap = (employee_full_name or "").strip() or None
+    role_snap = (employee_role or "").strip().lower() or None
+    if emp_id_val is not None and (not name_snap or not role_snap):
+        try:
+            with get_cursor() as cur:
+                cur.execute(
+                    "SELECT full_name, role FROM employees WHERE id = %s LIMIT 1",
+                    (emp_id_val,),
+                )
+                row = cur.fetchone() or {}
+                name_snap = name_snap or (row.get("full_name") or None)
+                role_snap = role_snap or (row.get("role") or None)
+        except pymysql.Error:
+            pass
+    tgt_id_val: Optional[int]
+    try:
+        tgt_id_val = int(target_id) if target_id is not None else None
+    except (TypeError, ValueError):
+        tgt_id_val = None
+    desc = (description or "").strip() or None
+    if desc and len(desc) > 500:
+        desc = desc[:500]
+    ip_val = (ip_address or "").strip() or None
+    if ip_val and len(ip_val) > 64:
+        ip_val = ip_val[:64]
+    ua = (user_agent or "").strip() or None
+    if ua and len(ua) > 255:
+        ua = ua[:255]
+    sql = (
+        "INSERT INTO hr_activity_log "
+        "(employee_id, employee_full_name, employee_role, action_kind, target_type, "
+        "target_id, description, ip_address, user_agent) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    )
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                sql,
+                (
+                    emp_id_val,
+                    name_snap,
+                    role_snap,
+                    kind,
+                    (target_type or None),
+                    tgt_id_val,
+                    desc,
+                    ip_val,
+                    ua,
+                ),
+            )
+        return True
+    except pymysql.Error as e:
+        logger.warning("log_hr_activity failed: %s", e)
+        return False
+
+
+def list_hr_activity_for_employee(
+    employee_id: int,
+    *,
+    limit: int = 500,
+    action_kinds: Optional[Tuple[str, ...]] = None,
+):
+    """Return ordered activity rows (latest first) for a single employee."""
+    try:
+        emp_id_val = int(employee_id)
+    except (TypeError, ValueError):
+        return []
+    if emp_id_val <= 0:
+        return []
+    try:
+        lim = int(limit)
+    except (TypeError, ValueError):
+        lim = 500
+    lim = max(1, min(5000, lim))
+
+    where = ["employee_id = %s"]
+    params: list[Any] = [emp_id_val]
+    if action_kinds:
+        kinds = tuple(k for k in action_kinds if k in HR_ACTIVITY_ACTION_KINDS)
+        if kinds:
+            placeholders = ", ".join(["%s"] * len(kinds))
+            where.append(f"action_kind IN ({placeholders})")
+            params.extend(kinds)
+    sql = (
+        "SELECT id, employee_id, employee_full_name, employee_role, action_kind, "
+        "target_type, target_id, description, ip_address, user_agent, created_at "
+        "FROM hr_activity_log "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY created_at DESC, id DESC LIMIT %s"
+    )
+    params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def _seconds_to_hms(total_seconds: float) -> str:
+    try:
+        total = int(max(0, float(total_seconds)))
+    except (TypeError, ValueError):
+        return "0h 0m"
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    if hours <= 0:
+        return f"{minutes}m"
+    return f"{hours}h {minutes}m"
+
+
+def get_employee_session_analytics(
+    employee_id: int,
+    *,
+    lookback_days: int = 90,
+    recent_limit: int = 50,
+) -> dict:
+    """Aggregate sessions and activity counts for a single employee.
+
+    Pairs each ``login`` event with the next chronological ``logout``. Lingering
+    open sessions (login without a paired logout) are reported separately.
+    """
+    empty = {
+        "employee_id": int(employee_id) if employee_id else 0,
+        "session_count": 0,
+        "open_session_count": 0,
+        "total_seconds": 0,
+        "total_hours_label": "0h 0m",
+        "total_hours_decimal": 0.0,
+        "avg_session_seconds": 0,
+        "avg_session_label": "0m",
+        "longest_session_seconds": 0,
+        "longest_session_label": "0m",
+        "last_login_at": None,
+        "last_logout_at": None,
+        "first_seen_at": None,
+        "kind_counts": {k: 0 for k in HR_ACTIVITY_ACTION_KINDS},
+        "sessions": [],
+        "recent_activities": [],
+        "lookback_days": int(lookback_days) if lookback_days else 90,
+    }
+    try:
+        emp_id_val = int(employee_id)
+    except (TypeError, ValueError):
+        return empty
+    if emp_id_val <= 0:
+        return empty
+    try:
+        lookback = int(lookback_days)
+    except (TypeError, ValueError):
+        lookback = 90
+    lookback = max(1, min(3650, lookback))
+    cutoff = datetime.now() - timedelta(days=lookback)
+
+    # Pull every event in the window in chronological order to build session pairs.
+    sql_events = (
+        "SELECT id, action_kind, target_type, target_id, description, ip_address, "
+        "user_agent, created_at "
+        "FROM hr_activity_log "
+        "WHERE employee_id = %s AND created_at >= %s "
+        "ORDER BY created_at ASC, id ASC"
+    )
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_events, (emp_id_val, cutoff))
+            events = cur.fetchall() or []
+    except pymysql.Error:
+        events = []
+
+    kind_counts: Dict[str, int] = {k: 0 for k in HR_ACTIVITY_ACTION_KINDS}
+    sessions: list[dict] = []
+    pending_login: Optional[dict] = None
+    open_sessions = 0
+    last_login_at = None
+    last_logout_at = None
+    first_seen_at = None
+    longest_seconds = 0
+    total_seconds = 0
+
+    for ev in events:
+        kind = (ev.get("action_kind") or "other").lower()
+        if kind not in kind_counts:
+            kind_counts[kind] = 0
+        kind_counts[kind] += 1
+        ts = ev.get("created_at")
+        if first_seen_at is None and ts is not None:
+            first_seen_at = ts
+        if kind == "login":
+            last_login_at = ts
+            # If there was already an unclosed login, close it as "open" so we don't double-pair.
+            if pending_login is not None:
+                sessions.append(
+                    {
+                        "login_at": pending_login.get("created_at"),
+                        "logout_at": None,
+                        "duration_seconds": 0,
+                        "duration_label": "open",
+                        "ip_address": pending_login.get("ip_address"),
+                        "open": True,
+                    }
+                )
+                open_sessions += 1
+            pending_login = ev
+        elif kind == "logout":
+            last_logout_at = ts
+            if pending_login is not None:
+                start = pending_login.get("created_at")
+                end = ts
+                duration = 0
+                if isinstance(start, datetime) and isinstance(end, datetime):
+                    duration = max(0, int((end - start).total_seconds()))
+                if duration > longest_seconds:
+                    longest_seconds = duration
+                total_seconds += duration
+                sessions.append(
+                    {
+                        "login_at": start,
+                        "logout_at": end,
+                        "duration_seconds": duration,
+                        "duration_label": _seconds_to_hms(duration),
+                        "ip_address": pending_login.get("ip_address"),
+                        "open": False,
+                    }
+                )
+                pending_login = None
+            else:
+                # Logout without a paired login (older session). Record as orphan logout.
+                sessions.append(
+                    {
+                        "login_at": None,
+                        "logout_at": ts,
+                        "duration_seconds": 0,
+                        "duration_label": "unknown",
+                        "ip_address": ev.get("ip_address"),
+                        "open": False,
+                    }
+                )
+    if pending_login is not None:
+        sessions.append(
+            {
+                "login_at": pending_login.get("created_at"),
+                "logout_at": None,
+                "duration_seconds": 0,
+                "duration_label": "open",
+                "ip_address": pending_login.get("ip_address"),
+                "open": True,
+            }
+        )
+        open_sessions += 1
+
+    closed_sessions = [s for s in sessions if not s["open"] and s["login_at"] is not None]
+    session_count = len(closed_sessions)
+    avg_seconds = int(total_seconds / session_count) if session_count else 0
+
+    # Show newest sessions first for the UI.
+    sessions_ui = list(reversed(sessions))
+
+    # Recent activities — most recent first, capped.
+    try:
+        rec_limit = int(recent_limit)
+    except (TypeError, ValueError):
+        rec_limit = 50
+    rec_limit = max(1, min(500, rec_limit))
+    sql_recent = (
+        "SELECT id, action_kind, target_type, target_id, description, ip_address, "
+        "user_agent, created_at "
+        "FROM hr_activity_log "
+        "WHERE employee_id = %s "
+        "ORDER BY created_at DESC, id DESC LIMIT %s"
+    )
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_recent, (emp_id_val, rec_limit))
+            recent_rows = cur.fetchall() or []
+    except pymysql.Error:
+        recent_rows = []
+
+    return {
+        "employee_id": emp_id_val,
+        "session_count": session_count,
+        "open_session_count": open_sessions,
+        "total_seconds": int(total_seconds),
+        "total_hours_label": _seconds_to_hms(total_seconds),
+        "total_hours_decimal": round(total_seconds / 3600.0, 2),
+        "avg_session_seconds": avg_seconds,
+        "avg_session_label": _seconds_to_hms(avg_seconds),
+        "longest_session_seconds": int(longest_seconds),
+        "longest_session_label": _seconds_to_hms(longest_seconds),
+        "last_login_at": last_login_at,
+        "last_logout_at": last_logout_at,
+        "first_seen_at": first_seen_at,
+        "kind_counts": kind_counts,
+        "sessions": sessions_ui,
+        "recent_activities": recent_rows,
+        "lookback_days": lookback,
+    }
+
+
+def get_hr_activity_summary_for_employees(
+    employee_ids: Tuple[int, ...],
+    *,
+    lookback_days: int = 90,
+) -> dict:
+    """Lightweight bulk summary used by the employee list (no per-employee detail).
+
+    Returns ``{ employee_id: { last_login, last_logout, session_count, total_seconds,
+    total_hours_label, login_count, logout_count, change_count } }``.
+    """
+    out: dict[int, dict] = {}
+    ids = []
+    for x in employee_ids or ():
+        try:
+            v = int(x)
+        except (TypeError, ValueError):
+            continue
+        if v > 0:
+            ids.append(v)
+    if not ids:
+        return out
+    try:
+        lookback = int(lookback_days)
+    except (TypeError, ValueError):
+        lookback = 90
+    lookback = max(1, min(3650, lookback))
+    cutoff = datetime.now() - timedelta(days=lookback)
+
+    placeholders = ", ".join(["%s"] * len(ids))
+    sql_events = (
+        "SELECT employee_id, action_kind, created_at "
+        f"FROM hr_activity_log WHERE employee_id IN ({placeholders}) AND created_at >= %s "
+        "ORDER BY employee_id ASC, created_at ASC, id ASC"
+    )
+    params = tuple(ids) + (cutoff,)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_events, params)
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        rows = []
+
+    by_emp: dict[int, list] = {i: [] for i in ids}
+    for r in rows:
+        eid = r.get("employee_id")
+        try:
+            eid_int = int(eid)
+        except (TypeError, ValueError):
+            continue
+        if eid_int in by_emp:
+            by_emp[eid_int].append(r)
+
+    sql_last_login = (
+        "SELECT employee_id, MAX(created_at) AS last_login "
+        f"FROM hr_activity_log WHERE employee_id IN ({placeholders}) AND action_kind = 'login' "
+        "GROUP BY employee_id"
+    )
+    sql_last_logout = (
+        "SELECT employee_id, MAX(created_at) AS last_logout "
+        f"FROM hr_activity_log WHERE employee_id IN ({placeholders}) AND action_kind = 'logout' "
+        "GROUP BY employee_id"
+    )
+    last_login_map: dict[int, Any] = {}
+    last_logout_map: dict[int, Any] = {}
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_last_login, tuple(ids))
+            for row in cur.fetchall() or []:
+                try:
+                    last_login_map[int(row.get("employee_id"))] = row.get("last_login")
+                except (TypeError, ValueError):
+                    continue
+            cur.execute(sql_last_logout, tuple(ids))
+            for row in cur.fetchall() or []:
+                try:
+                    last_logout_map[int(row.get("employee_id"))] = row.get("last_logout")
+                except (TypeError, ValueError):
+                    continue
+    except pymysql.Error:
+        pass
+
+    for eid in ids:
+        evs = by_emp.get(eid, [])
+        pending_login_ts = None
+        total_seconds = 0
+        session_count = 0
+        kind_counts: Dict[str, int] = {k: 0 for k in HR_ACTIVITY_ACTION_KINDS}
+        change_count = 0
+        for ev in evs:
+            kind = (ev.get("action_kind") or "").lower()
+            if kind not in kind_counts:
+                kind_counts[kind] = 0
+            kind_counts[kind] += 1
+            ts = ev.get("created_at")
+            if kind == "login":
+                pending_login_ts = ts
+            elif kind == "logout":
+                if pending_login_ts is not None and isinstance(pending_login_ts, datetime) and isinstance(ts, datetime):
+                    dur = max(0, int((ts - pending_login_ts).total_seconds()))
+                    total_seconds += dur
+                    session_count += 1
+                pending_login_ts = None
+            elif kind in ("register", "edit", "update", "delete", "suspend", "unsuspend", "approve"):
+                change_count += 1
+        out[eid] = {
+            "employee_id": eid,
+            "last_login_at": last_login_map.get(eid),
+            "last_logout_at": last_logout_map.get(eid),
+            "session_count": session_count,
+            "total_seconds": int(total_seconds),
+            "total_hours_label": _seconds_to_hms(total_seconds),
+            "login_count": int(kind_counts.get("login") or 0),
+            "logout_count": int(kind_counts.get("logout") or 0),
+            "change_count": change_count,
+            "kind_counts": kind_counts,
+        }
+    return out
+
+
+def get_hr_activity_daily_totals(
+    *,
+    lookback_days: int = 30,
+    employee_ids: Optional[Tuple[int, ...]] = None,
+) -> list:
+    """Daily breakdown of activity counts across all (or selected) employees.
+
+    Returns a list ordered by date ascending of dicts with keys
+    ``date`` (date), ``login``, ``logout``, ``register``, ``edit``, ``update``,
+    ``delete``, ``other`` and ``total``.
+    """
+    try:
+        lookback = int(lookback_days)
+    except (TypeError, ValueError):
+        lookback = 30
+    lookback = max(1, min(3650, lookback))
+    cutoff = datetime.now() - timedelta(days=lookback)
+
+    params: list[Any] = [cutoff]
+    emp_filter = ""
+    if employee_ids:
+        ids = [int(x) for x in employee_ids if x is not None]
+        ids = [v for v in ids if v > 0]
+        if ids:
+            placeholders = ", ".join(["%s"] * len(ids))
+            emp_filter = f" AND employee_id IN ({placeholders})"
+            params.extend(ids)
+    sql = (
+        "SELECT DATE(created_at) AS d, action_kind, COUNT(*) AS c "
+        "FROM hr_activity_log "
+        f"WHERE created_at >= %s{emp_filter} "
+        "GROUP BY DATE(created_at), action_kind "
+        "ORDER BY DATE(created_at) ASC"
+    )
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    except pymysql.Error:
+        rows = []
+
+    by_day: Dict[Any, Dict[str, int]] = {}
+    for r in rows:
+        d = r.get("d")
+        if d is None:
+            continue
+        kind = (r.get("action_kind") or "other").lower()
+        if kind not in HR_ACTIVITY_ACTION_KINDS:
+            kind = "other"
+        bucket = by_day.setdefault(d, {k: 0 for k in HR_ACTIVITY_ACTION_KINDS})
+        try:
+            bucket[kind] = int(r.get("c") or 0)
+        except (TypeError, ValueError):
+            bucket[kind] = 0
+
+    # Fill missing days so the chart has a continuous x-axis.
+    end_date = date.today()
+    start_date = end_date - timedelta(days=lookback - 1)
+    out: list[dict] = []
+    cur_day = start_date
+    while cur_day <= end_date:
+        bucket = by_day.get(cur_day, {k: 0 for k in HR_ACTIVITY_ACTION_KINDS})
+        total = sum(int(v or 0) for v in bucket.values())
+        out.append(
+            {
+                "date": cur_day,
+                "login": int(bucket.get("login") or 0),
+                "logout": int(bucket.get("logout") or 0),
+                "register": int(bucket.get("register") or 0),
+                "edit": int(bucket.get("edit") or 0),
+                "update": int(bucket.get("update") or 0),
+                "delete": int(bucket.get("delete") or 0),
+                "other": int(
+                    (bucket.get("other") or 0)
+                    + (bucket.get("suspend") or 0)
+                    + (bucket.get("unsuspend") or 0)
+                    + (bucket.get("approve") or 0)
+                    + (bucket.get("view") or 0)
+                ),
+                "total": int(total),
+            }
+        )
+        cur_day = cur_day + timedelta(days=1)
+    return out
+
+
 def init_site_settings_table():
     """Key/value site settings (company name, theme, etc)."""
     sql = """
@@ -1990,6 +2561,108 @@ def list_store_stock_items(shop_id: int, *, limit: int = 5000, active_only: bool
         except (TypeError, ValueError):
             r["stock_qty"] = 0.0
     return rows
+
+
+def list_store_stock_items_for_shop_management(shop_id: int, limit: int = 2000) -> list:
+    """Per-shop ``store_stock_items`` list for the shop stock-management bulk grid (Both mode).
+
+    Mirrors :func:`list_store_stock_items_for_management` but scoped to one shop and
+    includes ``last_buying_price`` so the bulk grid can prefill buy price.
+    """
+    if not column_exists("store_stock_items", "id"):
+        init_store_stock_items_table()
+    init_store_stock_transactions_table()
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return []
+    if sid <= 0:
+        return []
+    qty_col = "ssi.stock_qty" if column_exists("store_stock_items", "stock_qty") else "0"
+    sql = f"""
+    SELECT
+        ssi.id,
+        ssi.shop_id,
+        ssi.category,
+        ssi.name,
+        ssi.description,
+        ssi.measure_unit,
+        {qty_col} AS stock_qty,
+        ssi.status,
+        (
+            SELECT sst.buying_price
+            FROM store_stock_transactions sst
+            WHERE sst.store_stock_item_id = ssi.id
+              AND sst.direction = 'in'
+              AND sst.buying_price IS NOT NULL
+            ORDER BY sst.id DESC
+            LIMIT 1
+        ) AS last_buying_price
+    FROM store_stock_items ssi
+    WHERE ssi.shop_id = %s AND ssi.status = 'active'
+    ORDER BY ssi.category ASC, ssi.name ASC, ssi.id DESC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (sid, int(limit)))
+        rows = cur.fetchall() or []
+    for r in rows:
+        try:
+            r["stock_qty"] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            r["stock_qty"] = 0.0
+        lp = r.get("last_buying_price")
+        try:
+            r["last_buying_price"] = float(lp) if lp is not None else None
+        except (TypeError, ValueError):
+            r["last_buying_price"] = None
+        r["image_path"] = None
+    return rows
+
+
+def list_store_stock_transactions_for_shop(shop_id: int, limit: int = 200) -> list:
+    """Recent ``store_stock_transactions`` for one shop with ``item_name`` joined in.
+
+    Used to render the recent-activity log on the shop stock-management page in Both mode.
+    """
+    init_store_stock_transactions_table()
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return []
+    if sid <= 0:
+        return []
+    sql = """
+    SELECT
+        sst.id,
+        sst.store_stock_item_id,
+        sst.shop_id,
+        sst.direction,
+        sst.qty,
+        sst.stock_before,
+        sst.stock_after,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.stock_out_reason,
+        sst.refunded,
+        sst.refund_amount,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at,
+        ssi.name AS item_name,
+        ssi.category AS item_category,
+        ssi.measure_unit AS item_measure_unit
+    FROM store_stock_transactions sst
+    LEFT JOIN store_stock_items ssi ON ssi.id = sst.store_stock_item_id
+    WHERE sst.shop_id = %s
+    ORDER BY sst.id DESC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (sid, int(limit)))
+        return cur.fetchall() or []
 
 
 def list_store_stock_items_for_management(limit: int = 2000) -> list:
@@ -5495,6 +6168,43 @@ def upsert_shop_kitchen_portion_qty(shop_id: int, item_id: int, portions: int) -
         return True
     except pymysql.Error:
         return False
+
+
+def add_shop_kitchen_portions(shop_id: int, item_id: int, delta: int) -> Tuple[bool, Optional[int]]:
+    """Atomically add ``delta`` portions to ``shop_kitchen_portions.portions_remaining``.
+
+    ``delta`` must be a positive integer (this is a refill operation; sales are deducted
+    via the sale-recording path). Returns ``(ok, new_portions_remaining)``.
+    """
+    try:
+        d = int(delta or 0)
+    except (TypeError, ValueError):
+        return False, None
+    if d <= 0:
+        return False, None
+    if d > 99999999:
+        d = 99999999
+    ensure_shop_kitchen_portions_schema()
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO shop_kitchen_portions (shop_id, item_id, portions_remaining)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    portions_remaining = LEAST(99999999, portions_remaining + VALUES(portions_remaining))
+                """,
+                (int(shop_id), int(item_id), d),
+            )
+            cur.execute(
+                "SELECT portions_remaining FROM shop_kitchen_portions WHERE shop_id=%s AND item_id=%s LIMIT 1",
+                (int(shop_id), int(item_id)),
+            )
+            row = cur.fetchone()
+        new_q = int((row or {}).get("portions_remaining") or 0) if row else None
+        return True, new_q
+    except pymysql.Error:
+        return False, None
 
 
 def create_shop_pos_quotation(
@@ -13046,6 +13756,7 @@ _EXPECTED_SCHEMA_TABLES = (
     "shop_stock_request_events",
     "app_notifications",
     "pos_held_orders",
+    "hr_activity_log",
 )
 
 
@@ -13090,6 +13801,7 @@ def init_schema() -> bool:
     ok_shop_stock_request_audit = ensure_shop_stock_request_audit_schema()
     ok_notifications = init_notifications_table()
     ok_pos_held_orders = init_pos_held_orders_table()
+    ok_hr_activity_log = init_hr_activity_log_table()
     steps_ok = (
         ok_contact
         and ok_employees
@@ -13115,6 +13827,7 @@ def init_schema() -> bool:
         and ok_shop_stock_request_audit
         and ok_notifications
         and ok_pos_held_orders
+        and ok_hr_activity_log
     )
     if not steps_ok:
         logger.warning("Database schema initialization did not complete successfully.")

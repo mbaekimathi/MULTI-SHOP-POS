@@ -3875,6 +3875,22 @@
               <span class="pos-header-action__text">Buy items</span>
             </button>
             {% endif %}
+            {% if pos_inventory_mode in ("kitchen", "both") %}
+            <button
+              type="button"
+              id="pos-refill-portions-open"
+              class="pos-header-action pos-header-action--buy"
+              aria-haspopup="dialog"
+              aria-controls="pos-refill-portions-modal"
+            >
+              <span class="pos-header-action__icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14M5 12h14" />
+                </svg>
+              </span>
+              <span class="pos-header-action__text">Refill portions</span>
+            </button>
+            {% endif %}
             {% if pos_printing_settings.pos_cart_mode == 'withhold' %}
             <button
               type="button"
@@ -5209,6 +5225,80 @@
   </div>
   {% endif %}
 
+  {% if pos_inventory_mode in ("kitchen", "both") %}
+  <div id="pos-refill-portions-modal" class="fixed inset-0 z-[90] hidden" aria-hidden="true">
+    <div id="pos-refill-portions-backdrop" class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+      <div class="w-full max-w-xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
+        <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Refill kitchen portions</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Add freshly prepared portions to the kitchen. Adds to existing count — does not replace it.</p>
+          </div>
+          <button type="button" id="pos-refill-portions-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold">Close</button>
+        </div>
+        <form id="pos-refill-portions-form" method="post" action="{{ url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id) }}" class="grid gap-3 p-4 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search item</label>
+            <input id="pos-refill-portions-search" type="search" placeholder="Search by name or category..." class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Kitchen item</label>
+            <select id="pos-refill-portions-item-id" name="item_id" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="">Select kitchen-tracked item</option>
+              {% for it in items %}
+                {% if (it.stock_update_enabled|default(0)|int) == 1 %}
+                <option
+                  value="{{ it.id }}"
+                  data-search="{{ ((it.name or '') ~ ' ' ~ (it.category or ''))|lower|e }}"
+                >
+                  {{ it.name }}{% if it.category %} — {{ it.category }}{% endif %}
+                </option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Portions to add</label>
+            <input id="pos-refill-portions-qty" name="qty" type="number" min="1" step="1" inputmode="numeric" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 20" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Note (optional)</label>
+            <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. BURGER PORTIONS COOKED" />
+          </div>
+          <div class="sm:col-span-2">
+            <div id="pos-refill-portions-feedback" class="hidden rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-200"></div>
+          </div>
+          <div class="sm:col-span-2 border-t border-[rgb(var(--rc-border))] pt-3">
+            <p class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee who prepared this</p>
+            <p class="mt-0.5 text-[11px] leading-snug text-[rgb(var(--rc-muted))]">
+              Enter the 6-digit employee code last — when the code is valid, the refill saves automatically.
+            </p>
+            <div class="mt-2">
+              <input
+                id="pos-refill-portions-auth-code"
+                name="employee_code"
+                type="password"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                placeholder="6-digit code"
+                class="pos-auth-input w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm tracking-[0.14em] text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+              />
+            </div>
+            <p id="pos-refill-portions-auth-status" class="pos-auth-status--muted mt-1.5 text-[11px] leading-relaxed">Fill the form above, then enter the employee code to save.</p>
+          </div>
+          <div class="sm:col-span-2 flex flex-wrap justify-end gap-2">
+            <button type="button" id="pos-refill-portions-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs font-bold uppercase tracking-wider">Cancel</button>
+            <button type="submit" id="pos-refill-portions-submit" class="hidden" tabindex="-1" aria-hidden="true">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div
     id="pos-receipts-modal"
     class="fixed inset-0 z-[97] hidden"
@@ -5372,10 +5462,21 @@
       }
       var OFFLINE_SALES_KEY = "richcom-shop-pos-offline-sales-" + SHOP_ID;
       var OFFLINE_CATALOG_KEY = "richcom-shop-pos-catalog-snapshot-" + SHOP_ID;
+      var OFFLINE_STOCKIN_KEY = "richcom-shop-pos-offline-stockins-" + SHOP_ID;
+      var OFFLINE_REFILL_KEY = "richcom-shop-pos-offline-refills-" + SHOP_ID;
       var OFFLINE_DB_NAME = "richcom-pos-offline-db-v2";
+      var OFFLINE_DB_VERSION = 4;
       var OFFLINE_DB_STORE = "offline_sales";
       var OFFLINE_DB_CATALOG_STORE = "catalog_snapshot";
+      var OFFLINE_DB_STOCKIN_STORE = "offline_stockins";
+      var OFFLINE_DB_REFILL_STORE = "offline_portion_refills";
       var OFFLINE_CATALOG_DOC_ID = "shop-" + SHOP_ID;
+      var OFFLINE_STOCK_IN_API = {{ url_for('shop_pos_stock_in', shop_id=shop.id)|tojson }};
+      {% if pos_inventory_mode in ("kitchen", "both") %}
+      var OFFLINE_REFILL_PORTIONS_API = {{ url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id)|tojson }};
+      {% else %}
+      var OFFLINE_REFILL_PORTIONS_API = "";
+      {% endif %}
       var OFFLINE_CATALOG_STALE_MS = 6 * 60 * 60 * 1000;
       var AUTH_API = {{ url_for('shop_pos_authorize_employee', shop_id=shop.id)|tojson }};
       var EMPLOYEE_CACHE_API = {{ url_for('shop_pos_employee_auth_cache', shop_id=shop.id)|tojson }};
@@ -6459,6 +6560,44 @@
               }
             })
             .catch(function (e) {
+              // Phase 3 — offline fallback: queue the stock-in locally and bump the cached catalog.
+              if (looksLikeOfflineNetworkError(e)) {
+                var payloadSi = {
+                  item_id: fd.get("item_id"),
+                  qty: fd.get("qty"),
+                  buying_price: fd.get("buying_price"),
+                  seller_phone: fd.get("seller_phone"),
+                  seller_name: fd.get("seller_name"),
+                  note: fd.get("note"),
+                  employee_code: fd.get("employee_code"),
+                };
+                return putOfflineStockIn(payloadSi).then(function () {
+                  var idNum = parseInt(payloadSi.item_id, 10);
+                  var qtyNum = parseFloat(payloadSi.qty);
+                  // In "both" mode the stock-in form targets store_stock_items (backroom)
+                  // which lives in a separate table from the POS catalog (shop_items).
+                  // Skip the local delta to avoid an accidental id collision bumping the
+                  // wrong shop_item; the backroom stock isn't displayed in the POS grid anyway.
+                  var modeNow = String(window.POS_INVENTORY_MODE || "shop").toLowerCase();
+                  var skipLocalDelta = modeNow === "both";
+                  if (!skipLocalDelta && isFinite(idNum) && isFinite(qtyNum) && qtyNum > 0) {
+                    var d = {}; d[idNum] = qtyNum;
+                    // Always target shop_stock_qty: server's shop_manual_stock_in writes
+                    // shop_stock_qty regardless of inventory_mode. In kitchen mode the
+                    // change is invisible in the POS grid (kitchen_portions is shown),
+                    // matching the existing online behavior — no drift on sync.
+                    try { applyLocalCatalogDelta(d, "shop_stock_qty"); } catch (eApply) {}
+                  }
+                  if (stockInFeedback) {
+                    stockInFeedback.textContent =
+                      "Offline: stock-in queued. It will sync automatically when internet returns.";
+                    stockInFeedback.classList.remove("hidden");
+                  }
+                  stockInForm.reset();
+                  resetStockInEmployeeAuth();
+                  updateOfflineSyncBadge();
+                });
+              }
               if (stockInFeedback) {
                 stockInFeedback.textContent = (e && e.message) ? e.message : "Could not stock in item.";
                 stockInFeedback.classList.remove("hidden");
@@ -6474,6 +6613,200 @@
             });
         });
       }
+
+      // ===== Kitchen portion refill modal (kitchen / both mode only) =====
+      (function initRefillPortionsModal() {
+        var modal = document.getElementById("pos-refill-portions-modal");
+        var openBtn = document.getElementById("pos-refill-portions-open");
+        if (!modal || !openBtn) return; // not rendered in shop mode
+        var backdrop = document.getElementById("pos-refill-portions-backdrop");
+        var closeBtn = document.getElementById("pos-refill-portions-close");
+        var cancelBtn = document.getElementById("pos-refill-portions-cancel");
+        var form = document.getElementById("pos-refill-portions-form");
+        var search = document.getElementById("pos-refill-portions-search");
+        var select = document.getElementById("pos-refill-portions-item-id");
+        var qtyInput = document.getElementById("pos-refill-portions-qty");
+        var authCode = document.getElementById("pos-refill-portions-auth-code");
+        var authStatus = document.getElementById("pos-refill-portions-auth-status");
+        var feedback = document.getElementById("pos-refill-portions-feedback");
+
+        function setAuthStatus(msg, tone) {
+          if (!authStatus) return;
+          authStatus.textContent = msg || "";
+          authStatus.classList.remove(
+            "pos-auth-status--muted",
+            "pos-auth-status--ok",
+            "pos-auth-status--error"
+          );
+          authStatus.classList.add("pos-auth-status--" + (tone || "muted"));
+        }
+        function resetAuth() {
+          if (authCode) {
+            authCode.value = "";
+            authCode.disabled = false;
+          }
+          setAuthStatus("Fill the form above, then enter the employee code to save.", "muted");
+        }
+        function setOpen(open) {
+          modal.classList.toggle("hidden", !open);
+          modal.setAttribute("aria-hidden", open ? "false" : "true");
+          if (open) {
+            resetAuth();
+            if (feedback) {
+              feedback.classList.add("hidden");
+              feedback.textContent = "";
+            }
+            setTimeout(function () { if (search) search.focus(); }, 30);
+          }
+        }
+
+        function filterOptions() {
+          if (!select) return;
+          var q = ((search && search.value) || "").trim().toLowerCase();
+          var firstVisible = "";
+          Array.prototype.forEach.call(select.options, function (opt, idx) {
+            if (idx === 0) { opt.hidden = false; return; }
+            var hay = (opt.getAttribute("data-search") || "").toLowerCase();
+            var show = !q || hay.indexOf(q) !== -1;
+            opt.hidden = !show;
+            if (show && !firstVisible) firstVisible = opt.value;
+          });
+          if (firstVisible) select.value = firstVisible;
+        }
+
+        var lastSixCode = "";
+        var verifyTimer = null;
+        var verifyInFlight = false;
+
+        function onAuthCodeInput() {
+          if (!authCode) return;
+          var v = String(authCode.value || "").replace(/\D/g, "").slice(0, 6);
+          if (authCode.value !== v) authCode.value = v;
+          if (v.length < 6) {
+            lastSixCode = "";
+            if (!v.length) {
+              setAuthStatus("Fill the form above, then enter the employee code to save.", "muted");
+            } else {
+              setAuthStatus("Entering code… " + v.length + "/6", "muted");
+            }
+            return;
+          }
+          if (v === lastSixCode) return;
+          lastSixCode = v;
+          clearTimeout(verifyTimer);
+          verifyTimer = setTimeout(function () { triggerSubmit(); }, 50);
+        }
+
+        function triggerSubmit() {
+          if (!form) return;
+          if (verifyInFlight) return;
+          var itemIdRaw = (select && select.value) || "";
+          var qtyRaw = (qtyInput && qtyInput.value) || "";
+          var itemId = parseInt(itemIdRaw, 10);
+          var qty = parseInt(qtyRaw, 10);
+          if (!isFinite(itemId) || itemId <= 0) {
+            setAuthStatus("Pick a kitchen-tracked item first.", "error");
+            return;
+          }
+          if (!isFinite(qty) || qty <= 0) {
+            setAuthStatus("Enter portions to add (1 or more).", "error");
+            return;
+          }
+          form.requestSubmit();
+        }
+
+        if (openBtn) {
+          openBtn.addEventListener("click", function () { setOpen(true); filterOptions(); });
+        }
+        if (closeBtn) closeBtn.addEventListener("click", function () { setOpen(false); });
+        if (cancelBtn) cancelBtn.addEventListener("click", function () { setOpen(false); });
+        if (backdrop) backdrop.addEventListener("click", function () { setOpen(false); });
+        if (search) search.addEventListener("input", filterOptions);
+        if (authCode) authCode.addEventListener("input", onAuthCodeInput);
+
+        if (form) {
+          form.addEventListener("submit", function (ev) {
+            ev.preventDefault();
+            if (verifyInFlight) return;
+            verifyInFlight = true;
+            setAuthStatus("Saving…", "muted");
+            if (feedback) {
+              feedback.classList.add("hidden");
+              feedback.textContent = "";
+            }
+            var fd = new FormData(form);
+            var itemId = parseInt(fd.get("item_id") || "0", 10);
+            var qty = parseInt(fd.get("qty") || "0", 10);
+            fetch(form.action, {
+              method: "POST",
+              body: fd,
+              credentials: "same-origin",
+              headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+            })
+              .then(function (r) { return r.json().catch(function () { return {}; }); })
+              .then(function (j) {
+                if (!j || !j.ok) throw new Error((j && j.error) || "Could not refill kitchen portions.");
+                if (feedback) {
+                  feedback.textContent = j.message || ("Added " + qty + " portion(s).");
+                  feedback.classList.remove("hidden");
+                }
+                // Apply locally so the cashier sees the change immediately even before refresh.
+                if (isFinite(itemId) && isFinite(qty) && qty > 0) {
+                  try { applyLocalKitchenPortionDelta(itemId, qty); } catch (eApplyOn) {}
+                }
+                form.reset();
+                resetAuth();
+                if (typeof window.refreshPosCatalogStock === "function") {
+                  setTimeout(function () { window.refreshPosCatalogStock(); }, 350);
+                }
+              })
+              .catch(function (e) {
+                if (looksLikeOfflineNetworkError(e)) {
+                  var payloadRf = {
+                    item_id: fd.get("item_id"),
+                    qty: fd.get("qty"),
+                    note: fd.get("note"),
+                    employee_code: fd.get("employee_code"),
+                  };
+                  return putOfflinePortionRefill(payloadRf).then(function () {
+                    if (isFinite(itemId) && isFinite(qty) && qty > 0) {
+                      try { applyLocalKitchenPortionDelta(itemId, qty); } catch (eApplyOff) {}
+                    }
+                    if (feedback) {
+                      feedback.textContent =
+                        "Offline: portion refill queued. It will sync automatically when internet returns.";
+                      feedback.classList.remove("hidden");
+                    }
+                    form.reset();
+                    resetAuth();
+                    updateOfflineSyncBadge();
+                  });
+                }
+                if (feedback) {
+                  feedback.textContent = (e && e.message) ? e.message : "Could not refill kitchen portions.";
+                  feedback.classList.remove("hidden");
+                }
+                setAuthStatus("Could not save. Try again.", "error");
+              })
+              .finally(function () {
+                verifyInFlight = false;
+                if (authCode) authCode.disabled = false;
+              });
+          });
+        }
+
+        // Refresh dropdown when item filter changes elsewhere (best-effort, harmless).
+        if (qtyInput) {
+          qtyInput.addEventListener("focus", function () {
+            if (!search || !select) return;
+            if ((search.value || "").trim() === "") return;
+            var selected = select.value || "";
+            search.value = "";
+            filterOptions();
+            if (selected) select.value = selected;
+          });
+        }
+      })();
 
       function normalizeCartLine(l) {
         if (!l || typeof l !== "object") return l;
@@ -6523,7 +6856,7 @@
             reject(new Error("IndexedDB not supported"));
             return;
           }
-          var req = window.indexedDB.open(OFFLINE_DB_NAME, 2);
+          var req = window.indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
           req.onupgradeneeded = function (ev) {
             var db = ev.target.result;
             if (!db.objectStoreNames.contains(OFFLINE_DB_STORE)) {
@@ -6531,6 +6864,12 @@
             }
             if (!db.objectStoreNames.contains(OFFLINE_DB_CATALOG_STORE)) {
               db.createObjectStore(OFFLINE_DB_CATALOG_STORE, { keyPath: "id" });
+            }
+            if (!db.objectStoreNames.contains(OFFLINE_DB_STOCKIN_STORE)) {
+              db.createObjectStore(OFFLINE_DB_STOCKIN_STORE, { keyPath: "local_id" });
+            }
+            if (!db.objectStoreNames.contains(OFFLINE_DB_REFILL_STORE)) {
+              db.createObjectStore(OFFLINE_DB_REFILL_STORE, { keyPath: "local_id" });
             }
           };
           req.onsuccess = function () { resolve(req.result); };
@@ -6736,7 +7075,15 @@
       function updateOfflineSyncBadge() {
         updateNetworkStateIndicator();
         if (!offlineSyncBadgeEl) return Promise.resolve();
-        return getPendingOfflineSalesCount().then(function (count) {
+        return Promise.all([
+          getPendingOfflineSalesCount(),
+          getPendingOfflineStockInsCount(),
+          getPendingOfflinePortionRefillsCount(),
+        ]).then(function (counts) {
+          var saleCount = counts[0] || 0;
+          var stockInCount = counts[1] || 0;
+          var refillCount = counts[2] || 0;
+          var count = saleCount + stockInCount + refillCount;
           var online = navigator.onLine;
           if (offlineSyncNowBtn) offlineSyncNowBtn.classList.toggle("hidden", count === 0);
           if (offlineSyncDiagBtn) offlineSyncDiagBtn.classList.toggle("hidden", count === 0);
@@ -6749,7 +7096,12 @@
           }
           offlineSyncBadgeEl.classList.remove("hidden");
           if (count > 0) {
-            offlineSyncBadgeEl.textContent = "Sync · " + String(count) + (online ? "" : " offline");
+            var parts = [];
+            if (saleCount) parts.push(saleCount + " sale" + (saleCount === 1 ? "" : "s"));
+            if (stockInCount) parts.push(stockInCount + " stock-in" + (stockInCount === 1 ? "" : "s"));
+            if (refillCount) parts.push(refillCount + " portion refill" + (refillCount === 1 ? "" : "s"));
+            var detail = parts.length > 1 ? " (" + parts.join(" + ") + ")" : "";
+            offlineSyncBadgeEl.textContent = "Sync · " + String(count) + detail + (online ? "" : " offline");
           } else {
             offlineSyncBadgeEl.textContent = "Offline";
           }
@@ -7221,6 +7573,431 @@
         });
       }
 
+      // ====================================================================
+      // OFFLINE STOCK HELPERS — local catalog delta + offline stock-in queue
+      // ====================================================================
+      function effectiveStockFieldForCatalogRow(row, mode) {
+        var m = String(mode || window.POS_INVENTORY_MODE || "shop").toLowerCase();
+        if (m === "none") return null;
+        if (m === "kitchen" || m === "both") {
+          var en = Number(row && row.stock_update_enabled);
+          var tracked = !isFinite(en) || en === 1;
+          if (!tracked) return null;
+          return "kitchen_portions";
+        }
+        return "shop_stock_qty";
+      }
+
+      /** Apply a signed delta map ({itemId: signedNumber}) to the cached catalog snapshot
+       *  and refresh the DOM cards.
+       *
+       *  ``fieldOverride`` forces a specific catalog field to be updated instead of the
+       *  "effective" field for the current inventory mode. Use cases:
+       *    - sale decrement: omit (use effective field — kitchen_portions in kitchen/both, shop_stock_qty in shop)
+       *    - stock-in increment: pass "shop_stock_qty" (server's shop_manual_stock_in always targets shop_stock_qty regardless of mode)
+       *    - kitchen portion refill: pass "kitchen_portions" (server's add_shop_kitchen_portions always targets kitchen_portions) */
+      function applyLocalCatalogDelta(delta, fieldOverride) {
+        if (!delta || typeof delta !== "object") return Promise.resolve();
+        var anything = false;
+        for (var k0 in delta) {
+          if (Object.prototype.hasOwnProperty.call(delta, k0) && Number(delta[k0]) !== 0) {
+            anything = true; break;
+          }
+        }
+        if (!anything) return Promise.resolve();
+        var override = fieldOverride ? String(fieldOverride) : "";
+        return loadCatalogSnapshot().then(function (snap) {
+          if (!snap || !Array.isArray(snap.items) || !snap.items.length) return null;
+          var mode = String(snap.inventory_mode || window.POS_INVENTORY_MODE || "shop").toLowerCase();
+          var touched = [];
+          var idMap = {};
+          snap.items.forEach(function (it) {
+            if (it && it.id != null) idMap[Number(it.id)] = it;
+          });
+          Object.keys(delta).forEach(function (idKey) {
+            var id = Number(idKey);
+            var row = idMap[id];
+            if (!row) return;
+            var field;
+            if (override) {
+              field = override;
+              // For untracked kitchen items, suppress kitchen_portions writes so we don't
+              // create misleading numbers for items the shop chose not to count.
+              if (override === "kitchen_portions") {
+                var enKp = Number(row.stock_update_enabled);
+                if (isFinite(enKp) && enKp !== 1) return;
+              }
+            } else {
+              field = effectiveStockFieldForCatalogRow(row, mode);
+              if (!field) return;
+            }
+            var prev = parseFloat(row[field]);
+            if (!isFinite(prev)) prev = 0;
+            var next = prev + Number(delta[idKey]);
+            if (next < 0) next = 0;
+            row[field] = next;
+            touched.push(row);
+          });
+          if (!touched.length) return null;
+          snap.saved_at = new Date().toISOString();
+          snap.source = "local-delta";
+          return saveCatalogSnapshot(snap).then(function () { return touched; });
+        }).then(function (touched) {
+          if (touched && typeof window.posApplyCatalogRows === "function") {
+            try { window.posApplyCatalogRows(touched); } catch (e) {}
+          }
+        }).catch(function () {});
+      }
+
+      function buildSaleDeltaFromLines(lines) {
+        var d = {};
+        if (!Array.isArray(lines)) return d;
+        lines.forEach(function (l) {
+          if (!l || l.id == null) return;
+          var q = parseFloat(l.qty);
+          if (!isFinite(q) || q <= 0) return;
+          var id = Number(l.id);
+          d[id] = (d[id] || 0) - q;
+        });
+        return d;
+      }
+
+      /** Inspect cart lines vs the catalog snapshot to find offline shortfalls.
+       *  Returns [{ id, name, needed, available }] for any line that would oversell. */
+      function assessOfflineStockShortfall(lines) {
+        if (!Array.isArray(lines) || !lines.length) return Promise.resolve([]);
+        // Combine demand per item (cart may have same item across multiple lines).
+        var demand = {};
+        var names = {};
+        lines.forEach(function (l) {
+          if (!l || l.id == null) return;
+          var q = parseFloat(l.qty);
+          if (!isFinite(q) || q <= 0) return;
+          var id = Number(l.id);
+          demand[id] = (demand[id] || 0) + q;
+          if (l.name) names[id] = String(l.name);
+        });
+        var ids = Object.keys(demand);
+        if (!ids.length) return Promise.resolve([]);
+        return loadCatalogSnapshot().then(function (snap) {
+          var issues = [];
+          var idMap = {};
+          if (snap && Array.isArray(snap.items)) {
+            snap.items.forEach(function (it) {
+              if (it && it.id != null) idMap[Number(it.id)] = it;
+            });
+          }
+          var mode = String((snap && snap.inventory_mode) || window.POS_INVENTORY_MODE || "shop").toLowerCase();
+          ids.forEach(function (idKey) {
+            var id = Number(idKey);
+            var needed = demand[id];
+            var row = idMap[id];
+            // Fall back to DOM card if no snapshot row found.
+            var available = null;
+            if (row) {
+              var field = effectiveStockFieldForCatalogRow(row, mode);
+              if (field == null) return; // untracked → no shortfall to warn about
+              var v = parseFloat(row[field]);
+              available = isFinite(v) ? v : 0;
+            } else {
+              var card = document.querySelector('.pos-item-card[data-item-id="' + id + '"]');
+              if (!card) return;
+              var dv = parseFloat(card.getAttribute("data-stock"));
+              available = isFinite(dv) ? dv : 0;
+              if (available > 100000000) return; // untracked sentinel from applyCatalogStockRows
+            }
+            if (needed > available) {
+              issues.push({
+                id: id,
+                name: names[id] || (row && row.name) || "Item",
+                needed: needed,
+                available: available,
+              });
+            }
+          });
+          return issues;
+        }).catch(function () { return []; });
+      }
+
+      // ---- offline_stockins store helpers ----
+      function putOfflineStockIn(entry) {
+        var doc = Object.assign({}, entry || {});
+        doc.local_id = String(doc.local_id || ("sin-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)));
+        doc.queued_at = doc.queued_at || new Date().toISOString();
+        doc.attempts = parseInt(doc.attempts || 0, 10) || 0;
+        doc.last_error = String(doc.last_error || "");
+        if (!idbSupported()) {
+          try {
+            var rawSi = localStorage.getItem(OFFLINE_STOCKIN_KEY);
+            var listSi = rawSi ? JSON.parse(rawSi) : [];
+            if (!Array.isArray(listSi)) listSi = [];
+            listSi = listSi.filter(function (x) { return x && x.local_id !== doc.local_id; });
+            listSi.push(doc);
+            localStorage.setItem(OFFLINE_STOCKIN_KEY, JSON.stringify(listSi));
+          } catch (e) {}
+          return Promise.resolve(doc);
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_STOCKIN_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(doc); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not store offline stock-in")); };
+            tx.objectStore(OFFLINE_DB_STOCKIN_STORE).put(doc);
+          }).finally(function () { try { db.close(); } catch (e) {} });
+        });
+      }
+
+      function listOfflineStockIns() {
+        if (!idbSupported()) {
+          try {
+            var rawList = localStorage.getItem(OFFLINE_STOCKIN_KEY);
+            var arr = rawList ? JSON.parse(rawList) : [];
+            return Promise.resolve(Array.isArray(arr) ? arr : []);
+          } catch (e) { return Promise.resolve([]); }
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_STOCKIN_STORE, "readonly");
+            var req = tx.objectStore(OFFLINE_DB_STOCKIN_STORE).getAll();
+            req.onsuccess = function () {
+              var rows = Array.isArray(req.result) ? req.result : [];
+              rows.sort(function (a, b) {
+                return String((a && a.queued_at) || "").localeCompare(String((b && b.queued_at) || ""));
+              });
+              resolve(rows);
+            };
+            req.onerror = function () { reject(req.error || new Error("Could not read stock-in queue")); };
+          }).finally(function () { try { db.close(); } catch (e) {} });
+        }).catch(function () { return []; });
+      }
+
+      function deleteOfflineStockIn(localId) {
+        if (!idbSupported()) {
+          try {
+            var rawDelList = localStorage.getItem(OFFLINE_STOCKIN_KEY);
+            var listDel = rawDelList ? JSON.parse(rawDelList) : [];
+            if (!Array.isArray(listDel)) listDel = [];
+            listDel = listDel.filter(function (x) { return x && x.local_id !== String(localId); });
+            localStorage.setItem(OFFLINE_STOCKIN_KEY, JSON.stringify(listDel));
+          } catch (eDel) {}
+          return Promise.resolve();
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_STOCKIN_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not delete offline stock-in")); };
+            tx.objectStore(OFFLINE_DB_STOCKIN_STORE).delete(String(localId));
+          }).finally(function () { try { db.close(); } catch (e) {} });
+        }).catch(function () {});
+      }
+
+      function getPendingOfflineStockInsCount() {
+        return listOfflineStockIns().then(function (rows) { return rows.length; }).catch(function () { return 0; });
+      }
+
+      var offlineStockInSyncBusy = false;
+      function syncOfflineStockInsQueue() {
+        if (offlineStockInSyncBusy) return Promise.resolve({ synced: 0, failed: 0, remaining: 0 });
+        offlineStockInSyncBusy = true;
+        return listOfflineStockIns().then(function (rows) {
+          if (!rows || !rows.length) return { synced: 0, failed: 0, remaining: 0 };
+          var synced = 0;
+          var failed = 0;
+          var queue = Promise.resolve();
+          rows.forEach(function (row) {
+            queue = queue.then(function () {
+              var fd = new FormData();
+              fd.append("item_id", String(row.item_id || ""));
+              fd.append("qty", String(row.qty || ""));
+              fd.append("buying_price", String(row.buying_price || ""));
+              fd.append("seller_phone", String(row.seller_phone || ""));
+              fd.append("seller_name", String(row.seller_name || ""));
+              fd.append("note", String(row.note || ""));
+              fd.append("employee_code", String(row.employee_code || ""));
+              return fetch(OFFLINE_STOCK_IN_API, {
+                method: "POST",
+                body: fd,
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+              }).then(function (r) {
+                return r.json().catch(function () { return {}; });
+              }).then(function (j) {
+                if (!j || !j.ok) throw new Error((j && j.error) || "Server rejected queued stock-in.");
+                return deleteOfflineStockIn(row.local_id).then(function () { synced++; });
+              }).catch(function (err) {
+                failed++;
+                row.attempts = (parseInt(row.attempts || 0, 10) || 0) + 1;
+                row.last_error = String((err && err.message) || err || "Unknown error");
+                return putOfflineStockIn(row);
+              });
+            });
+          });
+          return queue.then(function () {
+            return listOfflineStockIns().then(function (remaining) {
+              return { synced: synced, failed: failed, remaining: remaining.length };
+            });
+          });
+        }).finally(function () {
+          offlineStockInSyncBusy = false;
+        });
+      }
+      window.posSyncOfflineStockIns = syncOfflineStockInsQueue;
+      window.posPendingStockInsCount = getPendingOfflineStockInsCount;
+
+      // ---- offline_portion_refills store helpers (kitchen portion refills) ----
+      function putOfflinePortionRefill(entry) {
+        var doc = Object.assign({}, entry || {});
+        doc.local_id = String(doc.local_id || ("ref-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)));
+        doc.queued_at = doc.queued_at || new Date().toISOString();
+        doc.attempts = parseInt(doc.attempts || 0, 10) || 0;
+        doc.last_error = String(doc.last_error || "");
+        if (!idbSupported()) {
+          try {
+            var rawRf = localStorage.getItem(OFFLINE_REFILL_KEY);
+            var listRf = rawRf ? JSON.parse(rawRf) : [];
+            if (!Array.isArray(listRf)) listRf = [];
+            listRf = listRf.filter(function (x) { return x && x.local_id !== doc.local_id; });
+            listRf.push(doc);
+            localStorage.setItem(OFFLINE_REFILL_KEY, JSON.stringify(listRf));
+          } catch (eRfPut) {}
+          return Promise.resolve(doc);
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_REFILL_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(doc); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not store offline portion refill")); };
+            tx.objectStore(OFFLINE_DB_REFILL_STORE).put(doc);
+          }).finally(function () { try { db.close(); } catch (e) {} });
+        });
+      }
+
+      function listOfflinePortionRefills() {
+        if (!idbSupported()) {
+          try {
+            var rawList = localStorage.getItem(OFFLINE_REFILL_KEY);
+            var arr = rawList ? JSON.parse(rawList) : [];
+            return Promise.resolve(Array.isArray(arr) ? arr : []);
+          } catch (eRfList) { return Promise.resolve([]); }
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_REFILL_STORE, "readonly");
+            var req = tx.objectStore(OFFLINE_DB_REFILL_STORE).getAll();
+            req.onsuccess = function () {
+              var rows = Array.isArray(req.result) ? req.result : [];
+              rows.sort(function (a, b) {
+                return String((a && a.queued_at) || "").localeCompare(String((b && b.queued_at) || ""));
+              });
+              resolve(rows);
+            };
+            req.onerror = function () { reject(req.error || new Error("Could not read portion refill queue")); };
+          }).finally(function () { try { db.close(); } catch (e) {} });
+        }).catch(function () { return []; });
+      }
+
+      function deleteOfflinePortionRefill(localId) {
+        if (!idbSupported()) {
+          try {
+            var rawDelList = localStorage.getItem(OFFLINE_REFILL_KEY);
+            var listDel = rawDelList ? JSON.parse(rawDelList) : [];
+            if (!Array.isArray(listDel)) listDel = [];
+            listDel = listDel.filter(function (x) { return x && x.local_id !== String(localId); });
+            localStorage.setItem(OFFLINE_REFILL_KEY, JSON.stringify(listDel));
+          } catch (eRfDel) {}
+          return Promise.resolve();
+        }
+        return openOfflineDb().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(OFFLINE_DB_REFILL_STORE, "readwrite");
+            tx.oncomplete = function () { resolve(); };
+            tx.onerror = function () { reject(tx.error || new Error("Could not delete offline portion refill")); };
+            tx.objectStore(OFFLINE_DB_REFILL_STORE).delete(String(localId));
+          }).finally(function () { try { db.close(); } catch (e) {} });
+        }).catch(function () {});
+      }
+
+      function getPendingOfflinePortionRefillsCount() {
+        return listOfflinePortionRefills().then(function (rows) { return rows.length; }).catch(function () { return 0; });
+      }
+
+      var offlinePortionRefillSyncBusy = false;
+      function syncOfflinePortionRefillsQueue() {
+        if (!OFFLINE_REFILL_PORTIONS_API) return Promise.resolve({ synced: 0, failed: 0, remaining: 0 });
+        if (offlinePortionRefillSyncBusy) return Promise.resolve({ synced: 0, failed: 0, remaining: 0 });
+        offlinePortionRefillSyncBusy = true;
+        return listOfflinePortionRefills().then(function (rows) {
+          if (!rows || !rows.length) return { synced: 0, failed: 0, remaining: 0 };
+          var synced = 0;
+          var failed = 0;
+          var queue = Promise.resolve();
+          rows.forEach(function (row) {
+            queue = queue.then(function () {
+              var fd = new FormData();
+              fd.append("item_id", String(row.item_id || ""));
+              fd.append("qty", String(row.qty || ""));
+              fd.append("note", String(row.note || ""));
+              fd.append("employee_code", String(row.employee_code || ""));
+              return fetch(OFFLINE_REFILL_PORTIONS_API, {
+                method: "POST",
+                body: fd,
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+              }).then(function (r) {
+                return r.json().catch(function () { return {}; });
+              }).then(function (j) {
+                if (!j || !j.ok) throw new Error((j && j.error) || "Server rejected queued portion refill.");
+                return deleteOfflinePortionRefill(row.local_id).then(function () { synced++; });
+              }).catch(function (err) {
+                failed++;
+                row.attempts = (parseInt(row.attempts || 0, 10) || 0) + 1;
+                row.last_error = String((err && err.message) || err || "Unknown error");
+                return putOfflinePortionRefill(row);
+              });
+            });
+          });
+          return queue.then(function () {
+            return listOfflinePortionRefills().then(function (remaining) {
+              return { synced: synced, failed: failed, remaining: remaining.length };
+            });
+          });
+        }).finally(function () {
+          offlinePortionRefillSyncBusy = false;
+        });
+      }
+      window.posSyncOfflinePortionRefills = syncOfflinePortionRefillsQueue;
+      window.posPendingPortionRefillsCount = getPendingOfflinePortionRefillsCount;
+
+      /** Apply a +kitchen_portions delta locally so the UI reflects the refill immediately
+       *  even when offline or when in shop mode (where effective field would differ).
+       *  Always targets kitchen_portions regardless of inventory_mode. */
+      function applyLocalKitchenPortionDelta(itemId, delta) {
+        var id = Number(itemId);
+        var d = Number(delta);
+        if (!isFinite(id) || !isFinite(d) || d === 0) return Promise.resolve();
+        return loadCatalogSnapshot().then(function (snap) {
+          if (!snap || !Array.isArray(snap.items) || !snap.items.length) return null;
+          var row = null;
+          for (var i = 0; i < snap.items.length; i++) {
+            if (snap.items[i] && Number(snap.items[i].id) === id) { row = snap.items[i]; break; }
+          }
+          if (!row) return null;
+          var prev = parseInt(row.kitchen_portions, 10);
+          if (!isFinite(prev)) prev = 0;
+          var next = prev + d;
+          if (next < 0) next = 0;
+          row.kitchen_portions = next;
+          snap.saved_at = new Date().toISOString();
+          snap.source = "local-delta";
+          return saveCatalogSnapshot(snap).then(function () { return [row]; });
+        }).then(function (touched) {
+          if (touched && typeof window.posApplyCatalogRows === "function") {
+            try { window.posApplyCatalogRows(touched); } catch (e) {}
+          }
+        }).catch(function () {});
+      }
+
       function randomTxnId() {
         if (window.crypto && typeof window.crypto.randomUUID === "function") {
           return window.crypto.randomUUID();
@@ -7239,6 +8016,12 @@
         payload.next_retry_at = payload.next_retry_at || "";
         return putOfflineSale(payload).then(function (saved) {
           updateOfflineSyncBadge();
+          // Phase 1 — locally decrement the cached catalog for real sales so the
+          // cashier sees realistic stock numbers offline. Quotes do not deduct.
+          var kind = String(payload.pos_offline_record_kind || "sale").toLowerCase();
+          if (kind === "sale" || kind === "credit") {
+            try { applyLocalCatalogDelta(buildSaleDeltaFromLines(payload.lines)); } catch (eDelta) {}
+          }
           return saved;
         });
       }
@@ -8906,7 +9689,22 @@
             msg.toLowerCase().indexOf("network") !== -1 ||
             msg.toLowerCase().indexOf("timeout") !== -1;
           if (!offlineish) throw err;
-          return enqueueOfflineSale({
+          // Phase 2 — warn the cashier before queueing a sale that would oversell
+          // the local stock. Soft block: they can continue anyway.
+          return assessOfflineStockShortfall(payload.lines || []).then(function (shortfalls) {
+            if (shortfalls && shortfalls.length) {
+              var lines = shortfalls.map(function (s) {
+                return "• " + s.name + " — need " + s.needed + ", local stock " + s.available;
+              }).join("\n");
+              var prompt = "You are offline.\n\nThis sale will oversell local stock for:\n" + lines +
+                "\n\nQueue the sale anyway? (Stock will be re-checked when the till syncs.)";
+              if (!window.confirm(prompt)) {
+                var cancelErr = new Error("Sale cancelled by cashier due to offline stock shortage.");
+                cancelErr.code = "offline_sale_cancelled";
+                throw cancelErr;
+              }
+            }
+            return enqueueOfflineSale({
             pos_offline_record_kind: "sale",
             held_order_id:
               window.__POS_HELD_ORDER_ID &&
@@ -8953,6 +9751,7 @@
               receipt_number: String(queued.local_receipt_number || ""),
             };
           });
+          }); // close assessOfflineStockShortfall(...).then(shortfalls)
         });
       }
 
@@ -12628,6 +13427,7 @@
           syncLocalReceiptSeqFromServerQuiet();
         }, 4000);
         window.refreshPosCatalogStock = fetchCatalogStock;
+        window.posApplyCatalogRows = applyCatalogStockRows;
       })();
 
       (function initShopHeaderDropdown() {
@@ -12675,6 +13475,9 @@
         updateNetworkStateIndicator();
         updateOfflineSyncBadge();
         setAuthStatus("Back online. Syncing offline sales…", "muted");
+        // Phase 3 + kitchen refills — kick off the stock-in and portion-refill queue syncs in parallel.
+        syncOfflineStockInsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
+        syncOfflinePortionRefillsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
         syncOfflineSalesQueue({ notify: false })
           .then(function (s1) {
             return new Promise(function (res) {
@@ -12720,10 +13523,14 @@
             showOfflineSyncResultToast(stats);
           }
         });
+        syncOfflineStockInsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
+        syncOfflinePortionRefillsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
       });
       if (offlineSyncTimer) clearInterval(offlineSyncTimer);
       offlineSyncTimer = setInterval(function () {
         syncOfflineSalesQueue({ notify: false });
+        syncOfflineStockInsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
+        syncOfflinePortionRefillsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
       }, 20000);
       document.addEventListener(
         "click",
@@ -12752,6 +13559,8 @@
             navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
             "muted"
           );
+          syncOfflineStockInsQueue().catch(function () {});
+          syncOfflinePortionRefillsQueue().catch(function () {});
           syncOfflineSalesQueue({ notify: true }).then(function () {
             return getPendingOfflineSalesCount();
           }).then(function (pending) {
@@ -12779,6 +13588,8 @@
                 navigator.onLine ? "Syncing offline queue…" : "Trying to sync (connection may be limited)…",
                 "muted"
               );
+              syncOfflineStockInsQueue().catch(function () {});
+              syncOfflinePortionRefillsQueue().catch(function () {});
               syncOfflineSalesQueue({ notify: true }).then(function () {
                 return refreshOfflineDiagnostics();
               }).then(function () {
@@ -12786,6 +13597,7 @@
               }).then(function (pending) {
                 if (pending === 0) setAuthStatus("Offline sales synced.", "ok");
                 else setAuthStatus("Some sales are still pending sync (" + String(pending) + ").", "muted");
+                updateOfflineSyncBadge();
               });
             };
           }
@@ -12794,6 +13606,8 @@
       updateNetworkStateIndicator();
       updateOfflineSyncBadge();
       syncOfflineSalesQueue({ notify: false });
+      syncOfflineStockInsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
+      syncOfflinePortionRefillsQueue().then(function () { updateOfflineSyncBadge(); }).catch(function () {});
       window.__openPosTodayOfflineQueue = function () {
         try {
           var qm = ensureTodayOfflineQueueModal();

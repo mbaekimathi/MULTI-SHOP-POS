@@ -1,110 +1,137 @@
 {% extends "base.html" %}
-{% block title %}Home — {{ pub_brand_name }}{% endblock %}
+{% block title %}Sign in — {{ pub_brand_name }}{% endblock %}
 {% block body %}
-  {% include "partials/auth_top_bar.html" %}
-  <div class="form-auth-bg auth-simple-page form-auth-bg--home form-auth-bg--has-topbar">
-    <div class="simple-home-ambient" aria-hidden="true">
-      <span class="simple-home-ambient__orb simple-home-ambient__orb--teal"></span>
-      <span class="simple-home-ambient__orb simple-home-ambient__orb--violet"></span>
+  <div class="form-auth-bg auth-simple-page form-auth-bg--home">
+    <div class="myacct-ambient" aria-hidden="true">
+      <span class="myacct-ambient__orb myacct-ambient__orb--teal"></span>
+      <span class="myacct-ambient__orb myacct-ambient__orb--violet"></span>
     </div>
     <div class="form-auth-grid" aria-hidden="true"></div>
-    <div class="auth-simple-inner">
-      <div class="auth-simple-content auth-simple-content--home">
-        <main class="simple-home">
-          <header class="simple-home__hero">
-            <div class="simple-home__logo-ring">
-              {% if site_settings and site_settings.app_icon %}
-                <img
-                  class="simple-home__logo"
-                  src="{{ url_for('static', filename=site_settings.app_icon) }}"
-                  alt=""
-                  width="64"
-                  height="64"
-                />
-              {% else %}
-                <span class="simple-home__logo simple-home__logo--mark" aria-hidden="true">{{ pub_brand_mark }}</span>
-              {% endif %}
+
+    <div class="myacct-shell">
+      <article class="myacct-frame" aria-labelledby="myacct-frame-heading">
+        <aside class="myacct-frame__brand">
+          <span class="myacct-frame__brand-grid" aria-hidden="true"></span>
+          <span class="myacct-frame__brand-glow" aria-hidden="true"></span>
+          <div class="myacct-frame__brand-inner">
+            <div class="myacct-frame__brand-lockup">
+              <span class="myacct-frame__brand-logo">
+                {% if site_settings and site_settings.app_icon %}
+                  <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" width="40" height="40" />
+                {% else %}
+                  <span class="myacct-frame__brand-mark" aria-hidden="true">{{ pub_brand_mark }}</span>
+                {% endif %}
+              </span>
+              <span class="myacct-frame__brand-name">{{ pub_brand_name }}</span>
             </div>
-            <p class="simple-home__badge">Multi-store POS</p>
-            <h1 class="simple-home__title">{{ pub_brand_name }}</h1>
-            <p class="simple-home__tagline">
-              One place for <span class="simple-home__tagline-accent">sales</span>,
-              <span class="simple-home__tagline-accent">stock</span>, and
-              <span class="simple-home__tagline-accent">reports</span>.
+
+            <p class="myacct-frame__brand-eyebrow">Multi-store POS</p>
+            <h1 class="myacct-frame__brand-tagline">
+              One calm workspace for every shop.
+            </h1>
+            <p class="myacct-frame__brand-sub">
+              Sales, stock, staff, and reports — across all your branches, in real time.
+            </p>
+
+            <ul class="myacct-frame__brand-bullets">
+              <li>
+                <span class="myacct-frame__brand-check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                Live multi-shop dashboard
+              </li>
+              <li>
+                <span class="myacct-frame__brand-check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                Sign in once &mdash; tills keep working through outages
+              </li>
+              <li>
+                <span class="myacct-frame__brand-check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                Tight stock &amp; cash control
+              </li>
+            </ul>
+          </div>
+        </aside>
+
+        <main class="myacct-frame__panel">
+          <header class="myacct-frame__panel-head">
+            <p class="myacct-frame__panel-eyebrow">Secure sign-in</p>
+            <h2 id="myacct-frame-heading" class="myacct-frame__panel-heading">Welcome back</h2>
+            <p class="myacct-frame__panel-sub">
+              Choose how you want to access {{ pub_brand_name }}.
             </p>
           </header>
 
-          <div class="simple-home__install" data-pwa-install-host hidden>
-            <div class="simple-home__install-glow" aria-hidden="true"></div>
-            <div class="simple-home__install-body">
-              <p class="simple-home__install-eyebrow">Get the app</p>
-              <h2 class="simple-home__install-title">Install {{ pub_brand_name }} on this device</h2>
-              <p class="simple-home__install-desc">
-                One-tap launch, full-screen workspace, faster loads, and offline-aware. No app store needed.
-              </p>
-              <button type="button" class="simple-home__install-btn" data-pwa-install>
-                <span class="simple-home__install-btn-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
-                  </svg>
-                </span>
-                Install app
-              </button>
-            </div>
-          </div>
-
-          <script>
-            (function () {
-              var host = document.querySelector('[data-pwa-install-host]');
-              if (!host) return;
-              function inStandalone() {
-                try {
-                  if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
-                } catch (e) {}
-                return window.navigator.standalone === true;
-              }
-              if (inStandalone()) return;
-              host.hidden = false;
-            })();
-          </script>
-
-          <div class="simple-home__actions" role="navigation" aria-label="Sign in">
-            <a class="simple-home__action simple-home__action--shop" href="{{ url_for('public_shop_login') }}">
-              <span class="simple-home__action-icon" aria-hidden="true">
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a2.25 2.25 0 013.75-.659A2.25 2.25 0 017.5 9.349m0 0V21m8.25-11.751V4.5A2.25 2.25 0 0013.5 2.25h-3A2.25 2.25 0 008.25 4.5v4.598M12 8.25h.008v.008H12V8.25z" />
+          <nav class="myacct-frame__panel-body" aria-label="Choose how to sign in">
+            <a class="myacct-cta myacct-cta--primary" href="{{ url_for('public_shop_login') }}">
+              <span class="myacct-cta__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a2.25 2.25 0 013.75-.659A2.25 2.25 0 017.5 9.349m0 0V21m8.25-11.751V4.5A2.25 2.25 0 0013.5 2.25h-3A2.25 2.25 0 008.25 4.5v4.598M12 8.25h.008v.008H12V8.25z"/>
                 </svg>
               </span>
-              <span class="simple-home__action-body">
-                <span class="simple-home__action-label">Shop sign-in</span>
-                <span class="simple-home__action-hint">POS &amp; branch devices</span>
+              <span class="myacct-cta__body">
+                <span class="myacct-cta__label">Shop sign-in</span>
+                <span class="myacct-cta__hint">POS &amp; branch devices</span>
               </span>
-              <span class="simple-home__action-arrow" aria-hidden="true">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M9 5l7 7-7 7" />
-                </svg>
+              <span class="myacct-cta__arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
               </span>
             </a>
 
-            <a class="simple-home__action simple-home__action--employee" href="{{ url_for('employee_login') }}">
-              <span class="simple-home__action-icon" aria-hidden="true">
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.748-.5M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            <a class="myacct-cta myacct-cta--ghost" href="{{ url_for('employee_login') }}">
+              <span class="myacct-cta__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.748-.5M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>
                 </svg>
               </span>
-              <span class="simple-home__action-body">
-                <span class="simple-home__action-label">Employee sign-in</span>
-                <span class="simple-home__action-hint">Office &amp; management</span>
+              <span class="myacct-cta__body">
+                <span class="myacct-cta__label">Employee sign-in</span>
+                <span class="myacct-cta__hint">Office &amp; management</span>
               </span>
-              <span class="simple-home__action-arrow" aria-hidden="true">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.25" d="M9 5l7 7-7 7" />
-                </svg>
+              <span class="myacct-cta__arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
               </span>
             </a>
-          </div>
+          </nav>
+
+          <footer class="myacct-frame__panel-foot">
+            New here?<a href="{{ url_for('employee_signup') }}">Create an account &rarr;</a>
+          </footer>
         </main>
-      </div>
+      </article>
+
+      <aside class="myacct-install" data-pwa-install-host hidden>
+        <span class="myacct-install__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
+          </svg>
+        </span>
+        <span class="myacct-install__text">
+          <strong>Install {{ pub_brand_name }}</strong>
+          <span>One-tap launch · faster loads · offline-aware</span>
+        </span>
+        <button type="button" class="myacct-install__btn" data-pwa-install>Install</button>
+      </aside>
+
+      <p class="myacct-footnote">&copy; {{ pub_brand_name }} · Multi-store POS workspace</p>
     </div>
+
+    <script>
+      (function () {
+        var host = document.querySelector('[data-pwa-install-host]');
+        if (!host) return;
+        function inStandalone() {
+          try {
+            if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+          } catch (e) {}
+          return window.navigator.standalone === true;
+        }
+        if (inStandalone()) return;
+        host.hidden = false;
+      })();
+    </script>
   </div>
 {% endblock %}

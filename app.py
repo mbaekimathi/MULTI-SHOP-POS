@@ -46,6 +46,19 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB uploads
 
+# Long-lived "remember this device" sessions so the till stays signed in across
+# restarts and brief offline periods. Cached pages render in an authenticated
+# state because the session cookie still validates once the network returns.
+_SESSION_DAYS = int(os.getenv("SESSION_LIFETIME_DAYS", "90") or "90")
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=max(1, _SESSION_DAYS))
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Only set Secure when explicitly told the deployment is on HTTPS, so localhost
+# dev (http) still works without a custom env file.
+app.config["SESSION_COOKIE_SECURE"] = (
+    (os.getenv("SESSION_COOKIE_SECURE") or "").strip().lower() in {"1", "true", "yes", "on"}
+)
+
 UPLOAD_FOLDER_REL = "uploads/profiles"
 ALLOWED_PROFILE_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 ALLOWED_APP_ICON_EXT = {"png", "jpg", "jpeg", "gif", "webp", "ico", "svg"}
@@ -920,6 +933,49 @@ def login_required(f):
     return decorated
 
 
+def _log_hr_activity_safe(
+    action_kind: str,
+    *,
+    employee_id=None,
+    target_type: str | None = None,
+    target_id: int | None = None,
+    description: str | None = None,
+    employee_full_name: str | None = None,
+    employee_role: str | None = None,
+) -> None:
+    """Best-effort wrapper around database.log_hr_activity (silent on failure)."""
+    try:
+        from database import log_hr_activity as _log
+
+        eid = employee_id
+        if eid is None:
+            eid = session.get("employee_id")
+        ip = None
+        ua = None
+        try:
+            ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip() or None
+            ua = request.headers.get("User-Agent")
+        except Exception:
+            ip = None
+            ua = None
+        if employee_full_name is None and eid is not None and eid == session.get("employee_id"):
+            employee_full_name = session.get("employee_name")
+            employee_role = employee_role or session.get("employee_role")
+        _log(
+            eid,
+            action_kind,
+            target_type=target_type,
+            target_id=target_id,
+            description=description,
+            ip_address=ip,
+            user_agent=ua,
+            employee_full_name=employee_full_name,
+            employee_role=employee_role,
+        )
+    except Exception:
+        pass
+
+
 def _save_profile_upload(file_storage):
     if not file_storage or not getattr(file_storage, "filename", None):
         return None
@@ -1082,6 +1138,10 @@ def public_shop_login():
 
         session["shop_id"] = int(shop["id"])
         session["shop_name"] = shop.get("shop_name")
+        # Till devices stay signed in by default ("Remember this device" is
+        # checked on the form); user can uncheck for a single-shift session.
+        remember = (request.form.get("remember_device") or "").strip().lower() in {"1", "on", "true", "yes"}
+        session.permanent = remember
         flash(f"Welcome to {shop.get('shop_name')}.", "success")
         return redirect(url_for("shop_pos", shop_id=int(shop["id"])))
 
@@ -1137,6 +1197,21 @@ def employee_login():
         session["employee_name"] = row["full_name"]
         session["employee_role"] = row.get("role") or "employee"
         role_key = session.get("employee_role") or "employee"
+
+        _log_hr_activity_safe(
+            "login",
+            employee_id=row["id"],
+            target_type="employee",
+            target_id=int(row["id"]),
+            description=f"Login by {row.get('full_name') or 'employee'}",
+            employee_full_name=row.get("full_name"),
+            employee_role=role_key,
+        )
+
+        # Honor the "Remember this device" checkbox so the session persists
+        # across browser restarts and short offline periods.
+        remember = (request.form.get("remember_device") or "").strip().lower() in {"1", "on", "true", "yes"}
+        session.permanent = remember
 
         if role_key in COMPANY_PORTAL_ROLES:
             if next_url.startswith("/") and not next_url.startswith("//"):
@@ -1205,6 +1280,13 @@ def employee_login():
 @app.route("/logout", methods=["POST", "GET"])
 def employee_logout():
     had_employee = bool(session.get("employee_id"))
+    if had_employee:
+        _log_hr_activity_safe(
+            "logout",
+            target_type="employee",
+            target_id=session.get("employee_id"),
+            description=f"Logout by {session.get('employee_name') or 'employee'}",
+        )
     session.pop("employee_id", None)
     session.pop("employee_name", None)
     session.pop("employee_role", None)
@@ -2591,7 +2673,7 @@ def it_support_register_item():
         try:
             from database import create_item
 
-            create_item(
+            new_item_id = create_item(
                 category=category,
                 name=name,
                 description=description,
@@ -2605,6 +2687,12 @@ def it_support_register_item():
             flash("Could not register item. Check database connection.", "error")
             return redirect(url_for("it_support_register_item"))
 
+        _log_hr_activity_safe(
+            "register",
+            target_type="item",
+            target_id=int(new_item_id) if isinstance(new_item_id, int) else None,
+            description=f"Registered item '{name}' ({category})",
+        )
         flash("Item registered.", "success")
         return redirect(url_for("it_support_item_management"))
 
@@ -3078,17 +3166,48 @@ def it_support_stock_management():
     is_store_stock = global_mode == "both"
     show_register_stock_item_link = is_store_stock
     items: list = []
+    both_shops_count = 0
+    inline_register_measure_options: tuple = ()
     try:
         if is_store_stock:
             from database import (
                 init_store_stock_items_table,
                 init_store_stock_transactions_table,
+                list_shops,
                 list_store_stock_items_for_management,
+                resolve_shop_pos_inventory_mode,
             )
 
             init_store_stock_items_table()
             init_store_stock_transactions_table()
             items = list_store_stock_items_for_management(limit=2000)
+            try:
+                for s in (list_shops(limit=500) or []):
+                    try:
+                        sid = int(s.get("id") or 0)
+                    except Exception:
+                        sid = 0
+                    if sid <= 0:
+                        continue
+                    try:
+                        if resolve_shop_pos_inventory_mode(sid) == "both":
+                            both_shops_count += 1
+                    except Exception:
+                        continue
+            except Exception:
+                both_shops_count = 0
+            inline_register_measure_options = (
+                "pcs",
+                "kg",
+                "g",
+                "l",
+                "ml",
+                "pack",
+                "crate",
+                "box",
+                "dozen",
+                "portion",
+            )
         else:
             from database import list_stock_manage_items
 
@@ -3100,6 +3219,8 @@ def it_support_stock_management():
         items=items,
         show_register_stock_item_link=show_register_stock_item_link,
         is_store_stock=is_store_stock,
+        both_shops_count=both_shops_count,
+        inline_register_measure_options=inline_register_measure_options,
     )
 
 
@@ -3147,10 +3268,20 @@ def it_support_register_stock_item():
         "portion",
     )
 
+    def _safe_next_redirect(default_endpoint: str):
+        nxt = (request.form.get("next") or request.args.get("next") or "").strip()
+        allowed_endpoints = {
+            "it_support_stock_management",
+            "it_support_register_stock_item",
+        }
+        if nxt in allowed_endpoints:
+            return redirect(url_for(nxt))
+        return redirect(url_for(default_endpoint))
+
     if request.method == "POST":
         if not both_shops:
             flash("No shops are currently set to Both mode.", "error")
-            return redirect(url_for("it_support_register_stock_item"))
+            return _safe_next_redirect("it_support_register_stock_item")
         action = (request.form.get("action") or "").strip().lower()
         if action == "create_stock_item":
             cat = (request.form.get("category") or "").strip()
@@ -3159,10 +3290,10 @@ def it_support_register_stock_item():
             measure = (request.form.get("measure_unit") or "").strip().lower()
             if measure not in measure_options:
                 flash("Choose a valid measure unit.", "error")
-                return redirect(url_for("it_support_register_stock_item"))
+                return _safe_next_redirect("it_support_register_stock_item")
             if not cat or not nm:
                 flash("Category and stock item name are required.", "error")
-                return redirect(url_for("it_support_register_stock_item"))
+                return _safe_next_redirect("it_support_register_stock_item")
             init_store_stock_items_table()
             created = 0
             for s in both_shops:
@@ -3188,7 +3319,7 @@ def it_support_register_stock_item():
             )
         else:
             flash("Invalid action.", "error")
-        return redirect(url_for("it_support_register_stock_item"))
+        return _safe_next_redirect("it_support_register_stock_item")
 
     init_store_stock_items_table()
     store_stock_items = []
@@ -4921,6 +5052,13 @@ def it_support_item_delete(item_id: int):
         ok = delete_item(item_id)
     except Exception:
         ok = False
+    if ok:
+        _log_hr_activity_safe(
+            "delete",
+            target_type="item",
+            target_id=int(item_id),
+            description=f"Deleted item #{item_id}",
+        )
     flash("Item deleted." if ok else "Could not delete item.", "success" if ok else "error")
     return redirect(url_for("it_support_item_management"))
 
@@ -4999,6 +5137,13 @@ def it_support_item_edit(item_id: int):
         except Exception:
             ok = False
 
+        if ok:
+            _log_hr_activity_safe(
+                "update",
+                target_type="item",
+                target_id=int(item_id),
+                description=f"Updated item #{item_id} ({name})",
+            )
         flash("Item updated." if ok else "Could not update item.", "success" if ok else "error")
         return redirect(url_for("it_support_item_management"))
 
@@ -6552,6 +6697,83 @@ def pwa_manifest():
 def offline_page():
     """Lightweight offline fallback page served by the service worker."""
     return render_template("offline.html")
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/refill-kitchen-portions", methods=["POST"])
+def shop_pos_refill_kitchen_portions(shop_id: int):
+    """Quick +qty refill of kitchen portions from the POS (kitchen/both mode only).
+
+    Form fields: item_id, qty (positive int), employee_code (6 digits), note (optional).
+    Returns JSON for AJAX callers (X-Requested-With / Accept: application/json).
+    """
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
+    if _pos_inventory_mode(shop) not in ("kitchen", "both"):
+        msg = "Kitchen portion refill is only available in kitchen/both inventory modes."
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), 403
+        flash(msg, "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    employee_code = (request.form.get("employee_code") or "").strip()
+    emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
+    if emp_err:
+        if wants_json:
+            return jsonify({"ok": False, "error": emp_err}), emp_status
+        flash(emp_err, "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    try:
+        item_id = int((request.form.get("item_id") or "").strip())
+    except (TypeError, ValueError):
+        item_id = 0
+    try:
+        qty = int(float((request.form.get("qty") or "0").strip()))
+    except (TypeError, ValueError):
+        qty = 0
+
+    if item_id <= 0:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Pick a valid item to refill."}), 400
+        flash("Pick a valid item to refill.", "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+    if qty <= 0:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Portions to add must be greater than zero."}), 400
+        flash("Portions to add must be greater than zero.", "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    try:
+        from database import add_shop_kitchen_portions
+
+        ok, new_total = add_shop_kitchen_portions(shop_id=shop_id, item_id=item_id, delta=qty)
+    except Exception:
+        ok, new_total = False, None
+
+    if not ok:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Could not refill kitchen portions."}), 400
+        flash("Could not refill kitchen portions.", "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    if wants_json:
+        return jsonify(
+            {
+                "ok": True,
+                "message": f"Added {qty} portion(s).",
+                "item_id": item_id,
+                "added": qty,
+                "portions_remaining": new_total,
+            }
+        )
+    flash(f"Added {qty} portion(s).", "success")
+    return redirect(url_for("shop_pos", shop_id=shop_id))
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/stock-in", methods=["POST"])
@@ -9576,6 +9798,207 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
 
+        if action == "create_shop_store_stock_item":
+            if _pos_inventory_mode(shop) != "both":
+                flash("Store stock SKUs are only used when POS inventory is set to Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            measure_allowed = {
+                "pcs", "kg", "g", "l", "ml", "pack", "crate", "box", "dozen", "portion",
+            }
+            cat = (request.form.get("category") or "").strip()
+            nm = (request.form.get("name") or "").strip()
+            desc = (request.form.get("description") or "").strip()
+            measure = (request.form.get("measure_unit") or "").strip().lower()
+            if not cat or not nm:
+                flash("Name and category are required.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            if measure not in measure_allowed:
+                flash("Choose a valid measure unit.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                from database import create_store_stock_item, init_store_stock_items_table
+
+                init_store_stock_items_table()
+                new_id = create_store_stock_item(
+                    shop_id=shop_id,
+                    category=cat,
+                    name=nm,
+                    description=desc,
+                    measure_unit=measure,
+                    created_by_employee_id=session.get("employee_id"),
+                )
+                flash(
+                    "Store stock item registered for this shop." if new_id else "Could not register stock item.",
+                    "success" if new_id else "error",
+                )
+            except Exception as e:
+                app.logger.exception("create_shop_store_stock_item: %s", e)
+                flash("Could not register stock item.", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action in ("bulk_store_in", "bulk_store_out"):
+            if _pos_inventory_mode(shop) != "both":
+                flash("Bulk store stock is only used when POS inventory is set to Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            direction = "in" if action == "bulk_store_in" else "out"
+            try:
+                from database import (
+                    create_store_stock_transactions_batch,
+                    list_store_stock_items_for_shop_management,
+                    normalize_stock_move_qty,
+                    resolve_seller_name_and_phone,
+                )
+
+                store_items_for_post = list_store_stock_items_for_shop_management(
+                    shop_id=shop_id, limit=2000
+                )
+            except Exception:
+                store_items_for_post = []
+            if not store_items_for_post:
+                flash("No registered store stock items found for this shop.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+            allowed_reasons = {"return", "waste", "display"}
+            allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
+            errors: list[str] = []
+            ops: list[dict] = []
+
+            for it in store_items_for_post:
+                try:
+                    iid = int(it.get("id"))
+                except Exception:
+                    continue
+                label = (it.get("name") or f"Store item #{iid}")
+                if direction == "in":
+                    qty_raw = (request.form.get(f"in_qty_{iid}") or "").strip()
+                    bp_raw = (request.form.get(f"in_buying_price_{iid}") or "").strip()
+                    place = (request.form.get(f"in_place_{iid}") or "").strip()
+                    phone_raw = (request.form.get(f"in_seller_phone_{iid}") or "").strip()
+                    pay_raw = (request.form.get(f"in_payment_status_{iid}") or "").strip().lower()
+                    note_raw = (request.form.get(f"in_note_{iid}") or "").strip()
+                    pay_selected = pay_raw in allowed_pay
+                    partial_without_qty = bool(bp_raw or place or phone_raw or pay_selected or note_raw)
+                    if not qty_raw:
+                        if partial_without_qty:
+                            errors.append(
+                                f"{label}: enter a stock-in quantity or clear buying price, seller, phone, payment, and note."
+                            )
+                        continue
+                    qty = normalize_stock_move_qty(qty_raw)
+                    if qty is None:
+                        errors.append(f"{label}: invalid quantity.")
+                        continue
+                    if not bp_raw:
+                        errors.append(f"{label}: buying price is required when quantity is set.")
+                        continue
+                    if not place:
+                        errors.append(f"{label}: place bought is required when quantity is set.")
+                        continue
+                    if pay_raw not in allowed_pay:
+                        errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
+                        continue
+                    payment_status = pay_raw
+                    place_final = place.upper()
+                    resolved_phone = None
+                    if phone_raw:
+                        rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+                        if not rn or not rp:
+                            errors.append(
+                                f"{label}: seller phone must be valid (07… or 254…). If new, enter seller name in the seller field."
+                            )
+                            continue
+                        place_final = (rn or place).strip().upper()
+                        resolved_phone = rp
+                    try:
+                        buying_price = float(bp_raw)
+                        if buying_price < 0:
+                            raise ValueError()
+                    except Exception:
+                        errors.append(f"{label}: buying price must be a valid number.")
+                        continue
+                    ops.append(
+                        {
+                            "store_stock_item_id": iid,
+                            "direction": "in",
+                            "qty": qty,
+                            "buying_price": buying_price,
+                            "place_brought_from": place_final,
+                            "seller_phone": resolved_phone,
+                            "stock_out_reason": None,
+                            "refunded": False,
+                            "refund_amount": None,
+                            "note": note_raw.upper() if note_raw else None,
+                            "payment_status": payment_status,
+                            "amount_paid": None,
+                        }
+                    )
+                else:
+                    qty_raw = (request.form.get(f"out_qty_{iid}") or "").strip()
+                    reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
+                    ram = (request.form.get(f"out_refund_amount_{iid}") or "").strip()
+                    note_raw = (request.form.get(f"out_note_{iid}") or "").strip()
+                    partial_out = reason in allowed_reasons or bool(ram) or bool(note_raw)
+                    if not qty_raw:
+                        if partial_out:
+                            errors.append(
+                                f"{label}: enter a quantity out or clear reason, refund amount, and note."
+                            )
+                        continue
+                    qty = normalize_stock_move_qty(qty_raw)
+                    if qty is None:
+                        errors.append(f"{label}: invalid quantity.")
+                        continue
+                    if reason not in allowed_reasons:
+                        errors.append(f"{label}: choose a stock out reason.")
+                        continue
+                    refunded_raw = (request.form.get(f"out_refunded_{iid}") or "").strip().lower()
+                    if refunded_raw not in ("yes", "no"):
+                        errors.append(f"{label}: choose whether this line is refunded.")
+                        continue
+                    refunded = refunded_raw == "yes"
+                    refund_amount = None
+                    if refunded:
+                        if not ram:
+                            errors.append(f"{label}: refund amount is required when refunded is yes.")
+                            continue
+                        try:
+                            refund_amount = float(ram)
+                            if refund_amount < 0:
+                                raise ValueError()
+                        except Exception:
+                            errors.append(f"{label}: refund amount must be a valid number.")
+                            continue
+                    ops.append(
+                        {
+                            "store_stock_item_id": iid,
+                            "direction": "out",
+                            "qty": qty,
+                            "buying_price": None,
+                            "place_brought_from": None,
+                            "stock_out_reason": reason.upper(),
+                            "refunded": refunded,
+                            "refund_amount": refund_amount,
+                            "note": note_raw.upper() if note_raw else None,
+                        }
+                    )
+
+            if errors:
+                flash(" ".join(errors[:6]) + (" …" if len(errors) > 6 else ""), "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            if not ops:
+                flash("Enter a quantity on at least one row to apply.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                ok, msg = create_store_stock_transactions_batch(
+                    operations=ops,
+                    created_by_employee_id=session.get("employee_id"),
+                )
+            except Exception as e:
+                app.logger.exception("bulk_store_%s failed: %s", direction, e)
+                ok, msg = False, f"Could not apply store stock {direction}."
+            flash(msg, "success" if ok else "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
         if action == "register_store_items":
             view_arg = (request.form.get("view") or request.args.get("view") or "auto").strip().lower()
             if view_arg not in ("auto", "manual"):
@@ -10034,6 +10457,10 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
         return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
+    pos_mode = _pos_inventory_mode(shop)
+    store_items: list = []
+    store_tx: list = []
+    inline_register_measure_options: tuple = ()
     try:
         from database import (
             ensure_shop_items_for_shop,
@@ -10060,18 +10487,38 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
     except Exception:
         items, txs, request_rows, other_shops, store_reg_candidates = [], [], [], [], []
 
+    if pos_mode == "both":
+        try:
+            from database import (
+                list_store_stock_items_for_shop_management,
+                list_store_stock_transactions_for_shop,
+            )
+
+            store_items = list_store_stock_items_for_shop_management(
+                shop_id=shop_id, limit=2000
+            )
+            store_tx = list_store_stock_transactions_for_shop(shop_id=shop_id, limit=200)
+        except Exception:
+            store_items, store_tx = [], []
+        inline_register_measure_options = (
+            "pcs", "kg", "g", "l", "ml", "pack", "crate", "box", "dozen", "portion",
+        )
+
     return render_template(
         "shop_stock_management.html",
         shop=shop,
         items=items,
         store_reg_candidates=store_reg_candidates or [],
         store_registration_enabled=store_registration_enabled,
-        pos_inventory_mode=_pos_inventory_mode(shop),
+        pos_inventory_mode=pos_mode,
         other_shops=other_shops,
         view=view_arg,
         stock_requests=request_rows,
         item_stock_requests=request_rows,
         transactions=txs,
+        store_items=store_items,
+        store_tx=store_tx,
+        inline_register_measure_options=inline_register_measure_options,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -11434,6 +11881,368 @@ def it_support_hr_management():
     )
 
 
+def _collect_hr_analytics_data(lookback_days: int) -> dict:
+    """Shared data fetch for the HR analytics page and its live polling endpoint."""
+    try:
+        from database import (
+            get_hr_activity_daily_totals,
+            get_hr_activity_summary_for_employees,
+            list_employees,
+        )
+
+        employees = list_employees(limit=2000) or []
+        emp_ids = tuple(int(e.get("id")) for e in employees if e.get("id") is not None)
+        summary_map = get_hr_activity_summary_for_employees(
+            emp_ids, lookback_days=lookback_days
+        )
+        daily_totals = get_hr_activity_daily_totals(
+            lookback_days=min(lookback_days, 90)
+        )
+    except Exception:
+        employees = []
+        summary_map = {}
+        daily_totals = []
+
+    decorated = []
+    total_sessions = 0
+    total_hours = 0.0
+    total_changes = 0
+    active_today = 0
+    today = date.today()
+    for emp in employees:
+        try:
+            eid = int(emp.get("id"))
+        except (TypeError, ValueError):
+            continue
+        s = summary_map.get(eid) or {}
+        row = dict(emp)
+        row["activity_summary"] = s
+        last_login = s.get("last_login_at")
+        if today and last_login:
+            try:
+                if last_login.date() == today:
+                    active_today += 1
+            except Exception:
+                pass
+        total_sessions += int(s.get("session_count") or 0)
+        try:
+            total_hours += float(s.get("total_seconds") or 0) / 3600.0
+        except (TypeError, ValueError):
+            pass
+        total_changes += int(s.get("change_count") or 0)
+        decorated.append(row)
+
+    totals = {
+        "employees": len(decorated),
+        "sessions": total_sessions,
+        "hours": round(total_hours, 1),
+        "changes": total_changes,
+        "active_today": active_today,
+    }
+
+    chart_payload = _build_hr_analytics_chart_payload(
+        decorated, daily_totals, lookback_days=lookback_days, totals=totals
+    )
+    return {
+        "employees": decorated,
+        "totals": totals,
+        "chart_payload": chart_payload,
+        "lookback_days": lookback_days,
+    }
+
+
+@app.route("/it_support/hr-analytics")
+@login_required
+def it_support_hr_analytics():
+    _it_support_only()
+    try:
+        lookback_days = int(request.args.get("lookback", 90) or 90)
+    except (TypeError, ValueError):
+        lookback_days = 90
+    lookback_days = max(1, min(3650, lookback_days))
+    data = _collect_hr_analytics_data(lookback_days)
+    return render_template(
+        "it_support_hr_analytics.html",
+        employees=data["employees"],
+        analytics_totals=data["totals"],
+        lookback_days=data["lookback_days"],
+        chart_payload=data["chart_payload"],
+    )
+
+
+@app.route("/it_support/hr-analytics/data.json")
+@login_required
+def it_support_hr_analytics_data():
+    """Live-polling payload used to refresh the HR analytics page in-place."""
+    _it_support_only()
+    try:
+        lookback_days = int(request.args.get("lookback", 90) or 90)
+    except (TypeError, ValueError):
+        lookback_days = 90
+    lookback_days = max(1, min(3650, lookback_days))
+    data = _collect_hr_analytics_data(lookback_days)
+
+    def _iso(value):
+        try:
+            return value.isoformat(sep=" ", timespec="seconds") if value else None
+        except Exception:
+            return str(value) if value else None
+
+    employees_out = []
+    for emp in data["employees"]:
+        s = emp.get("activity_summary") or {}
+        try:
+            eid = int(emp.get("id"))
+        except (TypeError, ValueError):
+            continue
+        employees_out.append(
+            {
+                "id": eid,
+                "full_name": emp.get("full_name") or "",
+                "employee_code": emp.get("employee_code") or "",
+                "email": emp.get("email") or "",
+                "role": emp.get("role") or "",
+                "status": emp.get("status") or "",
+                "shop_name": emp.get("shop_name") or "",
+                "session_count": int(s.get("session_count") or 0),
+                "total_seconds": int(s.get("total_seconds") or 0),
+                "total_hours_label": s.get("total_hours_label") or "0h 0m",
+                "change_count": int(s.get("change_count") or 0),
+                "login_count": int(s.get("login_count") or 0),
+                "logout_count": int(s.get("logout_count") or 0),
+                "last_login_at": _iso(s.get("last_login_at")),
+                "last_logout_at": _iso(s.get("last_logout_at")),
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "server_time": _iso(datetime.now()),
+            "lookback_days": data["lookback_days"],
+            "totals": data["totals"],
+            "employees": employees_out,
+            "chart_payload": data["chart_payload"],
+        }
+    )
+
+
+def _build_hr_analytics_chart_payload(
+    employees: list,
+    daily_totals: list,
+    *,
+    lookback_days: int,
+    totals: dict,
+) -> dict:
+    """Shape the data the HR analytics charts consume in the browser."""
+    enriched = []
+    for emp in employees or []:
+        s = (emp or {}).get("activity_summary") or {}
+        try:
+            eid = int(emp.get("id"))
+        except (TypeError, ValueError):
+            continue
+        enriched.append(
+            {
+                "id": eid,
+                "name": emp.get("full_name") or "",
+                "code": emp.get("employee_code") or "",
+                "role": (emp.get("role") or "").lower(),
+                "shop_name": emp.get("shop_name") or "",
+                "status": emp.get("status") or "",
+                "total_hours": round(float(s.get("total_seconds") or 0) / 3600.0, 2),
+                "total_hours_label": s.get("total_hours_label") or "0h 0m",
+                "session_count": int(s.get("session_count") or 0),
+                "login_count": int(s.get("login_count") or 0),
+                "logout_count": int(s.get("logout_count") or 0),
+                "change_count": int(s.get("change_count") or 0),
+                "kind_counts": s.get("kind_counts") or {},
+            }
+        )
+
+    by_hours_desc = sorted(enriched, key=lambda x: x["total_hours"], reverse=True)
+    by_sessions_desc = sorted(enriched, key=lambda x: x["session_count"], reverse=True)
+    by_changes_desc = sorted(enriched, key=lambda x: x["change_count"], reverse=True)
+
+    def _take(rows, n=15):
+        return [r for r in rows[:n] if (r["total_hours"] or r["session_count"] or r["change_count"])]
+
+    top_hours = _take(by_hours_desc, 15)
+    top_sessions = _take(by_sessions_desc, 15)
+    top_changes = _take(by_changes_desc, 15)
+
+    # Action-mix dataset: take the top 12 most active employees overall, then expose
+    # per-kind counts for stacked bars.
+    def _activity_total(row):
+        kc = row.get("kind_counts") or {}
+        return sum(int(v or 0) for v in kc.values())
+
+    by_activity = sorted(enriched, key=_activity_total, reverse=True)
+    mix_rows = [r for r in by_activity[:12] if _activity_total(r) > 0]
+
+    daily_out = []
+    for d in daily_totals or []:
+        day = d.get("date")
+        if hasattr(day, "isoformat"):
+            day_label = day.isoformat()
+        else:
+            day_label = str(day) if day else ""
+        daily_out.append(
+            {
+                "date": day_label,
+                "login": int(d.get("login") or 0),
+                "logout": int(d.get("logout") or 0),
+                "register": int(d.get("register") or 0),
+                "edit": int(d.get("edit") or 0),
+                "update": int(d.get("update") or 0),
+                "delete": int(d.get("delete") or 0),
+                "other": int(d.get("other") or 0),
+                "total": int(d.get("total") or 0),
+            }
+        )
+
+    # Aggregate role-level totals so we can compare by role too.
+    role_agg: dict[str, dict] = {}
+    for r in enriched:
+        role = r["role"] or "employee"
+        bucket = role_agg.setdefault(
+            role,
+            {
+                "role": role,
+                "employees": 0,
+                "total_hours": 0.0,
+                "session_count": 0,
+                "change_count": 0,
+            },
+        )
+        bucket["employees"] += 1
+        bucket["total_hours"] += float(r["total_hours"] or 0.0)
+        bucket["session_count"] += int(r["session_count"] or 0)
+        bucket["change_count"] += int(r["change_count"] or 0)
+    role_rows = sorted(
+        (
+            {
+                "role": v["role"],
+                "employees": v["employees"],
+                "total_hours": round(v["total_hours"], 2),
+                "session_count": v["session_count"],
+                "change_count": v["change_count"],
+            }
+            for v in role_agg.values()
+        ),
+        key=lambda x: x["total_hours"],
+        reverse=True,
+    )
+
+    return {
+        "lookback_days": int(lookback_days),
+        "totals": totals or {},
+        "top_hours": top_hours,
+        "top_sessions": top_sessions,
+        "top_changes": top_changes,
+        "activity_mix": mix_rows,
+        "daily": daily_out,
+        "roles": role_rows,
+    }
+
+
+@app.route("/it_support/hr-analytics/employee/<int:emp_id>.json")
+@login_required
+def it_support_hr_analytics_employee_detail(emp_id: int):
+    """JSON detail used by the HR analytics modal."""
+    _it_support_only()
+    try:
+        lookback_days = int(request.args.get("lookback", 90) or 90)
+    except (TypeError, ValueError):
+        lookback_days = 90
+    lookback_days = max(1, min(3650, lookback_days))
+    try:
+        recent_limit = int(request.args.get("recent_limit", 80) or 80)
+    except (TypeError, ValueError):
+        recent_limit = 80
+    recent_limit = max(1, min(500, recent_limit))
+    try:
+        from database import (
+            get_employee_by_id,
+            get_employee_session_analytics,
+        )
+
+        emp = get_employee_by_id(emp_id) or {}
+        analytics = get_employee_session_analytics(
+            emp_id, lookback_days=lookback_days, recent_limit=recent_limit
+        )
+    except Exception:
+        emp = {}
+        analytics = {}
+
+    def _iso(value):
+        try:
+            return value.isoformat(sep=" ", timespec="seconds") if value else None
+        except Exception:
+            return str(value) if value else None
+
+    sessions_out = []
+    for s in analytics.get("sessions") or []:
+        sessions_out.append(
+            {
+                "login_at": _iso(s.get("login_at")),
+                "logout_at": _iso(s.get("logout_at")),
+                "duration_seconds": int(s.get("duration_seconds") or 0),
+                "duration_label": s.get("duration_label") or "0m",
+                "ip_address": s.get("ip_address"),
+                "open": bool(s.get("open")),
+            }
+        )
+
+    activities_out = []
+    for a in analytics.get("recent_activities") or []:
+        activities_out.append(
+            {
+                "id": int(a.get("id") or 0),
+                "action_kind": a.get("action_kind"),
+                "target_type": a.get("target_type"),
+                "target_id": a.get("target_id"),
+                "description": a.get("description"),
+                "ip_address": a.get("ip_address"),
+                "created_at": _iso(a.get("created_at")),
+            }
+        )
+
+    payload = {
+        "ok": bool(emp),
+        "employee": {
+            "id": emp.get("id"),
+            "full_name": emp.get("full_name"),
+            "email": emp.get("email"),
+            "phone": emp.get("phone"),
+            "employee_code": emp.get("employee_code"),
+            "role": emp.get("role"),
+            "status": emp.get("status"),
+            "shop_id": emp.get("shop_id"),
+            "shop_name": emp.get("shop_name"),
+        },
+        "analytics": {
+            "session_count": int(analytics.get("session_count") or 0),
+            "open_session_count": int(analytics.get("open_session_count") or 0),
+            "total_seconds": int(analytics.get("total_seconds") or 0),
+            "total_hours_label": analytics.get("total_hours_label") or "0h 0m",
+            "total_hours_decimal": float(analytics.get("total_hours_decimal") or 0.0),
+            "avg_session_seconds": int(analytics.get("avg_session_seconds") or 0),
+            "avg_session_label": analytics.get("avg_session_label") or "0m",
+            "longest_session_seconds": int(analytics.get("longest_session_seconds") or 0),
+            "longest_session_label": analytics.get("longest_session_label") or "0m",
+            "last_login_at": _iso(analytics.get("last_login_at")),
+            "last_logout_at": _iso(analytics.get("last_logout_at")),
+            "first_seen_at": _iso(analytics.get("first_seen_at")),
+            "kind_counts": analytics.get("kind_counts") or {},
+            "lookback_days": int(analytics.get("lookback_days") or lookback_days),
+        },
+        "sessions": sessions_out,
+        "recent_activities": activities_out,
+    }
+    return jsonify(payload)
+
+
 HR_AUTH_ROLE_ORDER = (
     ("super_admin", "Super admin"),
     ("it_support", "IT support"),
@@ -12251,6 +13060,13 @@ def it_support_employee_approve(emp_id: int):
         )
     except Exception:
         ok = False
+    if ok:
+        _log_hr_activity_safe(
+            "approve",
+            target_type="employee",
+            target_id=int(emp_id),
+            description=f"Approved employee #{emp_id} as {role or 'employee'}",
+        )
     flash("Employee approved." if ok else "Could not approve employee. Check role/shop selection.", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
@@ -12325,6 +13141,16 @@ def it_support_employee_edit(emp_id: int):
     except Exception:
         ok = False
     if ok:
+        _log_hr_activity_safe(
+            "edit",
+            target_type="employee",
+            target_id=int(emp_id),
+            description=(
+                f"Edited employee #{emp_id} ({full_name or 'employee'}) — "
+                f"role={role or 'unchanged'}"
+                + (", password changed" if password_hash else "")
+            ),
+        )
         flash("Employee updated." + (" Password changed." if password_hash else ""), "success")
     else:
         flash(
@@ -12352,6 +13178,13 @@ def it_support_employee_suspend(emp_id: int):
         ok = set_employee_suspended(emp_id, suspended=True)
     except Exception:
         ok = False
+    if ok:
+        _log_hr_activity_safe(
+            "suspend",
+            target_type="employee",
+            target_id=int(emp_id),
+            description=f"Suspended employee #{emp_id}",
+        )
     flash("Employee suspended." if ok else "Could not suspend employee.", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
@@ -12366,6 +13199,13 @@ def it_support_employee_unsuspend(emp_id: int):
         ok = set_employee_suspended(emp_id, suspended=False)
     except Exception:
         ok = False
+    if ok:
+        _log_hr_activity_safe(
+            "unsuspend",
+            target_type="employee",
+            target_id=int(emp_id),
+            description=f"Reactivated employee #{emp_id}",
+        )
     flash("Employee reactivated." if ok else "Could not reactivate employee.", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
@@ -12387,6 +13227,13 @@ def it_support_employee_delete(emp_id: int):
         ok = delete_employee_if_approved(emp_id)
     except Exception:
         ok = False
+    if ok:
+        _log_hr_activity_safe(
+            "delete",
+            target_type="employee",
+            target_id=int(emp_id),
+            description=f"Deleted employee #{emp_id}",
+        )
     flash("Employee deleted." if ok else "Could not delete employee (may still be pending approval).", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
@@ -12396,6 +13243,318 @@ def it_support_employee_delete(emp_id: int):
 def it_support_website_management():
     _it_support_only()
     return render_template("it_support_website_management.html")
+
+
+@app.route("/ai/my-accountant/summary")
+@login_required
+def ai_my_accountant_summary():
+    """Quick financial + stock snapshot for the floating 'My Accountant' assistant.
+
+    Scope rules:
+      * Super admin / IT support / company manager  → all shops (company-wide).
+        If they're explicitly viewing a specific shop (shop_id query param sent
+        by the partial when included from shop_layout.html), the snapshot
+        narrows to just that shop.
+      * Everyone else (shop manager / staff / employee) → always their shop.
+    """
+    role_key = (session.get("employee_role") or "employee").strip().lower()
+
+    qs_shop_id_raw = (request.args.get("shop_id") or "").strip()
+    qs_shop_id = None
+    if qs_shop_id_raw.isdigit():
+        try:
+            qs_shop_id = int(qs_shop_id_raw)
+            if qs_shop_id <= 0:
+                qs_shop_id = None
+        except ValueError:
+            qs_shop_id = None
+
+    if role_key in COMPANY_PORTAL_ROLES:
+        shop_id = qs_shop_id
+    else:
+        assigned = _effective_viewer_shop_id(role_key)
+        if qs_shop_id and assigned and qs_shop_id == assigned:
+            shop_id = qs_shop_id
+        else:
+            shop_id = assigned
+
+    today = date.today()
+    month_start = today.replace(day=1)
+    audit_window_start = today - timedelta(days=7)
+
+    result = {
+        "ok": True,
+        "scope": "shop" if shop_id else "company",
+        "shop_id": int(shop_id) if shop_id else None,
+        "revenue": {
+            "today": 0.0,
+            "today_credit": 0.0,
+            "today_sale": 0.0,
+            "month": 0.0,
+        },
+        "unpaid_credits": {"count": 0, "balance": 0.0},
+        "low_stock": {"kitchen_count": 0, "store_count": 0, "total": 0},
+        "audits": {
+            "cancelled_sales": 0,
+            "returned_sales": 0,
+            "stock_outs": 0,
+            "total": 0,
+            "window_days": 7,
+        },
+        "links": {},
+    }
+
+    try:
+        from database import get_cursor
+
+        with get_cursor() as cur:
+            try:
+                if shop_id:
+                    cur.execute(
+                        """
+                        SELECT
+                            COALESCE(SUM(CASE WHEN DATE(created_at) = %s THEN total_amount ELSE 0 END), 0) AS today_total,
+                            COALESCE(SUM(CASE WHEN DATE(created_at) = %s AND sale_type='credit' THEN total_amount ELSE 0 END), 0) AS today_credit,
+                            COALESCE(SUM(CASE WHEN DATE(created_at) = %s AND sale_type='sale' THEN total_amount ELSE 0 END), 0) AS today_sale,
+                            COALESCE(SUM(CASE WHEN created_at >= %s THEN total_amount ELSE 0 END), 0) AS month_total
+                        FROM shop_pos_sales
+                        WHERE shop_id = %s
+                        """,
+                        (today, today, today, month_start, shop_id),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT
+                            COALESCE(SUM(CASE WHEN DATE(created_at) = %s THEN total_amount ELSE 0 END), 0) AS today_total,
+                            COALESCE(SUM(CASE WHEN DATE(created_at) = %s AND sale_type='credit' THEN total_amount ELSE 0 END), 0) AS today_credit,
+                            COALESCE(SUM(CASE WHEN DATE(created_at) = %s AND sale_type='sale' THEN total_amount ELSE 0 END), 0) AS today_sale,
+                            COALESCE(SUM(CASE WHEN created_at >= %s THEN total_amount ELSE 0 END), 0) AS month_total
+                        FROM shop_pos_sales
+                        """,
+                        (today, today, today, month_start),
+                    )
+                r = cur.fetchone() or {}
+                result["revenue"]["today"] = float(r.get("today_total") or 0)
+                result["revenue"]["today_credit"] = float(r.get("today_credit") or 0)
+                result["revenue"]["today_sale"] = float(r.get("today_sale") or 0)
+                result["revenue"]["month"] = float(r.get("month_total") or 0)
+            except Exception:
+                pass
+
+            try:
+                if shop_id:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt,
+                               COALESCE(SUM(GREATEST(total_amount - credit_paid_amount, 0)), 0) AS bal
+                        FROM shop_pos_sales
+                        WHERE shop_id=%s AND sale_type='credit'
+                          AND COALESCE(credit_status, 'not_paid') <> 'paid'
+                          AND (total_amount - credit_paid_amount) > 0.0001
+                        """,
+                        (shop_id,),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt,
+                               COALESCE(SUM(GREATEST(total_amount - credit_paid_amount, 0)), 0) AS bal
+                        FROM shop_pos_sales
+                        WHERE sale_type='credit'
+                          AND COALESCE(credit_status, 'not_paid') <> 'paid'
+                          AND (total_amount - credit_paid_amount) > 0.0001
+                        """
+                    )
+                r = cur.fetchone() or {}
+                result["unpaid_credits"]["count"] = int(r.get("cnt") or 0)
+                result["unpaid_credits"]["balance"] = float(r.get("bal") or 0)
+            except Exception:
+                pass
+
+            try:
+                if shop_id:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM shop_items si
+                        JOIN items i ON i.id = si.item_id
+                        WHERE si.shop_id = %s
+                          AND COALESCE(NULLIF(si.low_stock_threshold, 0), i.low_stock_threshold, 0) > 0
+                          AND si.shop_stock_qty <= COALESCE(NULLIF(si.low_stock_threshold, 0), i.low_stock_threshold, 0)
+                        """,
+                        (shop_id,),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM shop_items si
+                        JOIN items i ON i.id = si.item_id
+                        WHERE COALESCE(NULLIF(si.low_stock_threshold, 0), i.low_stock_threshold, 0) > 0
+                          AND si.shop_stock_qty <= COALESCE(NULLIF(si.low_stock_threshold, 0), i.low_stock_threshold, 0)
+                        """
+                    )
+                r = cur.fetchone() or {}
+                result["low_stock"]["store_count"] = int(r.get("cnt") or 0)
+            except Exception:
+                pass
+
+            try:
+                if shop_id:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM shop_kitchen_portions
+                        WHERE shop_id=%s AND portions_remaining > 0 AND portions_remaining <= 5
+                        """,
+                        (shop_id,),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM shop_kitchen_portions
+                        WHERE portions_remaining > 0 AND portions_remaining <= 5
+                        """
+                    )
+                r = cur.fetchone() or {}
+                result["low_stock"]["kitchen_count"] = int(r.get("cnt") or 0)
+            except Exception:
+                pass
+
+            result["low_stock"]["total"] = (
+                int(result["low_stock"]["kitchen_count"])
+                + int(result["low_stock"]["store_count"])
+            )
+
+            try:
+                if shop_id:
+                    cur.execute(
+                        """
+                        SELECT
+                            COALESCE(SUM(CASE WHEN COALESCE(receipt_mark_status,'pending') = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled_cnt,
+                            COALESCE(SUM(CASE WHEN COALESCE(receipt_mark_status,'pending') IN ('returned','partial_return') THEN 1 ELSE 0 END), 0) AS returned_cnt
+                        FROM shop_pos_sales
+                        WHERE shop_id=%s AND created_at >= %s
+                        """,
+                        (shop_id, audit_window_start),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT
+                            COALESCE(SUM(CASE WHEN COALESCE(receipt_mark_status,'pending') = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled_cnt,
+                            COALESCE(SUM(CASE WHEN COALESCE(receipt_mark_status,'pending') IN ('returned','partial_return') THEN 1 ELSE 0 END), 0) AS returned_cnt
+                        FROM shop_pos_sales
+                        WHERE created_at >= %s
+                        """,
+                        (audit_window_start,),
+                    )
+                r = cur.fetchone() or {}
+                result["audits"]["cancelled_sales"] = int(r.get("cancelled_cnt") or 0)
+                result["audits"]["returned_sales"] = int(r.get("returned_cnt") or 0)
+            except Exception:
+                pass
+
+            stock_outs = 0
+            try:
+                if shop_id:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM shop_stock_transactions
+                        WHERE shop_id=%s AND direction='out' AND created_at >= %s
+                        """,
+                        (shop_id, audit_window_start),
+                    )
+                    rr = cur.fetchone() or {}
+                    stock_outs = int(rr.get("cnt") or 0)
+                else:
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM shop_stock_transactions
+                        WHERE direction='out' AND created_at >= %s
+                        """,
+                        (audit_window_start,),
+                    )
+                    rr = cur.fetchone() or {}
+                    stock_outs = int(rr.get("cnt") or 0)
+                    try:
+                        cur.execute(
+                            """
+                            SELECT COUNT(*) AS cnt
+                            FROM stock_transactions
+                            WHERE direction='out' AND created_at >= %s
+                            """,
+                            (audit_window_start,),
+                        )
+                        rr2 = cur.fetchone() or {}
+                        stock_outs += int(rr2.get("cnt") or 0)
+                    except Exception:
+                        pass
+                result["audits"]["stock_outs"] = stock_outs
+            except Exception:
+                pass
+
+            result["audits"]["total"] = (
+                int(result["audits"]["cancelled_sales"])
+                + int(result["audits"]["returned_sales"])
+                + int(result["audits"]["stock_outs"])
+            )
+    except Exception:
+        result["ok"] = False
+
+    try:
+        if shop_id:
+            audits_url = (
+                url_for("shop_receipts", shop_id=int(shop_id))
+                if "shop_receipts" in app.view_functions
+                else url_for("shop_audits", shop_id=int(shop_id))
+            )
+            stockouts_url = (
+                url_for("shop_stock_audits", shop_id=int(shop_id))
+                if "shop_stock_audits" in app.view_functions
+                else url_for("shop_stock_management", shop_id=int(shop_id))
+            )
+            result["links"] = {
+                "analytics": url_for("shop_analytics", shop_id=int(shop_id)),
+                "credits": url_for("shop_credit_payments", shop_id=int(shop_id)),
+                "stock": url_for("shop_stock_management", shop_id=int(shop_id)),
+                "audits": audits_url,
+                "stockouts": stockouts_url,
+            }
+        else:
+            stock_url = (
+                url_for("it_support_stock_status")
+                if "it_support_stock_status" in app.view_functions
+                else url_for("it_support_stock_management")
+            )
+            audits_url = (
+                url_for("it_support_receipts")
+                if "it_support_receipts" in app.view_functions
+                else url_for("it_support_credit_payments_audit")
+            )
+            stockouts_url = (
+                url_for("it_support_stock_movement_analysis")
+                if "it_support_stock_movement_analysis" in app.view_functions
+                else stock_url
+            )
+            result["links"] = {
+                "analytics": url_for("it_support_analytics"),
+                "credits": url_for("it_support_credit_payments"),
+                "stock": stock_url,
+                "audits": audits_url,
+                "stockouts": stockouts_url,
+            }
+    except Exception:
+        result["links"] = {
+            "analytics": "", "credits": "", "stock": "",
+            "audits": "", "stockouts": "",
+        }
+
+    return jsonify(result)
 
 
 if __name__ == "__main__":

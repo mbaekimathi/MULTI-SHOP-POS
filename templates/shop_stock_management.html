@@ -18,20 +18,105 @@
       <section class="sa-stock-section rounded-2xl border border-amber-400/45 bg-[rgb(var(--rc-surface))] p-5 shadow-sm ring-1 ring-amber-400/20">
         <p class="text-[10px] font-extrabold uppercase tracking-[0.2em] text-amber-300/95">Kitchen + shelf (POS “Both”)</p>
         <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-          This page now uses <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">registered store stock items</strong>
-          created by IT. Kitchen portions still drive checkout deductions.
+          This page tracks <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">store stock items</strong>
+          for this branch — separate from the POS sales catalogue. Kitchen portions still drive checkout deductions.
         </p>
+      </section>
+
+      <section
+        id="shop-inline-register-sku"
+        class="sa-stock-section rounded-2xl border border-emerald-400/40 bg-[rgb(var(--rc-surface))] p-5 shadow-sm ring-1 ring-emerald-400/20"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Register a store stock item</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+              Create a new shelf SKU for <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">this branch</strong>.
+              The new line appears in the bulk grid below for stock in / out.
+              Only available in <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Both</strong> (kitchen + shelf) POS mode.
+            </p>
+          </div>
+          <button
+            type="button"
+            id="shop-inline-register-toggle"
+            class="btn-rc btn-rc-ghost shrink-0 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+            aria-expanded="false"
+            aria-controls="shop-inline-register-body"
+          >
+            Show form
+          </button>
+        </div>
+
+        <div id="shop-inline-register-body" class="mt-4 hidden">
+          <form
+            method="post"
+            action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}"
+            class="grid gap-3 md:grid-cols-2"
+          >
+            <input type="hidden" name="action" value="create_shop_store_stock_item" />
+            <input type="hidden" name="view" value="{{ view }}" />
+            <label class="block">
+              <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Name</span>
+              <input
+                name="name"
+                required
+                autocomplete="off"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                placeholder="e.g. Beef Trimmings"
+              />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Category</span>
+              <input
+                name="category"
+                required
+                autocomplete="off"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                placeholder="e.g. Raw Meat"
+              />
+            </label>
+            <label class="block md:col-span-2">
+              <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Description</span>
+              <textarea
+                name="description"
+                rows="2"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                placeholder="Optional item details"
+              ></textarea>
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Measure</span>
+              <select
+                name="measure_unit"
+                required
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+              >
+                {% for mu in inline_register_measure_options or [] %}
+                  <option value="{{ mu }}">{{ mu|upper }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <div class="flex items-end">
+              <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider">
+                Register stock item
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
     {% endif %}
 
+    {% if pos_inventory_mode == 'both' %}
+      {% include "partials/shop_stock_both_mode_workspace.html" %}
+    {% endif %}
+
+    {% if pos_inventory_mode != 'both' %}
     <section class="sa-stock-section rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Stock operations</h2>
           <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-            {% if pos_inventory_mode == 'both' %}
-              Shelf stock workflows use registered store stock items shared from IT registration.
-            {% elif pos_inventory_mode == 'kitchen' %}
+            {% if pos_inventory_mode == 'kitchen' %}
               This branch is on <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portions only</strong>, so store/shelf stock workflows are disabled here.
             {% else %}
               Choose approved stock requests (company or another shop) or manual stock-in, enter details per item row, then submit once.
@@ -54,9 +139,7 @@
     {% if not items %}
       <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
         <p class="text-sm text-[rgb(var(--rc-muted))]">
-          {% if pos_inventory_mode == 'both' %}
-            No shelf-registered catalogue lines for this branch yet. Register catalogue items for shelf stock (POS kitchen + shelf / “Both”), or ask IT for help.
-          {% elif pos_inventory_mode == 'kitchen' %}
+          {% if pos_inventory_mode == 'kitchen' %}
             Store/shelf stock is disabled because this branch is using kitchen portions only.
           {% elif pos_inventory_mode == 'shop' or pos_inventory_mode == 'none' %}
             No active catalogue lines have shop stock updates enabled at this branch. Turn on stock tracking for those items in company / branch settings, then refresh.
@@ -329,7 +412,9 @@
         </section>
       {% endif %}
     {% endif %}
+    {% endif %}{# end pos_inventory_mode != 'both' #}
 
+    {% if pos_inventory_mode != 'both' %}
     <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
       <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock requests</h4>
       {% set ns = namespace(pending_count=0) %}
@@ -378,8 +463,9 @@
         </div>
       {% endif %}
     </section>
+    {% endif %}{# end pos_inventory_mode != 'both' for Stock requests #}
 
-    {% if view != 'manual' %}
+    {% if view != 'manual' and pos_inventory_mode != 'both' %}
       <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
         <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Recent transactions</h4>
         {% if not transactions %}
@@ -461,6 +547,423 @@
       });
     })();
   </script>
+  <script>
+    (function () {
+      var toggle = document.getElementById("shop-inline-register-toggle");
+      var body = document.getElementById("shop-inline-register-body");
+      if (!toggle || !body) return;
+      toggle.addEventListener("click", function () {
+        var isHidden = body.classList.contains("hidden");
+        body.classList.toggle("hidden", !isHidden);
+        toggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
+        toggle.textContent = isHidden ? "Hide form" : "Show form";
+      });
+    })();
+    (function () {
+      var btnIn = document.getElementById("shop-store-mode-in");
+      var btnOut = document.getElementById("shop-store-mode-out");
+      var formIn = document.getElementById("shop-store-bulk-form-in");
+      var formOut = document.getElementById("shop-store-bulk-form-out");
+      if (!btnIn || !btnOut) return;
+
+      var currentMode = "in";
+      function activeForm() {
+        return currentMode === "in" ? formIn : formOut;
+      }
+
+      function setMode(mode) {
+        var isIn = mode === "in";
+        currentMode = isIn ? "in" : "out";
+        if (formIn) formIn.classList.toggle("hidden", !isIn);
+        if (formOut) formOut.classList.toggle("hidden", isIn);
+        btnIn.setAttribute("aria-selected", isIn ? "true" : "false");
+        btnOut.setAttribute("aria-selected", !isIn ? "true" : "false");
+        btnIn.className = isIn
+          ? "rounded-xl px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition ring-1 ring-emerald-400/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200"
+          : "rounded-xl px-4 py-2.5 text-sm font-medium uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]";
+        btnOut.className = !isIn
+          ? "rounded-xl px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition ring-1 ring-rose-400/40 bg-rose-500/15 text-rose-700 dark:text-rose-200"
+          : "rounded-xl px-4 py-2.5 text-sm font-medium uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]";
+        // Refresh the live-search visible count for the newly active grid
+        applyLiveSearch();
+      }
+      btnIn.addEventListener("click", function () { setMode("in"); });
+      btnOut.addEventListener("click", function () { setMode("out"); });
+
+      var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+
+      function normalizePhoneInput(phoneEl) {
+        if (!phoneEl) return "";
+        var p = (phoneEl.value || "").trim();
+        if (p.indexOf("+254") === 0) p = "254" + p.slice(4);
+        p = p.replace(/\s+/g, "");
+        if (phoneEl.value !== p) phoneEl.value = p;
+        return p;
+      }
+      function runSellerLookup(p, onResult) {
+        var digits = (p || "").replace(/\D/g, "");
+        if (!p) { onResult("empty", null); return; }
+        if (digits.length < 10) { onResult("short", null); return; }
+        var valid10 = /^((07|01)\d{8})$/.test(digits);
+        var valid12 = /^(254\d{9})$/.test(digits);
+        if (!valid10 && !valid12) { onResult("badformat", null); return; }
+        var fd = new FormData();
+        fd.append("seller_phone", p);
+        fetch(sellerLookupUrl, { method: "POST", body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (data) { onResult("ok", data); })
+          .catch(function () { onResult("err", null); });
+      }
+      function bindSellerPhoneLookup(phoneEl, nameEl, hintEl) {
+        if (!phoneEl || !nameEl) return;
+        var timer = null;
+        phoneEl.addEventListener("input", function () {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(function () {
+            var p = normalizePhoneInput(phoneEl);
+            runSellerLookup(p, function (kind, data) {
+              if (!hintEl) return;
+              if (kind === "empty") { hintEl.textContent = ""; return; }
+              if (kind === "short") { hintEl.textContent = "Continue typing seller phone…"; return; }
+              if (kind === "badformat") { hintEl.textContent = "Use 07… or 01… (10 digits) or 254… (12 digits)."; return; }
+              if (kind === "ok" && data && data.ok && data.registered && data.seller) {
+                nameEl.value = String(data.seller.seller_name || "").toUpperCase();
+                hintEl.textContent = "Registered seller found.";
+              } else if (kind === "ok") {
+                hintEl.textContent = "New phone — enter seller name; supplier registers on submit.";
+              } else {
+                hintEl.textContent = "";
+              }
+            });
+          }, 220);
+        });
+      }
+
+      if (formIn) {
+        formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
+          var id = row.getAttribute("data-item-id");
+          if (!id) return;
+          var phone = row.querySelector('.shop-store-seller-phone[data-seller-phone="' + id + '"]');
+          var name = row.querySelector('.shop-store-seller-name[data-seller-name="' + id + '"]');
+          var hint = row.querySelector('.shop-store-seller-hint[data-seller-hint="' + id + '"]');
+          bindSellerPhoneLookup(phone, name, hint);
+        });
+        var applyPhone = document.getElementById("shop-store-apply-phone");
+        var applyName = document.getElementById("shop-store-apply-name");
+        var applyHint = document.getElementById("shop-store-apply-hint");
+        var applyPay = document.getElementById("shop-store-apply-payment");
+        var applyNote = document.getElementById("shop-store-apply-note");
+        bindSellerPhoneLookup(applyPhone, applyName, applyHint);
+        var copyInBtn = document.getElementById("shop-store-copy-in-rows");
+        var copyInFb = document.getElementById("shop-store-copy-in-feedback");
+        if (copyInBtn) {
+          copyInBtn.addEventListener("click", function () {
+            var pv = applyPhone ? (applyPhone.value || "").trim() : "";
+            var nv = applyName ? (applyName.value || "").trim().toUpperCase() : "";
+            var payRaw = applyPay ? String(applyPay.value || "").trim().toLowerCase() : "";
+            var noteRaw = applyNote ? String(applyNote.value || "").trim().toUpperCase() : "";
+            var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
+            var payVal = payOk ? payRaw : "";
+            var n = 0;
+            formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
+              var id = row.getAttribute("data-item-id");
+              if (!id) return;
+              var qIn = row.querySelector('input[name="in_qty_' + id + '"]');
+              var q = 0;
+              try { q = parseFloat(String((qIn && qIn.value) || "").replace(",", ".")); } catch (e) { q = 0; }
+              if (!(q > 0)) return;
+              n += 1;
+              var rp = row.querySelector('[name="in_seller_phone_' + id + '"]');
+              var rn = row.querySelector('[name="in_place_' + id + '"]');
+              var rpay = row.querySelector('[name="in_payment_status_' + id + '"]');
+              var rnote = row.querySelector('[name="in_note_' + id + '"]');
+              if (rp) { rp.value = pv; normalizePhoneInput(rp); }
+              if (rn) rn.value = nv;
+              if (rpay && payVal) rpay.value = payVal;
+              if (rnote && noteRaw) rnote.value = noteRaw;
+              var rh = row.querySelector('.shop-store-seller-hint[data-seller-hint="' + id + '"]');
+              if (rh) rh.textContent = "";
+            });
+            if (copyInFb) {
+              if (!n) {
+                copyInFb.textContent = "No rows updated — enter a positive quantity on the lines you are stocking in, then click again.";
+              } else {
+                copyInFb.textContent =
+                  "Copied phone, name" + (payVal ? ", payment" : "") + (noteRaw ? ", note" : "") + " to " + n + " line(s).";
+              }
+            }
+          });
+        }
+      }
+
+      if (formOut) {
+        formOut.querySelectorAll(".shop-store-out-refunded").forEach(function (sel) {
+          function sync() {
+            var id = sel.getAttribute("data-item-id");
+            if (!id) return;
+            var amt = formOut.querySelector('[name="out_refund_amount_' + id + '"]');
+            if (!amt) return;
+            var yes = sel.value === "yes";
+            amt.disabled = !yes;
+            if (!yes) amt.value = "";
+          }
+          sel.addEventListener("change", sync);
+          sync();
+        });
+        var copyOutBtn = document.getElementById("shop-store-copy-out-rows");
+        var copyOutReason = document.getElementById("shop-store-out-apply-reason");
+        var copyOutRefunded = document.getElementById("shop-store-out-apply-refunded");
+        var copyOutNote = document.getElementById("shop-store-out-apply-note");
+        var copyOutFb = document.getElementById("shop-store-copy-out-feedback");
+        if (copyOutBtn) {
+          copyOutBtn.addEventListener("click", function () {
+            var reason = copyOutReason ? String(copyOutReason.value || "").trim().toLowerCase() : "";
+            var allowed = { return: 1, waste: 1, display: 1 };
+            if (!reason || !allowed[reason]) {
+              if (copyOutFb) copyOutFb.textContent = "Choose a reason (Return, Waste, or Display) first.";
+              return;
+            }
+            var refYes = copyOutRefunded && copyOutRefunded.value === "yes";
+            var refVal = refYes ? "yes" : "no";
+            var noteRaw = copyOutNote ? String(copyOutNote.value || "").trim().toUpperCase() : "";
+            var n = 0;
+            formOut.querySelectorAll(".shop-store-row-out").forEach(function (row) {
+              var id = row.getAttribute("data-item-id");
+              if (!id) return;
+              var qIn = row.querySelector('input[name="out_qty_' + id + '"]');
+              var q = 0;
+              try { q = parseFloat(String((qIn && qIn.value) || "").replace(",", ".")); } catch (e) { q = 0; }
+              if (!(q > 0)) return;
+              n += 1;
+              var rReason = row.querySelector('[name="out_reason_' + id + '"]');
+              var rRef = row.querySelector('[name="out_refunded_' + id + '"]');
+              var rAmt = row.querySelector('[name="out_refund_amount_' + id + '"]');
+              var rNote = row.querySelector('[name="out_note_' + id + '"]');
+              if (rReason) rReason.value = reason;
+              if (rRef) {
+                rRef.value = refVal;
+                rRef.dispatchEvent(new Event("change"));
+              }
+              if (refYes && rAmt) {
+                var unit = parseFloat(String(row.getAttribute("data-last-buy-price") || "0"));
+                if (!isFinite(unit) || unit < 0) unit = 0;
+                var total = Math.round(q * unit * 100) / 100;
+                rAmt.value = total >= 0 ? total.toFixed(2) : "0.00";
+              }
+              if (rNote && noteRaw) rNote.value = noteRaw;
+            });
+            if (copyOutFb) {
+              copyOutFb.textContent = n
+                ? "Copied reason" + (noteRaw ? " + note" : "") + " to " + n + " line(s) with quantity"
+                    + (refYes ? "; refund amounts set to qty × last buying price (edit as needed)." : ".")
+                : "No rows updated — enter a positive quantity out on the lines you need, then click again.";
+            }
+          });
+        }
+      }
+
+      // ----- LIVE SEARCH ACROSS BOTH GRIDS -----
+      var searchInput = document.getElementById("shop-store-live-search");
+      var visibleCountEl = document.getElementById("shop-store-search-visible-count");
+
+      function applyLiveSearch() {
+        var query = searchInput ? String(searchInput.value || "").trim().toLowerCase() : "";
+        var active = activeForm();
+        var visibleInActive = 0;
+
+        [formIn, formOut].forEach(function (formEl) {
+          if (!formEl) return;
+          var visibleByCategory = {};
+          // First pass: filter rows by data-stock-search
+          formEl.querySelectorAll("tbody tr.shop-store-row").forEach(function (row) {
+            var hay = String(row.getAttribute("data-stock-search") || "");
+            var show = !query || hay.indexOf(query) !== -1;
+            row.classList.toggle("hidden", !show);
+            if (show) {
+              visibleByCategory[String(row.getAttribute("data-stock-category") || "")] = true;
+              if (formEl === active) visibleInActive += 1;
+            }
+          });
+          // Second pass: hide category headers whose rows are all filtered out
+          formEl.querySelectorAll("tbody tr.shop-store-cat-row").forEach(function (row) {
+            var catKey = String(row.getAttribute("data-cat") || "");
+            row.classList.toggle("hidden", !!query && !visibleByCategory[catKey]);
+          });
+        });
+
+        if (visibleCountEl) visibleCountEl.textContent = String(visibleInActive);
+      }
+
+      if (searchInput) {
+        searchInput.addEventListener("input", applyLiveSearch);
+      }
+      // Run once on load so the count is correct from the start
+      applyLiveSearch();
+
+      // ----- ROW FOCUS HIGHLIGHT (qty inputs) -----
+      function highlightAndScroll(row) {
+        if (!row) return;
+        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        try {
+          row.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch (e) {}
+        setTimeout(function () {
+          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
+        }, 1200);
+      }
+      [".shop-store-in-qty", ".shop-store-out-qty"].forEach(function (sel) {
+        document.querySelectorAll(sel).forEach(function (input) {
+          input.addEventListener("focus", function () {
+            var row = input.closest("tr.shop-store-row");
+            if (!row) return;
+            if (searchInput && (searchInput.value || "").trim() !== "") {
+              // Clear the active search so the row is no longer filtered out, then highlight
+              searchInput.value = "";
+              applyLiveSearch();
+              requestAnimationFrame(function () { highlightAndScroll(row); });
+            } else {
+              highlightAndScroll(row);
+            }
+          });
+        });
+      });
+
+      // ----- CLIENT-SIDE SUBMIT VALIDATION (STOCK IN) -----
+      if (formIn) {
+        formIn.addEventListener("submit", function (ev) {
+          var allowedPay = { pending_payment: 1, partially_paid: 1, paid: 1 };
+          var problems = [];
+          var firstBad = null;
+          formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
+            var id = row.getAttribute("data-item-id");
+            if (!id) return;
+            var label = "Item #" + id;
+            var qIn = row.querySelector('input[name="in_qty_' + id + '"]');
+            var bp = row.querySelector('input[name="in_buying_price_' + id + '"]');
+            var place = row.querySelector('input[name="in_place_' + id + '"]');
+            var phone = row.querySelector('input[name="in_seller_phone_' + id + '"]');
+            var pay = row.querySelector('select[name="in_payment_status_' + id + '"]');
+            var note = row.querySelector('input[name="in_note_' + id + '"]');
+            var qtyStr = String((qIn && qIn.value) || "").trim();
+            var qPos = null;
+            if (qtyStr) {
+              var n = parseFloat(qtyStr.replace(",", "."));
+              if (!isFinite(n) || !(n > 0)) qPos = false;
+              else qPos = n;
+            }
+            var bpS = (bp && bp.value || "").trim();
+            var plS = (place && place.value || "").trim();
+            var phS = (phone && phone.value || "").trim();
+            var payS = (pay && pay.value || "").trim().toLowerCase();
+            var ntS = (note && note.value || "").trim();
+            var payOk = !!allowedPay[payS];
+            var otherTouched = !!(bpS || plS || phS || payOk || ntS);
+
+            if (typeof qPos === "number") {
+              if (!bpS) {
+                problems.push(label + ": buying price is required with quantity.");
+                firstBad = firstBad || row;
+              }
+              if (!plS) {
+                problems.push(label + ": seller name / place is required with quantity.");
+                firstBad = firstBad || row;
+              }
+              if (!payOk) {
+                problems.push(label + ": select payment (Not paid, Partially paid, or Paid).");
+                firstBad = firstBad || row;
+              }
+            } else if (qPos === false) {
+              problems.push(label + ": enter a valid positive quantity or clear this row.");
+              firstBad = firstBad || row;
+            } else if (otherTouched) {
+              problems.push(label + ": enter quantity or clear buying price, seller, phone, payment, and note.");
+              firstBad = firstBad || row;
+            }
+          });
+          if (problems.length) {
+            ev.preventDefault();
+            window.alert(problems.slice(0, 6).join("\n") + (problems.length > 6 ? "\n…" : ""));
+            if (firstBad) {
+              try {
+                firstBad.classList.remove("hidden");
+                firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+              } catch (e2) {}
+            }
+          }
+        });
+      }
+
+      // ----- CLIENT-SIDE SUBMIT VALIDATION (STOCK OUT) -----
+      if (formOut) {
+        formOut.addEventListener("submit", function (ev) {
+          var allowedReason = { return: 1, waste: 1, display: 1 };
+          var problems = [];
+          var firstBad = null;
+          formOut.querySelectorAll(".shop-store-row-out").forEach(function (row) {
+            var id = row.getAttribute("data-item-id");
+            if (!id) return;
+            var label = "Item #" + id;
+            var qIn = row.querySelector('input[name="out_qty_' + id + '"]');
+            var reasonSel = row.querySelector('[name="out_reason_' + id + '"]');
+            var refSel = row.querySelector('[name="out_refunded_' + id + '"]');
+            var refAmt = row.querySelector('[name="out_refund_amount_' + id + '"]');
+            var note = row.querySelector('input[name="out_note_' + id + '"]');
+            var qtyStr = String((qIn && qIn.value) || "").trim();
+            var qPos = null;
+            if (qtyStr) {
+              var n = parseFloat(qtyStr.replace(",", "."));
+              if (!isFinite(n) || !(n > 0)) qPos = false;
+              else qPos = n;
+            }
+            var reasonS = (reasonSel && reasonSel.value || "").trim().toLowerCase();
+            var reasonOk = !!allowedReason[reasonS];
+            var refS = (refSel && refSel.value || "").trim().toLowerCase();
+            var ramS = (refAmt && refAmt.value || "").trim();
+            var ntS = (note && note.value || "").trim();
+            var otherTouched = reasonOk || !!ramS || !!ntS;
+
+            // Don't overcheck stock here (server is the source of truth) but
+            // do prevent a sale that obviously exceeds the cached qty
+            var displayedStock = NaN;
+            var stockCell = row.querySelector('td.font-semibold.tabular-nums');
+            if (stockCell) {
+              displayedStock = parseFloat(String(stockCell.textContent || "").trim().replace(",", "."));
+            }
+
+            if (typeof qPos === "number") {
+              if (!reasonOk) {
+                problems.push(label + ": select a stock-out reason (Return, Waste, or Display).");
+                firstBad = firstBad || row;
+              }
+              if (refS === "yes" && !ramS) {
+                problems.push(label + ": enter refund amount when refunded is Yes.");
+                firstBad = firstBad || row;
+              }
+              if (isFinite(displayedStock) && qPos > displayedStock) {
+                problems.push(label + ": qty out (" + qPos + ") exceeds current stock (" + displayedStock + ").");
+                firstBad = firstBad || row;
+              }
+            } else if (qPos === false) {
+              problems.push(label + ": enter a valid positive quantity or clear this row.");
+              firstBad = firstBad || row;
+            } else if (otherTouched) {
+              problems.push(label + ": enter quantity out or clear reason, refund amount, and note.");
+              firstBad = firstBad || row;
+            }
+          });
+          if (problems.length) {
+            ev.preventDefault();
+            window.alert(problems.slice(0, 6).join("\n") + (problems.length > 6 ? "\n…" : ""));
+            if (firstBad) {
+              try {
+                firstBad.classList.remove("hidden");
+                firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+              } catch (e2) {}
+            }
+          }
+        });
+      }
+    })();
   <script>
     (function () {
       var input = document.getElementById("js-stock-item-search");

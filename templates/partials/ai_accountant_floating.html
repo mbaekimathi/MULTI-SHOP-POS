@@ -1,0 +1,1283 @@
+{# Floating "My Accountant" AI assistant — animated lady avatar + coming-soon popup #}
+{# Context-aware focus: stock / receipts / analytics / credits / dashboard (all). #}
+{%- set _ma_ep = (request.endpoint or '')|lower -%}
+{%- if 'dashboard' in _ma_ep -%}
+  {%- set ma_context = 'all' -%}
+{%- elif 'kitchen' in _ma_ep or 'stock' in _ma_ep -%}
+  {%- set ma_context = 'stock' -%}
+{%- elif 'receipts' in _ma_ep -%}
+  {%- set ma_context = 'receipts' -%}
+{%- elif 'credit' in _ma_ep -%}
+  {%- set ma_context = 'credits' -%}
+{%- elif 'analytic' in _ma_ep -%}
+  {%- set ma_context = 'analytics' -%}
+{%- else -%}
+  {%- set ma_context = 'all' -%}
+{%- endif -%}
+{%- set ma_section_label = {
+  'all': 'Today at a glance',
+  'stock': 'Stock at a glance',
+  'receipts': 'Receipts at a glance',
+  'analytics': 'Revenue at a glance',
+  'credits': 'Credits at a glance',
+}.get(ma_context, 'Today at a glance') -%}
+<style>
+  /* ============================================================
+     LIVE LADY AVATAR (shared SVG used in FAB + modal)
+     ============================================================ */
+  .ma-lady {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .ma-lady * {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* Whole figure: subtle bob (breathing) */
+  .ma-lady .ma-figure {
+    animation: ma-figure-bob 3.6s ease-in-out infinite;
+  }
+  @keyframes ma-figure-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-0.6px); }
+  }
+
+  /* Head: gentle breathing + tiny tilt */
+  .ma-lady .ma-head {
+    animation: ma-head-breathe 4.4s ease-in-out infinite;
+  }
+  @keyframes ma-head-breathe {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50%      { transform: translateY(-0.4px) rotate(0.6deg); }
+  }
+
+  /* Hair sway */
+  .ma-lady .ma-hair-front {
+    transform-origin: 50% 20%;
+    animation: ma-hair-sway 5s ease-in-out infinite;
+  }
+  @keyframes ma-hair-sway {
+    0%, 100% { transform: rotate(-0.6deg); }
+    50%      { transform: rotate(0.6deg); }
+  }
+
+  /* Eyes: blink */
+  .ma-lady .ma-eye {
+    animation: ma-eye-blink 4.2s infinite;
+  }
+  .ma-lady .ma-eye--right { animation-delay: 0.04s; }
+  @keyframes ma-eye-blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    94%, 96%      { transform: scaleY(0.05); }
+  }
+
+  /* Pupils micro-movement (looking around) */
+  .ma-lady .ma-pupil {
+    animation: ma-pupil-shift 6s ease-in-out infinite;
+  }
+  @keyframes ma-pupil-shift {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(0.5px); }
+    50%      { transform: translateX(0); }
+    75%      { transform: translateX(-0.5px); }
+  }
+
+  /* Mouth: subtle smile pulse */
+  .ma-lady .ma-mouth {
+    animation: ma-smile-pulse 4.6s ease-in-out infinite;
+  }
+  @keyframes ma-smile-pulse {
+    0%, 100% { transform: scaleY(1) translateY(0); }
+    50%      { transform: scaleY(1.18) translateY(0.2px); }
+  }
+
+  /* Earrings sway */
+  .ma-lady .ma-earring {
+    transform-origin: 50% 0%;
+    animation: ma-earring-sway 2.6s ease-in-out infinite;
+  }
+  .ma-lady .ma-earring--right { animation-delay: 0.35s; }
+  @keyframes ma-earring-sway {
+    0%, 100% { transform: rotate(-6deg); }
+    50%      { transform: rotate(6deg); }
+  }
+
+  /* Blush soft pulse */
+  .ma-lady .ma-blush {
+    animation: ma-blush-fade 5s ease-in-out infinite;
+  }
+  @keyframes ma-blush-fade {
+    0%, 100% { opacity: 0.4; }
+    50%      { opacity: 0.7; }
+  }
+
+  /* Sparkle on glasses */
+  .ma-lady .ma-sparkle {
+    transform-origin: center;
+    animation: ma-sparkle 3.2s ease-in-out infinite;
+  }
+  .ma-lady .ma-sparkle--b { animation-delay: 1.4s; }
+  @keyframes ma-sparkle {
+    0%, 80%, 100% { opacity: 0; transform: scale(0.5); }
+    20%, 60%      { opacity: 1; transform: scale(1); }
+  }
+
+  /* ============================================================
+     FLOATING BUTTON
+     ============================================================ */
+  #my-accountant-fab {
+    --ma-fab-offset: 0px;
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--ma-fab-offset));
+    z-index: 9999;
+    transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #my-accountant-fab .ma-fab-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 1rem 0.4rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(56, 189, 248, 0.95) 100%);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    box-shadow:
+      0 12px 28px -10px rgba(16, 185, 129, 0.55),
+      0 4px 10px -4px rgba(15, 23, 42, 0.35);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  #my-accountant-fab .ma-fab-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.04);
+    box-shadow:
+      0 18px 36px -10px rgba(16, 185, 129, 0.6),
+      0 6px 14px -4px rgba(15, 23, 42, 0.4);
+  }
+  #my-accountant-fab .ma-fab-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  #my-accountant-fab .ma-fab-avatar {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #my-accountant-fab .ma-fab-live-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: #22c55e;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.85);
+    animation: ma-pulse-dot 1.8s ease-out infinite;
+    z-index: 2;
+  }
+  @keyframes ma-pulse-dot {
+    0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.75); }
+    70%  { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  #my-accountant-fab .ma-fab-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(56, 189, 248, 0.65);
+    opacity: 0;
+    pointer-events: none;
+    animation: ma-pulse-ring 2.4s ease-out infinite;
+  }
+  #my-accountant-fab .ma-fab-ring.delay {
+    animation-delay: 1.2s;
+  }
+  @keyframes ma-pulse-ring {
+    0%   { transform: scale(0.85); opacity: 0.7; }
+    80%  { transform: scale(1.15); opacity: 0; }
+    100% { transform: scale(1.15); opacity: 0; }
+  }
+  #my-accountant-fab .ma-fab-label-wrap {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.05;
+    text-align: left;
+  }
+  #my-accountant-fab .ma-fab-label-wrap small {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.92;
+    margin-top: 1px;
+  }
+  #my-accountant-fab .ma-fab-label-wrap small::before {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: 999px;
+    background: #d1fae5;
+    box-shadow: 0 0 6px #d1fae5;
+    animation: ma-blink-led 1.2s ease-in-out infinite;
+  }
+  @keyframes ma-blink-led {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+
+  /* ============================================================
+     MODAL
+     ============================================================ */
+  #my-accountant-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  #my-accountant-modal.is-open {
+    display: flex;
+  }
+  #my-accountant-modal .ma-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: ma-fade-in 0.18s ease-out;
+  }
+  #my-accountant-modal .ma-modal-card {
+    position: relative;
+    width: min(28rem, 100%);
+    border-radius: 1.25rem;
+    background: rgb(var(--rc-surface));
+    color: rgb(var(--rc-page-fg));
+    border: 1px solid rgb(var(--rc-border));
+    box-shadow:
+      0 30px 60px -20px rgba(15, 23, 42, 0.55),
+      0 12px 24px -10px rgba(15, 23, 42, 0.4);
+    overflow: hidden;
+    animation: ma-pop-in 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  }
+  #my-accountant-modal .ma-modal-hero {
+    position: relative;
+    padding: 1.5rem 1.5rem 1.25rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(56, 189, 248, 0.95) 100%);
+    color: #fff;
+    overflow: hidden;
+  }
+  #my-accountant-modal .ma-modal-hero::after {
+    content: "";
+    position: absolute;
+    right: -2rem;
+    top: -2rem;
+    width: 8rem;
+    height: 8rem;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(255,255,255,0.35), rgba(255,255,255,0));
+    pointer-events: none;
+  }
+  #my-accountant-modal .ma-modal-hero-row {
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    position: relative;
+  }
+  #my-accountant-modal .ma-modal-avatar {
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #my-accountant-modal .ma-modal-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  #my-accountant-modal .ma-modal-role {
+    margin-top: 2px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.92;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  #my-accountant-modal .ma-modal-role::before {
+    content: "";
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: #d1fae5;
+    box-shadow: 0 0 6px #d1fae5;
+    animation: ma-blink-led 1.2s ease-in-out infinite;
+  }
+  #my-accountant-modal .ma-modal-body {
+    padding: 1.1rem 1.25rem 1.25rem;
+    max-height: min(70vh, 36rem);
+    overflow-y: auto;
+  }
+  #my-accountant-modal .ma-modal-coming {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 0.7rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(56, 189, 248, 0.12));
+    border: 1px dashed rgba(16, 185, 129, 0.45);
+    color: rgb(var(--rc-page-fg));
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.85rem;
+  }
+  #my-accountant-modal .ma-modal-coming svg {
+    width: 1rem;
+    height: 1rem;
+    color: #10b981;
+    flex-shrink: 0;
+  }
+  #my-accountant-modal .ma-modal-section-label {
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(var(--rc-muted));
+    margin-bottom: 0.45rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  #my-accountant-modal .ma-modal-section-label::before {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: 999px;
+    background: #10b981;
+  }
+  #my-accountant-modal .ma-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  #my-accountant-modal .ma-card {
+    display: grid;
+    grid-template-columns: 2.4rem 1fr auto;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.85rem;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface));
+    color: rgb(var(--rc-page-fg));
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  #my-accountant-modal .ma-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(16, 185, 129, 0.55);
+    background: rgb(var(--rc-surface-2));
+    box-shadow: 0 14px 28px -18px rgba(15, 23, 42, 0.55);
+  }
+  #my-accountant-modal .ma-card:focus-visible {
+    outline: 2px solid rgba(16, 185, 129, 0.7);
+    outline-offset: 2px;
+  }
+  #my-accountant-modal .ma-card-icon {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  #my-accountant-modal .ma-card-icon svg { width: 1.2rem; height: 1.2rem; }
+  #my-accountant-modal .ma-card-icon--revenue {
+    background: linear-gradient(135deg, #10b981, #14b8a6);
+    box-shadow: 0 8px 18px -10px rgba(16, 185, 129, 0.65);
+  }
+  #my-accountant-modal .ma-card-icon--credits {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    box-shadow: 0 8px 18px -10px rgba(245, 158, 11, 0.65);
+  }
+  #my-accountant-modal .ma-card-icon--stock {
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    box-shadow: 0 8px 18px -10px rgba(99, 102, 241, 0.6);
+  }
+  #my-accountant-modal .ma-card-icon--audits {
+    background: linear-gradient(135deg, #f43f5e, #b91c1c);
+    box-shadow: 0 8px 18px -10px rgba(244, 63, 94, 0.65);
+  }
+  #my-accountant-modal .ma-card-icon--stockouts {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    box-shadow: 0 8px 18px -10px rgba(249, 115, 22, 0.6);
+  }
+  #my-accountant-modal .ma-card-pill--danger {
+    background: rgba(244, 63, 94, 0.18);
+    color: #b91c1c;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill--danger {
+    color: #fecaca;
+  }
+  #my-accountant-modal .ma-card.is-hot {
+    border-color: rgba(244, 63, 94, 0.55);
+    background: linear-gradient(180deg, rgba(244, 63, 94, 0.06), rgb(var(--rc-surface)));
+    animation: ma-card-attn 2.4s ease-in-out infinite;
+  }
+  @keyframes ma-card-attn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.0); }
+    50%      { box-shadow: 0 0 0 6px rgba(244, 63, 94, 0.12); }
+  }
+
+  /* Context-aware filtering: hide cards that aren't relevant to the active page.
+     "all" (dashboards) shows every card. */
+  #my-accountant-modal[data-ma-context="stock"]     .ma-card:not([data-ma-relevance~="stock"]),
+  #my-accountant-modal[data-ma-context="receipts"]  .ma-card:not([data-ma-relevance~="receipts"]),
+  #my-accountant-modal[data-ma-context="analytics"] .ma-card:not([data-ma-relevance~="analytics"]),
+  #my-accountant-modal[data-ma-context="credits"]   .ma-card:not([data-ma-relevance~="credits"]) {
+    display: none !important;
+  }
+  /* Slight emphasis on the focused card when filtering is active */
+  #my-accountant-modal:not([data-ma-context="all"]) .ma-card {
+    border-color: rgba(16, 185, 129, 0.45);
+    box-shadow: 0 14px 28px -22px rgba(16, 185, 129, 0.4);
+  }
+  #my-accountant-modal .ma-card-body { min-width: 0; }
+  #my-accountant-modal .ma-card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: rgb(var(--rc-page-fg));
+    line-height: 1.1;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  #my-accountant-modal .ma-card-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    background: rgba(16, 185, 129, 0.15);
+    color: #047857;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill {
+    color: #a7f3d0;
+  }
+  #my-accountant-modal .ma-card-pill--warn {
+    background: rgba(245, 158, 11, 0.18);
+    color: #b45309;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill--warn {
+    color: #fcd34d;
+  }
+  #my-accountant-modal .ma-card-pill--info {
+    background: rgba(59, 130, 246, 0.18);
+    color: #1d4ed8;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill--info {
+    color: #bfdbfe;
+  }
+  #my-accountant-modal .ma-card-value {
+    margin-top: 0.18rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: rgb(var(--rc-page-fg));
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  #my-accountant-modal .ma-card-meta {
+    margin-top: 0.18rem;
+    font-size: 0.72rem;
+    color: rgb(var(--rc-muted));
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.65rem;
+  }
+  #my-accountant-modal .ma-card-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  #my-accountant-modal .ma-card-meta b {
+    color: rgb(var(--rc-page-fg));
+    font-weight: 700;
+  }
+  #my-accountant-modal .ma-card-go {
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface-2));
+    color: rgb(var(--rc-page-fg));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  #my-accountant-modal .ma-card:hover .ma-card-go {
+    background: linear-gradient(135deg, #10b981, #14b8a6);
+    color: #fff;
+    border-color: transparent;
+    transform: translateX(2px);
+  }
+  #my-accountant-modal .ma-card-go svg { width: 0.95rem; height: 0.95rem; }
+  #my-accountant-modal .ma-skel {
+    display: inline-block;
+    height: 0.9rem;
+    width: 4.5rem;
+    border-radius: 0.4rem;
+    background: linear-gradient(90deg,
+      rgba(148, 163, 184, 0.18) 0%,
+      rgba(148, 163, 184, 0.35) 50%,
+      rgba(148, 163, 184, 0.18) 100%);
+    background-size: 200% 100%;
+    animation: ma-shimmer 1.4s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  @keyframes ma-shimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+  #my-accountant-modal .ma-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  #my-accountant-modal .ma-modal-foot-note {
+    font-size: 0.7rem;
+    color: rgb(var(--rc-muted));
+  }
+  #my-accountant-modal .ma-modal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    border-radius: 0.65rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 1) 0%, rgba(56, 189, 248, 1) 100%);
+    color: #fff;
+  }
+  #my-accountant-modal .ma-modal-btn:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+  }
+  #my-accountant-modal .ma-modal-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    z-index: 2;
+  }
+  #my-accountant-modal .ma-modal-close:hover {
+    background: rgba(255, 255, 255, 0.32);
+  }
+
+  @keyframes ma-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes ma-pop-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @media (max-width: 480px) {
+    #my-accountant-fab .ma-fab-label-wrap { display: none; }
+    #my-accountant-fab .ma-fab-btn { padding: 0.3rem; gap: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ma-lady *,
+    #my-accountant-fab .ma-fab-live-dot,
+    #my-accountant-fab .ma-fab-ring,
+    #my-accountant-fab .ma-fab-label-wrap small::before,
+    #my-accountant-modal .ma-modal-role::before {
+      animation: none !important;
+    }
+  }
+</style>
+
+<div id="my-accountant-fab" aria-live="polite">
+  <button
+    type="button"
+    class="ma-fab-btn"
+    aria-haspopup="dialog"
+    aria-controls="my-accountant-modal"
+    aria-label="Open My Accountant — AI assistant"
+    title="My Accountant — AI assistant"
+    data-ma-open
+  >
+    <span class="ma-fab-ring" aria-hidden="true"></span>
+    <span class="ma-fab-ring delay" aria-hidden="true"></span>
+    <span class="ma-fab-avatar" aria-hidden="true">
+      <svg class="ma-lady" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="ma-bg-fab" cx="50%" cy="35%" r="65%">
+            <stop offset="0%"  stop-color="#fef3c7"/>
+            <stop offset="100%" stop-color="#fbcfe8"/>
+          </radialGradient>
+          <linearGradient id="ma-hair-fab" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="#3b2417"/>
+            <stop offset="100%" stop-color="#5a3a26"/>
+          </linearGradient>
+          <linearGradient id="ma-skin-fab" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="#fde0c7"/>
+            <stop offset="100%" stop-color="#f7c39a"/>
+          </linearGradient>
+          <linearGradient id="ma-shirt-fab" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stop-color="#0f172a"/>
+            <stop offset="100%" stop-color="#1e293b"/>
+          </linearGradient>
+          <clipPath id="ma-clip-fab"><circle cx="32" cy="32" r="30"/></clipPath>
+        </defs>
+
+        <circle cx="32" cy="32" r="31" fill="url(#ma-bg-fab)"/>
+
+        <g class="ma-figure" clip-path="url(#ma-clip-fab)">
+          <!-- Shoulders / blazer -->
+          <path fill="url(#ma-shirt-fab)" d="M6 64 C 6 50, 18 44, 32 44 C 46 44, 58 50, 58 64 Z"/>
+          <!-- White shirt collar V -->
+          <path fill="#f8fafc" d="M24 47 L 32 56 L 40 47 L 38 44 L 32 51 L 26 44 Z"/>
+          <!-- Necktie (brand teal) -->
+          <path fill="#10b981" d="M30.5 50 L 33.5 50 L 34.2 56 L 32 60 L 29.8 56 Z"/>
+
+          <!-- Hair back -->
+          <path class="ma-hair-back" fill="url(#ma-hair-fab)" d="M13 30 C 13 13, 23 7, 32 7 C 41 7, 51 13, 51 30 L 51 48 L 13 48 Z"/>
+
+          <g class="ma-head">
+            <!-- Face -->
+            <ellipse cx="32" cy="30" rx="13.5" ry="15.5" fill="url(#ma-skin-fab)"/>
+            <!-- Neck -->
+            <path fill="url(#ma-skin-fab)" d="M28 41 L 36 41 L 36 47 L 28 47 Z"/>
+
+            <!-- Cheeks -->
+            <ellipse class="ma-blush" cx="22" cy="34" rx="2.6" ry="1.4" fill="#f87171" opacity="0.5"/>
+            <ellipse class="ma-blush" cx="42" cy="34" rx="2.6" ry="1.4" fill="#f87171" opacity="0.5"/>
+
+            <!-- Eyebrows -->
+            <path d="M24.5 23.5 Q 27 22, 29.5 23.8" stroke="#3b2417" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+            <path d="M34.5 23.8 Q 37 22, 39.5 23.5" stroke="#3b2417" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+            <!-- Eyes -->
+            <g class="ma-eye ma-eye--left">
+              <ellipse cx="27" cy="28" rx="1.7" ry="2.1" fill="#1e293b"/>
+              <circle class="ma-pupil" cx="27.4" cy="27.5" r="0.5" fill="#fff"/>
+            </g>
+            <g class="ma-eye ma-eye--right">
+              <ellipse cx="37" cy="28" rx="1.7" ry="2.1" fill="#1e293b"/>
+              <circle class="ma-pupil" cx="37.4" cy="27.5" r="0.5" fill="#fff"/>
+            </g>
+
+            <!-- Glasses (accountant) -->
+            <g stroke="#1e293b" stroke-width="0.9" fill="none">
+              <circle cx="27" cy="28.5" r="3.8"/>
+              <circle cx="37" cy="28.5" r="3.8"/>
+              <path d="M30.8 28.2 L 33.2 28.2"/>
+              <path d="M23.2 28.5 L 21 28"/>
+              <path d="M40.8 28.5 L 43 28"/>
+            </g>
+            <!-- Glasses sparkle -->
+            <circle class="ma-sparkle" cx="25.6" cy="27" r="0.55" fill="#ffffff"/>
+            <circle class="ma-sparkle ma-sparkle--b" cx="35.6" cy="27" r="0.55" fill="#ffffff"/>
+
+            <!-- Nose -->
+            <path d="M32 30.5 Q 31.5 33.2, 32.5 33.5" stroke="#c89377" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+
+            <!-- Mouth -->
+            <g class="ma-mouth">
+              <path d="M28.2 36.6 Q 32 39.3, 35.8 36.6" stroke="#b91c1c" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+            </g>
+
+            <!-- Earrings -->
+            <circle class="ma-earring ma-earring--left"  cx="18.5" cy="33" r="1" fill="#fbbf24"/>
+            <circle class="ma-earring ma-earring--right" cx="45.5" cy="33" r="1" fill="#fbbf24"/>
+          </g>
+
+          <!-- Hair front bangs -->
+          <path class="ma-hair-front" fill="url(#ma-hair-fab)" d="M18 22 C 21 11, 28 8, 32 8 C 36 8, 43 11, 46 22 C 43 18, 39 17, 35 19 C 32 20, 28 19, 25 18 C 22 17, 20 19, 18 22 Z"/>
+        </g>
+
+        <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="0.8"/>
+      </svg>
+      <span class="ma-fab-live-dot" aria-hidden="true"></span>
+    </span>
+    <span class="ma-fab-label-wrap">
+      <span>My Accountant</span>
+      <small>Live AI</small>
+    </span>
+  </button>
+</div>
+
+<div id="my-accountant-modal" role="dialog" aria-modal="true" aria-labelledby="my-accountant-modal-title" data-ma-context="{{ ma_context }}" hidden>
+  <div class="ma-modal-backdrop" data-ma-close></div>
+  <div class="ma-modal-card" role="document">
+    <div class="ma-modal-hero">
+      <button type="button" class="ma-modal-close" aria-label="Close" data-ma-close>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <div class="ma-modal-hero-row">
+        <span class="ma-modal-avatar" aria-hidden="true">
+          <svg class="ma-lady" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <radialGradient id="ma-bg-mod" cx="50%" cy="35%" r="65%">
+                <stop offset="0%"  stop-color="#fef3c7"/>
+                <stop offset="100%" stop-color="#fbcfe8"/>
+              </radialGradient>
+              <linearGradient id="ma-hair-mod" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"  stop-color="#3b2417"/>
+                <stop offset="100%" stop-color="#5a3a26"/>
+              </linearGradient>
+              <linearGradient id="ma-skin-mod" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"  stop-color="#fde0c7"/>
+                <stop offset="100%" stop-color="#f7c39a"/>
+              </linearGradient>
+              <linearGradient id="ma-shirt-mod" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"  stop-color="#0f172a"/>
+                <stop offset="100%" stop-color="#1e293b"/>
+              </linearGradient>
+              <clipPath id="ma-clip-mod"><circle cx="32" cy="32" r="30"/></clipPath>
+            </defs>
+
+            <circle cx="32" cy="32" r="31" fill="url(#ma-bg-mod)"/>
+
+            <g class="ma-figure" clip-path="url(#ma-clip-mod)">
+              <path fill="url(#ma-shirt-mod)" d="M6 64 C 6 50, 18 44, 32 44 C 46 44, 58 50, 58 64 Z"/>
+              <path fill="#f8fafc" d="M24 47 L 32 56 L 40 47 L 38 44 L 32 51 L 26 44 Z"/>
+              <path fill="#10b981" d="M30.5 50 L 33.5 50 L 34.2 56 L 32 60 L 29.8 56 Z"/>
+
+              <path class="ma-hair-back" fill="url(#ma-hair-mod)" d="M13 30 C 13 13, 23 7, 32 7 C 41 7, 51 13, 51 30 L 51 48 L 13 48 Z"/>
+
+              <g class="ma-head">
+                <ellipse cx="32" cy="30" rx="13.5" ry="15.5" fill="url(#ma-skin-mod)"/>
+                <path fill="url(#ma-skin-mod)" d="M28 41 L 36 41 L 36 47 L 28 47 Z"/>
+
+                <ellipse class="ma-blush" cx="22" cy="34" rx="2.6" ry="1.4" fill="#f87171" opacity="0.5"/>
+                <ellipse class="ma-blush" cx="42" cy="34" rx="2.6" ry="1.4" fill="#f87171" opacity="0.5"/>
+
+                <path d="M24.5 23.5 Q 27 22, 29.5 23.8" stroke="#3b2417" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+                <path d="M34.5 23.8 Q 37 22, 39.5 23.5" stroke="#3b2417" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+                <g class="ma-eye ma-eye--left">
+                  <ellipse cx="27" cy="28" rx="1.7" ry="2.1" fill="#1e293b"/>
+                  <circle class="ma-pupil" cx="27.4" cy="27.5" r="0.5" fill="#fff"/>
+                </g>
+                <g class="ma-eye ma-eye--right">
+                  <ellipse cx="37" cy="28" rx="1.7" ry="2.1" fill="#1e293b"/>
+                  <circle class="ma-pupil" cx="37.4" cy="27.5" r="0.5" fill="#fff"/>
+                </g>
+
+                <g stroke="#1e293b" stroke-width="0.9" fill="none">
+                  <circle cx="27" cy="28.5" r="3.8"/>
+                  <circle cx="37" cy="28.5" r="3.8"/>
+                  <path d="M30.8 28.2 L 33.2 28.2"/>
+                  <path d="M23.2 28.5 L 21 28"/>
+                  <path d="M40.8 28.5 L 43 28"/>
+                </g>
+                <circle class="ma-sparkle" cx="25.6" cy="27" r="0.55" fill="#ffffff"/>
+                <circle class="ma-sparkle ma-sparkle--b" cx="35.6" cy="27" r="0.55" fill="#ffffff"/>
+
+                <path d="M32 30.5 Q 31.5 33.2, 32.5 33.5" stroke="#c89377" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+
+                <g class="ma-mouth">
+                  <path d="M28.2 36.6 Q 32 39.3, 35.8 36.6" stroke="#b91c1c" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+                </g>
+
+                <circle class="ma-earring ma-earring--left"  cx="18.5" cy="33" r="1" fill="#fbbf24"/>
+                <circle class="ma-earring ma-earring--right" cx="45.5" cy="33" r="1" fill="#fbbf24"/>
+              </g>
+
+              <path class="ma-hair-front" fill="url(#ma-hair-mod)" d="M18 22 C 21 11, 28 8, 32 8 C 36 8, 43 11, 46 22 C 43 18, 39 17, 35 19 C 32 20, 28 19, 25 18 C 22 17, 20 19, 18 22 Z"/>
+            </g>
+
+            <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="0.8"/>
+          </svg>
+        </span>
+        <div>
+          <div class="ma-modal-name">My Accountant</div>
+          <div class="ma-modal-role">AI Automation Assistant</div>
+        </div>
+      </div>
+    </div>
+    <div class="ma-modal-body">
+      <h3 id="my-accountant-modal-title" class="sr-only">My Accountant — quick brief</h3>
+      <div class="ma-modal-coming" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+        <span>
+          AI Automations — coming soon.
+          {%- if ma_context == 'stock' %} Here's your stock snapshot:
+          {%- elif ma_context == 'receipts' %} Here's your receipts snapshot:
+          {%- elif ma_context == 'analytics' %} Here's your revenue snapshot:
+          {%- elif ma_context == 'credits' %} Here's your credit snapshot:
+          {%- else %} Here's your live brief in the meantime:
+          {%- endif %}
+        </span>
+      </div>
+
+      <div class="ma-modal-section-label">{{ ma_section_label }}</div>
+      <div class="ma-stack">
+        <a class="ma-card" data-ma-link="analytics" data-ma-relevance="all analytics" href="#" data-fallback>
+          <span class="ma-card-icon ma-card-icon--revenue" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 17l6-6 4 4 7-8"/>
+              <path d="M14 7h6v6"/>
+            </svg>
+          </span>
+          <div class="ma-card-body">
+            <div class="ma-card-title">
+              Revenue today
+              <span class="ma-card-pill" data-ma-revenue-month-pill>This month: <span class="ma-skel"></span></span>
+            </div>
+            <div class="ma-card-value" data-ma-revenue-total><span class="ma-skel" style="width:6rem"></span></div>
+            <div class="ma-card-meta">
+              <span>Sales: <b data-ma-revenue-sale><span class="ma-skel" style="width:3rem"></span></b></span>
+              <span>Credit: <b data-ma-revenue-credit><span class="ma-skel" style="width:3rem"></span></b></span>
+            </div>
+          </div>
+          <span class="ma-card-go" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 6l6 6-6 6"/>
+            </svg>
+          </span>
+        </a>
+
+        <a class="ma-card" data-ma-link="credits" data-ma-relevance="all credits" href="#" data-fallback>
+          <span class="ma-card-icon ma-card-icon--credits" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="6" width="18" height="13" rx="2"/>
+              <path d="M3 10h18"/>
+              <path d="M7 15h4"/>
+            </svg>
+          </span>
+          <div class="ma-card-body">
+            <div class="ma-card-title">
+              Unpaid credits
+              <span class="ma-card-pill ma-card-pill--warn" data-ma-credit-count-pill><span class="ma-skel" style="width:2rem"></span> open</span>
+            </div>
+            <div class="ma-card-value" data-ma-credit-balance><span class="ma-skel" style="width:6rem"></span></div>
+            <div class="ma-card-meta">
+              <span data-ma-credit-meta>Outstanding balance to collect</span>
+            </div>
+          </div>
+          <span class="ma-card-go" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 6l6 6-6 6"/>
+            </svg>
+          </span>
+        </a>
+
+        <a class="ma-card" data-ma-link="stock" data-ma-relevance="all stock" href="#" data-fallback>
+          <span class="ma-card-icon ma-card-icon--stock" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7l9-4 9 4-9 4-9-4z"/>
+              <path d="M3 7v10l9 4 9-4V7"/>
+              <path d="M12 11v10"/>
+            </svg>
+          </span>
+          <div class="ma-card-body">
+            <div class="ma-card-title">
+              Low stock items
+              <span class="ma-card-pill ma-card-pill--info" data-ma-stock-total-pill><span class="ma-skel" style="width:2rem"></span> total</span>
+            </div>
+            <div class="ma-card-value" data-ma-stock-summary><span class="ma-skel" style="width:7rem"></span></div>
+            <div class="ma-card-meta">
+              <span>Kitchen: <b data-ma-stock-kitchen><span class="ma-skel" style="width:1.5rem"></span></b></span>
+              <span>Store: <b data-ma-stock-store><span class="ma-skel" style="width:1.5rem"></span></b></span>
+            </div>
+          </div>
+          <span class="ma-card-go" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 6l6 6-6 6"/>
+            </svg>
+          </span>
+        </a>
+
+        <a class="ma-card" data-ma-link="audits" data-ma-card-sales-audits data-ma-relevance="all receipts" href="#" data-fallback>
+          <span class="ma-card-icon ma-card-icon--audits" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L3 6v6c0 5 3.8 9.5 9 10 5.2-.5 9-5 9-10V6l-9-4z"/>
+              <path d="M12 9v4"/>
+              <circle cx="12" cy="16.5" r="0.6" fill="currentColor"/>
+            </svg>
+          </span>
+          <div class="ma-card-body">
+            <div class="ma-card-title">
+              Flagged sales
+              <span class="ma-card-pill ma-card-pill--danger" data-ma-audit-total-pill><span class="ma-skel" style="width:2rem"></span> events</span>
+            </div>
+            <div class="ma-card-value" data-ma-audit-summary><span class="ma-skel" style="width:7rem"></span></div>
+            <div class="ma-card-meta">
+              <span>Cancelled: <b data-ma-audit-cancelled><span class="ma-skel" style="width:1.5rem"></span></b></span>
+              <span>Returns: <b data-ma-audit-returned><span class="ma-skel" style="width:1.5rem"></span></b></span>
+            </div>
+          </div>
+          <span class="ma-card-go" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 6l6 6-6 6"/>
+            </svg>
+          </span>
+        </a>
+
+        <a class="ma-card" data-ma-link="stockouts" data-ma-card-stockouts data-ma-relevance="all stock receipts" href="#" data-fallback>
+          <span class="ma-card-icon ma-card-icon--stockouts" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <path d="M16 13l-4 4-4-4"/>
+              <path d="M12 17V7"/>
+            </svg>
+          </span>
+          <div class="ma-card-body">
+            <div class="ma-card-title">
+              Stock-outs
+              <span class="ma-card-pill ma-card-pill--warn" data-ma-stockouts-pill><span class="ma-skel" style="width:2rem"></span> events</span>
+            </div>
+            <div class="ma-card-value" data-ma-stockouts-summary><span class="ma-skel" style="width:7rem"></span></div>
+            <div class="ma-card-meta">
+              <span data-ma-stockouts-meta>Hazardous outflows in the last 7 days</span>
+            </div>
+          </div>
+          <span class="ma-card-go" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 6l6 6-6 6"/>
+            </svg>
+          </span>
+        </a>
+      </div>
+
+      <div class="ma-modal-footer">
+        <span class="ma-modal-foot-note" data-ma-scope-note>
+          {% if shop and shop.shop_name %}
+            Scope: {{ shop.shop_name }}
+          {% elif shop and shop.id %}
+            Scope: shop #{{ shop.id }}
+          {% else %}
+            Scope: loading…
+          {% endif %}
+        </span>
+        <button type="button" class="ma-modal-btn" data-ma-close>
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var fabBtn = document.querySelector('#my-accountant-fab [data-ma-open]');
+    var modal = document.getElementById('my-accountant-modal');
+    if (!fabBtn || !modal) return;
+
+    var closers = modal.querySelectorAll('[data-ma-close]');
+    var lastFocus = null;
+    var summaryCache = null;
+    var loadInFlight = false;
+    var SUMMARY_URL = "{{ url_for('ai_my_accountant_summary') }}{% if shop and shop.id %}?shop_id={{ shop.id }}{% endif %}";
+
+    function fmtNumber(n) {
+      var v = Number(n || 0);
+      if (!isFinite(v)) v = 0;
+      try {
+        return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      } catch (e) {
+        return String(Math.round(v));
+      }
+    }
+    function setText(sel, value) {
+      var el = modal.querySelector(sel);
+      if (el) el.textContent = value;
+    }
+    function setHTML(sel, html) {
+      var el = modal.querySelector(sel);
+      if (el) el.innerHTML = html;
+    }
+
+    function applySummary(data) {
+      if (!data) return;
+      var rev = (data.revenue || {});
+      var credits = (data.unpaid_credits || {});
+      var stock = (data.low_stock || {});
+      var audits = (data.audits || {});
+      var links = (data.links || {});
+
+      setText('[data-ma-revenue-total]', fmtNumber(rev.today));
+      setHTML('[data-ma-revenue-month-pill]', 'This month: <b>' + fmtNumber(rev.month) + '</b>');
+      setText('[data-ma-revenue-sale]', fmtNumber(rev.today_sale));
+      setText('[data-ma-revenue-credit]', fmtNumber(rev.today_credit));
+
+      setText('[data-ma-credit-balance]', fmtNumber(credits.balance));
+      var creditCount = Number(credits.count || 0);
+      setHTML('[data-ma-credit-count-pill]', '<b>' + creditCount + '</b>&nbsp;open');
+      var creditMetaEl = modal.querySelector('[data-ma-credit-meta]');
+      if (creditMetaEl) {
+        if (creditCount === 0) {
+          creditMetaEl.textContent = 'All clear — no outstanding credit sales.';
+        } else {
+          creditMetaEl.textContent = creditCount === 1
+            ? '1 customer with an outstanding balance.'
+            : creditCount + ' customers with outstanding balances.';
+        }
+      }
+
+      setText('[data-ma-stock-kitchen]', String(Number(stock.kitchen_count || 0)));
+      setText('[data-ma-stock-store]',  String(Number(stock.store_count  || 0)));
+      var stockTotal = Number(stock.total || 0);
+      setHTML('[data-ma-stock-total-pill]', '<b>' + stockTotal + '</b>&nbsp;total');
+      var stockSummaryEl = modal.querySelector('[data-ma-stock-summary]');
+      if (stockSummaryEl) {
+        if (stockTotal === 0) {
+          stockSummaryEl.textContent = 'Stock looks healthy';
+        } else {
+          var k = Number(stock.kitchen_count || 0);
+          var s = Number(stock.store_count || 0);
+          var parts = [];
+          if (k > 0 && s > 0) parts.push('Kitchen + Store running low');
+          else if (k > 0)     parts.push('Kitchen running low');
+          else if (s > 0)     parts.push('Store running low');
+          stockSummaryEl.textContent = parts.join('') || (stockTotal + ' items low');
+        }
+      }
+
+      var auditCancelled = Number(audits.cancelled_sales || 0);
+      var auditReturned  = Number(audits.returned_sales  || 0);
+      var auditStockOuts = Number(audits.stock_outs      || 0);
+      var auditWindowDays = Number(audits.window_days || 7);
+      var salesFlagsTotal = auditCancelled + auditReturned;
+
+      setText('[data-ma-audit-cancelled]', String(auditCancelled));
+      setText('[data-ma-audit-returned]',  String(auditReturned));
+      setHTML('[data-ma-audit-total-pill]', '<b>' + salesFlagsTotal + '</b>&nbsp;events');
+      var auditSummaryEl = modal.querySelector('[data-ma-audit-summary]');
+      if (auditSummaryEl) {
+        if (salesFlagsTotal === 0) {
+          auditSummaryEl.textContent = 'No flagged sales (last ' + auditWindowDays + ' days)';
+        } else {
+          var labels = [];
+          if (auditCancelled > 0) labels.push(auditCancelled + ' cancellation' + (auditCancelled === 1 ? '' : 's'));
+          if (auditReturned  > 0) labels.push(auditReturned  + ' return' + (auditReturned === 1 ? '' : 's'));
+          auditSummaryEl.textContent = labels.join(' • ');
+        }
+      }
+      var salesAuditCard = modal.querySelector('[data-ma-card-sales-audits]');
+      if (salesAuditCard) {
+        if (salesFlagsTotal > 0) salesAuditCard.classList.add('is-hot');
+        else                     salesAuditCard.classList.remove('is-hot');
+      }
+
+      setHTML('[data-ma-stockouts-pill]', '<b>' + auditStockOuts + '</b>&nbsp;events');
+      var stockoutsSummaryEl = modal.querySelector('[data-ma-stockouts-summary]');
+      var stockoutsMetaEl    = modal.querySelector('[data-ma-stockouts-meta]');
+      if (stockoutsSummaryEl) {
+        if (auditStockOuts === 0) {
+          stockoutsSummaryEl.textContent = 'No stock-outs (last ' + auditWindowDays + ' days)';
+        } else {
+          stockoutsSummaryEl.textContent = auditStockOuts + ' stock-out' + (auditStockOuts === 1 ? '' : 's');
+        }
+      }
+      if (stockoutsMetaEl) {
+        stockoutsMetaEl.textContent = auditStockOuts === 0
+          ? 'Inventory looks stable.'
+          : 'Hazardous outflows in the last ' + auditWindowDays + ' days.';
+      }
+      var stockoutsCard = modal.querySelector('[data-ma-card-stockouts]');
+      if (stockoutsCard) {
+        if (auditStockOuts > 0) stockoutsCard.classList.add('is-hot');
+        else                    stockoutsCard.classList.remove('is-hot');
+      }
+
+      modal.querySelectorAll('a[data-ma-link]').forEach(function (a) {
+        var key = a.getAttribute('data-ma-link');
+        var href = links[key];
+        if (href) {
+          a.setAttribute('href', href);
+          a.removeAttribute('data-fallback');
+        } else {
+          a.setAttribute('href', '#');
+          a.setAttribute('data-fallback', '1');
+        }
+      });
+
+      var note = modal.querySelector('[data-ma-scope-note]');
+      if (note) {
+        if (data.scope === 'company') {
+          note.textContent = 'Scope: all shops';
+        } else {
+          var shopLabel = {{ (shop.shop_name if shop and shop.shop_name else '') | tojson }};
+          note.textContent = shopLabel ? ('Scope: ' + shopLabel) : 'Scope: this shop';
+        }
+      }
+    }
+
+    function showError() {
+      [
+        '[data-ma-revenue-total]','[data-ma-credit-balance]','[data-ma-stock-summary]',
+        '[data-ma-audit-summary]','[data-ma-stockouts-summary]'
+      ].forEach(function (sel) {
+        var el = modal.querySelector(sel);
+        if (el) el.textContent = '—';
+      });
+      [
+        '[data-ma-revenue-month-pill]','[data-ma-credit-count-pill]','[data-ma-stock-total-pill]',
+        '[data-ma-audit-total-pill]','[data-ma-stockouts-pill]',
+        '[data-ma-revenue-sale]','[data-ma-revenue-credit]',
+        '[data-ma-stock-kitchen]','[data-ma-stock-store]',
+        '[data-ma-audit-cancelled]','[data-ma-audit-returned]'
+      ].forEach(function (sel) {
+        var el = modal.querySelector(sel);
+        if (el) el.textContent = '—';
+      });
+    }
+
+    function loadSummary(force) {
+      if (loadInFlight) return;
+      if (!force && summaryCache) {
+        applySummary(summaryCache);
+        return;
+      }
+      loadInFlight = true;
+      try {
+        var ctrl = ('AbortController' in window) ? new AbortController() : null;
+        var to = setTimeout(function () { if (ctrl) ctrl.abort(); }, 8000);
+        fetch(SUMMARY_URL, {
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' },
+          signal: ctrl ? ctrl.signal : undefined
+        }).then(function (r) {
+          clearTimeout(to);
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        }).then(function (data) {
+          summaryCache = data;
+          applySummary(data);
+        }).catch(function () {
+          showError();
+        }).then(function () {
+          loadInFlight = false;
+        });
+      } catch (e) {
+        loadInFlight = false;
+        showError();
+      }
+    }
+
+    function openModal() {
+      lastFocus = document.activeElement;
+      modal.hidden = false;
+      modal.classList.add('is-open');
+      var primary = modal.querySelector('.ma-modal-btn');
+      if (primary) {
+        try { primary.focus({ preventScroll: true }); } catch (e) { primary.focus(); }
+      }
+      document.addEventListener('keydown', onKey);
+      loadSummary(false);
+    }
+    function closeModal() {
+      modal.classList.remove('is-open');
+      modal.hidden = true;
+      document.removeEventListener('keydown', onKey);
+      if (lastFocus && typeof lastFocus.focus === 'function') {
+        try { lastFocus.focus({ preventScroll: true }); } catch (e) { lastFocus.focus(); }
+      }
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeModal();
+      }
+    }
+
+    fabBtn.addEventListener('click', openModal);
+    closers.forEach(function (el) { el.addEventListener('click', closeModal); });
+
+    modal.querySelectorAll('a[data-ma-link]').forEach(function (a) {
+      a.addEventListener('click', function (ev) {
+        if (a.getAttribute('data-fallback')) {
+          ev.preventDefault();
+        }
+      });
+    });
+
+    var fabHost = document.getElementById('my-accountant-fab');
+    function installFabVisible() {
+      var ifab = document.querySelector('.pwa-install-fab');
+      if (!ifab) return null;
+      var shown = ifab.classList.contains('pwa-install-fab--show');
+      if (!shown) return 0;
+      var rect = ifab.getBoundingClientRect();
+      return rect && rect.height ? rect.height : 56;
+    }
+    function adjustOffset() {
+      if (!fabHost) return;
+      var h = installFabVisible();
+      if (h && h > 0) {
+        fabHost.style.setProperty('--ma-fab-offset', (h + 12) + 'px');
+      } else {
+        fabHost.style.setProperty('--ma-fab-offset', '0px');
+      }
+    }
+    adjustOffset();
+    if (typeof MutationObserver !== 'undefined') {
+      var mo = new MutationObserver(adjustOffset);
+      mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    }
+    window.addEventListener('resize', adjustOffset);
+  })();
+</script>

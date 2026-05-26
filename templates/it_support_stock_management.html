@@ -69,6 +69,102 @@
       </div>
     </div>
 
+    {% if is_store_stock %}
+      <section
+        id="it-inline-register-stock"
+        class="mx-4 mb-4 rounded-2xl border border-emerald-400/40 bg-[rgb(var(--rc-surface))] p-4 shadow-sm ring-1 ring-emerald-400/20 md:mx-0 md:p-5"
+      >
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Register a store stock item</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+              Create a new SKU and apply it to
+              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">all {{ both_shops_count or 0 }}</strong> shop(s) currently in
+              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Both</strong> (kitchen + shelf) POS mode. The new line appears in the grid below for stock in / out.
+            </p>
+          </div>
+          <button
+            type="button"
+            id="it-inline-register-toggle"
+            class="btn-rc btn-rc-ghost shrink-0 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+            aria-expanded="false"
+            aria-controls="it-inline-register-body"
+          >
+            Show form
+          </button>
+        </div>
+
+        <div id="it-inline-register-body" class="mt-4 hidden">
+          {% if (both_shops_count or 0) == 0 %}
+            <p class="rounded-xl border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))]">
+              No shops are currently on Both mode, so a new SKU would not be created anywhere. Switch at least one shop to Both first.
+            </p>
+          {% else %}
+            <form
+              method="post"
+              action="{{ url_for('it_support_register_stock_item') }}"
+              class="grid gap-3 md:grid-cols-2"
+            >
+              <input type="hidden" name="action" value="create_stock_item" />
+              <input type="hidden" name="next" value="it_support_stock_management" />
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Name</span>
+                <input
+                  name="name"
+                  required
+                  autocomplete="off"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                  placeholder="e.g. Beef Trimmings"
+                />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Category</span>
+                <input
+                  name="category"
+                  required
+                  autocomplete="off"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                  placeholder="e.g. Raw Meat"
+                />
+              </label>
+              <label class="block md:col-span-2">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Description</span>
+                <textarea
+                  name="description"
+                  rows="2"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                  placeholder="Optional item details"
+                ></textarea>
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Measure</span>
+                <select
+                  name="measure_unit"
+                  required
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
+                >
+                  {% for mu in inline_register_measure_options or [] %}
+                    <option value="{{ mu }}">{{ mu|upper }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <div class="flex flex-wrap items-end gap-2">
+                <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider">
+                  Register stock item
+                </button>
+                <a
+                  href="{{ url_for('it_support_register_stock_item') }}"
+                  class="btn-rc btn-rc-ghost px-3 py-2 text-[11px] font-bold uppercase tracking-wider"
+                >
+                  Open full registration page
+                </a>
+              </div>
+            </form>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+
     <div class="mb-4 flex flex-col gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3 max-md:bg-transparent sm:flex-row sm:items-center sm:justify-between md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-4 md:shadow-sm">
       <div class="flex flex-wrap gap-2" role="tablist" aria-label="Stock action mode">
         <button
@@ -466,6 +562,18 @@
 {% block scripts %}
   {{ super() }}
   <script>
+    (function () {
+      var regToggle = document.getElementById("it-inline-register-toggle");
+      var regBody = document.getElementById("it-inline-register-body");
+      if (regToggle && regBody) {
+        regToggle.addEventListener("click", function () {
+          var isHidden = regBody.classList.contains("hidden");
+          regBody.classList.toggle("hidden", !isHidden);
+          regToggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
+          regToggle.textContent = isHidden ? "Hide form" : "Show form";
+        });
+      }
+    })();
     (function () {
       var btnIn = document.getElementById("stock-mode-in");
       var btnOut = document.getElementById("stock-mode-out");
