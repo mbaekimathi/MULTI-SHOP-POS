@@ -2827,6 +2827,80 @@ def _it_support_stock_page(direction: str):
     return items, item_id, selected_item, txs
 
 
+def _it_support_store_stock_catalog_post(action: str):
+    """Edit / suspend / delete store SKUs on the IT stock-management page (Both mode)."""
+    _it_support_only()
+    if _global_pos_inventory_mode() != "both":
+        flash("Store stock catalog actions apply only when POS inventory is Both (kitchen + shelf).", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    try:
+        store_item_id = int(request.form.get("store_item_id") or 0)
+    except (TypeError, ValueError):
+        store_item_id = 0
+    if store_item_id <= 0:
+        flash("Invalid store stock item.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    if action == "update_it_store_stock_item":
+        parsed = _parse_shop_store_stock_item_form()
+        if not parsed:
+            flash("Name, category, and a valid measure unit are required.", "error")
+            return redirect(
+                url_for("it_support_stock_management", manage_item=store_item_id)
+                + f"#it-store-item-{store_item_id}"
+            )
+        cat, nm, desc, measure = parsed
+        try:
+            from database import update_store_stock_item_by_id
+
+            ok = update_store_stock_item_by_id(
+                store_item_id=store_item_id,
+                category=cat,
+                name=nm,
+                description=desc,
+                measure_unit=measure,
+            )
+            flash(
+                "Store stock item updated." if ok else "Could not update store stock item.",
+                "success" if ok else "error",
+            )
+        except Exception as e:
+            app.logger.exception("update_it_store_stock_item: %s", e)
+            flash("Could not update store stock item.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    if action == "toggle_it_store_stock_item_status":
+        try:
+            from database import toggle_store_stock_item_status_by_id
+
+            new_status = toggle_store_stock_item_status_by_id(store_item_id)
+        except Exception as e:
+            app.logger.exception("toggle_it_store_stock_item_status: %s", e)
+            new_status = None
+        if new_status == "active":
+            flash("Store stock item is active again (unsuspended).", "success")
+        elif new_status == "inactive":
+            flash("Store stock item suspended — hidden from stock in/out until unsuspended.", "success")
+        else:
+            flash("Could not change store stock item status.", "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    if action == "delete_it_store_stock_item":
+        try:
+            from database import delete_store_stock_item_by_id
+
+            ok, msg = delete_store_stock_item_by_id(store_item_id)
+        except Exception as e:
+            app.logger.exception("delete_it_store_stock_item: %s", e)
+            ok, msg = False, "Could not delete store stock item."
+        flash(msg, "success" if ok else "error")
+        return redirect(url_for("it_support_stock_management"))
+
+    flash("Invalid action.", "error")
+    return redirect(url_for("it_support_stock_management"))
+
+
 def _it_support_stock_management_post():
     """Bulk stock in/out from the company stock management grid."""
     _it_support_only()
@@ -3161,13 +3235,26 @@ def it_support_stock_management():
     """Company stock grid: choose stock in or out, fill rows, submit once."""
     _it_support_only()
     if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+        if action in (
+            "update_it_store_stock_item",
+            "toggle_it_store_stock_item_status",
+            "delete_it_store_stock_item",
+        ):
+            return _it_support_store_stock_catalog_post(action)
         return _it_support_stock_management_post()
     global_mode = _global_pos_inventory_mode()
     is_store_stock = global_mode == "both"
     show_register_stock_item_link = is_store_stock
     items: list = []
+    store_catalog_items: list = []
     both_shops_count = 0
     inline_register_measure_options: tuple = ()
+    manage_item_id: int | None = None
+    try:
+        manage_item_id = int(request.args.get("manage_item") or 0) or None
+    except (TypeError, ValueError):
+        manage_item_id = None
     try:
         if is_store_stock:
             from database import (
@@ -3175,12 +3262,14 @@ def it_support_stock_management():
                 init_store_stock_transactions_table,
                 list_shops,
                 list_store_stock_items_for_management,
+                list_store_stock_items_for_management_catalog,
                 resolve_shop_pos_inventory_mode,
             )
 
             init_store_stock_items_table()
             init_store_stock_transactions_table()
             items = list_store_stock_items_for_management(limit=2000)
+            store_catalog_items = list_store_stock_items_for_management_catalog(limit=5000)
             try:
                 for s in (list_shops(limit=500) or []):
                     try:
@@ -3217,6 +3306,8 @@ def it_support_stock_management():
     return render_template(
         "it_support_stock_management.html",
         items=items,
+        store_catalog_items=store_catalog_items,
+        manage_item_id=manage_item_id,
         show_register_stock_item_link=show_register_stock_item_link,
         is_store_stock=is_store_stock,
         both_shops_count=both_shops_count,
@@ -9766,6 +9857,24 @@ def shop_item_management(shop_id: int):
     )
 
 
+_SHOP_STORE_STOCK_MEASURE_UNITS = frozenset(
+    {"pcs", "kg", "g", "l", "ml", "pack", "crate", "box", "dozen", "portion"}
+)
+
+
+def _parse_shop_store_stock_item_form() -> tuple[str, str, str, str] | None:
+    """Return (category, name, description, measure_unit) or None if invalid."""
+    cat = (request.form.get("category") or "").strip()
+    nm = (request.form.get("name") or "").strip()
+    desc = (request.form.get("description") or "").strip()
+    measure = (request.form.get("measure_unit") or "").strip().lower()
+    if not cat or not nm:
+        return None
+    if measure not in _SHOP_STORE_STOCK_MEASURE_UNITS:
+        return None
+    return cat, nm, desc, measure
+
+
 @app.route("/shops/<int:shop_id>/shop-stock-management", methods=["GET", "POST"])
 def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | None = None):
     shop = _get_shop_or_404(shop_id)
@@ -9802,19 +9911,11 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             if _pos_inventory_mode(shop) != "both":
                 flash("Store stock SKUs are only used when POS inventory is set to Both (kitchen + shelf).", "error")
                 return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
-            measure_allowed = {
-                "pcs", "kg", "g", "l", "ml", "pack", "crate", "box", "dozen", "portion",
-            }
-            cat = (request.form.get("category") or "").strip()
-            nm = (request.form.get("name") or "").strip()
-            desc = (request.form.get("description") or "").strip()
-            measure = (request.form.get("measure_unit") or "").strip().lower()
-            if not cat or not nm:
-                flash("Name and category are required.", "error")
+            parsed = _parse_shop_store_stock_item_form()
+            if not parsed:
+                flash("Name, category, and a valid measure unit are required.", "error")
                 return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
-            if measure not in measure_allowed:
-                flash("Choose a valid measure unit.", "error")
-                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            cat, nm, desc, measure = parsed
             try:
                 from database import create_store_stock_item, init_store_stock_items_table
 
@@ -9834,6 +9935,91 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             except Exception as e:
                 app.logger.exception("create_shop_store_stock_item: %s", e)
                 flash("Could not register stock item.", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action == "update_shop_store_stock_item":
+            if _pos_inventory_mode(shop) != "both":
+                flash("Store stock items are only managed when POS inventory is Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                store_item_id = int(request.form.get("store_item_id") or 0)
+            except (TypeError, ValueError):
+                store_item_id = 0
+            if store_item_id <= 0:
+                flash("Invalid store stock item.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            parsed = _parse_shop_store_stock_item_form()
+            if not parsed:
+                flash("Name, category, and a valid measure unit are required.", "error")
+                return redirect(
+                    url_for("shop_stock_management", shop_id=shop_id, view=view_arg, manage_item=store_item_id)
+                )
+            cat, nm, desc, measure = parsed
+            try:
+                from database import update_store_stock_item_for_shop
+
+                ok = update_store_stock_item_for_shop(
+                    shop_id=shop_id,
+                    store_item_id=store_item_id,
+                    category=cat,
+                    name=nm,
+                    description=desc,
+                    measure_unit=measure,
+                )
+                flash(
+                    "Store stock item updated." if ok else "Could not update store stock item.",
+                    "success" if ok else "error",
+                )
+            except Exception as e:
+                app.logger.exception("update_shop_store_stock_item: %s", e)
+                flash("Could not update store stock item.", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action == "toggle_shop_store_stock_item_status":
+            if _pos_inventory_mode(shop) != "both":
+                flash("Store stock items are only managed when POS inventory is Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                store_item_id = int(request.form.get("store_item_id") or 0)
+            except (TypeError, ValueError):
+                store_item_id = 0
+            if store_item_id <= 0:
+                flash("Invalid store stock item.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                from database import toggle_store_stock_item_status_for_shop
+
+                new_status = toggle_store_stock_item_status_for_shop(shop_id, store_item_id)
+            except Exception as e:
+                app.logger.exception("toggle_shop_store_stock_item_status: %s", e)
+                new_status = None
+            if new_status == "active":
+                flash("Store stock item is active again (unsuspended).", "success")
+            elif new_status == "inactive":
+                flash("Store stock item suspended — it is hidden from stock in/out until unsuspended.", "success")
+            else:
+                flash("Could not change store stock item status.", "error")
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
+        if action == "delete_shop_store_stock_item":
+            if _pos_inventory_mode(shop) != "both":
+                flash("Store stock items are only managed when POS inventory is Both (kitchen + shelf).", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                store_item_id = int(request.form.get("store_item_id") or 0)
+            except (TypeError, ValueError):
+                store_item_id = 0
+            if store_item_id <= 0:
+                flash("Invalid store stock item.", "error")
+                return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+            try:
+                from database import delete_store_stock_item_for_shop
+
+                ok, msg = delete_store_stock_item_for_shop(shop_id, store_item_id)
+            except Exception as e:
+                app.logger.exception("delete_shop_store_stock_item: %s", e)
+                ok, msg = False, "Could not delete store stock item."
+            flash(msg, "success" if ok else "error")
             return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
         if action in ("bulk_store_in", "bulk_store_out"):
@@ -10459,8 +10645,14 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
     pos_mode = _pos_inventory_mode(shop)
     store_items: list = []
+    store_catalog_items: list = []
     store_tx: list = []
     inline_register_measure_options: tuple = ()
+    manage_item_id: int | None = None
+    try:
+        manage_item_id = int(request.args.get("manage_item") or 0) or None
+    except (TypeError, ValueError):
+        manage_item_id = None
     try:
         from database import (
             ensure_shop_items_for_shop,
@@ -10490,11 +10682,17 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
     if pos_mode == "both":
         try:
             from database import (
+                init_store_stock_items_table,
+                list_store_stock_items_for_shop_catalog,
                 list_store_stock_items_for_shop_management,
                 list_store_stock_transactions_for_shop,
             )
 
+            init_store_stock_items_table()
             store_items = list_store_stock_items_for_shop_management(
+                shop_id=shop_id, limit=2000
+            )
+            store_catalog_items = list_store_stock_items_for_shop_catalog(
                 shop_id=shop_id, limit=2000
             )
             store_tx = list_store_stock_transactions_for_shop(shop_id=shop_id, limit=200)
@@ -10517,7 +10715,9 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
         item_stock_requests=request_rows,
         transactions=txs,
         store_items=store_items,
+        store_catalog_items=store_catalog_items,
         store_tx=store_tx,
+        manage_item_id=manage_item_id,
         inline_register_measure_options=inline_register_measure_options,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",

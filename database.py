@@ -2532,6 +2532,218 @@ def create_store_stock_item(
         return None
 
 
+STORE_STOCK_MEASURE_UNITS: frozenset[str] = frozenset(
+    {"pcs", "kg", "g", "l", "ml", "pack", "crate", "box", "dozen", "portion"}
+)
+
+
+def _normalize_store_stock_item_row(row: Optional[dict]) -> Optional[dict]:
+    if not row:
+        return None
+    try:
+        row["stock_qty"] = round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+    except (TypeError, ValueError):
+        row["stock_qty"] = 0.0
+    return row
+
+
+def get_store_stock_item_by_id(store_item_id: int) -> Optional[dict]:
+    """Single ``store_stock_items`` row by primary key (IT catalog / admin)."""
+    if not init_store_stock_items_table():
+        return None
+    try:
+        iid = int(store_item_id)
+    except (TypeError, ValueError):
+        return None
+    if iid <= 0:
+        return None
+    qty_col = "stock_qty" if column_exists("store_stock_items", "stock_qty") else "0 AS stock_qty"
+    sql = f"""
+    SELECT id, shop_id, category, name, description, measure_unit, {qty_col}, status, created_at
+    FROM store_stock_items
+    WHERE id = %s
+    LIMIT 1
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (iid,))
+        row = cur.fetchone()
+    return _normalize_store_stock_item_row(row)
+
+
+def get_store_stock_item_for_shop(shop_id: int, store_item_id: int) -> Optional[dict]:
+    """Single ``store_stock_items`` row scoped to a branch."""
+    row = get_store_stock_item_by_id(store_item_id)
+    if not row:
+        return None
+    try:
+        if int(row.get("shop_id") or 0) != int(shop_id):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return row
+
+
+def update_store_stock_item_by_id(
+    *,
+    store_item_id: int,
+    category: str,
+    name: str,
+    description: Optional[str],
+    measure_unit: str,
+) -> bool:
+    row = get_store_stock_item_by_id(store_item_id)
+    if not row:
+        return False
+    return update_store_stock_item_for_shop(
+        shop_id=int(row["shop_id"]),
+        store_item_id=int(store_item_id),
+        category=category,
+        name=name,
+        description=description,
+        measure_unit=measure_unit,
+    )
+
+
+def toggle_store_stock_item_status_by_id(store_item_id: int) -> Optional[str]:
+    row = get_store_stock_item_by_id(store_item_id)
+    if not row:
+        return None
+    return toggle_store_stock_item_status_for_shop(int(row["shop_id"]), int(store_item_id))
+
+
+def delete_store_stock_item_by_id(store_item_id: int) -> Tuple[bool, str]:
+    row = get_store_stock_item_by_id(store_item_id)
+    if not row:
+        return False, "Store stock item not found."
+    return delete_store_stock_item_for_shop(int(row["shop_id"]), int(store_item_id))
+
+
+def update_store_stock_item_for_shop(
+    *,
+    shop_id: int,
+    store_item_id: int,
+    category: str,
+    name: str,
+    description: Optional[str],
+    measure_unit: str,
+) -> bool:
+    if not get_store_stock_item_for_shop(shop_id, store_item_id):
+        return False
+    cat = (category or "").strip()
+    nm = (name or "").strip()
+    desc = (description or "").strip() or None
+    mu = (measure_unit or "").strip().lower()
+    if not cat or not nm or mu not in STORE_STOCK_MEASURE_UNITS:
+        return False
+    if len(cat) > 100:
+        cat = cat[:100]
+    if len(nm) > 255:
+        nm = nm[:255]
+    if desc and len(desc) > 2000:
+        desc = desc[:2000]
+    if len(mu) > 50:
+        mu = mu[:50]
+    sql = """
+    UPDATE store_stock_items
+    SET category = %s, name = %s, description = %s, measure_unit = %s
+    WHERE shop_id = %s AND id = %s
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (cat, nm, desc, mu, int(shop_id), int(store_item_id)))
+        return cur.rowcount > 0
+
+
+def toggle_store_stock_item_status_for_shop(shop_id: int, store_item_id: int) -> Optional[str]:
+    """Toggle active/inactive (suspended) for a branch store SKU. Returns new status or None."""
+    if not init_store_stock_items_table():
+        return None
+    try:
+        sid = int(shop_id)
+        iid = int(store_item_id)
+    except (TypeError, ValueError):
+        return None
+    if sid <= 0 or iid <= 0:
+        return None
+    sql = """
+    UPDATE store_stock_items
+    SET status = IF(status = 'active', 'inactive', 'active')
+    WHERE shop_id = %s AND id = %s
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (sid, iid))
+        if cur.rowcount <= 0:
+            return None
+    row = get_store_stock_item_for_shop(sid, iid)
+    return (row or {}).get("status")
+
+
+def store_stock_item_has_transactions(store_item_id: int) -> bool:
+    init_store_stock_transactions_table()
+    try:
+        iid = int(store_item_id)
+    except (TypeError, ValueError):
+        return False
+    if iid <= 0:
+        return False
+    sql = "SELECT 1 FROM store_stock_transactions WHERE store_stock_item_id = %s LIMIT 1"
+    with get_cursor() as cur:
+        cur.execute(sql, (iid,))
+        return bool(cur.fetchone())
+
+
+def delete_store_stock_item_for_shop(shop_id: int, store_item_id: int) -> Tuple[bool, str]:
+    """Hard-delete a store SKU when stock is zero and there is no movement history."""
+    row = get_store_stock_item_for_shop(shop_id, store_item_id)
+    if not row:
+        return False, "Store stock item not found for this branch."
+    try:
+        qty = float(row.get("stock_qty") or 0)
+    except (TypeError, ValueError):
+        qty = 0.0
+    if qty > 0:
+        return (
+            False,
+            "Cannot delete while stock quantity is greater than zero. Stock out first or suspend the item.",
+        )
+    if store_stock_item_has_transactions(store_item_id):
+        return False, "Cannot delete an item with stock history. Suspend it instead."
+    sql = "DELETE FROM store_stock_items WHERE shop_id = %s AND id = %s"
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, (int(shop_id), int(store_item_id)))
+        if cur.rowcount > 0:
+            return True, "Store stock item deleted."
+    return False, "Could not delete store stock item."
+
+
+def list_store_stock_items_for_shop_catalog(shop_id: int, limit: int = 2000) -> list:
+    """All store SKUs for a branch (active and suspended) for the manage-items table."""
+    if not column_exists("store_stock_items", "id"):
+        init_store_stock_items_table()
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return []
+    if sid <= 0:
+        return []
+    qty_col = "stock_qty" if column_exists("store_stock_items", "stock_qty") else "0 AS stock_qty"
+    sql = f"""
+    SELECT id, shop_id, category, name, description, measure_unit, {qty_col}, status, created_at
+    FROM store_stock_items
+    WHERE shop_id = %s
+    ORDER BY status ASC, category ASC, name ASC, id DESC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (sid, int(limit)))
+        rows = cur.fetchall() or []
+    for r in rows:
+        try:
+            r["stock_qty"] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            r["stock_qty"] = 0.0
+    return rows
+
+
 def list_store_stock_items(shop_id: int, *, limit: int = 5000, active_only: bool = True) -> list:
     if not column_exists("store_stock_items", "id"):
         init_store_stock_items_table()
@@ -2699,6 +2911,54 @@ def list_store_stock_items_for_management(limit: int = 2000) -> list:
     LEFT JOIN shops s ON s.id = ssi.shop_id
     WHERE ssi.status = 'active'
     ORDER BY ssi.category ASC, ssi.name ASC, shop_name ASC, ssi.id DESC
+    LIMIT %s
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (int(limit),))
+        rows = cur.fetchall() or []
+    for r in rows:
+        try:
+            r["stock_qty"] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            r["stock_qty"] = 0.0
+        lp = r.get("last_buying_price")
+        try:
+            r["last_buying_price"] = float(lp) if lp is not None else None
+        except (TypeError, ValueError):
+            r["last_buying_price"] = None
+        r["image_path"] = None
+    return rows
+
+
+def list_store_stock_items_for_management_catalog(limit: int = 5000) -> list:
+    """Cross-shop store SKUs (active + suspended) for IT manage-items table."""
+    if not column_exists("store_stock_items", "id"):
+        init_store_stock_items_table()
+    init_store_stock_transactions_table()
+    qty_col = "ssi.stock_qty" if column_exists("store_stock_items", "stock_qty") else "0"
+    sql = f"""
+    SELECT
+        ssi.id,
+        ssi.shop_id,
+        ssi.category,
+        ssi.name,
+        ssi.description,
+        ssi.measure_unit,
+        {qty_col} AS stock_qty,
+        ssi.status,
+        COALESCE(s.shop_name, CONCAT('Shop #', ssi.shop_id)) AS shop_name,
+        (
+            SELECT sst.buying_price
+            FROM store_stock_transactions sst
+            WHERE sst.store_stock_item_id = ssi.id
+              AND sst.direction = 'in'
+              AND sst.buying_price IS NOT NULL
+            ORDER BY sst.id DESC
+            LIMIT 1
+        ) AS last_buying_price
+    FROM store_stock_items ssi
+    LEFT JOIN shops s ON s.id = ssi.shop_id
+    ORDER BY ssi.status ASC, shop_name ASC, ssi.category ASC, ssi.name ASC, ssi.id DESC
     LIMIT %s
     """
     with get_cursor() as cur:
