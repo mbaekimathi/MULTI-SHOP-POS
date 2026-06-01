@@ -3,9 +3,9 @@
 {% set manage_open_id = manage_item_id|default(none) %}
 {% set catalog_panel_open = manage_open_id %}
 
-<section id="shop-store-items-catalog" class="w-full min-w-0 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 lg:rounded-xl lg:border">
+<section id="shop-store-items-catalog" class="sa-stock-panel">
   <div class="flex flex-wrap items-center justify-between gap-2">
-    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Manage items <span class="font-normal text-[rgb(var(--rc-muted))]">({{ catalog|length }})</span></h3>
+    <h3 class="sa-stock-panel__title">Manage items <span class="font-normal text-[rgb(var(--rc-muted))]">({{ catalog|length }})</span></h3>
     <button
       type="button"
       id="shop-store-catalog-toggle"
@@ -21,37 +21,35 @@
     {% if not catalog %}
       <p class="text-sm text-[rgb(var(--rc-muted))]">No items yet.</p>
     {% else %}
-      <div class="sa-stock-mgmt-table-wrap w-full min-w-0 border-t border-[rgb(var(--rc-border))]">
-        <table class="sa-stock-mgmt-table text-sm">
-          <colgroup>
-            <col style="width:28%" /><col style="width:14%" /><col style="width:10%" /><col style="width:10%" /><col style="width:12%" /><col style="width:26%" />
-          </colgroup>
-          <thead class="border-b border-[rgb(var(--rc-border))] text-left text-xs text-[rgb(var(--rc-muted))]">
+      <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
+      <div class="sa-stock-mgmt-table-wrap">
+        <table class="sa-stock-mgmt-table sa-stock-mgmt-table--compact text-sm">
+          <thead>
             <tr>
-              <th class="px-2 py-2 font-medium">Item</th>
-              <th class="px-2 py-2 font-medium">Cat.</th>
-              <th class="px-2 py-2 font-medium">Unit</th>
-              <th class="px-2 py-2 text-right font-medium">Qty</th>
-              <th class="px-2 py-2 font-medium">Status</th>
-              <th class="px-2 py-2 text-right font-medium"></th>
+              <th class="sa-stock-col-item">Item</th>
+              <th class="sa-stock-col-reason">Category</th>
+              <th class="sa-stock-col-qty">Unit</th>
+              <th class="sa-stock-col-stock sa-stock-th--num">Qty</th>
+              <th class="sa-stock-col-pay">Status</th>
+              <th class="sa-stock-col-actions sa-stock-th--actions">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          <tbody>
             {% for it in catalog %}
               {% set is_active = (it.status or '') == 'active' %}
               {% set row_open = manage_open_id and (it.id|int == manage_open_id|int) %}
               <tr id="shop-store-item-{{ it.id }}" class="{% if not is_active %}opacity-60{% endif %}">
-                <td class="sa-stock-mgmt-item-cell px-2 py-2">
-                  <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
-                  {% if it.description %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ it.description }}</div>{% endif %}
+                <td class="sa-stock-mgmt-item-cell">
+                  <div class="sa-stock-mgmt-item-name">{{ it.name }}</div>
+                  {% if it.description %}<div class="sa-stock-mgmt-item-meta">{{ it.description }}</div>{% endif %}
                 </td>
-                <td class="px-2 py-2 text-[rgb(var(--rc-muted))]" data-label="Category">{{ it.category }}</td>
-                <td class="px-2 py-2" data-label="Unit">{{ (it.measure_unit or '')|upper }}</td>
-                <td class="px-2 py-2 text-right tabular-nums" data-label="Qty">{{ it.stock_qty }}</td>
-                <td class="px-2 py-2 text-xs {% if is_active %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}" data-label="Status">
+                <td class="text-[rgb(var(--rc-muted))]">{{ it.category }}</td>
+                <td>{{ (it.measure_unit or '')|upper }}</td>
+                <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
+                <td class="text-xs {% if is_active %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
                   {% if is_active %}Active{% else %}Off{% endif %}
                 </td>
-                <td class="sa-stock-mgmt-actions-cell px-2 py-2">
+                <td class="sa-stock-mgmt-actions-cell">
                   <div class="flex flex-wrap justify-end gap-1">
                     <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view=view, manage_item=it.id) }}#shop-store-item-{{ it.id }}" class="btn-rc btn-rc-ghost px-2 py-1 text-xs">
                       {% if row_open %}Close{% else %}Edit{% endif %}

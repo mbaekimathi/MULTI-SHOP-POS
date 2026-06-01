@@ -49,12 +49,12 @@
 {% block employee_content %}
   {% include "partials/shop_stock_workspace_assets.html" %}
   <div class="sa-stock-mgmt mx-auto w-full min-w-0 max-w-full overflow-x-hidden">
-    <div class="mb-6 flex flex-col gap-3 px-4 md:px-0 sm:flex-row sm:items-end sm:justify-between">
+    <div class="sa-stock-panel mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">
+        <h2 class="sa-stock-panel__title">
           {% if is_store_stock %}Store stock{% else %}Company stock{% endif %}
         </h2>
-        <p class="mt-0.5 text-sm text-[rgb(var(--rc-muted))]">
+        <p class="sa-stock-panel__hint mb-0">
           {% if is_store_stock %}Kitchen + shelf mode — store SKUs only.{% else %}Stock in or out; only filled rows save.{% endif %}
         </p>
       </div>
@@ -67,7 +67,7 @@
     </div>
 
     {% if is_store_stock %}
-      <section id="it-inline-register-stock" class="mb-4 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 lg:rounded-xl lg:border">
+      <section id="it-inline-register-stock" class="sa-stock-panel mb-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Register item <span class="font-normal text-[rgb(var(--rc-muted))]">({{ both_shops_count or 0 }} shops)</span></h3>
           <button type="button" id="it-inline-register-toggle" class="btn-rc btn-rc-ghost px-3 py-1 text-xs font-medium" aria-expanded="false" aria-controls="it-inline-register-body">Show</button>
@@ -100,16 +100,20 @@
       {% include "partials/it_support_store_stock_items_catalog.html" %}
     {% endif %}
 
-    <div class="sa-stock-mgmt-toolbar mb-3 flex w-full flex-wrap items-center gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-3 lg:rounded-xl lg:border">
-      <div class="flex gap-2" role="tablist" aria-label="Stock action mode">
-        <button type="button" id="stock-mode-in" class="rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-emerald-400/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200" aria-selected="true" data-mode="in">Stock in</button>
-        <button type="button" id="stock-mode-out" class="rounded-lg px-3 py-1.5 text-sm text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" aria-selected="false" data-mode="out">Stock out</button>
+    <div class="sa-stock-panel sa-stock-mgmt-toolbar-wrap">
+      <div class="sa-stock-mgmt-toolbar">
+        <div role="tablist" aria-label="Stock action mode">
+          <button type="button" id="stock-mode-in" aria-selected="true" data-mode="in">Stock in</button>
+          <button type="button" id="stock-mode-out" aria-selected="false" data-mode="out">Stock out</button>
+        </div>
       </div>
-      <input id="stock-management-live-search" type="search" autocomplete="off" placeholder="Search…" class="min-w-0 flex-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm lg:max-w-xs" />
+      <div class="sa-stock-search-row">
+        <input id="stock-management-live-search" type="search" autocomplete="off" placeholder="Search items…" />
+      </div>
     </div>
 
     {% if not items %}
-      <section class="border-b border-[rgb(var(--rc-border))] px-4 py-6 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:px-5 md:shadow-sm">
+      <section class="sa-stock-panel">
         <p class="text-sm text-[rgb(var(--rc-muted))]">
           {% if is_store_stock %}No items — register above.{% else %}No items.{% endif %}
         </p>
@@ -119,40 +123,32 @@
         id="bulk-form-in"
         method="post"
         action="{{ url_for('it_support_stock_management') }}"
-        class="w-full min-w-0 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] lg:overflow-hidden lg:rounded-2xl lg:border lg:shadow-sm"
+        class="sa-stock-panel w-full min-w-0"
       >
         <input type="hidden" name="bulk_direction" value="in" />
+        <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
         <div class="sa-stock-mgmt-table-wrap">
           <table class="sa-stock-mgmt-table text-xs md:text-sm">
-            {% if is_store_stock %}
-            <colgroup>
-              <col style="width:10%" /><col style="width:20%" /><col style="width:6%" /><col style="width:9%" /><col style="width:9%" /><col style="width:11%" /><col style="width:17%" /><col style="width:11%" /><col style="width:7%" />
-            </colgroup>
-            {% else %}
-            <colgroup>
-              <col style="width:24%" /><col style="width:7%" /><col style="width:9%" /><col style="width:9%" /><col style="width:11%" /><col style="width:18%" /><col style="width:12%" /><col style="width:10%" />
-            </colgroup>
-            {% endif %}
-            <thead class="bg-[rgb(var(--rc-surface-2))]">
+            <thead>
               <tr>
-                {% if is_store_stock %}<th>Shop</th>{% endif %}
-                <th>Item</th>
-                <th>Stock</th>
-                <th class="text-emerald-600 dark:text-emerald-400">Qty</th>
-                <th class="text-emerald-600 dark:text-emerald-400">Price</th>
-                <th class="text-emerald-600 dark:text-emerald-400">Phone</th>
-                <th class="text-emerald-600 dark:text-emerald-400">Seller</th>
-                <th class="text-emerald-600 dark:text-emerald-400">Pay</th>
-                {% if not is_store_stock %}<th class="text-right">Log</th>{% endif %}
+                {% if is_store_stock %}<th class="sa-stock-col-shop">Shop</th>{% endif %}
+                <th class="sa-stock-col-item">Item</th>
+                <th class="sa-stock-col-stock sa-stock-th--num">Stock</th>
+                <th class="sa-stock-col-qty sa-stock-th--in">Qty in</th>
+                <th class="sa-stock-col-price sa-stock-th--in">Buy price</th>
+                <th class="sa-stock-col-phone sa-stock-th--in">Phone</th>
+                <th class="sa-stock-col-seller sa-stock-th--in">Seller</th>
+                <th class="sa-stock-col-pay sa-stock-th--in">Payment</th>
+                {% if not is_store_stock %}<th class="sa-stock-col-actions sa-stock-th--actions">Log</th>{% endif %}
               </tr>
             </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            <tbody>
               {% set ns_in = namespace(prev='') %}
               {% for it in items %}
                 {% set cat = (it.category or 'Uncategorized') %}
                 {% if ns_in.prev != cat %}
                   <tr class="sa-stock-mgmt-cat-row bg-emerald-500/10">
-                    <td colspan="{% if is_store_stock %}9{% else %}8{% endif %}" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 sm:px-3 sm:text-xs">
+                    <td colspan="{% if is_store_stock %}8{% else %}8{% endif %}" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 sm:px-3 sm:text-xs">
                       {{ cat }}
                     </td>
                   </tr>
@@ -166,22 +162,22 @@
                   data-item-id="{{ it.id }}"
                 >
                   {% if is_store_stock %}
-                    <td class="max-lg:hidden text-[11px] text-[rgb(var(--rc-muted))]" data-label="Shop">{{ it.shop_name or "—" }}</td>
+                    <td class="text-[11px] text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ it.shop_name or "—" }}</td>
                   {% endif %}
                   <td class="sa-stock-mgmt-item-cell">
                     <div class="sa-stock-mgmt-item-name">{{ it.name }}</div>
-                    <div class="sa-stock-mgmt-item-meta">{% if is_store_stock %}<span class="lg:hidden">{{ it.shop_name or "—" }} · </span>{% endif %}{{ cat }}{% if is_store_stock and it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}<span class="lg:hidden"> · Stock {{ it.stock_qty }}</span></div>
+                    <div class="sa-stock-mgmt-item-meta">{{ cat }}{% if is_store_stock and it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}</div>
                   </td>
-                  <td class="max-lg:hidden tabular-nums font-medium" data-label="Stock">{{ it.stock_qty }}</td>
-                  <td data-label="Qty"><input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1.5 py-1 text-sm" placeholder="Qty" /></td>
-                  <td data-label="Price"><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" autocomplete="off" class="rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1.5 py-1 text-sm" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" /></td>
-                  <td data-label="Phone"><input name="in_seller_phone_{{ it.id }}" type="text" inputmode="tel" autocomplete="off" data-seller-phone="{{ it.id }}" class="js-seller-phone-bulk rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1.5 py-1 text-sm" placeholder="07…" /></td>
-                  <td data-label="Seller">
-                    <input name="in_place_{{ it.id }}" type="text" autocomplete="off" data-seller-name="{{ it.id }}" class="js-seller-name-bulk rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1.5 py-1 text-sm" placeholder="Seller" />
-                    <p class="js-seller-hint-bulk shop-store-seller-hint mt-0.5 min-h-[0.75rem]" data-seller-hint="{{ it.id }}"></p>
+                  <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
+                  <td><input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" placeholder="Qty" /></td>
+                  <td><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" autocomplete="off" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" /></td>
+                  <td><input name="in_seller_phone_{{ it.id }}" type="text" inputmode="tel" autocomplete="off" data-seller-phone="{{ it.id }}" class="js-seller-phone-bulk" placeholder="07…" /></td>
+                  <td>
+                    <input name="in_place_{{ it.id }}" type="text" autocomplete="off" data-seller-name="{{ it.id }}" class="js-seller-name-bulk" placeholder="Seller" />
+                    <p class="js-seller-hint-bulk shop-store-seller-hint min-h-[0.75rem]" data-seller-hint="{{ it.id }}"></p>
                   </td>
-                  <td data-label="Pay">
-                    <select name="in_payment_status_{{ it.id }}" class="js-in-payment rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1 py-1 text-xs">
+                  <td>
+                    <select name="in_payment_status_{{ it.id }}" class="js-in-payment">
                       <option value="" selected>—</option>
                       <option value="pending_payment">Unpaid</option>
                       <option value="partially_paid">Partial</option>
@@ -189,7 +185,7 @@
                     </select>
                   </td>
                   {% if not is_store_stock %}
-                    <td class="sa-stock-mgmt-actions-cell text-right" data-label="Log"><a href="{{ url_for('it_support_stock_in', item_id=it.id) }}" class="text-xs text-[rgb(var(--rc-primary))] hover:underline">In</a></td>
+                    <td class="sa-stock-mgmt-actions-cell"><a href="{{ url_for('it_support_stock_in', item_id=it.id) }}" class="text-xs text-[rgb(var(--rc-primary))] hover:underline">In</a></td>
                   {% endif %}
                 </tr>
               {% endfor %}
@@ -244,39 +240,31 @@
         id="bulk-form-out"
         method="post"
         action="{{ url_for('it_support_stock_management') }}"
-        class="hidden w-full min-w-0 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] lg:overflow-hidden lg:rounded-2xl lg:border lg:shadow-sm"
+        class="sa-stock-panel hidden w-full min-w-0"
       >
         <input type="hidden" name="bulk_direction" value="out" />
+        <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
         <div class="sa-stock-mgmt-table-wrap">
           <table class="sa-stock-mgmt-table text-xs md:text-sm">
-            {% if is_store_stock %}
-            <colgroup>
-              <col style="width:10%" /><col style="width:24%" /><col style="width:7%" /><col style="width:10%" /><col style="width:14%" /><col style="width:10%" /><col style="width:12%" /><col style="width:13%" />
-            </colgroup>
-            {% else %}
-            <colgroup>
-              <col style="width:28%" /><col style="width:8%" /><col style="width:10%" /><col style="width:14%" /><col style="width:10%" /><col style="width:12%" /><col style="width:18%" />
-            </colgroup>
-            {% endif %}
-            <thead class="bg-[rgb(var(--rc-surface-2))]">
+            <thead>
               <tr>
-                {% if is_store_stock %}<th>Shop</th>{% endif %}
-                <th>Item</th>
-                <th>Stock</th>
-                <th class="text-rose-600 dark:text-rose-400">Qty</th>
-                <th class="text-rose-600 dark:text-rose-400">Reason</th>
-                <th class="text-rose-600 dark:text-rose-400">Refund?</th>
-                <th class="text-rose-600 dark:text-rose-400">$</th>
-                {% if not is_store_stock %}<th class="text-right">Log</th>{% endif %}
+                {% if is_store_stock %}<th class="sa-stock-col-shop">Shop</th>{% endif %}
+                <th class="sa-stock-col-item">Item</th>
+                <th class="sa-stock-col-stock sa-stock-th--num">Stock</th>
+                <th class="sa-stock-col-qty sa-stock-th--out">Qty out</th>
+                <th class="sa-stock-col-reason sa-stock-th--out">Reason</th>
+                <th class="sa-stock-col-refund sa-stock-th--out">Refund?</th>
+                <th class="sa-stock-col-price sa-stock-th--out">Refund amt</th>
+                {% if not is_store_stock %}<th class="sa-stock-col-actions sa-stock-th--actions">Log</th>{% endif %}
               </tr>
             </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            <tbody>
               {% set ns_out = namespace(prev='') %}
               {% for it in items %}
                 {% set cat = (it.category or 'Uncategorized') %}
                 {% if ns_out.prev != cat %}
                   <tr class="sa-stock-mgmt-cat-row bg-rose-500/10">
-                    <td colspan="{% if is_store_stock %}8{% else %}7{% endif %}" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300 sm:px-3 sm:text-xs">
+                    <td colspan="{% if is_store_stock %}7{% else %}7{% endif %}" class="px-2 py-2 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300 sm:px-3 sm:text-xs">
                       {{ cat }}
                     </td>
                   </tr>
@@ -291,33 +279,33 @@
                   data-last-buy-price="{% if it.last_buying_price is not none %}{{ it.last_buying_price }}{% else %}0{% endif %}"
                 >
                   {% if is_store_stock %}
-                    <td class="max-lg:hidden text-[11px] text-[rgb(var(--rc-muted))]" data-label="Shop">{{ it.shop_name or "—" }}</td>
+                    <td class="text-[11px] text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ it.shop_name or "—" }}</td>
                   {% endif %}
                   <td class="sa-stock-mgmt-item-cell">
                     <div class="sa-stock-mgmt-item-name">{{ it.name }}</div>
-                    <div class="sa-stock-mgmt-item-meta">{% if is_store_stock %}<span class="lg:hidden">{{ it.shop_name or "—" }} · </span>{% endif %}{{ cat }}{% if is_store_stock and it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}<span class="lg:hidden"> · Stock {{ it.stock_qty }}</span></div>
+                    <div class="sa-stock-mgmt-item-meta">{{ cat }}{% if is_store_stock and it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}</div>
                   </td>
-                  <td class="max-lg:hidden tabular-nums font-medium" data-label="Stock">{{ it.stock_qty }}</td>
-                  <td data-label="Qty"><input name="out_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1.5 py-1 text-sm" placeholder="Qty" /></td>
-                  <td data-label="Reason">
-                    <select name="out_reason_{{ it.id }}" class="rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1 py-1 text-xs">
+                  <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
+                  <td><input name="out_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" placeholder="Qty" /></td>
+                  <td>
+                    <select name="out_reason_{{ it.id }}">
                       <option value="">—</option>
                       <option value="return">Return</option>
                       <option value="waste">Waste</option>
                       <option value="display">Display</option>
                     </select>
                   </td>
-                  <td data-label="Refund?">
-                    <select name="out_refunded_{{ it.id }}" class="js-out-refunded rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1 py-1 text-xs" data-item-id="{{ it.id }}">
+                  <td>
+                    <select name="out_refunded_{{ it.id }}" class="js-out-refunded" data-item-id="{{ it.id }}">
                       <option value="no" selected>No</option>
                       <option value="yes">Yes</option>
                     </select>
                   </td>
-                  <td data-label="Refund $">
-                    <input name="out_refund_amount_{{ it.id }}" type="number" min="0" step="0.01" disabled autocomplete="off" class="js-out-refund-amt rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-1.5 py-1 text-sm disabled:opacity-45" placeholder="0" data-item-id="{{ it.id }}" />
+                  <td>
+                    <input name="out_refund_amount_{{ it.id }}" type="number" min="0" step="0.01" disabled autocomplete="off" class="js-out-refund-amt disabled:opacity-45" placeholder="0" data-item-id="{{ it.id }}" />
                   </td>
                   {% if not is_store_stock %}
-                    <td class="sa-stock-mgmt-actions-cell text-right" data-label="Log"><a href="{{ url_for('it_support_stock_out', item_id=it.id) }}" class="text-xs text-[rgb(var(--rc-primary))] hover:underline">Out</a></td>
+                    <td class="sa-stock-mgmt-actions-cell"><a href="{{ url_for('it_support_stock_out', item_id=it.id) }}" class="text-xs text-[rgb(var(--rc-primary))] hover:underline">Out</a></td>
                   {% endif %}
                 </tr>
               {% endfor %}
