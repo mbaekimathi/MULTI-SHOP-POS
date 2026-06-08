@@ -1,0 +1,20 @@
+{# expects: stock_shell_title, stock_shell_desc, stock_shell_badge (optional) #}
+<section class="sa-stock-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+  <div class="sa-stock-hero-top px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="sa-stock-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock workspace</p>
+        <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ stock_shell_title }}</h2>
+        <p class="sa-stock-hero-desc mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ stock_shell_desc }}</p>
+      </div>
+      {% if stock_shell_badge %}
+      <div class="sa-stock-chips flex flex-wrap items-center gap-2 sm:justify-end">
+        <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300/95">
+          <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+          {{ stock_shell_badge }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>

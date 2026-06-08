@@ -21,14 +21,13 @@
     {% if not catalog %}
       <p class="text-sm text-[rgb(var(--rc-muted))]">No items yet.</p>
     {% else %}
-      <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
-      <div class="sa-stock-mgmt-table-wrap">
-        <table class="sa-stock-mgmt-table sa-stock-mgmt-table--compact text-sm">
+      <div class="sa-stock-mgmt-scroll">
+        <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--compact text-sm">
           <thead>
             <tr>
               <th class="sa-stock-col-item">Item</th>
               <th class="sa-stock-col-reason">Category</th>
-              <th class="sa-stock-col-qty">Unit</th>
+              <th class="sa-stock-col-qty sa-stock-col-hide-sm">Unit</th>
               <th class="sa-stock-col-stock sa-stock-th--num">Qty</th>
               <th class="sa-stock-col-pay">Status</th>
               <th class="sa-stock-col-actions sa-stock-th--actions">Actions</th>
@@ -44,7 +43,7 @@
                   {% if it.description %}<div class="sa-stock-mgmt-item-meta">{{ it.description }}</div>{% endif %}
                 </td>
                 <td class="text-[rgb(var(--rc-muted))]">{{ it.category }}</td>
-                <td>{{ (it.measure_unit or '')|upper }}</td>
+                <td class="sa-stock-col-hide-sm">{{ (it.measure_unit or '')|upper }}</td>
                 <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
                 <td class="text-xs {% if is_active %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
                   {% if is_active %}Active{% else %}Off{% endif %}

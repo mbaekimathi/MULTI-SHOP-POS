@@ -409,8 +409,11 @@
 }
 @media (max-width: 639px) {
   .pos-surface-page.pos-ui-pro .pos-chips-nav {
-    width: 2.25rem;
-    height: 2.25rem;
+    display: none !important;
+  }
+  .pos-surface-page.pos-ui-pro .pos-search-panel__chips-rail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
   }
 }
 .pos-surface-page.pos-ui-pro .pos-search-panel__chips,
@@ -439,8 +442,13 @@
 
 @media (max-width: 639px) {
   .pos-surface-page.pos-ui-pro .pos-cat-chip {
-    min-height: 2.75rem;
-    padding: 0.5rem 0.65rem;
+    min-height: 2.1rem;
+    padding: 0.32rem 0.48rem;
+    font-size: 0.625rem !important;
+  }
+  .pos-surface-page.pos-ui-pro .pos-search-panel .pos-cat-chip {
+    max-width: 9rem;
+    padding: 0.3rem 0.42rem 0.3rem 0.48rem;
   }
 }
 .pos-surface-page.pos-ui-pro .pos-search-panel .pos-cat-chip {
@@ -676,15 +684,34 @@
   }
 }
 
-/* Product strip — clearer spacing between tiles */
+/* Product strip — mobile-first; scales up on larger viewports */
 .pos-surface-page.pos-ui-pro .pos-item-scroll {
-  --pos-card-gap: 0.7rem !important;
-  --pos-card-w: 7rem !important;
+  --pos-card-gap: 0.4rem !important;
+  --pos-card-w: 5.25rem !important;
   gap: var(--pos-card-gap) !important;
-  padding: 0.35rem 0.2rem 0.5rem !important;
-  scroll-padding-inline: 0.35rem;
+  padding: 0.25rem 0.15rem 0.35rem !important;
+  scroll-padding-inline: 0.25rem;
+}
+@media (min-width: 400px) {
+  .pos-surface-page.pos-ui-pro .pos-item-scroll {
+    --pos-card-w: 5.5rem !important;
+  }
+}
+@media (min-width: 480px) {
+  .pos-surface-page.pos-ui-pro .pos-item-scroll {
+    --pos-card-gap: 0.5rem !important;
+    --pos-card-w: 5.85rem !important;
+  }
 }
 @media (min-width: 640px) {
+  .pos-surface-page.pos-ui-pro .pos-item-scroll {
+    --pos-card-gap: 0.7rem !important;
+    --pos-card-w: 7rem !important;
+    padding: 0.35rem 0.2rem 0.5rem !important;
+    scroll-padding-inline: 0.35rem;
+  }
+}
+@media (min-width: 768px) {
   .pos-surface-page.pos-ui-pro .pos-item-scroll {
     --pos-card-gap: 0.8rem !important;
     --pos-card-w: 7.5rem !important;
@@ -1175,5 +1202,351 @@
   .pos-surface-page.pos-ui-pro .pos-page-atmosphere__orb,
   .pos-surface-page.pos-ui-pro .pos-page-atmosphere__shine {
     animation: none !important;
+  }
+}
+
+/* ── Mobile compact layout (phones) ── */
+@media (max-width: 639px) {
+  /* POS header — compact brand + icon-only toolbar */
+  .pos-surface-page.pos-ui-pro .pos-header-main {
+    gap: 0.28rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-brand {
+    gap: 0.4rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-brand img,
+  .pos-surface-page.pos-ui-pro .pos-header-brand .flex.h-9 {
+    width: 1.65rem !important;
+    height: 1.65rem !important;
+    min-width: 1.65rem;
+    min-height: 1.65rem;
+    font-size: 0.5rem !important;
+    border-radius: 0.5rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-brand__title {
+    font-size: 0.75rem;
+    line-height: 1.15;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-brand__clock {
+    padding: 0.06rem 0.28rem;
+    font-size: 0.5rem;
+    border-radius: 0.3rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-brand__badge {
+    margin-top: 0;
+    padding: 0.12rem;
+    border-radius: 9999px;
+    font-size: 0;
+    gap: 0;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar-wrap::before,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar-wrap::after {
+    width: 0.75rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar {
+    gap: 0.28rem;
+    padding: 0.05rem 0.08rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group--account {
+    gap: 0.16rem;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-action,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group .pos-printer-header-btn,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group #pos-network-state-indicator,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group #pos-offline-sync-badge {
+    flex-direction: row !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    min-height: 2rem !important;
+    min-width: 2rem !important;
+    width: 2rem;
+    padding: 0.18rem !important;
+    font-size: 0;
+    border-radius: 0.45rem;
+    box-shadow: none;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-action__text,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group .pos-printer-header-btn .pos-header-action__text,
+  .pos-surface-page.pos-ui-pro .pos-header-toolbar__group #pos-network-state-indicator .pos-header-action__text {
+    display: none !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-action__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.3rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-header-action__icon svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell .pos-printer-header-btn__icon-wrap {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.3rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell .pos-printer-header-btn__icon-wrap svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell .pos-header-toolbar__group #pos-network-state-indicator {
+    min-width: 2rem;
+    padding: 0.18rem !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell #pos-network-state-indicator span {
+    width: 0.45rem;
+    height: 0.45rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell #pos-hold-count-dot {
+    min-width: 0.7rem;
+    font-size: 6px;
+    padding: 0 0.15rem;
+    top: -0.1rem;
+    right: -0.15rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell [data-rc-notif-bell],
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell [data-theme-toggle] {
+    width: 2rem !important;
+    height: 2rem !important;
+    min-width: 2rem !important;
+    min-height: 2rem !important;
+    border-radius: 0.45rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell [data-rc-notif-bell] svg,
+  .pos-surface-page.pos-ui-pro .pos-pos-header-shell [data-theme-toggle] svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+
+  /* Catalog command bar — compact stacked card */
+  .pos-surface-page.pos-ui-pro .pos-search-panel,
+  .pos-surface-page.pos-ui-pro .pos-search-panel.pos-search-panel {
+    border-radius: 0.7rem;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.08) inset,
+      0 6px 20px -14px rgba(15, 23, 42, 0.14);
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel__inner {
+    gap: 0.38rem;
+    padding: 0.45rem 0.5rem 0.5rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel__top {
+    align-items: center;
+    gap: 0.35rem;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-catalog-command__head {
+    gap: 0;
+    min-width: 0;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-catalog-command__sub {
+    display: none;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-catalog-command__title {
+    font-size: 0.75rem;
+    gap: 0.35rem;
+    line-height: 1.2;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-catalog-command__icon {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 0.4rem;
+    box-shadow: none;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-catalog-command__icon svg {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-status--badge {
+    padding: 0;
+    border: none;
+    background: transparent;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    opacity: 0.9;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-field__icon {
+    left: 0.5rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-field__input,
+  .pos-surface-page.pos-ui-pro #pos-search {
+    min-height: 2rem;
+    padding: 0.32rem 2.15rem 0.32rem 1.85rem !important;
+    font-size: 0.8125rem;
+    border-radius: 0.55rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-clear {
+    right: 0.3rem;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 0.35rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel__categories {
+    padding-top: 0.1rem;
+    border-top: 1px solid rgba(var(--rc-border), 0.35);
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel__categories-head {
+    justify-content: flex-end;
+    margin-bottom: 0.18rem;
+    min-height: 0;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel__chips-label {
+    display: none;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-chips-jump-top {
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.35rem;
+    font-size: 0.5625rem;
+    font-weight: 600;
+    background: transparent;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel__chips,
+  .pos-surface-page.pos-ui-pro #pos-cat-chips.pos-search-panel__chips {
+    gap: 0.28rem;
+    padding-bottom: 0.05rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cat-chip {
+    min-height: 1.85rem;
+    padding: 0.22rem 0.42rem;
+    border-radius: 9999px;
+    font-size: 0.6rem !important;
+    max-width: 8.25rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-search-panel .pos-cat-chip {
+    padding: 0.2rem 0.38rem 0.2rem 0.42rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cat-chip__count {
+    min-width: 1rem;
+    padding: 0.04rem 0.26rem;
+    border-radius: 9999px;
+    font-size: 0.5625rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-catalog-main {
+    padding: 0.4rem 0.35rem 0.55rem;
+    border-radius: 0.75rem;
+  }
+
+  .pos-surface-page.pos-ui-pro #pos-catalog.pos-catalog-layout {
+    gap: 0.55rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cat-section {
+    border-radius: 0.75rem !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cat-section__toolbar {
+    padding: 0.5rem 0.65rem 0.45rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cat-section__title-block h2 {
+    font-size: 0.8125rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cat-section__hint,
+  .pos-surface-page.pos-ui-pro .pos-cat-section__count {
+    font-size: 0.5625rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-item-card.pos-item-card--media {
+    min-height: 8.1rem;
+    padding: 0.12rem;
+    border-radius: 0.65rem !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-item-card.pos-item-card--media .pos-item-card-media {
+    min-height: 3.85rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-item-card.pos-item-card--media .pos-item-card__img {
+    padding: 0.2rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-item-card.pos-item-card--media .pos-item-name {
+    font-size: 0.52rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-item-card.pos-item-card--media .pos-item-card__price-row {
+    margin-top: 0.1rem;
+    padding-top: 0.2rem;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-item-card.pos-item-card--media .pos-item-card__placeholder span {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .pos-surface-page.pos-ui-pro #pos-cart-toggle-fab,
+  .pos-surface-page.pos-ui-pro #pos-hold-toggle-fab {
+    width: 3rem !important;
+    height: 3rem !important;
+    min-width: 3rem;
+    min-height: 3rem;
+  }
+
+  .pos-surface-page.pos-ui-pro #pos-cart-toggle-fab .pos-cart-icon-wrap,
+  .pos-surface-page.pos-ui-pro #pos-hold-toggle-fab .pos-hold-icon-wrap {
+    width: 2.35rem !important;
+    height: 2.35rem !important;
+  }
+
+  .pos-surface-page.pos-ui-pro #pos-cart-toggle-fab .pos-cart-fab-icon,
+  .pos-surface-page.pos-ui-pro #pos-hold-toggle-fab .pos-hold-fab-icon {
+    width: 1.3rem !important;
+    height: 1.3rem !important;
+  }
+
+  .pos-surface-page.pos-ui-pro .pos-cart-badge {
+    font-size: 0.5625rem;
+    min-width: 1.1rem;
+    min-height: 1.1rem;
   }
 }

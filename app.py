@@ -7176,9 +7176,9 @@ def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[
     if not re.fullmatch(r"\d{6}", code):
         return None, "Enter a valid 6-digit employee code.", 400
 
-    from database import employee_may_use_shop_branch, get_employee_by_code
+    from database import employee_may_use_shop_branch, get_employee_by_code_for_pos_auth
 
-    row = get_employee_by_code(code)
+    row = get_employee_by_code_for_pos_auth(code)
     if not row:
         return None, "Employee code not registered. Try another code.", 404
 
@@ -7231,24 +7231,24 @@ def shop_pos_employee_auth_cache(shop_id: int):
     if gate is not None:
         return gate
 
-    from database import employee_may_use_shop_branch, list_employees
+    from database import employee_may_use_shop_branch, get_hr_employee_shop_link_mode, list_employees_for_pos_auth
 
+    link_mode = get_hr_employee_shop_link_mode()
     out = []
     try:
-        rows = list_employees(limit=5000) or []
+        rows = list_employees_for_pos_auth(limit=5000) or []
     except Exception:
         rows = []
     for row in rows:
         code = str((row or {}).get("employee_code") or "").strip()
         if not re.fullmatch(r"\d{6}", code):
             continue
-        status = str((row or {}).get("status") or "").strip().lower()
-        if status != "active":
-            continue
         role_key = str((row or {}).get("role") or "employee").strip().lower()
         if role_key not in COMPANY_PORTAL_ROLES:
             try:
-                if not employee_may_use_shop_branch(dict(row), int(shop_id)):
+                if not employee_may_use_shop_branch(
+                    dict(row), int(shop_id), link_mode=link_mode
+                ):
                     continue
             except Exception:
                 continue
@@ -9844,10 +9844,14 @@ def shop_item_management(shop_id: int):
     except Exception:
         items = []
 
+    show_register_form = (request.args.get("register") or "").strip() == "1"
+
     return render_template(
         "shop_item_management.html",
         shop=shop,
         items=items,
+        can_register_items=shop_shell_can("manage_items"),
+        show_register_form=show_register_form,
         pos_inventory_mode=_pos_inventory_mode(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -9855,6 +9859,88 @@ def shop_item_management(shop_id: int):
         primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
         accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
     )
+
+
+@app.route("/shops/<int:shop_id>/shop-item-management/register-item", methods=["POST"])
+def shop_register_item(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not shop_shell_can("manage_items"):
+        flash("Only shop managers and admins can register items.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    category = (request.form.get("category") or "").strip().upper()
+    name = (request.form.get("name") or "").strip().upper()
+    description = (request.form.get("description") or "").strip().upper()
+    price_raw = (request.form.get("price") or "").strip()
+    selling_raw = (request.form.get("selling_price") or "").strip()
+
+    if not category or not name or not price_raw:
+        flash("Please fill item category, item name, and original selling price.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    try:
+        price = float(price_raw)
+        if price < 0:
+            raise ValueError()
+    except Exception:
+        flash("Original selling price must be a valid number.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    selling_price = None
+    if selling_raw:
+        try:
+            selling_price = float(selling_raw)
+            if selling_price < 0:
+                raise ValueError()
+        except Exception:
+            flash("Selling price must be a valid number.", "error")
+            return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    img = request.files.get("image")
+    image_path = _save_item_upload(img) if img and img.filename else None
+    if img and img.filename and image_path is None:
+        flash("Item image must be PNG, JPG, GIF, or WebP.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    new_item_id = None
+    try:
+        from database import create_item, init_shop_items_table, seed_shop_items_for_company_item
+
+        init_shop_items_table()
+        new_item_id = create_item(
+            category=category,
+            name=name,
+            description=description,
+            price=price,
+            selling_price=selling_price,
+            image_path=image_path,
+            status="active",
+            created_by_employee_id=session.get("employee_id"),
+        )
+        if new_item_id:
+            seed_shop_items_for_company_item(int(new_item_id), origin_shop_id=shop_id)
+    except Exception:
+        flash("Could not register item. Check database connection.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    if not new_item_id:
+        flash("Could not register item.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+    _log_hr_activity_safe(
+        "register",
+        target_type="item",
+        target_id=int(new_item_id),
+        description=f"Shop '{shop.get('shop_name')}' registered item '{name}' ({category})",
+    )
+    flash(
+        "Item registered in the company catalog. It is displayed for this shop only; other branches start hidden.",
+        "success",
+    )
+    return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 
 _SHOP_STORE_STOCK_MEASURE_UNITS = frozenset(

@@ -8,6 +8,14 @@
     </svg>
     Shop item management
   </a>
+  {% if can_register_items|default(false) %}
+    <a href="{{ url_for('shop_item_management', shop_id=shop.id, register=1) }}#shop-register-new-item" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+      <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+      Register new item
+    </a>
+  {% endif %}
 {% endblock %}
 {% block shop_content %}
   {% set pos_inv = pos_inventory_mode|default('shop') %}
@@ -33,8 +41,21 @@
           {% endif %}
         </p>
       </div>
+      {% if can_register_items|default(false) %}
+        <a
+          href="{{ url_for('shop_item_management', shop_id=shop.id, register=1) }}#shop-register-new-item"
+          class="btn-rc btn-rc-primary inline-flex shrink-0 items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold"
+        >
+          <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Register new item
+        </a>
+      {% endif %}
       {# Removed shop-level Display/Hide pills to match requested UI #}
     </div>
+
+    {% include "partials/shop_register_item_form.html" %}
 
     {% if not items %}
       <div class="mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 text-sm text-[rgb(var(--rc-muted))]">

@@ -10205,6 +10205,19 @@ def init_shop_stock_transactions_table():
 
 def ensure_shop_items_for_shop(shop_id: int):
     """Seed shop_items for every catalog item; defaults follow company active + stock flags."""
+    sid = int(shop_id)
+    probe_sql = """
+    SELECT 1 FROM items i
+    WHERE NOT EXISTS (
+        SELECT 1 FROM shop_items si
+        WHERE si.shop_id = %s AND si.item_id = i.id
+      )
+    LIMIT 1
+    """
+    with get_cursor() as cur:
+        cur.execute(probe_sql, (sid,))
+        if not cur.fetchone():
+            return
     sql = """
     INSERT INTO shop_items (shop_id, item_id, shop_stock_qty, stock_update_enabled, displayed)
     SELECT
@@ -10220,7 +10233,51 @@ def ensure_shop_items_for_shop(shop_id: int):
       )
     """
     with get_cursor(commit=True) as cur:
-        cur.execute(sql, (int(shop_id), int(shop_id)))
+        cur.execute(sql, (sid, sid))
+
+
+def seed_shop_items_for_company_item(item_id: int, origin_shop_id: Optional[int] = None) -> None:
+    """
+    Create shop_items rows for a catalog item on every branch.
+    When ``origin_shop_id`` is set (branch-registered item), only that shop is displayed;
+    all other branches start hidden with stock updates off.
+    """
+    init_shop_items_table()
+    sql_item = "SELECT status, stock_update_enabled FROM items WHERE id=%s LIMIT 1"
+    with get_cursor() as cur:
+        cur.execute(sql_item, (int(item_id),))
+        row = cur.fetchone()
+    if not row:
+        return
+    active = (row.get("status") or "") == "active"
+    comp_stock = int(row.get("stock_update_enabled") or 0) == 1
+    origin = int(origin_shop_id) if origin_shop_id is not None else None
+
+    shops = list_shops(limit=5000) or []
+    insert_sql = """
+    INSERT INTO shop_items (shop_id, item_id, shop_stock_qty, stock_update_enabled, displayed)
+    VALUES (%s, %s, 0, %s, %s)
+    ON DUPLICATE KEY UPDATE shop_id=shop_id
+    """
+    with get_cursor(commit=True) as cur:
+        for s in shops:
+            try:
+                sid = int(s.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            if sid <= 0:
+                continue
+            if origin is not None:
+                if sid == origin:
+                    displayed = 1 if active else 0
+                    stock_upd = 1 if active and comp_stock else 0
+                else:
+                    displayed = 0
+                    stock_upd = 0
+            else:
+                displayed = 1 if active else 0
+                stock_upd = 1 if active and comp_stock else 0
+            cur.execute(insert_sql, (sid, int(item_id), stock_upd, displayed))
 
 
 def list_shop_items(shop_id: int, limit: int = 500):
@@ -12966,18 +13023,34 @@ def _shop_items_physical_select_sql() -> str:
 
 
 HR_EMPLOYEE_SHOP_LINK_MODE_KEY = "hr_employee_shop_link_mode"
+_hr_shop_link_mode_cache: Optional[tuple[float, str]] = None
+_HR_SHOP_LINK_MODE_TTL_SEC = 120.0
 
 
 def get_hr_employee_shop_link_mode() -> str:
     """Returns ``single`` (one branch per employee) or ``multi`` (POS access to selected branches)."""
+    global _hr_shop_link_mode_cache
+    import time
+
+    now = time.monotonic()
+    if _hr_shop_link_mode_cache is not None:
+        cached_at, cached_val = _hr_shop_link_mode_cache
+        if now - cached_at < _HR_SHOP_LINK_MODE_TTL_SEC:
+            return cached_val
     raw = (get_site_settings([HR_EMPLOYEE_SHOP_LINK_MODE_KEY]) or {}).get(HR_EMPLOYEE_SHOP_LINK_MODE_KEY) or ""
     raw = str(raw).strip().lower()
-    return "multi" if raw == "multi" else "single"
+    val = "multi" if raw == "multi" else "single"
+    _hr_shop_link_mode_cache = (now, val)
+    return val
 
 
 def set_hr_employee_shop_link_mode(mode: str) -> bool:
+    global _hr_shop_link_mode_cache
     m = "multi" if str(mode or "").strip().lower() == "multi" else "single"
-    return set_site_settings({HR_EMPLOYEE_SHOP_LINK_MODE_KEY: m})
+    ok = set_site_settings({HR_EMPLOYEE_SHOP_LINK_MODE_KEY: m})
+    if ok:
+        _hr_shop_link_mode_cache = None
+    return ok
 
 
 # Pending requests older than this are eligible for automatic expiry (see expire_old_pending_stock_requests).
@@ -14137,6 +14210,53 @@ def get_employee_by_code(code: str):
         return None
 
 
+def get_employee_by_code_for_pos_auth(code: str):
+    """Like ``get_employee_by_code`` but includes branch access ids for one-shot POS authorization."""
+    sql = """
+    SELECT
+        e.id,
+        e.full_name,
+        e.email,
+        e.phone,
+        e.employee_code,
+        e.password_hash,
+        e.status,
+        e.role,
+        e.shop_id,
+        e.profile_image,
+        e.created_at,
+        (
+            SELECT GROUP_CONCAT(esa.shop_id ORDER BY esa.shop_id SEPARATOR ',')
+            FROM employee_shop_access esa
+            WHERE esa.employee_id = e.id
+        ) AS shop_access_ids_csv
+    FROM employees e
+    WHERE e.employee_code = %s
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (code,))
+            return cur.fetchone()
+    except pymysql.Error:
+        return None
+
+
+def _parse_shop_access_ids_csv(csv: Optional[str]) -> list:
+    if not csv:
+        return []
+    out: list = []
+    for part in str(csv).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.append(int(part))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def get_employee_by_id(emp_id: int):
     sql = """
     SELECT
@@ -14168,7 +14288,12 @@ def get_employee_accessible_shop_ids(emp_id: int) -> list:
         return []
 
 
-def employee_may_use_shop_branch(employee_row: dict, branch_shop_id: int) -> bool:
+def employee_may_use_shop_branch(
+    employee_row: dict,
+    branch_shop_id: int,
+    *,
+    link_mode: Optional[str] = None,
+) -> bool:
     """True if employee may authorize POS at ``branch_shop_id`` (respects HR single/multi shop mode)."""
     role_key = (employee_row.get("role") or "employee").lower()
     if role_key in ("super_admin", "it_support", "company_manager"):
@@ -14185,16 +14310,48 @@ def employee_may_use_shop_branch(employee_row: dict, branch_shop_id: int) -> boo
         )
     except (TypeError, ValueError):
         emp_shop_id = None
-    if get_hr_employee_shop_link_mode() != "multi":
+    mode = link_mode if link_mode is not None else get_hr_employee_shop_link_mode()
+    if mode != "multi":
         return emp_shop_id == sid
-    try:
-        eid = int(employee_row.get("id"))
-    except (TypeError, ValueError):
-        return False
-    extra = get_employee_accessible_shop_ids(eid)
+    if "shop_access_ids_csv" in employee_row:
+        extra = _parse_shop_access_ids_csv(employee_row.get("shop_access_ids_csv"))
+    else:
+        try:
+            eid = int(employee_row.get("id"))
+        except (TypeError, ValueError):
+            return False
+        extra = get_employee_accessible_shop_ids(eid)
     if extra:
         return sid in extra
     return emp_shop_id == sid
+
+
+def list_employees_for_pos_auth(limit: int = 5000):
+    """Minimal employee rows for POS offline auth cache (avoids payroll/shop label subqueries)."""
+    sql = """
+    SELECT
+        e.id,
+        e.full_name,
+        e.employee_code,
+        e.status,
+        e.role,
+        e.shop_id,
+        (
+            SELECT GROUP_CONCAT(esa.shop_id ORDER BY esa.shop_id SEPARATOR ',')
+            FROM employee_shop_access esa
+            WHERE esa.employee_id = e.id
+        ) AS shop_access_ids_csv
+    FROM employees e
+    WHERE e.status = 'active'
+    ORDER BY e.id ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(limit),))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
 
 
 def _normalize_linked_shop_ids(raw_ids) -> list:

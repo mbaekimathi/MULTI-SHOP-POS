@@ -13,10 +13,21 @@
   {% set store_registration_enabled = store_registration_enabled|default(false) %}
   {% include "partials/shop_stock_workspace_assets.html" %}
   <div class="sa-stock-analytics min-w-0 max-w-full overflow-x-hidden">
-  <div class="sa-stock-workspace sa-stock-mgmt mt-4 space-y-3">
+  <div class="sa-stock-workspace sa-stock-mgmt mt-4 flex flex-col gap-2 sm:gap-4">
+    {% set stock_shell_title = 'Shop stock update' %}
     {% if pos_inventory_mode == 'both' %}
-      <p class="sa-stock-panel__hint mb-3">Store stock (kitchen + shelf mode) — separate from POS catalogue.</p>
+      {% set stock_shell_desc = 'Kitchen + shelf store SKUs for ' ~ shop.shop_name ~ '. Stock in/out per row; bulk copy for rows with quantity.' %}
+      {% set stock_shell_badge = 'Both mode' %}
+    {% elif pos_inventory_mode == 'kitchen' %}
+      {% set stock_shell_desc = 'This branch uses kitchen portions only — store/shelf stock workflows are disabled.' %}
+      {% set stock_shell_badge = 'Kitchen only' %}
+    {% else %}
+      {% set stock_shell_desc = 'Request stock from company or another shop, or record manual stock-in for catalogue items at ' ~ shop.shop_name ~ '.' %}
+      {% set stock_shell_badge = 'Catalogue stock' %}
+    {% endif %}
+    {% include "partials/shop_stock_mgmt_shell_hero.html" %}
 
+    {% if pos_inventory_mode == 'both' %}
       <section id="shop-inline-register-sku" class="sa-stock-panel">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Register item</h3>
@@ -168,9 +179,8 @@
                 </span>
               </div>
             </div>
-            <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
-            <div class="sa-stock-mgmt-table-wrap">
-              <table class="sa-stock-mgmt-table text-sm">
+            <div class="sa-stock-mgmt-scroll">
+              <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
                 <thead>
                   <tr>
                     <th class="sa-stock-col-item">Item</th>
@@ -245,20 +255,19 @@
                 </span>
               </div>
             </div>
-            <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
-            <div class="sa-stock-mgmt-table-wrap">
-              <table class="sa-stock-mgmt-table text-sm">
+            <div class="sa-stock-mgmt-scroll">
+              <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
                 <thead>
                   <tr>
                     <th class="sa-stock-col-item">Item</th>
                     <th class="sa-stock-col-stock sa-stock-th--num">Shop</th>
                     <th class="sa-stock-col-stock sa-stock-th--num">Company</th>
                     <th class="sa-stock-col-qty sa-stock-th--in">Qty in</th>
-                    <th class="sa-stock-col-price sa-stock-th--in">Buy price</th>
-                    <th class="sa-stock-col-phone sa-stock-th--in">Phone</th>
-                    <th class="sa-stock-col-seller sa-stock-th--in">Seller</th>
-                    <th class="sa-stock-col-pay sa-stock-th--in">Payment</th>
-                    <th class="sa-stock-col-note sa-stock-th--in">Note</th>
+                    <th class="sa-stock-col-price sa-stock-th--in sa-stock-col-hide-sm">Buy price</th>
+                    <th class="sa-stock-col-phone sa-stock-th--in sa-stock-col-hide-lg">Phone</th>
+                    <th class="sa-stock-col-seller sa-stock-th--in sa-stock-col-hide-lg">Seller</th>
+                    <th class="sa-stock-col-pay sa-stock-th--in sa-stock-col-hide-md">Payment</th>
+                    <th class="sa-stock-col-note sa-stock-th--in sa-stock-col-hide-md">Note</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -276,7 +285,7 @@
                       <td>
                         <input name="qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="js-manual-qty js-stock-qty-input" placeholder="0 or 1.25" title="Whole or decimal quantity (use . or , as decimal separator)" />
                       </td>
-                      <td>
+                      <td class="sa-stock-col-hide-sm">
                         <input
                           name="buying_price_{{ it.id }}"
                           type="number"
@@ -287,21 +296,21 @@
                           title="{% if it.last_buying_price is not none %}Last recorded buying price for this item at this shop{% else %}No previous shop stock-in price yet{% endif %}"
                         />
                       </td>
-                      <td>
+                      <td class="sa-stock-col-hide-lg">
                         <input name="seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="js-seller-phone" placeholder="07… or 254…" title="Kenyan mobile: 07xxxxxxxx (10 digits) or 254xxxxxxxxxx (12 digits)" />
                       </td>
-                      <td>
+                      <td class="sa-stock-col-hide-lg">
                         <input name="seller_name_{{ it.id }}" data-seller-name="{{ it.id }}" class="js-seller-name uppercase" placeholder="NAME / PLACE" />
                         <p class="js-seller-hint shop-store-seller-hint" data-seller-hint="{{ it.id }}"></p>
                       </td>
-                      <td>
+                      <td class="sa-stock-col-hide-md">
                         <select name="payment_status_{{ it.id }}" class="js-manual-payment">
                           <option value="pending_payment" selected>Not paid</option>
                           <option value="partially_paid">Partially paid</option>
                           <option value="paid">Paid</option>
                         </select>
                       </td>
-                      <td>
+                      <td class="sa-stock-col-hide-md">
                         <input name="note_{{ it.id }}" class="uppercase" placeholder="—" autocomplete="off" />
                       </td>
                     </tr>
@@ -309,7 +318,7 @@
                 </tbody>
               </table>
             </div>
-            <div class="sa-stock-mgmt-bulk-bar border-t border-[rgb(var(--rc-border))] pt-4">
+            <div class="sa-stock-mgmt-bulk-bar">
               <p class="text-xs font-semibold text-[rgb(var(--rc-muted))]">Copy to rows with qty</p>
               <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
                 Click copy to push seller phone, name, payment, and optional note to every row that already has <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">quantity greater than zero</strong>. Adjust individual rows afterward if needed.
@@ -375,50 +384,50 @@
     {% endif %}{# end pos_inventory_mode != 'both' #}
 
     {% if pos_inventory_mode != 'both' %}
-    <section class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5">
-      <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock requests</h4>
+    <section class="sa-stock-panel">
+      <div class="sa-stock-panel-head">
+        <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock requests</h4>
+        <span class="sa-stock-panel-meta">{{ (item_stock_requests or [])|length }} rows</span>
+      </div>
       {% set ns = namespace(pending_count=0) %}
       {% for r in item_stock_requests or [] %}
         {% if r.status == 'pending' %}
           {% set ns.pending_count = ns.pending_count + 1 %}
         {% endif %}
       {% endfor %}
-      <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
+      <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
         Pending: <span class="font-extrabold text-[rgb(var(--rc-page-fg))]">{{ ns.pending_count }}</span>
       </p>
       {% if not item_stock_requests %}
         <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No requests yet.</p>
       {% else %}
-        <div class="sa-stock-mgmt-table-wrap mt-3 w-full min-w-0 border-t border-[rgb(var(--rc-border))]">
-          <table class="sa-stock-mgmt-table text-sm">
-            <colgroup>
-              <col style="width:18%" /><col style="width:10%" /><col style="width:14%" /><col style="width:14%" /><col style="width:10%" /><col style="width:12%" /><col style="width:12%" />
-            </colgroup>
-            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+        <div class="sa-stock-mgmt-scroll mt-3">
+          <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
+            <thead>
               <tr>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Request</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Source</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-                <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                <th>Request</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Item</th>
+                <th class="sa-stock-th--num">Qty</th>
+                <th>Status</th>
+                <th>Time</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            <tbody>
               {% for r in item_stock_requests %}
                 <tr>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">#{{ r.id }} • {{ r.requesting_shop_name }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{% if r.request_type == 'return_to_company' %}Return to company{% else %}Stock in{% endif %}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{% if r.source_type == 'company' %}Company{% else %}{{ r.source_shop_name or ('Shop #' ~ (r.source_shop_id or '')) }}{% endif %}</td>
-                  <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ r.qty }}</td>
-                  <td class="px-3 py-2 whitespace-nowrap">
+                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">#{{ r.id }} • {{ r.requesting_shop_name }}</td>
+                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{% if r.request_type == 'return_to_company' %}Return to company{% else %}Stock in{% endif %}</td>
+                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{% if r.source_type == 'company' %}Company{% else %}{{ r.source_shop_name or ('Shop #' ~ (r.source_shop_id or '')) }}{% endif %}</td>
+                  <td class="sa-stock-mgmt-item-cell font-semibold">{{ r.item_name }}</td>
+                  <td class="sa-stock-td--num">{{ r.qty }}</td>
+                  <td class="whitespace-nowrap">
                     <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if r.status == 'approved' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% elif r.status == 'rejected' %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% else %}bg-amber-500/10 text-amber-300 ring-amber-400/20{% endif %}">
                       {{ r.status }}
                     </span>
                   </td>
-                  <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ r.created_at }}</td>
+                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ r.created_at }}</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -430,53 +439,49 @@
 
     {% if view != 'manual' and pos_inventory_mode != 'both' %}
       <section class="sa-stock-panel">
-        <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Recent transactions</h4>
+        <div class="sa-stock-panel-head">
+          <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Recent transactions</h4>
+          <span class="sa-stock-panel-meta">{{ (transactions or [])|length }} rows</span>
+        </div>
         {% if not transactions %}
-          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
+          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
         {% else %}
-          <div class="sa-stock-mgmt-table-wrap mt-3 w-full min-w-0 border-t border-[rgb(var(--rc-border))]">
-            <table class="sa-stock-mgmt-table text-sm">
-              <colgroup>
-                <col style="width:16%" /><col style="width:8%" /><col style="width:10%" /><col style="width:12%" /><col style="width:12%" /><col style="width:12%" /><col style="width:12%" /><col style="width:10%" /><col style="width:8%" />
-              </colgroup>
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+          <div class="sa-stock-mgmt-scroll mt-3">
+            <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--wide text-sm">
+              <thead>
                 <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Direction</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Source</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Place</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Seller phone</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop before</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop after</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Reason</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Receipt</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="sa-stock-col-item">Item</th>
+                  <th>Direction</th>
+                  <th>Source</th>
+                  <th class="sa-stock-col-hide-lg">Place</th>
+                  <th class="sa-stock-col-hide-lg">Seller phone</th>
+                  <th class="sa-stock-th--num">Qty</th>
+                  <th class="sa-stock-th--num sa-stock-col-hide-md">Before</th>
+                  <th class="sa-stock-th--num sa-stock-col-hide-md">After</th>
+                  <th class="sa-stock-col-hide-md">Reason</th>
+                  <th class="sa-stock-col-hide-sm">Payment</th>
+                  <th>Receipt</th>
+                  <th class="sa-stock-col-hide-sm">Time</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              <tbody>
                 {% for tx in transactions %}
                   <tr>
-                    <td class="px-3 py-2 font-medium text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.item_name or '—' }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.place_brought_from or '-' }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.seller_phone or '-' }}</td>
-                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.qty }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.shop_stock_before }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.shop_stock_after }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.reason or '-' }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">
-                      {% if tx.payment_status == 'partially_paid' %}
-                        PARTIALLY PAID
-                      {% elif tx.payment_status == 'paid' %}
-                        PAID
-                      {% else %}
-                        PENDING PAYMENT
-                      {% endif %}
+                    <td class="sa-stock-mgmt-item-cell whitespace-nowrap">{{ tx.item_name or '—' }}</td>
+                    <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
+                    <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
+                    <td class="sa-stock-col-hide-lg text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.place_brought_from or '-' }}</td>
+                    <td class="sa-stock-col-hide-lg text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.seller_phone or '-' }}</td>
+                    <td class="sa-stock-td--num">{{ tx.qty }}</td>
+                    <td class="sa-stock-td--num sa-stock-col-hide-md text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_before }}</td>
+                    <td class="sa-stock-td--num sa-stock-col-hide-md text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_after }}</td>
+                    <td class="sa-stock-col-hide-md text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.reason or '-' }}</td>
+                    <td class="sa-stock-col-hide-sm text-[rgb(var(--rc-muted))] whitespace-nowrap">
+                      {% if tx.payment_status == 'partially_paid' %}Partial
+                      {% elif tx.payment_status == 'paid' %}Paid
+                      {% else %}Pending{% endif %}
                     </td>
-                    <td class="px-3 py-2 whitespace-nowrap">
+                    <td class="whitespace-nowrap">
                       {% if (tx.direction or '')|lower == 'in' %}
                         <a href="{{ url_for('shop_stock_in_receipt', shop_id=shop.id, tx_id=tx.id) }}" class="inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">
                           Print
@@ -485,7 +490,7 @@
                         <span class="text-[rgb(var(--rc-muted))]">-</span>
                       {% endif %}
                     </td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
+                    <td class="sa-stock-col-hide-sm text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
                   </tr>
                 {% endfor %}
               </tbody>

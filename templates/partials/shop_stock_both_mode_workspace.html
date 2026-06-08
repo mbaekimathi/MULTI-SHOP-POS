@@ -8,14 +8,16 @@
 {% set store_items_count = (store_items or [])|length %}
 
 <section class="sa-stock-panel">
-  <div class="sa-stock-mgmt-toolbar">
+  <div class="sa-stock-panel-head">
+    <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock in / out</h3>
+    <span class="sa-stock-panel-meta">{{ store_items_count }} item{{ '' if store_items_count == 1 else 's' }}</span>
+  </div>
+  <div class="sa-stock-mgmt-toolbar mt-3">
     <div role="tablist" aria-label="Store stock action mode">
       <button type="button" id="shop-store-mode-in" aria-selected="true" data-mode="in">Stock in</button>
       <button type="button" id="shop-store-mode-out" aria-selected="false" data-mode="out">Stock out</button>
     </div>
-    <span class="sa-stock-count-badge">{{ store_items_count }} item{{ '' if store_items_count == 1 else 's' }}</span>
   </div>
-
   {% if store_items %}
     <div class="sa-stock-search-row">
       <input id="shop-store-live-search" type="search" autocomplete="off" placeholder="Search items…" />
@@ -36,19 +38,23 @@
   >
     <input type="hidden" name="action" value="bulk_store_in" />
     <input type="hidden" name="view" value="{{ view }}" />
-    <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
-    <div class="sa-stock-mgmt-table-wrap">
-      <table class="sa-stock-mgmt-table text-sm">
+    <div class="sa-stock-panel-head">
+      <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-300">Stock in</h3>
+      <span class="sa-stock-panel-meta">Bulk entry</span>
+    </div>
+    <p class="sa-stock-mgmt-table-scroll-hint">Scroll sideways on smaller screens to see all columns.</p>
+    <div class="sa-stock-mgmt-scroll">
+      <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
         <thead>
           <tr>
             <th class="sa-stock-col-item">Item</th>
             <th class="sa-stock-col-stock sa-stock-th--num">Stock</th>
             <th class="sa-stock-col-qty sa-stock-th--in">Qty in</th>
-            <th class="sa-stock-col-price sa-stock-th--in">Buy price</th>
-            <th class="sa-stock-col-phone sa-stock-th--in">Phone</th>
-            <th class="sa-stock-col-seller sa-stock-th--in">Seller</th>
-            <th class="sa-stock-col-pay sa-stock-th--in">Payment</th>
-            <th class="sa-stock-col-note sa-stock-th--in">Note</th>
+            <th class="sa-stock-col-price sa-stock-th--in sa-stock-col-hide-sm">Buy price</th>
+            <th class="sa-stock-col-phone sa-stock-th--in sa-stock-col-hide-lg">Phone</th>
+            <th class="sa-stock-col-seller sa-stock-th--in sa-stock-col-hide-lg">Seller</th>
+            <th class="sa-stock-col-pay sa-stock-th--in sa-stock-col-hide-md">Payment</th>
+            <th class="sa-stock-col-note sa-stock-th--in sa-stock-col-hide-md">Note</th>
           </tr>
         </thead>
         <tbody>
@@ -76,17 +82,17 @@
               <td>
                 <input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="shop-store-in-qty" placeholder="Qty" />
               </td>
-              <td>
+              <td class="sa-stock-col-hide-sm">
                 <input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" autocomplete="off" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" />
               </td>
-              <td>
+              <td class="sa-stock-col-hide-lg">
                 <input name="in_seller_phone_{{ it.id }}" type="text" inputmode="tel" autocomplete="off" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone" placeholder="07…" />
               </td>
-              <td>
+              <td class="sa-stock-col-hide-lg">
                 <input name="in_place_{{ it.id }}" type="text" autocomplete="off" data-seller-name="{{ it.id }}" class="shop-store-seller-name" placeholder="Seller" />
                 <p class="shop-store-seller-hint min-h-[0.75rem]" data-seller-hint="{{ it.id }}"></p>
               </td>
-              <td>
+              <td class="sa-stock-col-hide-md">
                 <select name="in_payment_status_{{ it.id }}">
                   <option value="" selected>—</option>
                   <option value="pending_payment">Unpaid</option>
@@ -94,7 +100,7 @@
                   <option value="paid">Paid</option>
                 </select>
               </td>
-              <td>
+              <td class="sa-stock-col-hide-md">
                 <input name="in_note_{{ it.id }}" type="text" autocomplete="off" placeholder="Note" />
               </td>
             </tr>
@@ -145,18 +151,22 @@
   >
     <input type="hidden" name="action" value="bulk_store_out" />
     <input type="hidden" name="view" value="{{ view }}" />
-    <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
-    <div class="sa-stock-mgmt-table-wrap">
-      <table class="sa-stock-mgmt-table text-sm">
+    <div class="sa-stock-panel-head">
+      <h3 class="text-sm font-bold text-rose-700 dark:text-rose-300">Stock out</h3>
+      <span class="sa-stock-panel-meta">Bulk entry</span>
+    </div>
+    <p class="sa-stock-mgmt-table-scroll-hint">Scroll sideways on smaller screens to see all columns.</p>
+    <div class="sa-stock-mgmt-scroll">
+      <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
         <thead>
           <tr>
             <th class="sa-stock-col-item">Item</th>
             <th class="sa-stock-col-stock sa-stock-th--num">Stock</th>
             <th class="sa-stock-col-qty sa-stock-th--out">Qty out</th>
             <th class="sa-stock-col-reason sa-stock-th--out">Reason</th>
-            <th class="sa-stock-col-refund sa-stock-th--out">Refund?</th>
-            <th class="sa-stock-col-price sa-stock-th--out">Refund amt</th>
-            <th class="sa-stock-col-note sa-stock-th--out">Note</th>
+            <th class="sa-stock-col-refund sa-stock-th--out sa-stock-col-hide-sm">Refund?</th>
+            <th class="sa-stock-col-price sa-stock-th--out sa-stock-col-hide-md">Refund amt</th>
+            <th class="sa-stock-col-note sa-stock-th--out sa-stock-col-hide-lg">Note</th>
           </tr>
         </thead>
         <tbody>
@@ -193,16 +203,16 @@
                   <option value="display">Display</option>
                 </select>
               </td>
-              <td>
+              <td class="sa-stock-col-hide-sm">
                 <select name="out_refunded_{{ it.id }}" class="shop-store-out-refunded" data-item-id="{{ it.id }}">
                   <option value="no" selected>No</option>
                   <option value="yes">Yes</option>
                 </select>
               </td>
-              <td>
+              <td class="sa-stock-col-hide-md">
                 <input name="out_refund_amount_{{ it.id }}" type="number" min="0" step="0.01" disabled autocomplete="off" class="disabled:opacity-45" placeholder="0" />
               </td>
-              <td>
+              <td class="sa-stock-col-hide-lg">
                 <input name="out_note_{{ it.id }}" type="text" autocomplete="off" placeholder="Note" />
               </td>
             </tr>
@@ -244,13 +254,16 @@
 {% endif %}
 
 <section class="sa-stock-panel">
-  <h4 class="sa-stock-panel__title">Recent activity</h4>
+  <div class="sa-stock-panel-head">
+    <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Recent activity</h4>
+    <span class="sa-stock-panel-meta">{{ (store_tx or [])|length }} lines</span>
+  </div>
   {% if not store_tx %}
-    <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
+    <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
   {% else %}
-    <p class="sa-stock-mgmt-table-scroll-hint">Swipe horizontally to see all columns.</p>
-    <div class="sa-stock-mgmt-table-wrap">
-      <table class="sa-stock-mgmt-table sa-stock-mgmt-table--wide text-xs">
+    <p class="sa-stock-mgmt-table-scroll-hint">Scroll sideways on smaller screens to see all columns.</p>
+    <div class="sa-stock-mgmt-scroll">
+      <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--wide text-xs">
         <thead>
           <tr>
             <th class="sa-stock-col-item">Item</th>

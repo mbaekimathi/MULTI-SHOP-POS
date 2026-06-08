@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html
+  lang="en"
+  class="scroll-smooth"
+  data-theme-key="{{ theme_key if theme_key else 'richcom-theme' }}"
+  data-theme-default="{{ theme_default|default(site_settings.default_theme if site_settings else 'dark', true) }}"
+  data-theme-preset="{{ theme_preset|default(site_settings.theme_preset if site_settings else 'eye-comfort', true) }}"
+  style="--rc-font-family: {{ (font_family|default(portal_font_family|default(site_settings.font_family if site_settings else 'Plus Jakarta Sans', true), true))|font_stack }}"
+>
+  <head>
+    {% include "partials/system_public_brand.html" %}
+    <meta charset="utf-8" />
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var KEY = root.getAttribute("data-theme-key") || "richcom-theme";
+        var DEFAULT = root.getAttribute("data-theme-default") || "dark";
+        function resolveDefault(def) {
+          if (def === "system") {
+            try {
+              return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            } catch (e2) {
+              return "dark";
+            }
+          }
+          return def === "light" || def === "dark" ? def : "dark";
+        }
+        try {
+          var t = localStorage.getItem(KEY);
+          var theme = t === "light" || t === "dark" ? t : resolveDefault(DEFAULT);
+          root.dataset.theme = theme;
+          root.classList.toggle("dark", theme === "dark");
+          root.style.colorScheme = theme === "dark" ? "dark" : "light";
+        } catch (e) {
+          var fallback = resolveDefault(DEFAULT);
+          root.dataset.theme = fallback;
+          root.classList.toggle("dark", fallback === "dark");
+          root.style.colorScheme = fallback === "dark" ? "dark" : "light";
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    {% set _app_icon = (site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg') %}
+    {% set _app_name = (site_settings.company_name if site_settings and site_settings.company_name else 'Point of Sale') %}
+    {% set _app_short_name = (_app_name.split()[0] if _app_name else 'POS')[:12] %}
+    {% set _primary_hex = (site_settings.primary_color if site_settings and site_settings.primary_color else '#f97316') %}
+    <link rel="icon" href="{{ url_for('static', filename=_app_icon) }}" />
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/app-icon-192.png') }}" />
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
+    <link rel="apple-touch-icon" sizes="192x192" href="{{ url_for('static', filename='icons/app-icon-192.png') }}" />
+    <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename=_app_icon) }}" />
+    <link rel="mask-icon" href="{{ url_for('static', filename='icons/app-icon-monochrome.svg') }}" color="{{ _primary_hex }}" />
+    <link rel="manifest" href="{{ url_for('pwa_manifest') }}" />
+    <meta name="theme-color" content="{{ _primary_hex }}" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="{{ _app_short_name }}" />
+    <meta name="application-name" content="{{ _app_name }}" />
+    <meta name="msapplication-TileColor" content="{{ _primary_hex }}" />
+    <meta name="msapplication-TileImage" content="{{ url_for('static', filename=_app_icon) }}" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>{% block title %}{{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}</title>
+    <meta name="description" content="{{ site_settings.company_name if site_settings else 'Point of Sale' }} — point of sale." />
+    {% include "partials/theme_font_link.html" %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind-pos.css') }}?v=1" />
+    <style>
+      html {
+        --rc-primary: {{ primary_color_rgb if primary_color_rgb else (site_settings.primary_color_rgb if site_settings else '249 115 22') }};
+        --rc-accent: {{ accent_color_rgb if accent_color_rgb else (site_settings.accent_color_rgb if site_settings else '251 146 60') }};
+      }
+      html[data-theme="light"] {
+        color-scheme: light;
+      }
+      html[data-theme="dark"] {
+        color-scheme: dark;
+      }
+      {% include "partials/theme_preset_styles.html" %}
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base-pos-shell.css') }}?v=1" />
+    {% block head %}{% endblock %}
+  </head>
+  <body class="antialiased transition-[background-color,color] duration-200 font-sans">
+    {% block body %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa-install.css') }}" />
+    <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/pwa-install.js') }}" defer></script>
+  </body>
+</html>

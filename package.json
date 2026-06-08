@@ -1,0 +1,11 @@
+{
+  "name": "pos-multi-shops",
+  "private": true,
+  "description": "Build tooling for POS static assets",
+  "scripts": {
+    "build:pos-css": "tailwindcss -c tailwind.pos.config.js -i static/css/tailwind-pos.src.css -o static/css/tailwind-pos.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

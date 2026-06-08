@@ -1,0 +1,55 @@
+{# Runtime config for deferred POS JavaScript bundles. #}
+{% if shop.shop_logo %}
+  {% set receipt_logo_url = url_for('static', filename=shop.shop_logo) %}
+{% elif site_settings and site_settings.app_icon %}
+  {% set receipt_logo_url = url_for('static', filename=site_settings.app_icon) %}
+{% else %}
+  {% set receipt_logo_url = url_for('static', filename='app-icon.svg') %}
+{% endif %}
+<script>
+  window.__POS_BOOT = {{ {
+    "shopId": shop.id|int,
+    "inventoryMode": pos_inventory_mode,
+    "printing": pos_printing_settings,
+    "receiptSettings": pos_receipt_settings,
+    "holdEnabled": (pos_printing_settings.pos_cart_mode == 'withhold'),
+    "apis": {
+      "stockIn": url_for('shop_pos_stock_in', shop_id=shop.id),
+      "refillPortions": url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id) if pos_inventory_mode in ('kitchen', 'both') else "",
+      "authorizeEmployee": url_for('shop_pos_authorize_employee', shop_id=shop.id),
+      "employeeAuthCache": url_for('shop_pos_employee_auth_cache', shop_id=shop.id),
+      "customerLookup": url_for('shop_pos_customer_lookup', shop_id=shop.id),
+      "customerUpsert": url_for('shop_pos_customer_upsert', shop_id=shop.id),
+      "recordSale": url_for('shop_pos_record_sale', shop_id=shop.id),
+      "recordQuote": url_for('shop_pos_record_quote', shop_id=shop.id),
+      "sellerLookup": url_for('seller_lookup'),
+      "catalogStock": url_for('shop_pos_catalog_json', shop_id=shop.id),
+      "receiptsList": url_for('shop_receipts_list_json', shop_id=shop.id),
+      "receiptsMark": url_for('shop_receipts_mark', shop_id=shop.id),
+      "receiptsDetail": url_for('shop_receipts_detail', shop_id=shop.id),
+      "receiptsReturnLines": url_for('shop_receipts_return_lines', shop_id=shop.id),
+      "printer": url_for('shop_pos_printer', shop_id=shop.id),
+      "printerQrEscpos": url_for('shop_pos_printer_qr_escpos', shop_id=shop.id),
+      "printerSendEscpos": url_for('shop_pos_printer_send_escpos', shop_id=shop.id),
+      "printerScanNetwork": url_for('shop_pos_printer_scan_network', shop_id=shop.id),
+      "printerScanNetworkStream": url_for('shop_pos_printer_scan_network_stream', shop_id=shop.id),
+      "printAgentStatus": url_for('shop_pos_print_agent_status', shop_id=shop.id),
+      "printAgentConfigure": url_for('shop_pos_print_agent_configure', shop_id=shop.id),
+      "printerTcpReachable": url_for('shop_pos_printer_tcp_reachable', shop_id=shop.id),
+      "incomingStockRequests": url_for('shop_pos_incoming_stock_requests_json', shop_id=shop.id),
+      "holdSave": url_for('shop_pos_hold_save', shop_id=shop.id),
+      "holdList": url_for('shop_pos_hold_list', shop_id=shop.id),
+      "holdGetBase": ('/shops/' ~ shop.id|string ~ '/shop-pos/hold/'),
+    },
+    "site": {
+      "company_name": (site_settings.company_name if site_settings else "") or "",
+      "company_email": (site_settings.company_email if site_settings else "") or "",
+      "company_phone": (site_settings.company_phone if site_settings else "") or "",
+      "shop_name": shop.shop_name or "",
+      "shop_code": shop.shop_code or "",
+      "shop_location": shop.shop_location or "",
+      "app_icon_url": url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'),
+      "receipt_logo_url": receipt_logo_url,
+    },
+  }|tojson }};
+</script>
