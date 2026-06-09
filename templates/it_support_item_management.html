@@ -160,6 +160,27 @@
       </div>
       <p id="item-mgmt-search-meta" class="text-xs text-[rgb(var(--rc-muted))]" aria-live="polite"></p>
 
+      <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-xs">
+        <span class="font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Bulk actions</span>
+        <form method="post" action="{{ url_for('it_support_item_bulk_status') }}" class="inline">
+          <input type="hidden" name="state" value="on">
+          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn status ON for all items?');">Status all on</button>
+        </form>
+        <form method="post" action="{{ url_for('it_support_item_bulk_status') }}" class="inline">
+          <input type="hidden" name="state" value="off">
+          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn status OFF for all items?');">Status all off</button>
+        </form>
+        <span class="hidden h-4 w-px bg-[rgb(var(--rc-border))] sm:inline" aria-hidden="true"></span>
+        <form method="post" action="{{ url_for('it_support_item_bulk_stock_update') }}" class="inline">
+          <input type="hidden" name="state" value="on">
+          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_col_short }} ON for all items?');">{{ inv_col_short }} all on</button>
+        </form>
+        <form method="post" action="{{ url_for('it_support_item_bulk_stock_update') }}" class="inline">
+          <input type="hidden" name="state" value="off">
+          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_col_short }} OFF for all items?');">{{ inv_col_short }} all off</button>
+        </form>
+      </div>
+
       {# Desktop table #}
       <div class="hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-black/5 md:block">
         <div class="overflow-x-auto">
@@ -172,8 +193,32 @@
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Original</th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Selling</th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Stock</th>
-                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Status</th>
-                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">{{ inv_col_short }}</th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
+                  <div>Status</div>
+                  <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
+                    <form method="post" action="{{ url_for('it_support_item_bulk_status') }}" class="inline">
+                      <input type="hidden" name="state" value="on">
+                      <button type="submit" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700" onclick="return confirm('Turn status ON for all items?');">All on</button>
+                    </form>
+                    <form method="post" action="{{ url_for('it_support_item_bulk_status') }}" class="inline">
+                      <input type="hidden" name="state" value="off">
+                      <button type="submit" class="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700" onclick="return confirm('Turn status OFF for all items?');">All off</button>
+                    </form>
+                  </div>
+                </th>
+                <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
+                  <div>{{ inv_col_short }}</div>
+                  <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
+                    <form method="post" action="{{ url_for('it_support_item_bulk_stock_update') }}" class="inline">
+                      <input type="hidden" name="state" value="on">
+                      <button type="submit" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_col_short }} ON for all items?');">All on</button>
+                    </form>
+                    <form method="post" action="{{ url_for('it_support_item_bulk_stock_update') }}" class="inline">
+                      <input type="hidden" name="state" value="off">
+                      <button type="submit" class="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_col_short }} OFF for all items?');">All off</button>
+                    </form>
+                  </div>
+                </th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>

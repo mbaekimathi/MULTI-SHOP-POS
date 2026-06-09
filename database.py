@@ -1506,6 +1506,55 @@ def toggle_stock_update(item_id: int) -> bool:
     return ok
 
 
+def set_all_items_status(active: bool) -> int:
+    """Activate or suspend every catalog item; sync shop rows to match company master flags."""
+    status = "active" if active else "suspended"
+    with get_cursor(commit=True) as cur:
+        cur.execute("UPDATE items SET status=%s", (status,))
+        count = int(cur.rowcount or 0)
+    if count <= 0:
+        return 0
+    with get_cursor(commit=True) as cur:
+        if active:
+            cur.execute(
+                """
+                UPDATE shop_items si
+                INNER JOIN items i ON i.id = si.item_id
+                SET
+                  si.displayed = IF(i.stock_update_enabled=1, 1, si.displayed),
+                  si.stock_update_enabled = IF(i.stock_update_enabled=1, 1, 0)
+                WHERE i.status = 'active'
+                """
+            )
+        else:
+            cur.execute("UPDATE shop_items SET displayed=0, stock_update_enabled=0")
+    return count
+
+
+def set_all_items_stock_update(enabled: bool) -> int:
+    """Enable or disable company stock/POS inventory master for every catalog item."""
+    val = 1 if enabled else 0
+    with get_cursor(commit=True) as cur:
+        cur.execute("UPDATE items SET stock_update_enabled=%s", (val,))
+        count = int(cur.rowcount or 0)
+    if count <= 0:
+        return 0
+    with get_cursor(commit=True) as cur:
+        if enabled:
+            cur.execute(
+                """
+                UPDATE shop_items si
+                INNER JOIN items i ON i.id = si.item_id
+                SET
+                  si.displayed = IF(i.status='active', 1, si.displayed),
+                  si.stock_update_enabled = IF(i.status='active', 1, 0)
+                """
+            )
+        else:
+            cur.execute("UPDATE shop_items SET stock_update_enabled=0")
+    return count
+
+
 def delete_item(item_id: int) -> bool:
     sql = "DELETE FROM items WHERE id=%s"
     with get_cursor(commit=True) as cur:
@@ -10257,7 +10306,9 @@ def seed_shop_items_for_company_item(item_id: int, origin_shop_id: Optional[int]
     insert_sql = """
     INSERT INTO shop_items (shop_id, item_id, shop_stock_qty, stock_update_enabled, displayed)
     VALUES (%s, %s, 0, %s, %s)
-    ON DUPLICATE KEY UPDATE shop_id=shop_id
+    ON DUPLICATE KEY UPDATE
+        stock_update_enabled = VALUES(stock_update_enabled),
+        displayed = VALUES(displayed)
     """
     with get_cursor(commit=True) as cur:
         for s in shops:
@@ -10398,6 +10449,49 @@ def toggle_shop_item_displayed(shop_id: int, item_id: int) -> bool:
         cur.execute(ver, (int(shop_id), int(item_id)))
         vr = cur.fetchone() or {}
     return int(vr.get("displayed") or 0) == new_d
+
+
+def set_all_shop_items_displayed(shop_id: int, displayed: bool) -> int:
+    """Turn display on/off for every shop item row (on requires company item active)."""
+    sid = int(shop_id)
+    with get_cursor(commit=True) as cur:
+        if displayed:
+            cur.execute(
+                """
+                UPDATE shop_items si
+                INNER JOIN items i ON i.id = si.item_id
+                SET si.displayed = 1
+                WHERE si.shop_id = %s AND i.status = 'active'
+                """,
+                (sid,),
+            )
+        else:
+            cur.execute("UPDATE shop_items SET displayed=0 WHERE shop_id=%s", (sid,))
+        return int(cur.rowcount or 0)
+
+
+def set_all_shop_items_stock_update_enabled(shop_id: int, enabled: bool) -> int:
+    """Turn shop stock/POS updates on/off for every item (on requires company active + master on)."""
+    sid = int(shop_id)
+    with get_cursor(commit=True) as cur:
+        if enabled:
+            cur.execute(
+                """
+                UPDATE shop_items si
+                INNER JOIN items i ON i.id = si.item_id
+                SET si.stock_update_enabled = 1
+                WHERE si.shop_id = %s
+                  AND i.status = 'active'
+                  AND i.stock_update_enabled = 1
+                """,
+                (sid,),
+            )
+        else:
+            cur.execute(
+                "UPDATE shop_items SET stock_update_enabled=0 WHERE shop_id=%s",
+                (sid,),
+            )
+        return int(cur.rowcount or 0)
 
 
 def toggle_shop_item_stock_update_enabled(shop_id: int, item_id: int) -> bool:

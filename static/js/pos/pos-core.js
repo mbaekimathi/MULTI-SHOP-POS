@@ -7903,6 +7903,42 @@ var saleType = "sale";
           return null;
         }
 
+        function posCatalogItemIdsFromDom() {
+          var ids = [];
+          document.querySelectorAll(".pos-item-card[data-item-id]").forEach(function (btn) {
+            var id = parseInt(btn.getAttribute("data-item-id"), 10);
+            if (isFinite(id) && id > 0) ids.push(id);
+          });
+          ids.sort(function (a, b) {
+            return a - b;
+          });
+          return ids;
+        }
+
+        function posCatalogItemIdsFromPayload(items) {
+          var ids = [];
+          (items || []).forEach(function (row) {
+            var id = parseInt(row && row.id, 10);
+            if (isFinite(id) && id > 0) ids.push(id);
+          });
+          ids.sort(function (a, b) {
+            return a - b;
+          });
+          return ids;
+        }
+
+        function posCatalogIdsMismatch(apiItems) {
+          var domIds = posCatalogItemIdsFromDom();
+          var apiIds = posCatalogItemIdsFromPayload(apiItems);
+          if (domIds.length !== apiIds.length) return true;
+          for (var i = 0; i < domIds.length; i++) {
+            if (domIds[i] !== apiIds[i]) return true;
+          }
+          return false;
+        }
+
+        var catalogReloadPending = false;
+
         function fetchCatalogStock() {
           if (!CATALOG_STOCK_API) return;
           fetch(CATALOG_STOCK_API, {
@@ -7918,11 +7954,19 @@ var saleType = "sale";
               if (!j || !j.ok) return;
               var nm = normalizeCatalogInventoryMode(j.inventory_mode);
               if (nm) window.POS_INVENTORY_MODE = nm;
-              if (j.items && j.items.length) {
-                applyCatalogStockRows(j.items);
+              var items = Array.isArray(j.items) ? j.items : [];
+              if (posCatalogIdsMismatch(items)) {
+                if (!catalogReloadPending) {
+                  catalogReloadPending = true;
+                  location.reload();
+                }
+                return;
+              }
+              if (items.length) {
+                applyCatalogStockRows(items);
                 saveCatalogSnapshot({
                   inventory_mode: window.POS_INVENTORY_MODE || "shop",
-                  items: Array.isArray(j.items) ? j.items : [],
+                  items: items,
                   source: "network",
                   saved_at: new Date().toISOString(),
                 }).catch(function () {});

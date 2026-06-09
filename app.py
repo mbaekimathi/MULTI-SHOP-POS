@@ -115,6 +115,7 @@ def _shop_role_preview_template_ctx(role_key: str) -> dict[str, Any]:
 
 # Shop shell sidebar / pages (respects super-admin & IT "view as" preview via session.shop_role_preview).
 SHOP_SHELL_CAN_ROLES: dict[str, frozenset[str]] = {
+    "item_toggles": frozenset(SHOP_UI_PREVIEW_ROLES),
     "manage_items": frozenset({"manager", "admin"}),
     "stock": frozenset({"manager", "admin"}),
     "kitchen_portions": frozenset({"manager", "admin"}),
@@ -2671,8 +2672,13 @@ def it_support_register_item():
             return redirect(url_for("it_support_register_item"))
 
         try:
-            from database import create_item
+            from database import (
+                create_item,
+                init_shop_items_table,
+                seed_shop_items_for_company_item,
+            )
 
+            init_shop_items_table()
             new_item_id = create_item(
                 category=category,
                 name=name,
@@ -2683,6 +2689,8 @@ def it_support_register_item():
                 status="active",
                 created_by_employee_id=session.get("employee_id"),
             )
+            if new_item_id:
+                seed_shop_items_for_company_item(int(new_item_id))
         except Exception:
             flash("Could not register item. Check database connection.", "error")
             return redirect(url_for("it_support_register_item"))
@@ -5133,6 +5141,75 @@ def it_support_item_toggle_stock_update(item_id: int):
     return redirect(url_for("it_support_item_management"))
 
 
+@app.route("/it_support/item-management/bulk-status", methods=["POST"])
+@login_required
+def it_support_item_bulk_status():
+    _it_support_only()
+    state = (request.form.get("state") or "").strip().lower()
+    active = state == "on"
+    if state not in ("on", "off"):
+        flash("Invalid bulk status action.", "error")
+        return redirect(url_for("it_support_item_management"))
+    try:
+        from database import set_all_items_status
+
+        count = set_all_items_status(active)
+    except Exception:
+        count = 0
+    if count > 0:
+        flash(
+            f"All {count} item(s) {'activated' if active else 'suspended'}.",
+            "success",
+        )
+    else:
+        flash("No items to update.", "error")
+    return redirect(url_for("it_support_item_management"))
+
+
+@app.route("/it_support/item-management/bulk-stock-update", methods=["POST"])
+@login_required
+def it_support_item_bulk_stock_update():
+    _it_support_only()
+    state = (request.form.get("state") or "").strip().lower()
+    enabled = state == "on"
+    if state not in ("on", "off"):
+        flash("Invalid bulk stock action.", "error")
+        return redirect(url_for("it_support_item_management"))
+    try:
+        from database import set_all_items_stock_update
+
+        count = set_all_items_stock_update(enabled)
+    except Exception:
+        count = 0
+    m = _pos_inventory_mode_from_ps(_load_printing_settings())
+    if count > 0:
+        if enabled:
+            if m == "kitchen":
+                flash(f"Kitchen portion updates enabled for all {count} item(s).", "success")
+            elif m == "shop":
+                flash(f"Stock updates enabled for all {count} item(s).", "success")
+            elif m == "both":
+                flash(
+                    f"Kitchen portion (POS) updates enabled for all {count} item(s). "
+                    "Shelf stock remains in branch Stock management.",
+                    "success",
+                )
+            else:
+                flash(f"POS inventory master enabled for all {count} item(s).", "success")
+        else:
+            if m == "kitchen":
+                flash(f"Kitchen portion updates disabled for all {count} item(s).", "success")
+            elif m == "shop":
+                flash(f"Stock updates disabled for all {count} item(s).", "success")
+            elif m == "both":
+                flash(f"Kitchen portion (POS) updates disabled for all {count} item(s).", "success")
+            else:
+                flash(f"POS inventory master disabled for all {count} item(s).", "success")
+    else:
+        flash("No items to update.", "error")
+    return redirect(url_for("it_support_item_management"))
+
+
 @app.route("/it_support/items/<int:item_id>/delete", methods=["POST"])
 @login_required
 def it_support_item_delete(item_id: int):
@@ -6587,6 +6664,7 @@ def shop_pos(shop_id: int):
     try:
         items = _load_shop_pos_catalog_rows(shop_id)
     except Exception:
+        app.logger.exception("shop_pos catalog load failed for shop %s", shop_id)
         items = []
 
     inventory_mode = _pos_inventory_mode(shop)
@@ -11496,6 +11574,87 @@ def shop_item_toggle_stock_update_enabled(shop_id: int, item_id: int):
             "Toggle was not saved. To turn ON, the company item must be active and IT must enable the master POS "
             "inventory toggle under item management.",
             "error",
+        )
+    return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+
+@app.route("/shops/<int:shop_id>/shop-item-management/bulk-display", methods=["POST"])
+def shop_item_bulk_display(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    state = (request.form.get("state") or "").strip().lower()
+    displayed = state == "on"
+    if state not in ("on", "off"):
+        flash("Invalid bulk display action.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+    try:
+        from database import ensure_shop_items_for_shop, set_all_shop_items_displayed
+
+        ensure_shop_items_for_shop(shop_id)
+        count = set_all_shop_items_displayed(shop_id, displayed)
+    except Exception:
+        count = 0
+    if count > 0:
+        flash(
+            f"Display turned {'on' if displayed else 'off'} for {count} item(s) at this shop.",
+            "success",
+        )
+    else:
+        flash(
+            "No items updated."
+            if not displayed
+            else "No items updated — company items must be active before display can be turned on.",
+            "error" if displayed else "success",
+        )
+    return redirect(url_for("shop_item_management", shop_id=shop_id))
+
+
+@app.route("/shops/<int:shop_id>/shop-item-management/bulk-stock-update", methods=["POST"])
+def shop_item_bulk_stock_update(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    state = (request.form.get("state") or "").strip().lower()
+    enabled = state == "on"
+    if state not in ("on", "off"):
+        flash("Invalid bulk stock action.", "error")
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
+    try:
+        from database import ensure_shop_items_for_shop, set_all_shop_items_stock_update_enabled
+
+        ensure_shop_items_for_shop(shop_id)
+        count = set_all_shop_items_stock_update_enabled(shop_id, enabled)
+    except Exception:
+        count = 0
+    mode = _pos_inventory_mode(shop)
+    if count > 0:
+        if enabled:
+            if mode == "kitchen":
+                flash(f"Kitchen portion updates turned on for {count} item(s).", "success")
+            elif mode == "shop":
+                flash(f"Shop stock updates turned on for {count} item(s).", "success")
+            elif mode == "both":
+                flash(f"Kitchen portion (POS) updates turned on for {count} item(s).", "success")
+            else:
+                flash(f"POS inventory updates turned on for {count} item(s).", "success")
+        else:
+            if mode == "kitchen":
+                flash(f"Kitchen portion updates turned off for {count} item(s).", "success")
+            elif mode == "shop":
+                flash(f"Shop stock updates turned off for {count} item(s).", "success")
+            elif mode == "both":
+                flash(f"Kitchen portion (POS) updates turned off for {count} item(s).", "success")
+            else:
+                flash(f"POS inventory updates turned off for {count} item(s).", "success")
+    else:
+        flash(
+            "No items updated."
+            if not enabled
+            else "No items updated — company items must be active with stock master on before shop stock can be turned on.",
+            "error" if enabled else "success",
         )
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 

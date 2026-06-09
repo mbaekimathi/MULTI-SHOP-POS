@@ -62,7 +62,27 @@
         No items yet.
       </div>
     {% else %}
-      <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      <div class="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-xs">
+        <span class="font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Bulk actions</span>
+        <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
+          <input type="hidden" name="state" value="on">
+          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn display ON for all items at this shop?');">Display all on</button>
+        </form>
+        <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
+          <input type="hidden" name="state" value="off">
+          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn display OFF for all items at this shop?');">Display all off</button>
+        </form>
+        <span class="hidden h-4 w-px bg-[rgb(var(--rc-border))] sm:inline" aria-hidden="true"></span>
+        <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
+          <input type="hidden" name="state" value="on">
+          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_toggle_col }} ON for all items at this shop?');">{{ inv_toggle_col }} all on</button>
+        </form>
+        <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
+          <input type="hidden" name="state" value="off">
+          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_toggle_col }} OFF for all items at this shop?');">{{ inv_toggle_col }} all off</button>
+        </form>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
         <div class="overflow-x-auto">
           <table class="min-w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
@@ -73,8 +93,32 @@
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Original selling</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Selling price</th>
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Shop stock</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Display</th>
-                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">{{ inv_toggle_col }}</th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                  <div>Display</div>
+                  <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
+                    <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
+                      <input type="hidden" name="state" value="on">
+                      <button type="submit" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700" onclick="return confirm('Turn display ON for all items at this shop?');">All on</button>
+                    </form>
+                    <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
+                      <input type="hidden" name="state" value="off">
+                      <button type="submit" class="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700" onclick="return confirm('Turn display OFF for all items at this shop?');">All off</button>
+                    </form>
+                  </div>
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                  <div>{{ inv_toggle_col }}</div>
+                  <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
+                    <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
+                      <input type="hidden" name="state" value="on">
+                      <button type="submit" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_toggle_col }} ON for all items at this shop?');">All on</button>
+                    </form>
+                    <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
+                      <input type="hidden" name="state" value="off">
+                      <button type="submit" class="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_toggle_col }} OFF for all items at this shop?');">All off</button>
+                    </form>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -121,139 +165,130 @@
                     </td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ "%.2f"|format(item.price) }}</td>
                     <td class="px-4 py-3 align-top">
+                      {% set sell_price_val = '%.2f'|format(item.selling_price if item.selling_price is not none else item.price) %}
                       {% if shop_shell_can('manage_items') %}
-                        <form
-                          method="post"
-                          action="{{ url_for('shop_item_update_selling_price', shop_id=shop.id, item_id=item.id) }}"
-                          class="flex flex-wrap items-center gap-2"
+                        <div
+                          class="shop-sell-price-cell"
+                          data-sell-price="{{ sell_price_val }}"
                         >
-                          <input
-                            type="number"
-                            name="selling_price"
-                            step="0.01"
-                            min="0"
-                            required
-                            value="{{ '%.2f'|format(item.selling_price if item.selling_price is not none else item.price) }}"
-                            class="w-28 min-w-0 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]"
-                          />
-                          <button type="submit" class="btn-rc btn-rc-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide">Save</button>
-                        </form>
+                          <div class="shop-sell-price-view flex flex-wrap items-center gap-2">
+                            <span class="font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ sell_price_val }}</span>
+                            <button
+                              type="button"
+                              class="shop-sell-price-edit-btn btn-rc btn-rc-ghost px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+                              aria-label="Edit selling price for {{ item.name }}"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                          <form
+                            method="post"
+                            action="{{ url_for('shop_item_update_selling_price', shop_id=shop.id, item_id=item.id) }}"
+                            class="shop-sell-price-form hidden flex-wrap items-center gap-2"
+                            hidden
+                          >
+                            <input
+                              type="number"
+                              name="selling_price"
+                              step="0.01"
+                              min="0"
+                              required
+                              value="{{ sell_price_val }}"
+                              inputmode="decimal"
+                              class="shop-sell-price-input w-28 min-w-0 rounded-lg border border-[rgb(var(--rc-primary))]/40 bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))] ring-2 ring-[rgb(var(--rc-primary))]/15"
+                            />
+                            <button type="submit" class="btn-rc btn-rc-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide">Save</button>
+                            <button type="button" class="shop-sell-price-cancel-btn btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-bold uppercase tracking-wide">Cancel</button>
+                          </form>
+                        </div>
                       {% else %}
-                        <span class="font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</span>
+                        <span class="font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ sell_price_val }}</span>
                       {% endif %}
                     </td>
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.shop_stock_qty }}</td>
 
                     <td class="px-4 py-3">
-                      {% if shop_shell_can('manage_items') %}
-                        <form method="post" action="{{ url_for('shop_item_toggle_displayed', shop_id=shop.id, item_id=item.id) }}">
-                          <div class="flex items-center justify-start gap-3">
-                            <button
-                              type="submit"
-                              class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
-                              {% if item.displayed == 1 %}
-                                bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
-                              {% else %}
-                                bg-rose-600 ring-rose-700 hover:bg-rose-700
-                              {% endif %}
-                              {% if display_switch_locked_on %}cursor-not-allowed opacity-55{% endif %}"
-                              role="switch"
-                              aria-checked="{% if item.displayed == 1 %}true{% else %}false{% endif %}"
-                              {% if display_switch_locked_on %}
-                                disabled
-                                title="Company item suspended — IT must activate before this shop can show it on POS."
-                              {% else %}
-                                title="Toggle display for this shop"
-                              {% endif %}
-                            >
-                              <span class="sr-only">
-                                {% if item.displayed == 1 %}Display{% else %}Hidden{% endif %}
-                              </span>
-                              <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
-                                <span
-                                  class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
-                                  {% if item.displayed == 1 %}translate-x-5{% else %}translate-x-0{% endif %}"
-                                ></span>
-                              </span>
-                            </button>
-                            <span class="text-[11px] font-extrabold uppercase tracking-wider">
+                      <form method="post" action="{{ url_for('shop_item_toggle_displayed', shop_id=shop.id, item_id=item.id) }}">
+                        <div class="flex items-center justify-start gap-3">
+                          <button
+                            type="submit"
+                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
+                            {% if item.displayed == 1 %}
+                              bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
+                            {% else %}
+                              bg-rose-600 ring-rose-700 hover:bg-rose-700
+                            {% endif %}
+                            {% if display_switch_locked_on %}cursor-not-allowed opacity-55{% endif %}"
+                            role="switch"
+                            aria-checked="{% if item.displayed == 1 %}true{% else %}false{% endif %}"
+                            {% if display_switch_locked_on %}
+                              disabled
+                              title="Company item suspended — IT must activate before this shop can show it on POS."
+                            {% else %}
+                              title="Toggle display for this shop"
+                            {% endif %}
+                          >
+                            <span class="sr-only">
                               {% if item.displayed == 1 %}Display{% else %}Hidden{% endif %}
                             </span>
-                          </div>
-                        </form>
-                      {% else %}
-                        <span
-                          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
-                          {% if item.displayed == 1 %}
-                            bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
-                          {% else %}
-                            bg-rose-500/10 text-rose-300 ring-rose-400/20
-                          {% endif %}"
-                        >
-                          <span class="h-1.5 w-1.5 rounded-full {% if item.displayed == 1 %}bg-emerald-400 animate-pulse{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
-                          {% if item.displayed == 1 %}Display{% else %}Hidden{% endif %}
-                        </span>
-                      {% endif %}
+                            <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
+                              <span
+                                class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
+                                {% if item.displayed == 1 %}translate-x-5{% else %}translate-x-0{% endif %}"
+                              ></span>
+                            </span>
+                          </button>
+                          <span class="text-[11px] font-extrabold uppercase tracking-wider">
+                            {% if item.displayed == 1 %}Display{% else %}Hidden{% endif %}
+                          </span>
+                        </div>
+                      </form>
                     </td>
 
                     <td class="px-4 py-3">
-                      {% if shop_shell_can('manage_items') %}
-                        <form method="post" action="{{ url_for('shop_item_toggle_stock_update_enabled', shop_id=shop.id, item_id=item.id) }}">
-                          <div class="flex items-center justify-start gap-3">
-                            <button
-                              type="submit"
-                              class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
-                              {% if (item.stock_update_enabled|default(0)|int) == 1 %}
-                                bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
+                      <form method="post" action="{{ url_for('shop_item_toggle_stock_update_enabled', shop_id=shop.id, item_id=item.id) }}">
+                        <div class="flex items-center justify-start gap-3">
+                          <button
+                            type="submit"
+                            class="btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition
+                            {% if (item.stock_update_enabled|default(0)|int) == 1 %}
+                              bg-emerald-600 ring-emerald-700 hover:bg-emerald-700
+                            {% else %}
+                              bg-rose-600 ring-rose-700 hover:bg-rose-700
+                            {% endif %}
+                            {% if stock_switch_locked_on %}cursor-not-allowed opacity-55{% endif %}"
+                            role="switch"
+                            aria-checked="{% if (item.stock_update_enabled|default(0)|int) == 1 %}true{% else %}false{% endif %}"
+                            {% if stock_switch_locked_on %}
+                              disabled
+                              title="{% if pos_is_kitchen %}Company POS inventory master is off for this item or it is suspended — IT must enable the catalog toggle before portions can deduct at checkout.{% elif pos_is_shop %}Company stock updates are off or the item is suspended — IT must enable before this shop can turn stock updates on.{% elif pos_is_both %}Company master is off or the item is suspended — IT must enable the catalog toggle before portions and shop stock can deduct.{% else %}Company POS inventory master is off or the item is suspended — IT must enable the catalog toggle first.{% endif %}"
+                            {% else %}
+                              title="{% if pos_is_kitchen %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen portion deduction at POS for this item{% else %}Turn ON kitchen portion deduction at POS for this item{% endif %}{% elif pos_is_shop %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn shop stock update OFF for this shop{% else %}Turn shop stock update ON for this shop{% endif %}{% elif pos_is_both %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen + shop deductions for this item{% else %}Turn ON kitchen + shop deductions for this item{% endif %}{% else %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF POS inventory tracking for this item{% else %}Turn ON POS inventory tracking for this item{% endif %}{% endif %}"
+                            {% endif %}
+                          >
+                            <span class="sr-only">
+                              {% if pos_is_kitchen %}
+                                {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN PORTION UPDATE ON{% else %}KITCHEN PORTION UPDATE OFF{% endif %}
+                              {% elif pos_is_shop %}
+                                {% if (item.stock_update_enabled|default(0)|int) == 1 %}SHOP STOCK UPDATE ON{% else %}SHOP STOCK UPDATE OFF{% endif %}
+                              {% elif pos_is_both %}
+                                {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN + STOCK UPDATE ON{% else %}KITCHEN + STOCK UPDATE OFF{% endif %}
                               {% else %}
-                                bg-rose-600 ring-rose-700 hover:bg-rose-700
+                                {% if (item.stock_update_enabled|default(0)|int) == 1 %}POS INVENTORY TRACKING ON{% else %}POS INVENTORY TRACKING OFF{% endif %}
                               {% endif %}
-                              {% if stock_switch_locked_on %}cursor-not-allowed opacity-55{% endif %}"
-                              role="switch"
-                              aria-checked="{% if (item.stock_update_enabled|default(0)|int) == 1 %}true{% else %}false{% endif %}"
-                              {% if stock_switch_locked_on %}
-                                disabled
-                                title="{% if pos_is_kitchen %}Company POS inventory master is off for this item or it is suspended — IT must enable the catalog toggle before portions can deduct at checkout.{% elif pos_is_shop %}Company stock updates are off or the item is suspended — IT must enable before this shop can turn stock updates on.{% elif pos_is_both %}Company master is off or the item is suspended — IT must enable the catalog toggle before portions and shop stock can deduct.{% else %}Company POS inventory master is off or the item is suspended — IT must enable the catalog toggle first.{% endif %}"
-                              {% else %}
-                                title="{% if pos_is_kitchen %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen portion deduction at POS for this item{% else %}Turn ON kitchen portion deduction at POS for this item{% endif %}{% elif pos_is_shop %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn shop stock update OFF for this shop{% else %}Turn shop stock update ON for this shop{% endif %}{% elif pos_is_both %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF kitchen + shop deductions for this item{% else %}Turn ON kitchen + shop deductions for this item{% endif %}{% else %}{% if (item.stock_update_enabled|default(0)|int) == 1 %}Turn OFF POS inventory tracking for this item{% else %}Turn ON POS inventory tracking for this item{% endif %}{% endif %}"
-                              {% endif %}
-                            >
-                              <span class="sr-only">
-                                {% if pos_is_kitchen %}
-                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN PORTION UPDATE ON{% else %}KITCHEN PORTION UPDATE OFF{% endif %}
-                                {% elif pos_is_shop %}
-                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}SHOP STOCK UPDATE ON{% else %}SHOP STOCK UPDATE OFF{% endif %}
-                                {% elif pos_is_both %}
-                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}KITCHEN + STOCK UPDATE ON{% else %}KITCHEN + STOCK UPDATE OFF{% endif %}
-                                {% else %}
-                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}POS INVENTORY TRACKING ON{% else %}POS INVENTORY TRACKING OFF{% endif %}
-                                {% endif %}
-                              </span>
-                              <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
-                                <span
-                                  class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
-                                  {% if (item.stock_update_enabled|default(0)|int) == 1 %}translate-x-5{% else %}translate-x-0{% endif %}"
-                                ></span>
-                              </span>
-                            </button>
-                            <span class="text-[11px] font-extrabold uppercase tracking-wider">
-                              {% if (item.stock_update_enabled|default(0)|int) == 1 %}On{% else %}Off{% endif %}
                             </span>
-                          </div>
-                        </form>
-                      {% else %}
-                        <span
-                          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
-                          {% if (item.stock_update_enabled|default(0)|int) == 1 %}
-                            bg-emerald-500/12 text-emerald-300 ring-emerald-400/20
-                          {% else %}
-                            bg-rose-500/10 text-rose-300 ring-rose-400/20
-                          {% endif %}"
-                        >
-                          <span class="h-1.5 w-1.5 rounded-full {% if (item.stock_update_enabled|default(0)|int) == 1 %}bg-emerald-400{% else %}bg-rose-400{% endif %}" aria-hidden="true"></span>
-                          {% if (item.stock_update_enabled|default(0)|int) == 1 %}On{% else %}Off{% endif %}
-                        </span>
-                      {% endif %}
+                            <span class="h-6 w-11 rounded-full flex items-center px-0.5 bg-white/90 dark:bg-slate-900/35 border border-black/10 dark:border-white/10 shadow-sm" aria-hidden="true">
+                              <span
+                                class="h-5 w-5 rounded-full bg-white dark:bg-slate-100 shadow-md border border-slate-300/80 dark:border-white/10 transition-transform
+                                {% if (item.stock_update_enabled|default(0)|int) == 1 %}translate-x-5{% else %}translate-x-0{% endif %}"
+                              ></span>
+                            </span>
+                          </button>
+                          <span class="text-[11px] font-extrabold uppercase tracking-wider">
+                            {% if (item.stock_update_enabled|default(0)|int) == 1 %}On{% else %}Off{% endif %}
+                          </span>
+                        </div>
+                      </form>
                     </td>
                   </tr>
                 {% endfor %}
@@ -264,4 +299,88 @@
       </div>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% if shop_shell_can('manage_items') and items %}
+  <script>
+    (function () {
+      var cells = document.querySelectorAll(".shop-sell-price-cell");
+      if (!cells.length) return;
+
+      function closeCell(cell) {
+        if (!cell) return;
+        var view = cell.querySelector(".shop-sell-price-view");
+        var form = cell.querySelector(".shop-sell-price-form");
+        var input = cell.querySelector(".shop-sell-price-input");
+        var saved = cell.getAttribute("data-sell-price") || "";
+        if (input) input.value = saved;
+        if (view) view.classList.remove("hidden");
+        if (form) {
+          form.classList.add("hidden");
+          form.setAttribute("hidden", "");
+        }
+        cell.classList.remove("is-editing");
+      }
+
+      function closeAllExcept(exceptCell) {
+        cells.forEach(function (cell) {
+          if (cell !== exceptCell) closeCell(cell);
+        });
+      }
+
+      function openCell(cell) {
+        var view = cell.querySelector(".shop-sell-price-view");
+        var form = cell.querySelector(".shop-sell-price-form");
+        var input = cell.querySelector(".shop-sell-price-input");
+        closeAllExcept(cell);
+        if (view) view.classList.add("hidden");
+        if (form) {
+          form.classList.remove("hidden");
+          form.removeAttribute("hidden");
+        }
+        cell.classList.add("is-editing");
+        if (input) {
+          input.focus();
+          try { input.select(); } catch (e) {}
+        }
+      }
+
+      cells.forEach(function (cell) {
+        var editBtn = cell.querySelector(".shop-sell-price-edit-btn");
+        var cancelBtn = cell.querySelector(".shop-sell-price-cancel-btn");
+        var form = cell.querySelector(".shop-sell-price-form");
+        var input = cell.querySelector(".shop-sell-price-input");
+
+        if (editBtn) {
+          editBtn.addEventListener("click", function () {
+            openCell(cell);
+          });
+        }
+        if (cancelBtn) {
+          cancelBtn.addEventListener("click", function () {
+            closeCell(cell);
+          });
+        }
+        if (form) {
+          form.addEventListener("submit", function () {
+            if (input) {
+              cell.setAttribute("data-sell-price", input.value);
+            }
+          });
+        }
+      });
+
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Escape") return;
+        var open = document.querySelector(".shop-sell-price-cell.is-editing");
+        if (open) {
+          ev.preventDefault();
+          closeCell(open);
+        }
+      });
+    })();
+  </script>
+  {% endif %}
 {% endblock %}
