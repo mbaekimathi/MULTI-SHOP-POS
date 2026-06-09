@@ -91,6 +91,18 @@ def ensure_stock_qty_decimal_schema() -> None:
         alters.append(
             "ALTER TABLE shop_pos_sales MODIFY COLUMN item_count DECIMAL(14,4) NOT NULL DEFAULT 0"
         )
+    if table_exists("store_stock_items") and column_exists("store_stock_items", "stock_qty"):
+        alters.append(
+            "ALTER TABLE store_stock_items MODIFY COLUMN stock_qty DECIMAL(14,4) NOT NULL DEFAULT 0"
+        )
+    if table_exists("store_stock_transactions"):
+        alters.extend(
+            [
+                "ALTER TABLE store_stock_transactions MODIFY COLUMN qty DECIMAL(14,4) NOT NULL",
+                "ALTER TABLE store_stock_transactions MODIFY COLUMN stock_before DECIMAL(14,4) NOT NULL",
+                "ALTER TABLE store_stock_transactions MODIFY COLUMN stock_after DECIMAL(14,4) NOT NULL",
+            ]
+        )
     for sql in alters:
         try:
             with get_cursor(commit=True) as cur:
@@ -6423,6 +6435,7 @@ def ensure_shop_kitchen_portions_schema() -> bool:
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql)
+        logger.info("Table shop_kitchen_portions is ready.")
         return True
     except pymysql.Error as e:
         logger.warning("Could not init shop_kitchen_portions: %s", e)
@@ -14169,6 +14182,9 @@ _EXPECTED_SCHEMA_TABLES = (
     "stock_transactions",
     "shops",
     "shop_items",
+    "store_stock_items",
+    "store_stock_transactions",
+    "shop_kitchen_portions",
     "shop_stock_transactions",
     "shop_printer_settings",
     "shop_print_agent_jobs",
@@ -14214,6 +14230,9 @@ def init_schema() -> bool:
     ok_shops = init_shops_table()
     ok_employee_shop_access = init_employee_shop_access_table()
     ok_shop_items = init_shop_items_table()
+    ok_store_stock_items = init_store_stock_items_table()
+    ok_store_stock_transactions = init_store_stock_transactions_table()
+    ok_shop_kitchen_portions = ensure_shop_kitchen_portions_schema()
     ok_shop_stock = init_shop_stock_transactions_table()
     ok_shop_printer = init_shop_printer_settings_table()
     ok_shop_print_agent = init_shop_print_agent_jobs_table()
@@ -14240,6 +14259,9 @@ def init_schema() -> bool:
         and ok_shops
         and ok_employee_shop_access
         and ok_shop_items
+        and ok_store_stock_items
+        and ok_store_stock_transactions
+        and ok_shop_kitchen_portions
         and ok_shop_stock
         and ok_shop_printer
         and ok_shop_print_agent

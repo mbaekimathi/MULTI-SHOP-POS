@@ -2557,6 +2557,13 @@ def _it_support_only():
         abort(403)
 
 
+def _request_wants_json() -> bool:
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "").lower()
+    )
+
+
 def _it_support_or_super_admin_only():
     _it_support_only()
 
@@ -5106,12 +5113,25 @@ def it_support_item_audit():
 @login_required
 def it_support_item_toggle_status(item_id: int):
     _it_support_only()
+    wants_json = _request_wants_json()
     try:
-        from database import toggle_item_status
+        from database import get_item_by_id, toggle_item_status
 
         ok = toggle_item_status(item_id)
+        item = get_item_by_id(item_id) if ok else None
     except Exception:
-        ok = False
+        ok, item = False, None
+    if wants_json:
+        if ok and item:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": "Item status updated.",
+                    "item_id": item_id,
+                    "status": item.get("status"),
+                }
+            )
+        return jsonify({"ok": False, "error": "Could not update item status."}), 400
     flash("Item status updated." if ok else "Could not update item status.", "success" if ok else "error")
     return redirect(url_for("it_support_item_management"))
 
@@ -5120,24 +5140,41 @@ def it_support_item_toggle_status(item_id: int):
 @login_required
 def it_support_item_toggle_stock_update(item_id: int):
     _it_support_only()
+    wants_json = _request_wants_json()
     try:
-        from database import toggle_stock_update
+        from database import get_item_by_id, toggle_stock_update
 
         ok = toggle_stock_update(item_id)
+        item = get_item_by_id(item_id) if ok else None
     except Exception:
-        ok = False
+        ok, item = False, None
     m = _pos_inventory_mode_from_ps(_load_printing_settings())
     if ok:
         if m == "kitchen":
-            flash("Kitchen portion update setting updated.", "success")
+            msg = "Kitchen portion update setting updated."
         elif m == "shop":
-            flash("Shop stock update setting updated.", "success")
+            msg = "Shop stock update setting updated."
         elif m == "both":
-            flash("Kitchen portion (POS) toggle updated. Shelf stock is managed separately in branch Stock management.", "success")
+            msg = "Kitchen portion (POS) toggle updated. Shelf stock is managed separately in branch Stock management."
         else:
-            flash("Company POS inventory toggle updated.", "success")
+            msg = "Company POS inventory toggle updated."
     else:
-        flash("Could not update company setting.", "error")
+        msg = "Could not update company setting."
+    if wants_json:
+        if ok and item:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": msg,
+                    "item_id": item_id,
+                    "stock_update_enabled": bool(item.get("stock_update_enabled")),
+                }
+            )
+        return jsonify({"ok": False, "error": msg}), 400
+    if ok:
+        flash(msg, "success")
+    else:
+        flash(msg, "error")
     return redirect(url_for("it_support_item_management"))
 
 
@@ -5145,9 +5182,12 @@ def it_support_item_toggle_stock_update(item_id: int):
 @login_required
 def it_support_item_bulk_status():
     _it_support_only()
+    wants_json = _request_wants_json()
     state = (request.form.get("state") or "").strip().lower()
     active = state == "on"
     if state not in ("on", "off"):
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid bulk status action."}), 400
         flash("Invalid bulk status action.", "error")
         return redirect(url_for("it_support_item_management"))
     try:
@@ -5157,11 +5197,20 @@ def it_support_item_bulk_status():
     except Exception:
         count = 0
     if count > 0:
-        flash(
-            f"All {count} item(s) {'activated' if active else 'suspended'}.",
-            "success",
-        )
+        msg = f"All {count} item(s) {'activated' if active else 'suspended'}."
+        if wants_json:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": msg,
+                    "count": count,
+                    "status": "active" if active else "suspended",
+                }
+            )
+        flash(msg, "success")
     else:
+        if wants_json:
+            return jsonify({"ok": False, "error": "No items to update."}), 400
         flash("No items to update.", "error")
     return redirect(url_for("it_support_item_management"))
 
@@ -5170,9 +5219,12 @@ def it_support_item_bulk_status():
 @login_required
 def it_support_item_bulk_stock_update():
     _it_support_only()
+    wants_json = _request_wants_json()
     state = (request.form.get("state") or "").strip().lower()
     enabled = state == "on"
     if state not in ("on", "off"):
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid bulk stock action."}), 400
         flash("Invalid bulk stock action.", "error")
         return redirect(url_for("it_support_item_management"))
     try:
@@ -5185,27 +5237,38 @@ def it_support_item_bulk_stock_update():
     if count > 0:
         if enabled:
             if m == "kitchen":
-                flash(f"Kitchen portion updates enabled for all {count} item(s).", "success")
+                msg = f"Kitchen portion updates enabled for all {count} item(s)."
             elif m == "shop":
-                flash(f"Stock updates enabled for all {count} item(s).", "success")
+                msg = f"Stock updates enabled for all {count} item(s)."
             elif m == "both":
-                flash(
+                msg = (
                     f"Kitchen portion (POS) updates enabled for all {count} item(s). "
-                    "Shelf stock remains in branch Stock management.",
-                    "success",
+                    "Shelf stock remains in branch Stock management."
                 )
             else:
-                flash(f"POS inventory master enabled for all {count} item(s).", "success")
+                msg = f"POS inventory master enabled for all {count} item(s)."
         else:
             if m == "kitchen":
-                flash(f"Kitchen portion updates disabled for all {count} item(s).", "success")
+                msg = f"Kitchen portion updates disabled for all {count} item(s)."
             elif m == "shop":
-                flash(f"Stock updates disabled for all {count} item(s).", "success")
+                msg = f"Stock updates disabled for all {count} item(s)."
             elif m == "both":
-                flash(f"Kitchen portion (POS) updates disabled for all {count} item(s).", "success")
+                msg = f"Kitchen portion (POS) updates disabled for all {count} item(s)."
             else:
-                flash(f"POS inventory master disabled for all {count} item(s).", "success")
+                msg = f"POS inventory master disabled for all {count} item(s)."
+        if wants_json:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": msg,
+                    "count": count,
+                    "stock_update_enabled": enabled,
+                }
+            )
+        flash(msg, "success")
     else:
+        if wants_json:
+            return jsonify({"ok": False, "error": "No items to update."}), 400
         flash("No items to update.", "error")
     return redirect(url_for("it_support_item_management"))
 
