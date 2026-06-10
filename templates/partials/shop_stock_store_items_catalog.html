@@ -4,12 +4,15 @@
 {% set catalog_panel_open = manage_open_id %}
 
 <section id="shop-store-items-catalog" class="sa-stock-panel">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h3 class="sa-stock-panel__title">Manage items <span class="font-normal text-[rgb(var(--rc-muted))]">({{ catalog|length }})</span></h3>
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))]/80 pb-4">
+    <div>
+      <h3 class="sa-stock-panel__title m-0">Manage items</h3>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">{{ catalog|length }} shelf SKU{{ '' if catalog|length == 1 else 's' }} registered for this branch</p>
+    </div>
     <button
       type="button"
       id="shop-store-catalog-toggle"
-      class="btn-rc btn-rc-ghost px-3 py-1 text-xs font-medium"
+      class="btn-rc btn-rc-ghost shrink-0 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
       aria-expanded="{% if catalog_panel_open %}true{% else %}false{% endif %}"
       aria-controls="shop-store-items-catalog-body"
     >
@@ -17,11 +20,20 @@
     </button>
   </div>
 
-  <div id="shop-store-items-catalog-body" class="{% if not catalog_panel_open %}hidden{% endif %} mt-3">
+  <div id="shop-store-items-catalog-body" class="{% if not catalog_panel_open %}hidden{% endif %} mt-4">
     {% if not catalog %}
-      <p class="text-sm text-[rgb(var(--rc-muted))]">No items yet.</p>
+      <div class="sa-stock-empty">
+        <div class="sa-stock-empty__icon" aria-hidden="true">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+        </div>
+        <p class="text-sm text-[rgb(var(--rc-muted))]">
+          No items yet —
+          <a href="#shop-inline-register-sku" class="sa-stock-link sa-stock-link--violet font-semibold">register a shelf SKU</a>.
+        </p>
+      </div>
     {% else %}
-      <div class="sa-stock-mgmt-scroll">
+      <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))]">
+        <div class="sa-stock-mgmt-scroll !mt-0 !max-h-none !rounded-none !border-0">
         <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--compact text-sm">
           <thead>
             <tr>
@@ -45,12 +57,14 @@
                 <td class="text-[rgb(var(--rc-muted))]">{{ it.category }}</td>
                 <td class="sa-stock-col-hide-sm">{{ (it.measure_unit or '')|upper }}</td>
                 <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
-                <td class="text-xs {% if is_active %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
-                  {% if is_active %}Active{% else %}Off{% endif %}
+                <td>
+                  <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ring-1 {% if is_active %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% else %}bg-amber-500/10 text-amber-300 ring-amber-400/20{% endif %}">
+                    {% if is_active %}Active{% else %}Off{% endif %}
+                  </span>
                 </td>
                 <td class="sa-stock-mgmt-actions-cell">
                   <div class="flex flex-wrap justify-end gap-1">
-                    <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view=view, manage_item=it.id) }}#shop-store-item-{{ it.id }}" class="btn-rc btn-rc-ghost px-2 py-1 text-xs">
+                    <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view=view, manage_item=it.id) }}#shop-store-item-{{ it.id }}" class="sa-stock-action-link sa-stock-action-link--edit">
                       {% if row_open %}Close{% else %}Edit{% endif %}
                     </a>
                     <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="inline">
@@ -70,26 +84,26 @@
               </tr>
               {% if row_open %}
                 <tr class="sa-stock-mgmt-edit-row">
-                  <td colspan="6" class="bg-[rgb(var(--rc-surface-2))]/50 px-2 py-3">
-                    <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="grid gap-2 sm:grid-cols-2">
+                  <td colspan="6" class="bg-[rgb(var(--rc-surface-2))]/50 px-4 py-4">
+                    <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="grid gap-3 sm:grid-cols-2">
                       <input type="hidden" name="action" value="update_shop_store_stock_item" />
                       <input type="hidden" name="view" value="{{ view }}" />
                       <input type="hidden" name="store_item_id" value="{{ it.id }}" />
-                      <label class="block"><span class="text-xs text-[rgb(var(--rc-muted))]">Name</span>
-                        <input name="name" required value="{{ it.name }}" class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm" /></label>
-                      <label class="block"><span class="text-xs text-[rgb(var(--rc-muted))]">Category</span>
-                        <input name="category" required value="{{ it.category }}" class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm" /></label>
-                      <label class="block sm:col-span-2"><span class="text-xs text-[rgb(var(--rc-muted))]">Description</span>
-                        <textarea name="description" rows="2" class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm">{{ it.description or '' }}</textarea></label>
-                      <label class="block"><span class="text-xs text-[rgb(var(--rc-muted))]">Measure</span>
-                        <select name="measure_unit" required class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm">
+                      <label class="block"><span class="sa-stock-field-label">Name</span>
+                        <input name="name" required value="{{ it.name }}" /></label>
+                      <label class="block"><span class="sa-stock-field-label">Category</span>
+                        <input name="category" required value="{{ it.category }}" /></label>
+                      <label class="block sm:col-span-2"><span class="sa-stock-field-label">Description</span>
+                        <textarea name="description" rows="2">{{ it.description or '' }}</textarea></label>
+                      <label class="block"><span class="sa-stock-field-label">Measure</span>
+                        <select name="measure_unit" required>
                           {% for mu in inline_register_measure_options or [] %}
                             <option value="{{ mu }}" {% if (it.measure_unit or '')|lower == mu %}selected{% endif %}>{{ mu|upper }}</option>
                           {% endfor %}
                         </select></label>
                       <div class="flex gap-2 sm:col-span-2">
-                        <button type="submit" class="btn-rc btn-rc-primary px-3 py-1.5 text-sm">Save</button>
-                        <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}#shop-store-items-catalog" class="btn-rc btn-rc-ghost px-3 py-1.5 text-sm">Cancel</a>
+                        <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Save</button>
+                        <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}#shop-store-items-catalog" class="sa-stock-link sa-stock-link--muted text-sm font-semibold">Cancel</a>
                       </div>
                     </form>
                   </td>
@@ -98,6 +112,7 @@
             {% endfor %}
           </tbody>
         </table>
+        </div>
       </div>
     {% endif %}
   </div>

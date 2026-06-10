@@ -1,0 +1,26 @@
+{# Section navigation tabs #}
+{% if pos_inventory_mode == 'both' %}
+<nav class="stk-tabs stk-tabs--pill" aria-label="Page sections">
+  <a href="#shop-store-items-catalog" class="stk-tabs__item stk-tabs__item--catalog">Shelf catalogue</a>
+  <a href="#shop-store-stock-in" class="stk-tabs__item stk-tabs__item--in">Stock in</a>
+  <a href="#shop-store-stock-out" class="stk-tabs__item stk-tabs__item--out">Stock out</a>
+  <a href="#shop-store-activity" class="stk-tabs__item stk-tabs__item--activity">Activity log</a>
+</nav>
+{% elif pos_inventory_mode != 'kitchen' %}
+<nav class="stk-tabs stk-tabs--pill" aria-label="Page sections">
+  <a href="{% if view|default('auto') == 'manual' %}#stk-workspace{% else %}#js-batch-request-stock-form{% endif %}" class="stk-tabs__item stk-tabs__item--active">
+    {% if view|default('auto') == 'manual' %}Manual stock in{% else %}Request stock{% endif %}
+  </a>
+  <a href="#stk-requests" class="stk-tabs__item">Requests</a>
+  {% if view != 'manual' %}
+  <a href="#stk-transactions" class="stk-tabs__item">Transactions</a>
+  {% endif %}
+</nav>
+{% else %}
+<nav class="stk-tabs stk-tabs--pill" aria-label="Page sections">
+  <a href="#stk-requests" class="stk-tabs__item">Requests</a>
+  {% if view != 'manual' %}
+  <a href="#stk-transactions" class="stk-tabs__item">Transactions</a>
+  {% endif %}
+</nav>
+{% endif %}

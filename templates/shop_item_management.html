@@ -1,23 +1,31 @@
 {% extends "shop_layout.html" %}
-{% block title %}Shop item management — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}Shop item management{% endblock %}
+{% set item_count = items|length %}
+{% set register_view = show_register_form|default(false) and can_register_items|default(false) %}
+{% block title %}{% if register_view %}Register item{% else %}Shop item management{% endif %} — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}{% if register_view %}Register item{% else %}Shop item management{% endif %}{% endblock %}
 {% block shop_sidebar_links %}
+  {% if register_view %}
+    <a href="{{ url_for('shop_item_management', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+      <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+      </svg>
+      Back to item management
+    </a>
+  {% else %}
   <a href="{{ url_for('shop_item_management', shop_id=shop.id) }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
     <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />
     </svg>
     Shop item management
   </a>
-  {% if can_register_items|default(false) %}
-    <a href="{{ url_for('shop_item_management', shop_id=shop.id, register=1) }}#shop-register-new-item" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
-      <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-      </svg>
-      Register new item
-    </a>
   {% endif %}
 {% endblock %}
 {% block shop_content %}
+  {% if register_view %}
+    <div class="mx-auto max-w-3xl">
+      {% include "partials/shop_register_item_form_panel.html" %}
+    </div>
+  {% else %}
   {% set pos_inv = pos_inventory_mode|default('shop') %}
   {% set pos_is_kitchen = (pos_inv == 'kitchen') %}
   {% set pos_is_shop = (pos_inv == 'shop') %}
@@ -52,37 +60,22 @@
           Register new item
         </a>
       {% endif %}
-      {# Removed shop-level Display/Hide pills to match requested UI #}
     </div>
-
-    {% include "partials/shop_register_item_form.html" %}
 
     {% if not items %}
       <div class="mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 text-sm text-[rgb(var(--rc-muted))]">
-        No items yet.
+        <p>No items yet.</p>
+        {% if can_register_items|default(false) %}
+          <a
+            href="{{ url_for('shop_item_management', shop_id=shop.id, register=1) }}#shop-register-new-item"
+            class="btn-rc btn-rc-primary mt-4 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold"
+          >
+            Register new item
+          </a>
+        {% endif %}
       </div>
     {% else %}
-      <div class="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-xs">
-        <span class="font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Bulk actions</span>
-        <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
-          <input type="hidden" name="state" value="on">
-          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn display ON for all items at this shop?');">Display all on</button>
-        </form>
-        <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
-          <input type="hidden" name="state" value="off">
-          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn display OFF for all items at this shop?');">Display all off</button>
-        </form>
-        <span class="hidden h-4 w-px bg-[rgb(var(--rc-border))] sm:inline" aria-hidden="true"></span>
-        <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
-          <input type="hidden" name="state" value="on">
-          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_toggle_col }} ON for all items at this shop?');">{{ inv_toggle_col }} all on</button>
-        </form>
-        <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
-          <input type="hidden" name="state" value="off">
-          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_toggle_col }} OFF for all items at this shop?');">{{ inv_toggle_col }} all off</button>
-        </form>
-      </div>
-      <div class="mt-4 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
         <div class="overflow-x-auto">
           <table class="min-w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
@@ -96,11 +89,11 @@
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
                   <div>Display</div>
                   <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
-                    <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
+                    <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="sim-ajax-form inline" data-sim-action="bulk-display">
                       <input type="hidden" name="state" value="on">
                       <button type="submit" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700" onclick="return confirm('Turn display ON for all items at this shop?');">All on</button>
                     </form>
-                    <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="inline">
+                    <form method="post" action="{{ url_for('shop_item_bulk_display', shop_id=shop.id) }}" class="sim-ajax-form inline" data-sim-action="bulk-display">
                       <input type="hidden" name="state" value="off">
                       <button type="submit" class="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700" onclick="return confirm('Turn display OFF for all items at this shop?');">All off</button>
                     </form>
@@ -109,11 +102,11 @@
                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
                   <div>{{ inv_toggle_col }}</div>
                   <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
-                    <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
+                    <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="sim-ajax-form inline" data-sim-action="bulk-stock">
                       <input type="hidden" name="state" value="on">
                       <button type="submit" class="rounded-md bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_toggle_col }} ON for all items at this shop?');">All on</button>
                     </form>
-                    <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="inline">
+                    <form method="post" action="{{ url_for('shop_item_bulk_stock_update', shop_id=shop.id) }}" class="sim-ajax-form inline" data-sim-action="bulk-stock">
                       <input type="hidden" name="state" value="off">
                       <button type="submit" class="rounded-md bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_toggle_col }} OFF for all items at this shop?');">All off</button>
                     </form>
@@ -208,7 +201,7 @@
                     <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))] opacity-85">{{ item.shop_stock_qty }}</td>
 
                     <td class="px-4 py-3">
-                      <form method="post" action="{{ url_for('shop_item_toggle_displayed', shop_id=shop.id, item_id=item.id) }}">
+                      <form method="post" action="{{ url_for('shop_item_toggle_displayed', shop_id=shop.id, item_id=item.id) }}" class="sim-ajax-form inline" data-sim-action="toggle-display" data-item-id="{{ item.id }}"{% if display_switch_locked_on %} data-display-locked="1"{% endif %}>
                         <div class="flex items-center justify-start gap-3">
                           <button
                             type="submit"
@@ -246,7 +239,7 @@
                     </td>
 
                     <td class="px-4 py-3">
-                      <form method="post" action="{{ url_for('shop_item_toggle_stock_update_enabled', shop_id=shop.id, item_id=item.id) }}">
+                      <form method="post" action="{{ url_for('shop_item_toggle_stock_update_enabled', shop_id=shop.id, item_id=item.id) }}" class="sim-ajax-form inline" data-sim-action="toggle-stock" data-item-id="{{ item.id }}"{% if stock_switch_locked_on %} data-stock-locked="1"{% endif %}>
                         <div class="flex items-center justify-start gap-3">
                           <button
                             type="submit"
@@ -299,10 +292,188 @@
       </div>
     {% endif %}
   </div>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
+  {% if items %}
+  <div id="sim-ajax-toast" class="pointer-events-none fixed bottom-6 right-6 z-50 hidden max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg transition-opacity duration-300" role="status" aria-live="polite"></div>
+  <script>
+    (function () {
+      var AJAX_HEADERS = {
+        "X-Requested-With": "XMLHttpRequest",
+        Accept: "application/json",
+      };
+      var BTN_ON = "btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition bg-emerald-600 ring-emerald-700 hover:bg-emerald-700";
+      var BTN_OFF = "btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition bg-rose-600 ring-rose-700 hover:bg-rose-700";
+      var toastEl = document.getElementById("sim-ajax-toast");
+      var toastTimer;
+
+      function showToast(msg, isError) {
+        if (!toastEl || !msg) return;
+        clearTimeout(toastTimer);
+        toastEl.textContent = msg;
+        toastEl.classList.remove("hidden", "opacity-0");
+        toastEl.className = "pointer-events-none fixed bottom-6 right-6 z-50 max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg transition-opacity duration-300 " +
+          (isError
+            ? "border-red-500/30 bg-red-950/90 text-red-100"
+            : "border-emerald-500/30 bg-emerald-950/90 text-emerald-100");
+        toastTimer = setTimeout(function () {
+          toastEl.classList.add("opacity-0");
+          setTimeout(function () { toastEl.classList.add("hidden"); }, 300);
+        }, 2800);
+      }
+
+      function postForm(form) {
+        return fetch(form.action, {
+          method: "POST",
+          credentials: "same-origin",
+          redirect: "manual",
+          body: new FormData(form),
+          headers: AJAX_HEADERS,
+        }).then(function (r) {
+          if (r.type === "opaqueredirect" || (r.status >= 300 && r.status < 400)) {
+            return { okHttp: false, j: { ok: false, error: "Session expired — refresh and sign in again." } };
+          }
+          return r.json().then(function (j) {
+            return { okHttp: r.ok, j: j };
+          }).catch(function () {
+            return { okHttp: false, j: { ok: false, error: "Invalid server response." } };
+          });
+        });
+      }
+
+      function setToggleKnob(btn, on) {
+        var track = btn.querySelector("[aria-hidden='true']");
+        if (!track) return;
+        var knob = track.querySelector("span");
+        if (!knob) return;
+        knob.classList.toggle("translate-x-5", on);
+        knob.classList.toggle("translate-x-0", !on);
+      }
+
+      function updateDisplayForms(itemId, displayed) {
+        document.querySelectorAll('form.sim-ajax-form[data-sim-action="toggle-display"][data-item-id="' + itemId + '"]').forEach(function (form) {
+          var btn = form.querySelector("button[type='submit']");
+          if (!btn || btn.disabled) return;
+          btn.className = displayed ? BTN_ON : BTN_OFF;
+          btn.setAttribute("aria-checked", displayed ? "true" : "false");
+          setToggleKnob(btn, displayed);
+          var wrap = form.querySelector("div");
+          if (!wrap) return;
+          wrap.querySelectorAll("span").forEach(function (badge) {
+            if (badge.closest("button") || badge.classList.contains("sr-only")) return;
+            if (/display|hidden/i.test(badge.textContent || "")) {
+              badge.textContent = displayed ? "Display" : "Hidden";
+            }
+          });
+        });
+      }
+
+      function updateStockForms(itemId, enabled) {
+        document.querySelectorAll('form.sim-ajax-form[data-sim-action="toggle-stock"][data-item-id="' + itemId + '"]').forEach(function (form) {
+          var btn = form.querySelector("button[type='submit']");
+          if (!btn || btn.disabled) return;
+          btn.className = enabled ? BTN_ON : BTN_OFF;
+          btn.setAttribute("aria-checked", enabled ? "true" : "false");
+          setToggleKnob(btn, enabled);
+          var wrap = form.querySelector("div");
+          if (!wrap) return;
+          wrap.querySelectorAll("span").forEach(function (badge) {
+            if (badge.closest("button") || badge.classList.contains("sr-only")) return;
+            if (/^on$|^off$/i.test((badge.textContent || "").trim())) {
+              badge.textContent = enabled ? "On" : "Off";
+            }
+          });
+        });
+      }
+
+      function applyBulkDisplay(displayed) {
+        document.querySelectorAll('form.sim-ajax-form[data-sim-action="toggle-display"]').forEach(function (form) {
+          var id = form.getAttribute("data-item-id");
+          if (!id) return;
+          if (displayed && form.getAttribute("data-display-locked") === "1") return;
+          updateDisplayForms(id, displayed);
+        });
+      }
+
+      function applyBulkStock(enabled) {
+        document.querySelectorAll('form.sim-ajax-form[data-sim-action="toggle-stock"]').forEach(function (form) {
+          var id = form.getAttribute("data-item-id");
+          if (!id) return;
+          if (enabled && form.getAttribute("data-stock-locked") === "1") return;
+          updateStockForms(id, enabled);
+        });
+      }
+
+      document.addEventListener("submit", function (e) {
+        var form = e.target;
+        if (!form || !form.classList || !form.classList.contains("sim-ajax-form")) return;
+        e.preventDefault();
+        var btn = form.querySelector("button[type='submit']");
+        if (!btn || btn.disabled) return;
+        if (btn) btn.disabled = true;
+        var action = form.getAttribute("data-sim-action") || "";
+        var itemId = form.getAttribute("data-item-id");
+        var prevDisplay = null;
+        var prevStock = null;
+        if (action === "toggle-display" && itemId) {
+          var dBtn = form.querySelector("button[aria-checked]");
+          prevDisplay = dBtn && dBtn.getAttribute("aria-checked") === "true";
+          updateDisplayForms(itemId, !prevDisplay);
+        }
+        if (action === "toggle-stock" && itemId) {
+          var sBtn = form.querySelector("button[aria-checked]");
+          prevStock = sBtn && sBtn.getAttribute("aria-checked") === "true";
+          updateStockForms(itemId, !prevStock);
+        }
+        postForm(form)
+          .then(function (res) {
+            var j = res.j || {};
+            if (!res.okHttp || !j.ok) {
+              if (action === "toggle-display" && itemId && prevDisplay !== null) {
+                updateDisplayForms(itemId, prevDisplay);
+              } else if (action === "toggle-stock" && itemId && prevStock !== null) {
+                updateStockForms(itemId, prevStock);
+              }
+              showToast(j.error || "Could not save change.", true);
+              return;
+            }
+            showToast(j.message || "Saved.", false);
+            if (action === "toggle-display" && j.item_id != null) {
+              updateDisplayForms(String(j.item_id), !!j.displayed);
+            } else if (action === "toggle-stock" && j.item_id != null) {
+              updateStockForms(String(j.item_id), !!j.stock_update_enabled);
+            } else if (action === "bulk-display") {
+              applyBulkDisplay(!!j.displayed);
+            } else if (action === "bulk-stock") {
+              applyBulkStock(!!j.stock_update_enabled);
+            }
+          })
+          .catch(function () {
+            if (action === "toggle-display" && itemId && prevDisplay !== null) {
+              updateDisplayForms(itemId, prevDisplay);
+            } else if (action === "toggle-stock" && itemId && prevStock !== null) {
+              updateStockForms(itemId, prevStock);
+            }
+            showToast("Could not reach server.", true);
+          })
+          .finally(function () {
+            if (btn) btn.disabled = false;
+          });
+      });
+    })();
+  </script>
+  {% endif %}
+  {% if register_view %}
+  <script>
+    (function () {
+      var first = document.getElementById("shop-reg-category");
+      if (first) first.focus();
+    })();
+  </script>
+  {% endif %}
   {% if shop_shell_can('manage_items') and items %}
   <script>
     (function () {

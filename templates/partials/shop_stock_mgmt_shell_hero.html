@@ -1,20 +1,56 @@
-{# expects: stock_shell_title, stock_shell_desc, stock_shell_badge (optional) #}
+{# Hero shell — matches shop_stock_audits / sa-stock-analytics pages #}
+{% set _mode = pos_inventory_mode|default('shop') %}
 <section class="sa-stock-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
-  <div class="sa-stock-hero-top px-4 py-4 sm:px-6 sm:py-5">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+  <div class="sa-stock-hero-top border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0 flex-1">
         <p class="sa-stock-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock workspace</p>
-        <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ stock_shell_title }}</h2>
-        <p class="sa-stock-hero-desc mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ stock_shell_desc }}</p>
+        {% if _mode == 'both' %}
+          <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Stock console</h2>
+          <p class="sa-stock-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ shop.shop_name }} — shelf catalogue, stock in/out, and activity.</p>
+        {% elif _mode == 'kitchen' %}
+          <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Stock requests</h2>
+          <p class="sa-stock-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ shop.shop_name }} — kitchen portion stock requests.</p>
+        {% else %}
+          <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Stock management</h2>
+          <p class="sa-stock-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">{{ shop.shop_name }} — request from warehouse or record manual stock in.</p>
+        {% endif %}
       </div>
-      {% if stock_shell_badge %}
-      <div class="sa-stock-chips flex flex-wrap items-center gap-2 sm:justify-end">
-        <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300/95">
-          <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
-          {{ stock_shell_badge }}
-        </span>
+      <div class="shop-mgmt-hero-actions flex flex-col items-stretch gap-2 sm:items-end">
+        <div class="sa-stock-chips flex flex-wrap items-center gap-2 lg:justify-end">
+          <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300/95">
+            <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+            {% if _mode == 'both' %}Shelf stock{% elif _mode == 'kitchen' %}Kitchen{% else %}Catalogue{% endif %}
+          </span>
+        </div>
+        <a href="{{ url_for('shop_item_management', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Item management</a>
+        {% if _mode != 'both' and _mode != 'kitchen' %}
+          <div class="inline-flex items-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1" role="group" aria-label="Stock entry mode">
+            <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view='auto') }}" class="shop-analytics-tab rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if view|default('auto') == 'auto' %}shop-analytics-tab-active{% else %}text-[rgb(var(--rc-muted))]{% endif %}">Request stock</a>
+            <a href="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}" class="shop-analytics-tab rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider {% if view|default('auto') == 'manual' %}shop-analytics-tab-active{% else %}text-[rgb(var(--rc-muted))]{% endif %}">Manual in</a>
+          </div>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
   </div>
+  {% if _mode == 'both' %}
+  <div class="border-t border-[rgb(var(--rc-border))]/60 px-4 py-3 sm:px-6">
+    <nav class="shop-mgmt-section-nav" aria-label="Page sections">
+      <a href="#shop-store-items-catalog" class="shop-mgmt-tab shop-analytics-tab shop-analytics-tab-active">Shelf catalogue</a>
+      <a href="#shop-store-stock-in" class="shop-mgmt-tab shop-analytics-tab">Stock in</a>
+      <a href="#shop-store-stock-out" class="shop-mgmt-tab shop-analytics-tab">Stock out</a>
+      <a href="#shop-store-activity" class="shop-mgmt-tab shop-analytics-tab">Activity log</a>
+    </nav>
+  </div>
+  {% elif _mode != 'kitchen' %}
+  <div class="border-t border-[rgb(var(--rc-border))]/60 px-4 py-3 sm:px-6">
+    <nav class="shop-mgmt-section-nav" aria-label="Page sections">
+      <a href="{% if view|default('auto') == 'manual' %}#stk-workspace{% else %}#js-batch-request-stock-form{% endif %}" class="shop-mgmt-tab shop-analytics-tab shop-analytics-tab-active">{% if view|default('auto') == 'manual' %}Manual stock in{% else %}Request stock{% endif %}</a>
+      <a href="#stk-requests" class="shop-mgmt-tab shop-analytics-tab">Requests</a>
+      {% if view != 'manual' %}
+      <a href="#stk-transactions" class="shop-mgmt-tab shop-analytics-tab">Transactions</a>
+      {% endif %}
+    </nav>
+  </div>
+  {% endif %}
 </section>

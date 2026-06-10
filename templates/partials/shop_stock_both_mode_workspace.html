@@ -1,307 +1,141 @@
-{# Both-mode store stock workspace for shop_stock_management.html.
-   Renders a Stock in / Stock out tab toggle, two bulk grids over
-   `store_items` (store_stock_items for this shop) with the same rich UX as the
-   regular shop_items workflow (live search, seller phone lookup, bulk copy to
-   rows with quantity, per-row note), plus a recent activity log over
-   `store_tx` (store_stock_transactions for this shop). #}
-
 {% set store_items_count = (store_items or [])|length %}
 
-<section class="sa-stock-panel">
-  <div class="sa-stock-panel-head">
-    <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock in / out</h3>
-    <span class="sa-stock-panel-meta">{{ store_items_count }} item{{ '' if store_items_count == 1 else 's' }}</span>
-  </div>
-  <div class="sa-stock-mgmt-toolbar mt-3">
-    <div role="tablist" aria-label="Store stock action mode">
-      <button type="button" id="shop-store-mode-in" aria-selected="true" data-mode="in">Stock in</button>
-      <button type="button" id="shop-store-mode-out" aria-selected="false" data-mode="out">Stock out</button>
+<section id="shop-store-operations" class="stk-zone stk-zone--ops">
+  <div class="stk-zone__head">
+    <div>
+      <h2 class="stk-zone__title">Stock operations</h2>
+      <p class="stk-zone__desc">Record stock in or stock out per item</p>
     </div>
+    {% if store_items %}
+      <div class="stk-zone__meta">
+        <span class="stk-badge">{{ store_items_count }} items</span>
+        <div class="stk-seg stk-seg--tabs" role="tablist" aria-label="Store stock action mode">
+          <button type="button" id="shop-store-mode-in" class="stk-seg__btn" aria-selected="true" data-mode="in">Stock in</button>
+          <button type="button" id="shop-store-mode-out" class="stk-seg__btn" aria-selected="false" data-mode="out">Stock out</button>
+        </div>
+      </div>
+    {% endif %}
   </div>
-  {% if store_items %}
-    <div class="sa-stock-search-row">
-      <input id="shop-store-live-search" type="search" autocomplete="off" placeholder="Search items…" />
-      <span class="sa-stock-count-badge"><span id="shop-store-search-visible-count">{{ store_items_count }}</span> / {{ store_items_count }}</span>
-    </div>
-  {% endif %}
-</section>
 
-{% if not store_items %}
-  <p class="text-sm text-[rgb(var(--rc-muted))]">No items — register one above.</p>
-{% else %}
-  {# ----- STOCK IN FORM ----- #}
-  <form
-    id="shop-store-bulk-form-in"
-    method="post"
-    action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}"
-    class="sa-stock-panel w-full min-w-0"
-  >
-    <input type="hidden" name="action" value="bulk_store_in" />
-    <input type="hidden" name="view" value="{{ view }}" />
-    <div class="sa-stock-panel-head">
-      <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-300">Stock in</h3>
-      <span class="sa-stock-panel-meta">Bulk entry</span>
-    </div>
-    <p class="sa-stock-mgmt-table-scroll-hint">Scroll sideways on smaller screens to see all columns.</p>
-    <div class="sa-stock-mgmt-scroll">
-      <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
-        <thead>
-          <tr>
-            <th class="sa-stock-col-item">Item</th>
-            <th class="sa-stock-col-stock sa-stock-th--num">Stock</th>
-            <th class="sa-stock-col-qty sa-stock-th--in">Qty in</th>
-            <th class="sa-stock-col-price sa-stock-th--in sa-stock-col-hide-sm">Buy price</th>
-            <th class="sa-stock-col-phone sa-stock-th--in sa-stock-col-hide-lg">Phone</th>
-            <th class="sa-stock-col-seller sa-stock-th--in sa-stock-col-hide-lg">Seller</th>
-            <th class="sa-stock-col-pay sa-stock-th--in sa-stock-col-hide-md">Payment</th>
-            <th class="sa-stock-col-note sa-stock-th--in sa-stock-col-hide-md">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% set ns_in = namespace(prev='') %}
-          {% for it in store_items %}
-            {% set cat = (it.category or 'Uncategorized') %}
-            {% set _desc = (it.description or '') %}
-            {% if ns_in.prev != cat %}
-              <tr class="sa-stock-mgmt-cat-row shop-store-cat-row" data-cat="{{ cat|lower }}">
-                <td colspan="8" class="bg-emerald-500/10 px-3 py-2 text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">{{ cat }}</td>
+  <div class="stk-zone__body">
+    {% if not store_items %}
+      <p class="stk-empty">No shelf SKUs — <a href="#shop-store-items-catalog" class="stk-text-btn stk-text-btn--accent">register in catalogue</a></p>
+    {% else %}
+      <div class="stk-filter">
+        <label class="stk-filter__search">
+          <span class="sr-only">Search</span>
+          <svg class="stk-filter__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="shop-store-live-search" type="search" autocomplete="off" placeholder="Filter items…" />
+        </label>
+        <span class="stk-filter__count"><span id="shop-store-search-visible-count">{{ store_items_count }}</span> / {{ store_items_count }}</span>
+      </div>
+
+      <form id="shop-store-bulk-form-in" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="stk-op-form">
+        <input type="hidden" name="action" value="bulk_store_in" /><input type="hidden" name="view" value="{{ view }}" />
+        <div class="stk-table-scroll stk-table-scroll--tall">
+          <table class="sa-stock-data-table sa-stock-mgmt-table stk-table">
+            <thead>
+              <tr>
+                <th class="sa-stock-col-item">Item</th><th class="sa-stock-th--num">Stock</th>
+                <th class="sa-stock-th--in">Qty in</th><th class="sa-stock-th--in sa-stock-col-hide-sm">Buy</th>
+                <th class="sa-stock-th--in sa-stock-col-hide-lg">Phone</th><th class="sa-stock-th--in sa-stock-col-hide-lg">Seller</th>
+                <th class="sa-stock-th--in sa-stock-col-hide-md">Pay</th><th class="sa-stock-th--in sa-stock-col-hide-md">Note</th>
               </tr>
-              {% set ns_in.prev = cat %}
-            {% endif %}
-            <tr
-              class="shop-store-row shop-store-row-in hover:bg-[rgb(var(--rc-surface-2))]/40"
-              data-item-id="{{ it.id }}"
-              data-stock-search="{{ ((it.name or '') ~ ' ' ~ cat ~ ' ' ~ _desc)|lower }}"
-              data-stock-category="{{ cat|lower }}"
-            >
-              <td class="sa-stock-mgmt-item-cell">
-                <div class="sa-stock-mgmt-item-name text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
-                <div class="sa-stock-mgmt-item-meta">{{ cat }}{% if it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}</div>
-              </td>
-              <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
-              <td>
-                <input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="shop-store-in-qty" placeholder="Qty" />
-              </td>
-              <td class="sa-stock-col-hide-sm">
-                <input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" autocomplete="off" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" />
-              </td>
-              <td class="sa-stock-col-hide-lg">
-                <input name="in_seller_phone_{{ it.id }}" type="text" inputmode="tel" autocomplete="off" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone" placeholder="07…" />
-              </td>
-              <td class="sa-stock-col-hide-lg">
-                <input name="in_place_{{ it.id }}" type="text" autocomplete="off" data-seller-name="{{ it.id }}" class="shop-store-seller-name" placeholder="Seller" />
-                <p class="shop-store-seller-hint min-h-[0.75rem]" data-seller-hint="{{ it.id }}"></p>
-              </td>
-              <td class="sa-stock-col-hide-md">
-                <select name="in_payment_status_{{ it.id }}">
-                  <option value="" selected>—</option>
-                  <option value="pending_payment">Unpaid</option>
-                  <option value="partially_paid">Partial</option>
-                  <option value="paid">Paid</option>
-                </select>
-              </td>
-              <td class="sa-stock-col-hide-md">
-                <input name="in_note_{{ it.id }}" type="text" autocomplete="off" placeholder="Note" />
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+            </thead>
+            <tbody>
+              {% set ns_in = namespace(prev='') %}
+              {% for it in store_items %}
+                {% set cat = (it.category or 'Uncategorized') %}
+                {% set _desc = (it.description or '') %}
+                {% if ns_in.prev != cat %}
+                  <tr class="shop-store-cat-row sa-stock-mgmt-cat-row stk-cat-row" data-cat="{{ cat|lower }}"><td colspan="8">{{ cat }}</td></tr>
+                  {% set ns_in.prev = cat %}
+                {% endif %}
+                <tr class="shop-store-row shop-store-row-in" data-item-id="{{ it.id }}" data-stock-search="{{ ((it.name or '') ~ ' ' ~ cat ~ ' ' ~ _desc)|lower }}" data-stock-category="{{ cat|lower }}">
+                  <td class="sa-stock-mgmt-item-cell"><div class="stk-cell-name">{{ it.name }}</div></td>
+                  <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
+                  <td><input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="shop-store-in-qty" placeholder="Qty" /></td>
+                  <td class="sa-stock-col-hide-sm"><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" /></td>
+                  <td class="sa-stock-col-hide-lg"><input name="in_seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone" placeholder="07…" /></td>
+                  <td class="sa-stock-col-hide-lg">
+                    <input name="in_place_{{ it.id }}" data-seller-name="{{ it.id }}" class="shop-store-seller-name" placeholder="Seller" />
+                    <p class="shop-store-seller-hint stk-hint" data-seller-hint="{{ it.id }}"></p>
+                  </td>
+                  <td class="sa-stock-col-hide-md">
+                    <select name="in_payment_status_{{ it.id }}"><option value="" selected>—</option><option value="pending_payment">Unpaid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select>
+                  </td>
+                  <td class="sa-stock-col-hide-md"><input name="in_note_{{ it.id }}" placeholder="Note" /></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <aside class="stk-side-panel">
+          <p class="stk-side-panel__title">Bulk apply</p>
+          <p class="stk-side-panel__hint">Copies to rows with quantity entered</p>
+          <div class="stk-side-panel__fields">
+            <label class="stk-field"><span>Phone</span><input type="text" id="shop-store-apply-phone" placeholder="07…" /></label>
+            <label class="stk-field"><span>Seller</span><input type="text" id="shop-store-apply-name" placeholder="Name" /></label>
+            <label class="stk-field"><span>Payment</span><select id="shop-store-apply-payment"><option value="" selected>—</option><option value="pending_payment">Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select></label>
+            <label class="stk-field"><span>Note</span><input type="text" id="shop-store-apply-note" placeholder="Optional" /></label>
+          </div>
+          <button type="button" id="shop-store-copy-in-rows" class="stk-btn stk-btn--ghost">Copy to rows</button>
+          <p id="shop-store-apply-hint" class="shop-store-seller-hint stk-hint"></p>
+          <p id="shop-store-copy-in-feedback" class="stk-hint sa-stock-bulk-feedback"></p>
+        </aside>
+        <footer class="stk-form-footer">
+          <button type="submit" class="btn-rc btn-rc-success">Apply stock in</button>
+        </footer>
+      </form>
 
-    <div class="sa-stock-mgmt-bulk-bar">
-      <p>Copy settings to rows that have quantity</p>
-      <label class="block min-w-0">
-        <span>Seller phone</span>
-        <input type="text" id="shop-store-apply-phone" autocomplete="off" placeholder="07… or 254…" />
-      </label>
-      <label class="block min-w-0">
-        <span>Seller name</span>
-        <input type="text" id="shop-store-apply-name" autocomplete="off" placeholder="Name / place" />
-        <p id="shop-store-apply-hint" class="shop-store-seller-hint min-h-[1rem]"></p>
-      </label>
-      <label class="block min-w-0">
-        <span>Payment</span>
-        <select id="shop-store-apply-payment">
-          <option value="" selected>—</option>
-          <option value="pending_payment">Not paid</option>
-          <option value="partially_paid">Partial</option>
-          <option value="paid">Paid</option>
-        </select>
-      </label>
-      <label class="block min-w-0">
-        <span>Note</span>
-        <input type="text" id="shop-store-apply-note" autocomplete="off" placeholder="Optional" />
-      </label>
-      <button type="button" id="shop-store-copy-in-rows" class="btn-rc btn-rc-ghost">Copy to rows</button>
-      <p id="shop-store-copy-in-feedback" class="sa-stock-bulk-feedback"></p>
-    </div>
-
-    <div class="sa-stock-mgmt-submit">
-      <button type="submit" class="btn-rc btn-rc-success px-5 py-2 text-sm font-medium">Apply stock in</button>
-    </div>
-  </form>
-
-  {# ----- STOCK OUT FORM ----- #}
-  <form
-    id="shop-store-bulk-form-out"
-    method="post"
-    action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}"
-    class="sa-stock-panel hidden w-full min-w-0"
-  >
-    <input type="hidden" name="action" value="bulk_store_out" />
-    <input type="hidden" name="view" value="{{ view }}" />
-    <div class="sa-stock-panel-head">
-      <h3 class="text-sm font-bold text-rose-700 dark:text-rose-300">Stock out</h3>
-      <span class="sa-stock-panel-meta">Bulk entry</span>
-    </div>
-    <p class="sa-stock-mgmt-table-scroll-hint">Scroll sideways on smaller screens to see all columns.</p>
-    <div class="sa-stock-mgmt-scroll">
-      <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
-        <thead>
-          <tr>
-            <th class="sa-stock-col-item">Item</th>
-            <th class="sa-stock-col-stock sa-stock-th--num">Stock</th>
-            <th class="sa-stock-col-qty sa-stock-th--out">Qty out</th>
-            <th class="sa-stock-col-reason sa-stock-th--out">Reason</th>
-            <th class="sa-stock-col-refund sa-stock-th--out sa-stock-col-hide-sm">Refund?</th>
-            <th class="sa-stock-col-price sa-stock-th--out sa-stock-col-hide-md">Refund amt</th>
-            <th class="sa-stock-col-note sa-stock-th--out sa-stock-col-hide-lg">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% set ns_out = namespace(prev='') %}
-          {% for it in store_items %}
-            {% set cat = (it.category or 'Uncategorized') %}
-            {% set _desc = (it.description or '') %}
-            {% if ns_out.prev != cat %}
-              <tr class="sa-stock-mgmt-cat-row shop-store-cat-row" data-cat="{{ cat|lower }}">
-                <td colspan="7" class="bg-rose-500/10 px-3 py-2 text-xs font-black uppercase tracking-wider text-rose-700 dark:text-rose-300">{{ cat }}</td>
+      <form id="shop-store-bulk-form-out" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="stk-op-form hidden">
+        <input type="hidden" name="action" value="bulk_store_out" /><input type="hidden" name="view" value="{{ view }}" />
+        <div class="stk-table-scroll stk-table-scroll--tall">
+          <table class="sa-stock-data-table sa-stock-mgmt-table stk-table">
+            <thead>
+              <tr>
+                <th>Item</th><th class="sa-stock-th--num">Stock</th><th class="sa-stock-th--out">Qty out</th>
+                <th class="sa-stock-th--out">Reason</th><th class="sa-stock-th--out sa-stock-col-hide-sm">Refund?</th>
+                <th class="sa-stock-th--out sa-stock-col-hide-md">Amt</th><th class="sa-stock-th--out sa-stock-col-hide-lg">Note</th>
               </tr>
-              {% set ns_out.prev = cat %}
-            {% endif %}
-            <tr
-              class="shop-store-row shop-store-row-out hover:bg-[rgb(var(--rc-surface-2))]/40"
-              data-item-id="{{ it.id }}"
-              data-stock-search="{{ ((it.name or '') ~ ' ' ~ cat ~ ' ' ~ _desc)|lower }}"
-              data-stock-category="{{ cat|lower }}"
-              data-last-buy-price="{% if it.last_buying_price is not none %}{{ it.last_buying_price }}{% else %}0{% endif %}"
-            >
-              <td class="sa-stock-mgmt-item-cell">
-                <div class="sa-stock-mgmt-item-name text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
-                <div class="sa-stock-mgmt-item-meta">{{ cat }}{% if it.measure_unit %} · {{ it.measure_unit|upper }}{% endif %}</div>
-              </td>
-              <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
-              <td>
-                <input name="out_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="shop-store-out-qty" placeholder="Qty" />
-              </td>
-              <td>
-                <select name="out_reason_{{ it.id }}">
-                  <option value="">—</option>
-                  <option value="return">Return</option>
-                  <option value="waste">Waste</option>
-                  <option value="display">Display</option>
-                </select>
-              </td>
-              <td class="sa-stock-col-hide-sm">
-                <select name="out_refunded_{{ it.id }}" class="shop-store-out-refunded" data-item-id="{{ it.id }}">
-                  <option value="no" selected>No</option>
-                  <option value="yes">Yes</option>
-                </select>
-              </td>
-              <td class="sa-stock-col-hide-md">
-                <input name="out_refund_amount_{{ it.id }}" type="number" min="0" step="0.01" disabled autocomplete="off" class="disabled:opacity-45" placeholder="0" />
-              </td>
-              <td class="sa-stock-col-hide-lg">
-                <input name="out_note_{{ it.id }}" type="text" autocomplete="off" placeholder="Note" />
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="sa-stock-mgmt-bulk-bar">
-      <p>Copy settings to rows that have quantity</p>
-      <label class="block min-w-0">
-        <span>Reason</span>
-        <select id="shop-store-out-apply-reason">
-          <option value="">—</option>
-          <option value="return">Return</option>
-          <option value="waste">Waste</option>
-          <option value="display">Display</option>
-        </select>
-      </label>
-      <label class="block min-w-0">
-        <span>Refund?</span>
-        <select id="shop-store-out-apply-refunded">
-          <option value="no" selected>No</option>
-          <option value="yes">Yes</option>
-        </select>
-      </label>
-      <label class="block min-w-0">
-        <span>Note</span>
-        <input type="text" id="shop-store-out-apply-note" autocomplete="off" placeholder="Optional" />
-      </label>
-      <button type="button" id="shop-store-copy-out-rows" class="btn-rc btn-rc-ghost">Copy to rows</button>
-      <p id="shop-store-copy-out-feedback" class="sa-stock-bulk-feedback"></p>
-    </div>
-
-    <div class="sa-stock-mgmt-submit">
-      <button type="submit" class="btn-rc btn-rc-danger px-5 py-2 text-sm font-medium">Apply stock out</button>
-    </div>
-  </form>
-{% endif %}
-
-<section class="sa-stock-panel">
-  <div class="sa-stock-panel-head">
-    <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Recent activity</h4>
-    <span class="sa-stock-panel-meta">{{ (store_tx or [])|length }} lines</span>
+            </thead>
+            <tbody>
+              {% set ns_out = namespace(prev='') %}
+              {% for it in store_items %}
+                {% set cat = (it.category or 'Uncategorized') %}
+                {% set _desc = (it.description or '') %}
+                {% if ns_out.prev != cat %}
+                  <tr class="shop-store-cat-row sa-stock-mgmt-cat-row stk-cat-row" data-cat="{{ cat|lower }}"><td colspan="7">{{ cat }}</td></tr>
+                  {% set ns_out.prev = cat %}
+                {% endif %}
+                <tr class="shop-store-row shop-store-row-out" data-item-id="{{ it.id }}" data-stock-search="{{ ((it.name or '') ~ ' ' ~ cat ~ ' ' ~ _desc)|lower }}" data-stock-category="{{ cat|lower }}" data-last-buy-price="{% if it.last_buying_price is not none %}{{ it.last_buying_price }}{% else %}0{% endif %}">
+                  <td class="sa-stock-mgmt-item-cell"><div class="stk-cell-name">{{ it.name }}</div></td>
+                  <td class="sa-stock-td--num font-semibold tabular-nums">{{ it.stock_qty }}</td>
+                  <td><input name="out_qty_{{ it.id }}" class="shop-store-out-qty" placeholder="Qty" /></td>
+                  <td><select name="out_reason_{{ it.id }}"><option value="">—</option><option value="return">Return</option><option value="waste">Waste</option><option value="display">Display</option></select></td>
+                  <td class="sa-stock-col-hide-sm"><select name="out_refunded_{{ it.id }}" class="shop-store-out-refunded" data-item-id="{{ it.id }}"><option value="no" selected>No</option><option value="yes">Yes</option></select></td>
+                  <td class="sa-stock-col-hide-md"><input name="out_refund_amount_{{ it.id }}" type="number" min="0" step="0.01" disabled class="disabled:opacity-45" placeholder="0" /></td>
+                  <td class="sa-stock-col-hide-lg"><input name="out_note_{{ it.id }}" placeholder="Note" /></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <aside class="stk-side-panel">
+          <p class="stk-side-panel__title">Bulk apply</p>
+          <p class="stk-side-panel__hint">Copies to rows with quantity entered</p>
+          <div class="stk-side-panel__fields stk-side-panel__fields--3">
+            <label class="stk-field"><span>Reason</span><select id="shop-store-out-apply-reason"><option value="">—</option><option value="return">Return</option><option value="waste">Waste</option><option value="display">Display</option></select></label>
+            <label class="stk-field"><span>Refund?</span><select id="shop-store-out-apply-refunded"><option value="no" selected>No</option><option value="yes">Yes</option></select></label>
+            <label class="stk-field"><span>Note</span><input type="text" id="shop-store-out-apply-note" placeholder="Optional" /></label>
+          </div>
+          <button type="button" id="shop-store-copy-out-rows" class="stk-btn stk-btn--ghost">Copy to rows</button>
+          <p id="shop-store-copy-out-feedback" class="stk-hint sa-stock-bulk-feedback"></p>
+        </aside>
+        <footer class="stk-form-footer">
+          <button type="submit" class="btn-rc btn-rc-danger">Apply stock out</button>
+        </footer>
+      </form>
+    {% endif %}
   </div>
-  {% if not store_tx %}
-    <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
-  {% else %}
-    <p class="sa-stock-mgmt-table-scroll-hint">Scroll sideways on smaller screens to see all columns.</p>
-    <div class="sa-stock-mgmt-scroll">
-      <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--wide text-xs">
-        <thead>
-          <tr>
-            <th class="sa-stock-col-item">Item</th>
-            <th class="sa-stock-col-qty">In/out</th>
-            <th class="sa-stock-col-stock sa-stock-th--num">Qty</th>
-            <th class="sa-stock-col-stock sa-stock-th--num">Before</th>
-            <th class="sa-stock-col-stock sa-stock-th--num">After</th>
-            <th class="sa-stock-col-price sa-stock-th--num">Buy</th>
-            <th class="sa-stock-col-seller">Seller</th>
-            <th class="sa-stock-col-reason">Reason</th>
-            <th class="sa-stock-col-pay">Pay</th>
-            <th class="sa-stock-col-note">Note</th>
-            <th class="sa-stock-col-note">Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for tx in store_tx %}
-            <tr>
-              <td class="sa-stock-mgmt-item-cell">{{ tx.item_name or '—' }}</td>
-              <td class="{% if (tx.direction or '')|lower == 'in' %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">{{ (tx.direction or '')|upper }}</td>
-              <td class="sa-stock-td--num">{{ tx.qty }}</td>
-              <td class="sa-stock-td--num text-[rgb(var(--rc-muted))]">{{ tx.stock_before }}</td>
-              <td class="sa-stock-td--num text-[rgb(var(--rc-muted))]">{{ tx.stock_after }}</td>
-              <td class="sa-stock-td--num text-[rgb(var(--rc-muted))]">{% if tx.buying_price is not none %}{{ '%.2f'|format(tx.buying_price) }}{% else %}—{% endif %}</td>
-              <td class="text-[rgb(var(--rc-muted))]">{{ tx.place_brought_from or '-' }}</td>
-              <td class="text-[rgb(var(--rc-muted))]">{{ tx.stock_out_reason or '-' }}</td>
-              <td class="text-[rgb(var(--rc-muted))]">
-                {% if tx.payment_status == 'partially_paid' %}Partial
-                {% elif tx.payment_status == 'paid' %}Paid
-                {% elif tx.payment_status == 'pending_payment' %}Unpaid
-                {% else %}—{% endif %}
-              </td>
-              <td class="text-[rgb(var(--rc-muted))]">{{ tx.note or '-' }}</td>
-              <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
 </section>

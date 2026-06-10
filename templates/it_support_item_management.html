@@ -1,4 +1,6 @@
 {% extends "employee_layout.html" %}
+{% set item_count = items|length %}
+{% set active_count = items|selectattr('status', 'equalto', 'active')|list|length %}
 {% block title %}Item management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Item management{% endblock %}
 {% block sidebar_links %}
@@ -47,8 +49,6 @@
   {% set pos_is_both = (pos_inv == 'both') %}
   {% set inv_col_short = 'Kitchen upd.' if pos_is_kitchen else ('Stock upd.' if pos_is_shop else ('Kitchen+stk' if pos_is_both else 'POS inv.')) %}
   {% set inv_mobile_heading = 'Kitchen portion updates' if pos_is_kitchen else ('Stock updates' if pos_is_shop else ('Kitchen + stock updates' if pos_is_both else 'POS inventory')) %}
-  {% set item_count = items|length %}
-  {% set active_count = items|selectattr('status', 'equalto', 'active')|list|length %}
   {% set cat_groups = (items|sort(attribute='category')|groupby('category')|list) if items else [] %}
   {% set category_count = cat_groups|length %}
 
@@ -159,27 +159,6 @@
         />
       </div>
       <p id="item-mgmt-search-meta" class="text-xs text-[rgb(var(--rc-muted))]" aria-live="polite"></p>
-
-      <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-xs">
-        <span class="font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Bulk actions</span>
-        <form method="post" action="{{ url_for('it_support_item_bulk_status') }}" class="im-ajax-form inline" data-im-action="bulk-status">
-          <input type="hidden" name="state" value="on">
-          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn status ON for all items?');">Status all on</button>
-        </form>
-        <form method="post" action="{{ url_for('it_support_item_bulk_status') }}" class="im-ajax-form inline" data-im-action="bulk-status">
-          <input type="hidden" name="state" value="off">
-          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn status OFF for all items?');">Status all off</button>
-        </form>
-        <span class="hidden h-4 w-px bg-[rgb(var(--rc-border))] sm:inline" aria-hidden="true"></span>
-        <form method="post" action="{{ url_for('it_support_item_bulk_stock_update') }}" class="im-ajax-form inline" data-im-action="bulk-stock">
-          <input type="hidden" name="state" value="on">
-          <button type="submit" class="btn-rc rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-emerald-700" onclick="return confirm('Turn {{ inv_col_short }} ON for all items?');">{{ inv_col_short }} all on</button>
-        </form>
-        <form method="post" action="{{ url_for('it_support_item_bulk_stock_update') }}" class="im-ajax-form inline" data-im-action="bulk-stock">
-          <input type="hidden" name="state" value="off">
-          <button type="submit" class="btn-rc rounded-lg bg-rose-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white hover:bg-rose-700" onclick="return confirm('Turn {{ inv_col_short }} OFF for all items?');">{{ inv_col_short }} all off</button>
-        </form>
-      </div>
 
       {# Desktop table #}
       <div class="hidden overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-black/5 md:block">
@@ -479,7 +458,7 @@
       var TOGGLE_BTN_OFF_MOBILE = "btn-rc inline-flex items-center rounded-full p-0.5 ring-1 transition bg-rose-600 ring-rose-700";
       var toastEl = document.getElementById("im-ajax-toast");
       var toastTimer;
-      var itemCount = {{ item_count }};
+      var itemCount = {{ item_count|default(0) }};
 
       function showToast(msg, isError) {
         if (!toastEl || !msg) return;
@@ -500,9 +479,13 @@
         return fetch(form.action, {
           method: "POST",
           credentials: "same-origin",
+          redirect: "manual",
           body: new FormData(form),
           headers: AJAX_HEADERS,
         }).then(function (r) {
+          if (r.type === "opaqueredirect" || (r.status >= 300 && r.status < 400)) {
+            return { okHttp: false, j: { ok: false, error: "Session expired — refresh the page and sign in again." } };
+          }
           return r.json().then(function (j) {
             return { okHttp: r.ok, j: j };
           }).catch(function () {
@@ -600,50 +583,63 @@
         });
       }
 
-      document.querySelectorAll("form.im-ajax-form").forEach(function (form) {
-        form.addEventListener("submit", function (e) {
-          e.preventDefault();
-          var btn = form.querySelector("button[type='submit']");
-          if (btn) btn.disabled = true;
-          var action = form.getAttribute("data-im-action") || "";
-          var prevStatus = null;
-          var prevStock = null;
-          var itemId = form.getAttribute("data-item-id");
-          if (action === "toggle-status" && itemId) {
-            var statusBtn = form.querySelector("button[aria-checked]");
-            prevStatus = statusBtn && statusBtn.getAttribute("aria-checked") === "true";
-          }
-          if (action === "toggle-stock" && itemId) {
-            var stockBtn = form.querySelector("button[aria-checked]");
-            prevStock = stockBtn && stockBtn.getAttribute("aria-checked") === "true";
-          }
-          postForm(form)
-            .then(function (res) {
-              var j = res.j || {};
-              if (!res.okHttp || !j.ok) {
-                showToast(j.error || "Could not save change.", true);
-                return;
+      document.addEventListener("submit", function (e) {
+        var form = e.target;
+        if (!form || !form.classList || !form.classList.contains("im-ajax-form")) return;
+        e.preventDefault();
+        var btn = form.querySelector("button[type='submit']");
+        if (btn && btn.disabled) return;
+        if (btn) btn.disabled = true;
+        var action = form.getAttribute("data-im-action") || "";
+        var prevStatus = null;
+        var prevStock = null;
+        var itemId = form.getAttribute("data-item-id");
+        if (action === "toggle-status" && itemId) {
+          var statusBtn = form.querySelector("button[aria-checked]");
+          prevStatus = statusBtn && statusBtn.getAttribute("aria-checked") === "true";
+          updateStatusForms(itemId, !prevStatus);
+        }
+        if (action === "toggle-stock" && itemId) {
+          var stockBtn = form.querySelector("button[aria-checked]");
+          prevStock = stockBtn && stockBtn.getAttribute("aria-checked") === "true";
+          updateStockForms(itemId, !prevStock);
+        }
+        postForm(form)
+          .then(function (res) {
+            var j = res.j || {};
+            if (!res.okHttp || !j.ok) {
+              if (action === "toggle-status" && itemId && prevStatus !== null) {
+                updateStatusForms(itemId, prevStatus);
+              } else if (action === "toggle-stock" && itemId && prevStock !== null) {
+                updateStockForms(itemId, prevStock);
               }
-              showToast(j.message || "Saved.", false);
-              if (action === "toggle-status" && j.item_id != null) {
-                var nowActive = j.status === "active";
-                updateStatusForms(String(j.item_id), nowActive);
-                if (prevStatus !== null) updateActiveStat(nowActive && !prevStatus ? 1 : (!nowActive && prevStatus ? -1 : 0));
-              } else if (action === "toggle-stock" && j.item_id != null) {
-                updateStockForms(String(j.item_id), !!j.stock_update_enabled);
-              } else if (action === "bulk-status" && j.status) {
-                applyBulkStatus(j.status);
-              } else if (action === "bulk-stock") {
-                applyBulkStock(!!j.stock_update_enabled);
-              }
-            })
-            .catch(function () {
-              showToast("Could not reach server.", true);
-            })
-            .finally(function () {
-              if (btn) btn.disabled = false;
-            });
-        });
+              showToast(j.error || "Could not save change.", true);
+              return;
+            }
+            showToast(j.message || "Saved.", false);
+            if (action === "toggle-status" && j.item_id != null) {
+              var nowActive = j.status === "active";
+              updateStatusForms(String(j.item_id), nowActive);
+              if (prevStatus !== null) updateActiveStat(nowActive && !prevStatus ? 1 : (!nowActive && prevStatus ? -1 : 0));
+            } else if (action === "toggle-stock" && j.item_id != null) {
+              updateStockForms(String(j.item_id), !!j.stock_update_enabled);
+            } else if (action === "bulk-status" && j.status) {
+              applyBulkStatus(j.status);
+            } else if (action === "bulk-stock") {
+              applyBulkStock(!!j.stock_update_enabled);
+            }
+          })
+          .catch(function () {
+            if (action === "toggle-status" && itemId && prevStatus !== null) {
+              updateStatusForms(itemId, prevStatus);
+            } else if (action === "toggle-stock" && itemId && prevStock !== null) {
+              updateStockForms(itemId, prevStock);
+            }
+            showToast("Could not reach server.", true);
+          })
+          .finally(function () {
+            if (btn) btn.disabled = false;
+          });
       });
 
       var input = document.getElementById("item-mgmt-search");

@@ -1,0 +1,48 @@
+{# Register shelf SKU — both mode only #}
+<section id="shop-inline-register-sku" class="sa-stock-panel sa-stock-panel--register">
+  <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))]/80 pb-4">
+    <div>
+      <h3 class="sa-stock-panel__title m-0">Register shelf SKU</h3>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Add a store stock item for this branch (Both mode).</p>
+    </div>
+    <button
+      type="button"
+      id="shop-inline-register-toggle"
+      class="btn-rc btn-rc-ghost shrink-0 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide"
+      aria-expanded="{% if not (store_catalog_items or store_items or []) %}true{% else %}false{% endif %}"
+      aria-controls="shop-inline-register-body"
+    >
+      {% if not (store_catalog_items or store_items or []) %}Hide{% else %}Show{% endif %}
+    </button>
+  </div>
+
+  <div id="shop-inline-register-body" class="mt-4{% if (store_catalog_items or store_items or []) %} hidden{% endif %}">
+    <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="action" value="create_shop_store_stock_item" />
+      <input type="hidden" name="view" value="{{ view }}" />
+      <label class="block">
+        <span class="sa-stock-field-label">Name</span>
+        <input name="name" required autocomplete="off" />
+      </label>
+      <label class="block">
+        <span class="sa-stock-field-label">Category</span>
+        <input name="category" required autocomplete="off" />
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="sa-stock-field-label">Description</span>
+        <textarea name="description" rows="2" placeholder="Optional"></textarea>
+      </label>
+      <label class="block">
+        <span class="sa-stock-field-label">Measure</span>
+        <select name="measure_unit" required>
+          {% for mu in inline_register_measure_options or [] %}
+            <option value="{{ mu }}">{{ mu|upper }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="flex items-end sm:col-span-2">
+        <button type="submit" class="btn-rc btn-rc-primary px-5 py-2.5 text-sm font-semibold">Register shelf SKU</button>
+      </div>
+    </form>
+  </div>
+</section>

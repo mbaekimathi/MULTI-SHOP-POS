@@ -9986,6 +9986,8 @@ def shop_item_management(shop_id: int):
         items = []
 
     show_register_form = (request.args.get("register") or "").strip() == "1"
+    if show_register_form and not shop_shell_can("manage_items"):
+        return redirect(url_for("shop_item_management", shop_id=shop_id))
 
     return render_template(
         "shop_item_management.html",
@@ -10002,7 +10004,7 @@ def shop_item_management(shop_id: int):
     )
 
 
-@app.route("/shops/<int:shop_id>/shop-item-management/register-item", methods=["POST"])
+@app.route("/shops/<int:shop_id>/shop-item-management/register-item", methods=["GET", "POST"])
 def shop_register_item(shop_id: int):
     shop = _get_shop_or_404(shop_id)
     gate = _require_shop_access(shop)
@@ -10012,6 +10014,17 @@ def shop_register_item(shop_id: int):
         flash("Only shop managers and admins can register items.", "error")
         return redirect(url_for("shop_item_management", shop_id=shop_id))
 
+    if request.method == "GET":
+        return redirect(
+            url_for("shop_item_management", shop_id=shop_id, register=1)
+            + "#shop-register-new-item"
+        )
+
+    register_back = (
+        url_for("shop_item_management", shop_id=shop_id, register=1)
+        + "#shop-register-new-item"
+    )
+
     category = (request.form.get("category") or "").strip().upper()
     name = (request.form.get("name") or "").strip().upper()
     description = (request.form.get("description") or "").strip().upper()
@@ -10020,7 +10033,7 @@ def shop_register_item(shop_id: int):
 
     if not category or not name or not price_raw:
         flash("Please fill item category, item name, and original selling price.", "error")
-        return redirect(url_for("shop_item_management", shop_id=shop_id))
+        return redirect(register_back)
 
     try:
         price = float(price_raw)
@@ -10028,7 +10041,7 @@ def shop_register_item(shop_id: int):
             raise ValueError()
     except Exception:
         flash("Original selling price must be a valid number.", "error")
-        return redirect(url_for("shop_item_management", shop_id=shop_id))
+        return redirect(register_back)
 
     selling_price = None
     if selling_raw:
@@ -10038,13 +10051,13 @@ def shop_register_item(shop_id: int):
                 raise ValueError()
         except Exception:
             flash("Selling price must be a valid number.", "error")
-            return redirect(url_for("shop_item_management", shop_id=shop_id))
+            return redirect(register_back)
 
     img = request.files.get("image")
     image_path = _save_item_upload(img) if img and img.filename else None
     if img and img.filename and image_path is None:
         flash("Item image must be PNG, JPG, GIF, or WebP.", "error")
-        return redirect(url_for("shop_item_management", shop_id=shop_id))
+        return redirect(register_back)
 
     new_item_id = None
     try:
@@ -10065,11 +10078,11 @@ def shop_register_item(shop_id: int):
             seed_shop_items_for_company_item(int(new_item_id), origin_shop_id=shop_id)
     except Exception:
         flash("Could not register item. Check database connection.", "error")
-        return redirect(url_for("shop_item_management", shop_id=shop_id))
+        return redirect(register_back)
 
     if not new_item_id:
         flash("Could not register item.", "error")
-        return redirect(url_for("shop_item_management", shop_id=shop_id))
+        return redirect(register_back)
 
     _log_hr_activity_safe(
         "register",
@@ -11571,21 +11584,41 @@ def shop_item_toggle_displayed(shop_id: int, item_id: int):
     if gate is not None:
         return gate
 
+    wants_json = _request_wants_json()
+    ok_msg = "Shop item display updated."
+    err_msg = (
+        "Could not update shop display — to turn it on, the company item must be active under IT item management."
+    )
     try:
-        from database import ensure_shop_items_for_shop, toggle_shop_item_displayed
+        from database import ensure_shop_items_for_shop, list_shop_items, toggle_shop_item_displayed
 
         ensure_shop_items_for_shop(shop_id)
         ok = toggle_shop_item_displayed(shop_id=shop_id, item_id=item_id)
+        row = None
+        if ok:
+            for it in list_shop_items(shop_id=shop_id, limit=500) or []:
+                if int(it.get("id") or 0) == int(item_id):
+                    row = it
+                    break
     except Exception:
-        ok = False
+        ok, row = False, None
+
+    if wants_json:
+        if ok and row is not None:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": ok_msg,
+                    "item_id": item_id,
+                    "displayed": int(row.get("displayed") or 0) == 1,
+                }
+            )
+        return jsonify({"ok": False, "error": err_msg}), 400
 
     if ok:
-        flash("Shop item display updated.", "success")
+        flash(ok_msg, "success")
     else:
-        flash(
-            "Could not update shop display — to turn it on, the company item must be active under IT item management.",
-            "error",
-        )
+        flash(err_msg, "error")
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 
@@ -11596,48 +11629,68 @@ def shop_item_toggle_stock_update_enabled(shop_id: int, item_id: int):
     if gate is not None:
         return gate
 
+    wants_json = _request_wants_json()
+    mode = _pos_inventory_mode(shop)
     try:
-        from database import ensure_shop_items_for_shop, toggle_shop_item_stock_update_enabled
+        from database import ensure_shop_items_for_shop, list_shop_items, toggle_shop_item_stock_update_enabled
 
         ensure_shop_items_for_shop(shop_id)
         ok = toggle_shop_item_stock_update_enabled(shop_id=shop_id, item_id=item_id)
+        row = None
+        if ok:
+            for it in list_shop_items(shop_id=shop_id, limit=500) or []:
+                if int(it.get("id") or 0) == int(item_id):
+                    row = it
+                    break
     except Exception:
-        ok = False
+        ok, row = False, None
 
-    mode = _pos_inventory_mode(shop)
     if ok:
         if mode == "kitchen":
-            flash("Kitchen portion update setting updated.", "success")
+            msg = "Kitchen portion update setting updated."
         elif mode == "shop":
-            flash("Shop stock update setting updated.", "success")
+            msg = "Shop stock update setting updated."
         elif mode == "both":
-            flash("Kitchen portion (POS) toggle updated. Shelf stock uses Stock management registration separately.", "success")
+            msg = "Kitchen portion (POS) toggle updated. Shelf stock uses Stock management registration separately."
         else:
-            flash("Branch POS inventory toggle updated.", "success")
+            msg = "Branch POS inventory toggle updated."
     elif mode == "shop":
-        flash(
+        msg = (
             "Stock update toggle was not saved. To turn ON, the company item must be active and company-wide "
-            "stock updates must be enabled under IT catalog.",
-            "error",
+            "stock updates must be enabled under IT catalog."
         )
     elif mode == "kitchen":
-        flash(
+        msg = (
             "Kitchen portion toggle was not saved. To turn ON, the company item must be active and IT must enable "
-            "the same master toggle under item management (kitchen mode uses this for portion deductions).",
-            "error",
+            "the same master toggle under item management (kitchen mode uses this for portion deductions)."
         )
     elif mode == "both":
-        flash(
+        msg = (
             "Toggle was not saved. To turn ON, the company item must be active, IT must enable the catalog master "
-            "toggle, and stock rules must apply (both kitchen portions and shop stock use this toggle).",
-            "error",
+            "toggle, and stock rules must apply (both kitchen portions and shop stock use this toggle)."
         )
     else:
-        flash(
+        msg = (
             "Toggle was not saved. To turn ON, the company item must be active and IT must enable the master POS "
-            "inventory toggle under item management.",
-            "error",
+            "inventory toggle under item management."
         )
+
+    if wants_json:
+        if ok and row is not None:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": msg,
+                    "item_id": item_id,
+                    "stock_update_enabled": int(row.get("stock_update_enabled") or 0) == 1,
+                }
+            )
+        return jsonify({"ok": False, "error": msg}), 400
+
+    if ok:
+        flash(msg, "success")
+    else:
+        flash(msg, "error")
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 
@@ -11647,9 +11700,12 @@ def shop_item_bulk_display(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    wants_json = _request_wants_json()
     state = (request.form.get("state") or "").strip().lower()
     displayed = state == "on"
     if state not in ("on", "off"):
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid bulk display action."}), 400
         flash("Invalid bulk display action.", "error")
         return redirect(url_for("shop_item_management", shop_id=shop_id))
     try:
@@ -11660,17 +11716,26 @@ def shop_item_bulk_display(shop_id: int):
     except Exception:
         count = 0
     if count > 0:
-        flash(
-            f"Display turned {'on' if displayed else 'off'} for {count} item(s) at this shop.",
-            "success",
-        )
+        msg = f"Display turned {'on' if displayed else 'off'} for {count} item(s) at this shop."
+        if wants_json:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": msg,
+                    "count": count,
+                    "displayed": displayed,
+                }
+            )
+        flash(msg, "success")
     else:
-        flash(
+        msg = (
             "No items updated."
             if not displayed
-            else "No items updated — company items must be active before display can be turned on.",
-            "error" if displayed else "success",
+            else "No items updated — company items must be active before display can be turned on."
         )
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error" if displayed else "success")
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 
@@ -11680,9 +11745,12 @@ def shop_item_bulk_stock_update(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    wants_json = _request_wants_json()
     state = (request.form.get("state") or "").strip().lower()
     enabled = state == "on"
     if state not in ("on", "off"):
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid bulk stock action."}), 400
         flash("Invalid bulk stock action.", "error")
         return redirect(url_for("shop_item_management", shop_id=shop_id))
     try:
@@ -11696,29 +11764,41 @@ def shop_item_bulk_stock_update(shop_id: int):
     if count > 0:
         if enabled:
             if mode == "kitchen":
-                flash(f"Kitchen portion updates turned on for {count} item(s).", "success")
+                msg = f"Kitchen portion updates turned on for {count} item(s)."
             elif mode == "shop":
-                flash(f"Shop stock updates turned on for {count} item(s).", "success")
+                msg = f"Shop stock updates turned on for {count} item(s)."
             elif mode == "both":
-                flash(f"Kitchen portion (POS) updates turned on for {count} item(s).", "success")
+                msg = f"Kitchen portion (POS) updates turned on for {count} item(s)."
             else:
-                flash(f"POS inventory updates turned on for {count} item(s).", "success")
+                msg = f"POS inventory updates turned on for {count} item(s)."
         else:
             if mode == "kitchen":
-                flash(f"Kitchen portion updates turned off for {count} item(s).", "success")
+                msg = f"Kitchen portion updates turned off for {count} item(s)."
             elif mode == "shop":
-                flash(f"Shop stock updates turned off for {count} item(s).", "success")
+                msg = f"Shop stock updates turned off for {count} item(s)."
             elif mode == "both":
-                flash(f"Kitchen portion (POS) updates turned off for {count} item(s).", "success")
+                msg = f"Kitchen portion (POS) updates turned off for {count} item(s)."
             else:
-                flash(f"POS inventory updates turned off for {count} item(s).", "success")
+                msg = f"POS inventory updates turned off for {count} item(s)."
+        if wants_json:
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": msg,
+                    "count": count,
+                    "stock_update_enabled": enabled,
+                }
+            )
+        flash(msg, "success")
     else:
-        flash(
+        msg = (
             "No items updated."
             if not enabled
-            else "No items updated — company items must be active with stock master on before shop stock can be turned on.",
-            "error" if enabled else "success",
+            else "No items updated — company items must be active with stock master on before shop stock can be turned on."
         )
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error" if enabled else "success")
     return redirect(url_for("shop_item_management", shop_id=shop_id))
 
 

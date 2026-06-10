@@ -1,0 +1,543 @@
+<script>
+  (function () {
+    function wireStoreStockSearch(searchInput, countEl, formEl) {
+      if (!searchInput || !formEl) return;
+      function syncSearch() {
+        var q = (searchInput.value || "").trim().toLowerCase();
+        var visible = 0;
+        var visibleByCategory = {};
+        formEl.querySelectorAll(".shop-store-row").forEach(function (row) {
+          var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
+          var show = !q || hay.indexOf(q) !== -1;
+          row.classList.toggle("hidden", !show);
+          if (show) {
+            visible += 1;
+            var catKey = String(row.getAttribute("data-stock-category") || "");
+            if (catKey) visibleByCategory[catKey] = true;
+          }
+        });
+        formEl.querySelectorAll(".shop-store-cat-row").forEach(function (catRow) {
+          var catKey = String(catRow.getAttribute("data-cat") || "");
+          catRow.classList.toggle("hidden", !!q && !visibleByCategory[catKey]);
+        });
+        if (countEl) countEl.textContent = String(visible);
+      }
+      searchInput.addEventListener("input", syncSearch);
+      syncSearch();
+    }
+
+    wireStoreStockSearch(
+      document.getElementById("shop-store-in-search"),
+      document.getElementById("shop-store-in-visible-count"),
+      document.getElementById("shop-store-bulk-form-in")
+    );
+    wireStoreStockSearch(
+      document.getElementById("shop-store-out-search"),
+      document.getElementById("shop-store-out-visible-count"),
+      document.getElementById("shop-store-bulk-form-out")
+    );
+  })();
+</script>
+
+<script>
+  (function () {
+    var formIn = document.getElementById("shop-store-bulk-form-in");
+    if (!formIn) return;
+
+    var applyPhone = document.getElementById("shop-store-apply-phone");
+    var applyName = document.getElementById("shop-store-apply-name");
+    var applyPayment = document.getElementById("shop-store-apply-payment");
+    var applyNote = document.getElementById("shop-store-apply-note");
+    var applyHint = document.getElementById("shop-store-apply-hint");
+    var copyBtn = document.getElementById("shop-store-copy-in-rows");
+    var feedback = document.getElementById("shop-store-copy-in-feedback");
+    var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+
+    function normalizePhoneValue(raw) {
+      var val = String(raw || "").trim();
+      if (val.indexOf("+254") === 0) val = "254" + val.slice(4);
+      return val.replace(/\s+/g, "");
+    }
+
+    function sellerLookup(phone, cb) {
+      var p = normalizePhoneValue(phone);
+      var digits = p.replace(/\D/g, "");
+      if (!p) return cb("empty", null, p);
+      if (digits.length < 10) return cb("short", null, p);
+      var valid10 = /^((07|01)\d{8})$/.test(digits);
+      var valid12 = /^(254\d{9})$/.test(digits);
+      if (!valid10 && !valid12) return cb("badformat", null, p);
+
+      var fd = new FormData();
+      fd.append("seller_phone", p);
+      fetch(sellerLookupUrl, { method: "POST", body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { cb("ok", data, p); })
+        .catch(function () { cb("err", null, p); });
+    }
+
+    function bindSellerLookup(phoneEl, nameEl, hintEl) {
+      if (!phoneEl || !nameEl) return;
+      var timer = null;
+      phoneEl.addEventListener("input", function () {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          sellerLookup(phoneEl.value, function (state, data, normalizedPhone) {
+            if (phoneEl.value !== normalizedPhone) phoneEl.value = normalizedPhone;
+            if (!hintEl) return;
+            if (state === "empty") { hintEl.textContent = ""; return; }
+            if (state === "short") { hintEl.textContent = "Continue typing seller phone..."; return; }
+            if (state === "badformat") { hintEl.textContent = "Use 07... or 01... (10 digits) or 254... (12 digits)."; return; }
+            if (state === "ok" && data && data.ok && data.registered && data.seller) {
+              nameEl.value = String(data.seller.seller_name || "").toUpperCase();
+              hintEl.textContent = "Registered seller found.";
+              return;
+            }
+            if (state === "ok") {
+              hintEl.textContent = "New phone - enter seller name; supplier registers on submit.";
+              return;
+            }
+            hintEl.textContent = "";
+          });
+        }, 220);
+      });
+    }
+
+    bindSellerLookup(applyPhone, applyName, applyHint);
+
+    formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
+      var id = row.getAttribute("data-item-id");
+      if (!id) return;
+      var phone = row.querySelector('[data-seller-phone="' + id + '"]');
+      var name = row.querySelector('[data-seller-name="' + id + '"]');
+      var hint = row.querySelector('[data-seller-hint="' + id + '"]');
+      bindSellerLookup(phone, name, hint);
+    });
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        var pv = normalizePhoneValue(applyPhone && applyPhone.value);
+        var nv = String((applyName && applyName.value) || "").trim().toUpperCase();
+        var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
+        var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
+        var noteVal = String((applyNote && applyNote.value) || "").trim().toUpperCase();
+        var copied = 0;
+
+        formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
+          var id = row.getAttribute("data-item-id");
+          if (!id) return;
+          var qtyEl = row.querySelector('input[name="in_qty_' + id + '"]');
+          var qty = parseFloat(String((qtyEl && qtyEl.value) || "").replace(",", "."));
+          if (!isFinite(qty) || !(qty > 0)) return;
+          copied += 1;
+          var pEl = row.querySelector('input[name="in_seller_phone_' + id + '"]');
+          var nEl = row.querySelector('input[name="in_place_' + id + '"]');
+          var payEl = row.querySelector('select[name="in_payment_status_' + id + '"]');
+          var noteEl = row.querySelector('input[name="in_note_' + id + '"]');
+          var hintEl = row.querySelector('[data-seller-hint="' + id + '"]');
+          if (pEl) pEl.value = pv;
+          if (nEl) nEl.value = nv;
+          if (payEl && payOk) payEl.value = payRaw;
+          if (noteEl && noteVal) noteEl.value = noteVal;
+          if (hintEl) hintEl.textContent = "";
+        });
+
+        if (!feedback) return;
+        if (!copied) {
+          feedback.textContent = "No rows updated - enter qty on target lines, then copy again.";
+        } else if (!payOk) {
+          feedback.textContent = "Copied phone/name/note to " + copied + " row(s). Pick payment and copy again to apply it.";
+        } else {
+          feedback.textContent = "Copied bulk values to " + copied + " row(s) with quantity.";
+        }
+      });
+    }
+  })();
+</script>
+
+<script>
+  (function () {
+    var formOut = document.getElementById("shop-store-bulk-form-out");
+    if (!formOut) return;
+    var applyReason = document.getElementById("shop-store-out-apply-reason");
+    var applyRefunded = document.getElementById("shop-store-out-apply-refunded");
+    var applyNote = document.getElementById("shop-store-out-apply-note");
+    var copyBtn = document.getElementById("shop-store-copy-out-rows");
+    var feedback = document.getElementById("shop-store-copy-out-feedback");
+
+    function syncRefundRow(itemId) {
+      var sel = formOut.querySelector('[name="out_refunded_' + itemId + '"]');
+      var amt = formOut.querySelector('[name="out_refund_amount_' + itemId + '"]');
+      if (!sel || !amt) return;
+      var yes = sel.value === "yes";
+      amt.disabled = !yes;
+      if (!yes) amt.value = "";
+    }
+
+    formOut.querySelectorAll(".shop-store-out-refunded").forEach(function (sel) {
+      var id = sel.getAttribute("data-item-id");
+      if (id) syncRefundRow(id);
+      sel.addEventListener("change", function () {
+        var rowId = sel.getAttribute("data-item-id");
+        if (rowId) syncRefundRow(rowId);
+      });
+    });
+
+    if (!copyBtn) return;
+    copyBtn.addEventListener("click", function () {
+      var reason = String((applyReason && applyReason.value) || "").trim().toLowerCase();
+      var refunded = String((applyRefunded && applyRefunded.value) || "no").trim().toLowerCase();
+      var noteVal = String((applyNote && applyNote.value) || "").trim().toUpperCase();
+      var allowedReason = { "return": 1, "waste": 1, "display": 1 };
+      if (!allowedReason[reason]) {
+        if (feedback) feedback.textContent = "Choose Reason first (Return, Waste, or Display).";
+        return;
+      }
+
+      var copied = 0;
+      formOut.querySelectorAll(".shop-store-row-out").forEach(function (row) {
+        var id = row.getAttribute("data-item-id");
+        if (!id) return;
+        var qtyEl = row.querySelector('input[name="out_qty_' + id + '"]');
+        var qty = parseFloat(String((qtyEl && qtyEl.value) || "").replace(",", "."));
+        if (!isFinite(qty) || !(qty > 0)) return;
+        copied += 1;
+        var reasonEl = row.querySelector('select[name="out_reason_' + id + '"]');
+        var refundedEl = row.querySelector('select[name="out_refunded_' + id + '"]');
+        var noteEl = row.querySelector('input[name="out_note_' + id + '"]');
+        if (reasonEl) reasonEl.value = reason;
+        if (refundedEl) refundedEl.value = refunded === "yes" ? "yes" : "no";
+        if (noteEl && noteVal) noteEl.value = noteVal;
+        syncRefundRow(id);
+      });
+
+      if (!feedback) return;
+      feedback.textContent = copied
+        ? "Copied reason/refund/note to " + copied + " row(s) with quantity."
+        : "No rows updated - enter qty out on target lines, then copy again.";
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    var input = document.getElementById("js-stock-item-search");
+    var countEl = document.getElementById("js-stock-visible-count");
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".js-stock-row"));
+    if (!input || !countEl || !rows.length) return;
+
+    function sync() {
+      var q = (input.value || "").trim().toLowerCase();
+      var n = 0;
+      var visibleByCat = {};
+      rows.forEach(function (row) {
+        var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
+        var show = !q || hay.indexOf(q) !== -1;
+        row.style.display = show ? "" : "none";
+        if (show) {
+          n += 1;
+          var catKey = String(row.getAttribute("data-stock-category") || "");
+          if (catKey) visibleByCat[catKey] = true;
+        }
+      });
+      document.querySelectorAll(".js-stock-cat-row").forEach(function (catRow) {
+        var catKey = String(catRow.getAttribute("data-cat") || "");
+        catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
+      });
+      countEl.textContent = String(n);
+    }
+
+    input.addEventListener("input", sync);
+    sync();
+  })();
+</script>
+
+{% if view == 'auto' %}
+<script>
+  (function () {
+    var form = document.getElementById("js-batch-request-stock-form");
+    if (!form) return;
+    var sourceSel = document.getElementById("batch-request-source");
+    var heading = document.getElementById("js-source-stock-heading");
+    var hint = document.getElementById("js-source-stock-hint");
+    var sourceCells = Array.prototype.slice.call(form.querySelectorAll(".js-source-stock-cell"));
+
+    function currentSourceLabel() {
+      if (!sourceSel) return "Source";
+      var v = String(sourceSel.value || "");
+      if (v === "company") return "Company";
+      if (v.indexOf("shop:") === 0) return "Shop";
+      return "Source";
+    }
+
+    function syncSourceUi() {
+      var label = currentSourceLabel();
+      if (heading) heading.textContent = label;
+      if (hint) hint.textContent = "Requests are limited by the " + label.toLowerCase() + " stock shown per row.";
+      sourceCells.forEach(function (cell) {
+        cell.setAttribute("title", label + " stock");
+      });
+    }
+
+    if (sourceSel) sourceSel.addEventListener("change", syncSourceUi);
+    syncSourceUi();
+
+    form.addEventListener("submit", function (ev) {
+      var issues = [];
+      var hasQty = false;
+      form.querySelectorAll(".js-stock-row").forEach(function (row) {
+        var qtyInput = row.querySelector(".js-request-stock-qty");
+        if (!qtyInput) return;
+        var raw = String(qtyInput.value || "").trim();
+        if (!raw) return;
+        var qty = parseFloat(raw.replace(",", "."));
+        if (!isFinite(qty) || !(qty > 0)) {
+          issues.push("Enter valid positive quantity for " + (row.querySelector("td") || row).textContent.trim() + ".");
+          return;
+        }
+        hasQty = true;
+      });
+      if (!hasQty) issues.push("Enter quantity on at least one line before submitting.");
+      if (issues.length) {
+        ev.preventDefault();
+        window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
+      }
+    });
+  })();
+</script>
+{% endif %}
+
+<script>
+  (function () {
+    var form = document.querySelector('form[action*="view=manual"]');
+    if (!form) return;
+
+    var applyPhone = document.getElementById("js-apply-all-phone");
+    var applyName = document.getElementById("js-apply-all-name");
+    var applyPayment = document.getElementById("js-apply-all-payment");
+    var applyNote = document.getElementById("js-apply-all-note");
+    var copyBtn = document.getElementById("js-apply-all-copy-rows");
+    var feedback = document.getElementById("js-apply-all-copy-feedback");
+    var applyHint = document.getElementById("js-apply-all-hint");
+    var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+
+    function normalizePhoneValue(raw) {
+      var val = String(raw || "").trim();
+      if (val.indexOf("+254") === 0) val = "254" + val.slice(4);
+      return val.replace(/\s+/g, "");
+    }
+
+    function lookupSeller(phone, cb) {
+      var p = normalizePhoneValue(phone);
+      var digits = p.replace(/\D/g, "");
+      if (!p) return cb("empty", null, p);
+      if (digits.length < 10) return cb("short", null, p);
+      var valid10 = /^((07|01)\d{8})$/.test(digits);
+      var valid12 = /^(254\d{9})$/.test(digits);
+      if (!valid10 && !valid12) return cb("badformat", null, p);
+      var fd = new FormData();
+      fd.append("seller_phone", p);
+      fetch(sellerLookupUrl, { method: "POST", body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { cb("ok", data, p); })
+        .catch(function () { cb("err", null, p); });
+    }
+
+    function bindSellerLookup(phoneEl, nameEl, hintEl) {
+      if (!phoneEl || !nameEl) return;
+      var timer = null;
+      phoneEl.addEventListener("input", function () {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          lookupSeller(phoneEl.value, function (state, data, normalizedPhone) {
+            if (phoneEl.value !== normalizedPhone) phoneEl.value = normalizedPhone;
+            if (!hintEl) return;
+            if (state === "empty") { hintEl.textContent = ""; return; }
+            if (state === "short") { hintEl.textContent = "Continue typing seller phone..."; return; }
+            if (state === "badformat") { hintEl.textContent = "Use 07... or 01... (10 digits) or 254... (12 digits)."; return; }
+            if (state === "ok" && data && data.ok && data.registered && data.seller) {
+              nameEl.value = String(data.seller.seller_name || "").toUpperCase();
+              hintEl.textContent = "Registered seller found.";
+            } else if (state === "ok") {
+              hintEl.textContent = "New phone - enter seller name; supplier registers on submit.";
+            } else {
+              hintEl.textContent = "";
+            }
+          });
+        }, 220);
+      });
+    }
+
+    bindSellerLookup(applyPhone, applyName, applyHint);
+
+    form.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
+      var id = row.getAttribute("data-item-id");
+      if (!id) return;
+      var phone = row.querySelector('[data-seller-phone="' + id + '"]');
+      var name = row.querySelector('[data-seller-name="' + id + '"]');
+      var hint = row.querySelector('[data-seller-hint="' + id + '"]');
+      bindSellerLookup(phone, name, hint);
+    });
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        var pv = normalizePhoneValue(applyPhone && applyPhone.value);
+        var nv = String((applyName && applyName.value) || "").trim().toUpperCase();
+        var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
+        var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
+        var noteVal = String((applyNote && applyNote.value) || "").trim().toUpperCase();
+        var copied = 0;
+
+        form.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
+          var id = row.getAttribute("data-item-id");
+          if (!id) return;
+          var qtyEl = row.querySelector('input[name="qty_' + id + '"]');
+          var qty = parseFloat(String((qtyEl && qtyEl.value) || "").replace(",", "."));
+          if (!isFinite(qty) || !(qty > 0)) return;
+          copied += 1;
+          var pEl = row.querySelector('input[name="seller_phone_' + id + '"]');
+          var nEl = row.querySelector('input[name="seller_name_' + id + '"]');
+          var payEl = row.querySelector('select[name="payment_status_' + id + '"]');
+          var noteEl = row.querySelector('input[name="note_' + id + '"]');
+          var hintEl = row.querySelector('[data-seller-hint="' + id + '"]');
+          if (pEl) pEl.value = pv;
+          if (nEl) nEl.value = nv;
+          if (payEl && payOk) payEl.value = payRaw;
+          if (noteEl && noteVal) noteEl.value = noteVal;
+          if (hintEl) hintEl.textContent = "";
+        });
+
+        if (!feedback) return;
+        if (!copied) {
+          feedback.textContent = "No rows updated - enter quantity on target lines, then copy again.";
+        } else if (!payOk) {
+          feedback.textContent = "Copied phone/name/note to " + copied + " row(s). Pick payment and copy again to apply it.";
+        } else {
+          feedback.textContent = "Copied seller fields to " + copied + " row(s) with quantity.";
+        }
+      });
+    }
+
+    form.addEventListener("submit", function (ev) {
+      var payAllowed = { pending_payment: 1, partially_paid: 1, paid: 1 };
+      var issues = [];
+      var firstBad = null;
+      form.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
+        var id = row.getAttribute("data-item-id");
+        if (!id) return;
+        var qtyEl = row.querySelector('input[name="qty_' + id + '"]');
+        var priceEl = row.querySelector('input[name="buying_price_' + id + '"]');
+        var nameEl = row.querySelector('input[name="seller_name_' + id + '"]');
+        var phoneEl = row.querySelector('input[name="seller_phone_' + id + '"]');
+        var payEl = row.querySelector('select[name="payment_status_' + id + '"]');
+
+        var qtyRaw = String((qtyEl && qtyEl.value) || "").trim();
+        var qtyState = null;
+        if (qtyRaw) {
+          var qty = parseFloat(qtyRaw.replace(",", "."));
+          qtyState = isFinite(qty) && qty > 0 ? qty : false;
+        }
+        var priceRaw = String((priceEl && priceEl.value) || "").trim();
+        var nameRaw = String((nameEl && nameEl.value) || "").trim();
+        var phoneRaw = String((phoneEl && phoneEl.value) || "").trim();
+        var payRaw = String((payEl && payEl.value) || "").trim().toLowerCase();
+        var payOk = !!payAllowed[payRaw];
+        var touched = !!(priceRaw || nameRaw || phoneRaw || payOk);
+
+        if (typeof qtyState === "number") {
+          if (!priceRaw) { issues.push("Item #" + id + ": buying price required with quantity."); firstBad = firstBad || row; }
+          if (!nameRaw) { issues.push("Item #" + id + ": seller name required with quantity."); firstBad = firstBad || row; }
+          if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
+        } else if (qtyState === false) {
+          issues.push("Item #" + id + ": quantity must be a positive number or blank.");
+          firstBad = firstBad || row;
+        } else if (touched) {
+          issues.push("Item #" + id + ": add quantity or clear seller/price/payment fields.");
+          firstBad = firstBad || row;
+        }
+      });
+
+      if (!issues.length) return;
+      ev.preventDefault();
+      window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
+      if (firstBad) {
+        try {
+          firstBad.classList.remove("hidden");
+          firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+        } catch (_e) {}
+      }
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    var searchInput = document.getElementById("shop-catalog-search");
+    var countEl = document.getElementById("shop-catalog-visible-count");
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".js-catalog-row"));
+    if (!searchInput || !rows.length) return;
+
+    function syncCatalog() {
+      var q = (searchInput.value || "").trim().toLowerCase();
+      var visible = 0;
+      rows.forEach(function (row) {
+        var hay = (row.getAttribute("data-catalog-search") || "").toLowerCase();
+        var show = !q || hay.indexOf(q) !== -1;
+        row.style.display = show ? "" : "none";
+        var editRow = row.nextElementSibling;
+        if (editRow && editRow.classList.contains("sa-stock-mgmt-edit-row")) {
+          editRow.style.display = show ? "" : "none";
+        }
+        if (show) visible += 1;
+      });
+      if (countEl) countEl.textContent = String(visible);
+    }
+
+    searchInput.addEventListener("input", syncCatalog);
+    syncCatalog();
+  })();
+</script>
+
+<script>
+  (function () {
+    var searchInput = document.getElementById("shop-store-activity-search");
+    var countEl = document.getElementById("shop-store-activity-visible-count");
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".js-activity-row"));
+    var filters = Array.prototype.slice.call(document.querySelectorAll(".stk-activity-filter"));
+    if (!rows.length) return;
+
+    var activeDir = "all";
+
+    function setDirFilter(dir) {
+      activeDir = dir || "all";
+      filters.forEach(function (btn) {
+        var on = (btn.getAttribute("data-activity-dir") || "all") === activeDir;
+        btn.classList.toggle("shop-analytics-tab-active", on);
+        btn.classList.toggle("text-[rgb(var(--rc-muted))]", !on);
+      });
+      syncActivity();
+    }
+
+    function syncActivity() {
+      var q = ((searchInput && searchInput.value) || "").trim().toLowerCase();
+      var visible = 0;
+      rows.forEach(function (row) {
+        var hay = (row.getAttribute("data-activity-search") || "").toLowerCase();
+        var dir = row.getAttribute("data-activity-dir") || "";
+        var dirOk = activeDir === "all" || dir === activeDir;
+        var show = dirOk && (!q || hay.indexOf(q) !== -1);
+        row.style.display = show ? "" : "none";
+        if (show) visible += 1;
+      });
+      if (countEl) countEl.textContent = String(visible);
+    }
+
+    if (searchInput) searchInput.addEventListener("input", syncActivity);
+    filters.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setDirFilter(btn.getAttribute("data-activity-dir") || "all");
+      });
+    });
+    syncActivity();
+  })();
+</script>

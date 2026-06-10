@@ -1,1235 +1,412 @@
 {% extends "shop_layout.html" %}
+
 {% block title %}Shop stock management — {{ shop.shop_name }}{% endblock %}
+
 {% block shop_page_title %}Shop stock management{% endblock %}
 
+
+
 {% block shop_sidebar_links %}
+
   {% set selected_view = '' %}
+
   {% include "partials/shop_stock_workspace_sidebar.html" %}
+
 {% endblock %}
+
+
 
 {% block shop_content %}
+
   {% set view = view|default('auto') %}
+
   {% set pos_inventory_mode = pos_inventory_mode|default('shop') %}
+
   {% set store_registration_enabled = store_registration_enabled|default(false) %}
+
   {% include "partials/shop_stock_workspace_assets.html" %}
-  <div class="sa-stock-analytics min-w-0 max-w-full overflow-x-hidden">
-  <div class="sa-stock-workspace sa-stock-mgmt mt-4 flex flex-col gap-2 sm:gap-4">
-    {% set stock_shell_title = 'Shop stock update' %}
-    {% if pos_inventory_mode == 'both' %}
-      {% set stock_shell_desc = 'Kitchen + shelf store SKUs for ' ~ shop.shop_name ~ '. Stock in/out per row; bulk copy for rows with quantity.' %}
-      {% set stock_shell_badge = 'Both mode' %}
-    {% elif pos_inventory_mode == 'kitchen' %}
-      {% set stock_shell_desc = 'This branch uses kitchen portions only — store/shelf stock workflows are disabled.' %}
-      {% set stock_shell_badge = 'Kitchen only' %}
-    {% else %}
-      {% set stock_shell_desc = 'Request stock from company or another shop, or record manual stock-in for catalogue items at ' ~ shop.shop_name ~ '.' %}
-      {% set stock_shell_badge = 'Catalogue stock' %}
-    {% endif %}
-    {% include "partials/shop_stock_mgmt_shell_hero.html" %}
 
-    {% if pos_inventory_mode == 'both' %}
-      <section id="shop-inline-register-sku" class="sa-stock-panel">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Register item</h3>
-          <button
-            type="button"
-            id="shop-inline-register-toggle"
-            class="btn-rc btn-rc-ghost shrink-0 px-3 py-1 text-xs font-medium"
-            aria-expanded="{% if not (store_catalog_items or store_items or []) %}true{% else %}false{% endif %}"
-            aria-controls="shop-inline-register-body"
-          >
-            {% if not (store_catalog_items or store_items or []) %}Hide{% else %}Show{% endif %}
-          </button>
+  {% include "partials/shop_stock_mgmt_tab_styles.html" %}
+
+  <div class="sa-stock-analytics shop-stock-mgmt-page">
+
+    <div class="sa-stock-workspace shop-stock-mgmt-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+
+      {% include "partials/shop_stock_mgmt_shell_hero.html" %}
+
+      {% if pos_inventory_mode == 'both' %}
+
+        <div class="shop-mgmt-tabbed flex flex-col gap-2 sm:gap-4">
+
+          {% include "partials/shop_stock_both_shelf_catalog.html" %}
+
+          {% include "partials/shop_stock_both_stock_in_panel.html" %}
+
+          {% include "partials/shop_stock_both_stock_out_panel.html" %}
+
+          {% include "partials/shop_stock_both_activity_panel.html" %}
+
         </div>
 
-        <div
-          id="shop-inline-register-body"
-          class="mt-3{% if (store_catalog_items or store_items or []) %} hidden{% endif %}"
-        >
-          <form
-            method="post"
-            action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}"
-            class="grid gap-2 sm:grid-cols-2"
-          >
-            <input type="hidden" name="action" value="create_shop_store_stock_item" />
-            <input type="hidden" name="view" value="{{ view }}" />
-            <label class="block">
-              <span class="mb-0.5 block text-xs text-[rgb(var(--rc-muted))]">Name</span>
-              <input name="name" required autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-            </label>
-            <label class="block">
-              <span class="mb-0.5 block text-xs text-[rgb(var(--rc-muted))]">Category</span>
-              <input name="category" required autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-            </label>
-            <label class="block sm:col-span-2">
-              <span class="mb-0.5 block text-xs text-[rgb(var(--rc-muted))]">Description</span>
-              <textarea name="description" rows="2" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" placeholder="Optional"></textarea>
-            </label>
-            <label class="block">
-              <span class="mb-0.5 block text-xs text-[rgb(var(--rc-muted))]">Measure</span>
-              <select name="measure_unit" required class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
-                {% for mu in inline_register_measure_options or [] %}
-                  <option value="{{ mu }}">{{ mu|upper }}</option>
-                {% endfor %}
-              </select>
-            </label>
-            <div class="flex items-end">
-              <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-medium">Register</button>
-            </div>
-          </form>
-        </div>
-      </section>
+      {% elif pos_inventory_mode == 'kitchen' %}
 
-      {% include "partials/shop_stock_store_items_catalog.html" %}
-    {% endif %}
+        {% include "partials/shop_stock_kitchen_notice.html" %}
 
-    {% if pos_inventory_mode == 'both' %}
-      {% include "partials/shop_stock_both_mode_workspace.html" %}
-    {% endif %}
+        <div class="flex flex-col gap-2 sm:gap-4">
 
-    {% if pos_inventory_mode != 'both' %}
-    <section class="sa-stock-panel">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="sa-stock-panel__title">Stock operations</h2>
-          <p class="sa-stock-panel__hint">
-            {% if pos_inventory_mode == 'kitchen' %}
-              This branch is on <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portions only</strong>, so store/shelf stock workflows are disabled here.
-            {% else %}
-              Choose approved stock requests (company or another shop) or manual stock-in, enter details per item row, then submit once.
-            {% endif %}
-          </p>
-        </div>
-        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <a
-            href="{{ url_for('shop_stock_management', shop_id=shop.id, view='auto') }}"
-            class="btn-rc flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider sm:flex-none {% if view == 'auto' %}btn-rc-primary{% else %}btn-rc-ghost{% endif %}"
-          >Request stock</a>
-          <a
-            href="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}"
-            class="btn-rc flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider sm:flex-none {% if view == 'manual' %}btn-rc-primary{% else %}btn-rc-ghost{% endif %}"
-          >Manual stock in</a>
-        </div>
-      </div>
-    </section>
+          {% include "partials/shop_stock_requests_panel.html" %}
 
-    {% if not items %}
-      <section class="sa-stock-panel">
-        <p class="text-sm text-[rgb(var(--rc-muted))]">
-          {% if pos_inventory_mode == 'kitchen' %}
-            Store/shelf stock is disabled because this branch is using kitchen portions only.
-          {% elif pos_inventory_mode == 'shop' or pos_inventory_mode == 'none' %}
-            No active catalogue lines have shop stock updates enabled at this branch. Turn on stock tracking for those items in company / branch settings, then refresh.
-          {% else %}
-            No items available.
+          {% if view != 'manual' %}
+
+            {% include "partials/shop_stock_transactions_panel.html" %}
+
           {% endif %}
-        </p>
-      </section>
-    {% else %}
-      {% if view == 'auto' %}
-        <section class="sa-stock-panel">
-            <h3 class="sa-stock-panel__title">Request stock (approval required)</h3>
-            <p class="sa-stock-panel__hint">
-              Choose whether stock should come from the <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">company warehouse</strong> or
-              <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">another shop</strong>, then enter quantities. Each line creates one pending request; the
-              company or the other shop must approve before stock moves.
-            </p>
-          <form
-            id="js-batch-request-stock-form"
-            method="post"
-            action="{{ url_for('shop_stock_management', shop_id=shop.id, view='auto') }}"
-            class="space-y-4"
-          >
-            <input type="hidden" name="action" value="batch_request_stock" />
-            <input type="hidden" name="view" value="auto" />
-            <div class="mb-3">
-              <label class="block text-xs font-semibold text-[rgb(var(--rc-muted))]" for="batch-request-source">Request stock from</label>
-              <select
-                id="batch-request-source"
-                name="batch_request_source"
-                class="mt-2 w-full max-w-xl rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none"
-              >
-                <option value="company">Company warehouse</option>
-                {% for s in other_shops or [] %}
-                  <option value="shop:{{ s.id }}">{{ s.shop_name }}</option>
-                {% endfor %}
-              </select>
-              {% if not other_shops %}
-                <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">There are no other shops yet — requests can only go to the company.</p>
-              {% endif %}
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Optional note (applies to lines without their own note)</label>
-              <input name="batch_note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. WEEKLY RESTOCK" />
-            </div>
-            <div class="mb-3">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <label class="block min-w-0 flex-1">
-                  <span class="mb-1 block text-xs font-semibold text-[rgb(var(--rc-muted))]">Search items</span>
-                  <input
-                    type="search"
-                    id="js-stock-item-search"
-                    autocomplete="off"
-                    placeholder="Filter by name, then enter quantity directly in the rows below"
-                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
-                  />
-                </label>
-                <span class="shrink-0 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] sm:pb-2">
-                  <span id="js-stock-visible-count">{{ (items or [])|length }}</span> / {{ (items or [])|length }} shown
-                </span>
-              </div>
-            </div>
-            <div class="sa-stock-mgmt-scroll">
-              <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
-                <thead>
-                  <tr>
-                    <th class="sa-stock-col-item">Item</th>
-                    <th class="sa-stock-col-stock sa-stock-th--num">Shop stock</th>
-                    <th class="sa-stock-col-stock sa-stock-th--num">Source stock</th>
-                    <th class="sa-stock-col-qty">Qty</th>
-                    <th class="sa-stock-col-note">Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for it in items %}
-                    <tr
-                      class="js-stock-row"
-                      data-stock-search="{{ (it.name ~ ' ' ~ (it.category or ''))|lower }}"
-                    >
-                      <td class="sa-stock-mgmt-item-cell">{{ it.name }}</td>
-                      <td class="sa-stock-td--num">{{ it.shop_stock_qty }}</td>
-                      <td class="js-source-stock-cell sa-stock-td--num" data-item-id="{{ it.id }}">{{ it.company_stock_qty }}</td>
-                      <td>
-                        <input
-                          name="qty_{{ it.id }}"
-                          type="text"
-                          inputmode="decimal"
-                          autocomplete="off"
-                          value=""
-                          class="js-stock-qty-input js-request-stock-qty"
-                          placeholder="0 or 1.25"
-                          title="Whole or decimal quantity (use . or , as decimal separator)"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          name="note_{{ it.id }}"
-                          class="uppercase"
-                          placeholder="Optional"
-                        />
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-            <p id="js-source-stock-hint" class="text-xs text-[rgb(var(--rc-muted))]">
-              You can only request up to the amount shown under &quot;Stock — …&quot; for each item.
-            </p>
-            <button type="submit" class="btn-rc btn-rc-primary w-full px-6 py-3 text-sm font-semibold">Submit stock requests</button>
-          </form>
-        </section>
-      {% else %}
-        <section class="sa-stock-panel">
-            <h3 class="sa-stock-panel__title">Manual stock in</h3>
-            <p class="sa-stock-panel__hint">
-              Enter qty and buy price per line. Payment and note are optional. Use bulk copy below for rows with qty.
-            </p>
-          <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view='manual') }}" class="space-y-4">
-            <input type="hidden" name="action" value="batch_manual_in" />
-            <input type="hidden" name="view" value="manual" />
-            <div class="mb-3">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <label class="block min-w-0 flex-1">
-                  <span class="mb-1 block text-xs font-semibold text-[rgb(var(--rc-muted))]">Search items</span>
-                  <input
-                    type="search"
-                    id="js-stock-item-search"
-                    autocomplete="off"
-                    placeholder="Filter by name, then enter quantity directly in the rows below"
-                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none placeholder:text-[rgb(var(--rc-muted))]"
-                  />
-                </label>
-                <span class="shrink-0 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] sm:pb-2">
-                  <span id="js-stock-visible-count">{{ (items or [])|length }}</span> / {{ (items or [])|length }} shown
-                </span>
-              </div>
-            </div>
-            <div class="sa-stock-mgmt-scroll">
-              <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
-                <thead>
-                  <tr>
-                    <th class="sa-stock-col-item">Item</th>
-                    <th class="sa-stock-col-stock sa-stock-th--num">Shop</th>
-                    <th class="sa-stock-col-stock sa-stock-th--num">Company</th>
-                    <th class="sa-stock-col-qty sa-stock-th--in">Qty in</th>
-                    <th class="sa-stock-col-price sa-stock-th--in sa-stock-col-hide-sm">Buy price</th>
-                    <th class="sa-stock-col-phone sa-stock-th--in sa-stock-col-hide-lg">Phone</th>
-                    <th class="sa-stock-col-seller sa-stock-th--in sa-stock-col-hide-lg">Seller</th>
-                    <th class="sa-stock-col-pay sa-stock-th--in sa-stock-col-hide-md">Payment</th>
-                    <th class="sa-stock-col-note sa-stock-th--in sa-stock-col-hide-md">Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for it in items %}
-                    <tr
-                      class="js-stock-row js-manual-stock-row"
-                      data-stock-search="{{ (it.name ~ ' ' ~ (it.category or ''))|lower }}"
-                      data-item-id="{{ it.id }}"
-                    >
-                      <td class="sa-stock-mgmt-item-cell">
-                        <div class="sa-stock-mgmt-item-name">{{ it.name }}</div>
-                      </td>
-                      <td class="sa-stock-td--num">{{ it.shop_stock_qty }}</td>
-                      <td class="sa-stock-td--num">{{ it.company_stock_qty }}</td>
-                      <td>
-                        <input name="qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="js-manual-qty js-stock-qty-input" placeholder="0 or 1.25" title="Whole or decimal quantity (use . or , as decimal separator)" />
-                      </td>
-                      <td class="sa-stock-col-hide-sm">
-                        <input
-                          name="buying_price_{{ it.id }}"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0"
-                          {% if it.last_buying_price is not none %}value="{{ '%.2f' % it.last_buying_price }}"{% endif %}
-                          title="{% if it.last_buying_price is not none %}Last recorded buying price for this item at this shop{% else %}No previous shop stock-in price yet{% endif %}"
-                        />
-                      </td>
-                      <td class="sa-stock-col-hide-lg">
-                        <input name="seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="js-seller-phone" placeholder="07… or 254…" title="Kenyan mobile: 07xxxxxxxx (10 digits) or 254xxxxxxxxxx (12 digits)" />
-                      </td>
-                      <td class="sa-stock-col-hide-lg">
-                        <input name="seller_name_{{ it.id }}" data-seller-name="{{ it.id }}" class="js-seller-name uppercase" placeholder="NAME / PLACE" />
-                        <p class="js-seller-hint shop-store-seller-hint" data-seller-hint="{{ it.id }}"></p>
-                      </td>
-                      <td class="sa-stock-col-hide-md">
-                        <select name="payment_status_{{ it.id }}" class="js-manual-payment">
-                          <option value="pending_payment" selected>Not paid</option>
-                          <option value="partially_paid">Partially paid</option>
-                          <option value="paid">Paid</option>
-                        </select>
-                      </td>
-                      <td class="sa-stock-col-hide-md">
-                        <input name="note_{{ it.id }}" class="uppercase" placeholder="—" autocomplete="off" />
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-            <div class="sa-stock-mgmt-bulk-bar">
-              <p class="text-xs font-semibold text-[rgb(var(--rc-muted))]">Copy to rows with qty</p>
-              <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-                Click copy to push seller phone, name, payment, and optional note to every row that already has <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">quantity greater than zero</strong>. Adjust individual rows afterward if needed.
-              </p>
-              <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <label class="block min-w-0">
-                  <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Seller phone</span>
-                  <input
-                    type="text"
-                    name="apply_all_seller_phone"
-                    id="js-apply-all-phone"
-                    autocomplete="off"
-                    class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
-                    placeholder="07… or 254…"
-                  />
-                </label>
-                <label class="block min-w-0">
-                  <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Seller name / place</span>
-                  <input
-                    type="text"
-                    name="apply_all_seller_name"
-                    id="js-apply-all-name"
-                    autocomplete="off"
-                    class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm uppercase text-[rgb(var(--rc-page-fg))]"
-                    placeholder="NAME / PLACE"
-                  />
-                </label>
-                <label class="block min-w-0">
-                  <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment</span>
-                  <select
-                    name="apply_all_payment_status"
-                    id="js-apply-all-payment"
-                    class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]"
-                  >
-                    <option value="pending_payment" selected>Not paid</option>
-                    <option value="partially_paid">Partially paid</option>
-                    <option value="paid">Paid</option>
-                  </select>
-                </label>
-                <label class="block min-w-0 sm:col-span-2 xl:col-span-1">
-                  <span class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Note (optional)</span>
-                  <input
-                    type="text"
-                    name="apply_all_note"
-                    id="js-apply-all-note"
-                    autocomplete="off"
-                    class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm uppercase text-[rgb(var(--rc-page-fg))]"
-                    placeholder="SHARED NOTE"
-                  />
-                </label>
-              </div>
-              <button type="button" id="js-apply-all-copy-rows" class="btn-rc btn-rc-ghost mt-3 px-4 py-2 text-xs font-semibold uppercase tracking-wider">
-                Copy to rows with quantity
-              </button>
-              <p id="js-apply-all-copy-feedback" class="mt-2 text-[10px] text-[rgb(var(--rc-muted))]"></p>
-              <p id="js-apply-all-hint" class="mt-2 text-[10px] text-[rgb(var(--rc-muted))]"></p>
-            </div>
-            <button type="submit" class="btn-rc btn-rc-success w-full px-6 py-3 text-sm font-semibold">Submit manual stock-in</button>
-          </form>
-        </section>
-      {% endif %}
-    {% endif %}
-    {% endif %}{# end pos_inventory_mode != 'both' #}
 
-    {% if pos_inventory_mode != 'both' %}
-    <section class="sa-stock-panel">
-      <div class="sa-stock-panel-head">
-        <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock requests</h4>
-        <span class="sa-stock-panel-meta">{{ (item_stock_requests or [])|length }} rows</span>
-      </div>
-      {% set ns = namespace(pending_count=0) %}
-      {% for r in item_stock_requests or [] %}
-        {% if r.status == 'pending' %}
-          {% set ns.pending_count = ns.pending_count + 1 %}
-        {% endif %}
-      {% endfor %}
-      <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">
-        Pending: <span class="font-extrabold text-[rgb(var(--rc-page-fg))]">{{ ns.pending_count }}</span>
-      </p>
-      {% if not item_stock_requests %}
-        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">No requests yet.</p>
-      {% else %}
-        <div class="sa-stock-mgmt-scroll mt-3">
-          <table class="sa-stock-data-table sa-stock-mgmt-table text-sm">
-            <thead>
-              <tr>
-                <th>Request</th>
-                <th>Type</th>
-                <th>Source</th>
-                <th>Item</th>
-                <th class="sa-stock-th--num">Qty</th>
-                <th>Status</th>
-                <th>Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in item_stock_requests %}
-                <tr>
-                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">#{{ r.id }} • {{ r.requesting_shop_name }}</td>
-                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{% if r.request_type == 'return_to_company' %}Return to company{% else %}Stock in{% endif %}</td>
-                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{% if r.source_type == 'company' %}Company{% else %}{{ r.source_shop_name or ('Shop #' ~ (r.source_shop_id or '')) }}{% endif %}</td>
-                  <td class="sa-stock-mgmt-item-cell font-semibold">{{ r.item_name }}</td>
-                  <td class="sa-stock-td--num">{{ r.qty }}</td>
-                  <td class="whitespace-nowrap">
-                    <span class="inline-flex rounded-full px-2 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1 {% if r.status == 'approved' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% elif r.status == 'rejected' %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% else %}bg-amber-500/10 text-amber-300 ring-amber-400/20{% endif %}">
-                      {{ r.status }}
-                    </span>
-                  </td>
-                  <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ r.created_at }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
         </div>
-      {% endif %}
-    </section>
-    {% endif %}{# end pos_inventory_mode != 'both' for Stock requests #}
 
-    {% if view != 'manual' and pos_inventory_mode != 'both' %}
-      <section class="sa-stock-panel">
-        <div class="sa-stock-panel-head">
-          <h4 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Recent transactions</h4>
-          <span class="sa-stock-panel-meta">{{ (transactions or [])|length }} rows</span>
-        </div>
-        {% if not transactions %}
-          <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
-        {% else %}
-          <div class="sa-stock-mgmt-scroll mt-3">
-            <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--wide text-sm">
-              <thead>
-                <tr>
-                  <th class="sa-stock-col-item">Item</th>
-                  <th>Direction</th>
-                  <th>Source</th>
-                  <th class="sa-stock-col-hide-lg">Place</th>
-                  <th class="sa-stock-col-hide-lg">Seller phone</th>
-                  <th class="sa-stock-th--num">Qty</th>
-                  <th class="sa-stock-th--num sa-stock-col-hide-md">Before</th>
-                  <th class="sa-stock-th--num sa-stock-col-hide-md">After</th>
-                  <th class="sa-stock-col-hide-md">Reason</th>
-                  <th class="sa-stock-col-hide-sm">Payment</th>
-                  <th>Receipt</th>
-                  <th class="sa-stock-col-hide-sm">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for tx in transactions %}
-                  <tr>
-                    <td class="sa-stock-mgmt-item-cell whitespace-nowrap">{{ tx.item_name or '—' }}</td>
-                    <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
-                    <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
-                    <td class="sa-stock-col-hide-lg text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.place_brought_from or '-' }}</td>
-                    <td class="sa-stock-col-hide-lg text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.seller_phone or '-' }}</td>
-                    <td class="sa-stock-td--num">{{ tx.qty }}</td>
-                    <td class="sa-stock-td--num sa-stock-col-hide-md text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_before }}</td>
-                    <td class="sa-stock-td--num sa-stock-col-hide-md text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_after }}</td>
-                    <td class="sa-stock-col-hide-md text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.reason or '-' }}</td>
-                    <td class="sa-stock-col-hide-sm text-[rgb(var(--rc-muted))] whitespace-nowrap">
-                      {% if tx.payment_status == 'partially_paid' %}Partial
-                      {% elif tx.payment_status == 'paid' %}Paid
-                      {% else %}Pending{% endif %}
-                    </td>
-                    <td class="whitespace-nowrap">
-                      {% if (tx.direction or '')|lower == 'in' %}
-                        <a href="{{ url_for('shop_stock_in_receipt', shop_id=shop.id, tx_id=tx.id) }}" class="inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">
-                          Print
-                        </a>
-                      {% else %}
-                        <span class="text-[rgb(var(--rc-muted))]">-</span>
-                      {% endif %}
-                    </td>
-                    <td class="sa-stock-col-hide-sm text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ tx.created_at }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+      {% else %}
+
+        <div class="grid gap-2 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
+
+          <div class="min-w-0">
+
+            {% include "partials/shop_stock_catalogue_workspace.html" %}
+
           </div>
-        {% endif %}
-      </section>
-    {% endif %}
+
+          <aside class="flex min-w-0 flex-col gap-2 sm:gap-4">
+
+            {% include "partials/shop_stock_requests_panel.html" %}
+
+            {% if view != 'manual' %}
+
+              {% include "partials/shop_stock_transactions_panel.html" %}
+
+            {% endif %}
+
+          </aside>
+
+        </div>
+
+      {% endif %}
+
+    </div>
+
   </div>
-  </div>
+
 {% endblock %}
+
+
 
 {% block scripts %}
+
   {{ super() }}
+
   <script>
+
     (function () {
+
       var master = document.getElementById("js-reg-select-all-items");
+
       if (!master) return;
+
       var boxes = document.querySelectorAll(".js-reg-item-checkbox");
+
       master.addEventListener("change", function () {
+
         var on = master.checked;
-        boxes.forEach(function (cb) {
-          cb.checked = on;
-        });
+
+        boxes.forEach(function (cb) { cb.checked = on; });
+
       });
+
     })();
+
   </script>
+
   <script>
+
     (function () {
+
       var toggle = document.getElementById("shop-inline-register-toggle");
-      var body = document.getElementById("shop-inline-register-body");
-      if (!toggle || !body) return;
+
+      var panel = document.getElementById("shop-inline-register-sku");
+
+      var label = toggle && toggle.querySelector("[data-register-toggle-label]");
+
+      if (!toggle || !panel) return;
+
+      function setRegisterOpen(open) {
+
+        panel.classList.toggle("hidden", !open);
+
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+
+        if (label) label.textContent = open ? "Close" : "Add SKU";
+
+      }
+
       toggle.addEventListener("click", function () {
-        var isHidden = body.classList.contains("hidden");
-        body.classList.toggle("hidden", !isHidden);
-        toggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
-        toggle.textContent = isHidden ? "Hide" : "Show";
+
+        setRegisterOpen(panel.classList.contains("hidden"));
+
       });
-    })();
-    (function () {
-      var catToggle = document.getElementById("shop-store-catalog-toggle");
-      var catBody = document.getElementById("shop-store-items-catalog-body");
-      if (!catToggle || !catBody) return;
-      catToggle.addEventListener("click", function () {
-        var isHidden = catBody.classList.contains("hidden");
-        catBody.classList.toggle("hidden", !isHidden);
-        catToggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
-        catToggle.textContent = isHidden ? "Hide" : "Show";
-      });
-    })();
-  </script>
-  <script>
-    (function () {
-      var btnIn = document.getElementById("shop-store-mode-in");
-      var btnOut = document.getElementById("shop-store-mode-out");
-      var formIn = document.getElementById("shop-store-bulk-form-in");
-      var formOut = document.getElementById("shop-store-bulk-form-out");
-      if (!btnIn || !btnOut) return;
 
-      var currentMode = "in";
-      function activeForm() {
-        return currentMode === "in" ? formIn : formOut;
-      }
+      document.querySelectorAll("[data-register-open], [data-register-cancel]").forEach(function (el) {
 
-      function setMode(mode) {
-        var isIn = mode === "in";
-        currentMode = isIn ? "in" : "out";
-        if (formIn) formIn.classList.toggle("hidden", !isIn);
-        if (formOut) formOut.classList.toggle("hidden", isIn);
-        btnIn.setAttribute("aria-selected", isIn ? "true" : "false");
-        btnOut.setAttribute("aria-selected", !isIn ? "true" : "false");
-        btnIn.className = isIn
-          ? "rounded-xl px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition ring-1 ring-emerald-400/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200"
-          : "rounded-xl px-4 py-2.5 text-sm font-medium uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]";
-        btnOut.className = !isIn
-          ? "rounded-xl px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition ring-1 ring-rose-400/40 bg-rose-500/15 text-rose-700 dark:text-rose-200"
-          : "rounded-xl px-4 py-2.5 text-sm font-medium uppercase tracking-wider text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]";
-        // Refresh the live-search visible count for the newly active grid
-        applyLiveSearch();
-      }
-      btnIn.addEventListener("click", function () { setMode("in"); });
-      btnOut.addEventListener("click", function () { setMode("out"); });
+        el.addEventListener("click", function () {
 
-      var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+          var open = el.hasAttribute("data-register-open");
 
-      function normalizePhoneInput(phoneEl) {
-        if (!phoneEl) return "";
-        var p = (phoneEl.value || "").trim();
-        if (p.indexOf("+254") === 0) p = "254" + p.slice(4);
-        p = p.replace(/\s+/g, "");
-        if (phoneEl.value !== p) phoneEl.value = p;
-        return p;
-      }
-      function runSellerLookup(p, onResult) {
-        var digits = (p || "").replace(/\D/g, "");
-        if (!p) { onResult("empty", null); return; }
-        if (digits.length < 10) { onResult("short", null); return; }
-        var valid10 = /^((07|01)\d{8})$/.test(digits);
-        var valid12 = /^(254\d{9})$/.test(digits);
-        if (!valid10 && !valid12) { onResult("badformat", null); return; }
-        var fd = new FormData();
-        fd.append("seller_phone", p);
-        fetch(sellerLookupUrl, { method: "POST", body: fd })
-          .then(function (r) { return r.json(); })
-          .then(function (data) { onResult("ok", data); })
-          .catch(function () { onResult("err", null); });
-      }
-      function bindSellerPhoneLookup(phoneEl, nameEl, hintEl) {
-        if (!phoneEl || !nameEl) return;
-        var timer = null;
-        phoneEl.addEventListener("input", function () {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(function () {
-            var p = normalizePhoneInput(phoneEl);
-            runSellerLookup(p, function (kind, data) {
-              if (!hintEl) return;
-              if (kind === "empty") { hintEl.textContent = ""; return; }
-              if (kind === "short") { hintEl.textContent = "Continue typing seller phone…"; return; }
-              if (kind === "badformat") { hintEl.textContent = "Use 07… or 01… (10 digits) or 254… (12 digits)."; return; }
-              if (kind === "ok" && data && data.ok && data.registered && data.seller) {
-                nameEl.value = String(data.seller.seller_name || "").toUpperCase();
-                hintEl.textContent = "Registered seller found.";
-              } else if (kind === "ok") {
-                hintEl.textContent = "New phone — enter seller name; supplier registers on submit.";
-              } else {
-                hintEl.textContent = "";
-              }
-            });
-          }, 220);
-        });
-      }
+          setRegisterOpen(open);
 
-      if (formIn) {
-        formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
-          var id = row.getAttribute("data-item-id");
-          if (!id) return;
-          var phone = row.querySelector('.shop-store-seller-phone[data-seller-phone="' + id + '"]');
-          var name = row.querySelector('.shop-store-seller-name[data-seller-name="' + id + '"]');
-          var hint = row.querySelector('.shop-store-seller-hint[data-seller-hint="' + id + '"]');
-          bindSellerPhoneLookup(phone, name, hint);
-        });
-        var applyPhone = document.getElementById("shop-store-apply-phone");
-        var applyName = document.getElementById("shop-store-apply-name");
-        var applyHint = document.getElementById("shop-store-apply-hint");
-        var applyPay = document.getElementById("shop-store-apply-payment");
-        var applyNote = document.getElementById("shop-store-apply-note");
-        bindSellerPhoneLookup(applyPhone, applyName, applyHint);
-        var copyInBtn = document.getElementById("shop-store-copy-in-rows");
-        var copyInFb = document.getElementById("shop-store-copy-in-feedback");
-        if (copyInBtn) {
-          copyInBtn.addEventListener("click", function () {
-            var pv = applyPhone ? (applyPhone.value || "").trim() : "";
-            var nv = applyName ? (applyName.value || "").trim().toUpperCase() : "";
-            var payRaw = applyPay ? String(applyPay.value || "").trim().toLowerCase() : "";
-            var noteRaw = applyNote ? String(applyNote.value || "").trim().toUpperCase() : "";
-            var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
-            var payVal = payOk ? payRaw : "";
-            var n = 0;
-            formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
-              var id = row.getAttribute("data-item-id");
-              if (!id) return;
-              var qIn = row.querySelector('input[name="in_qty_' + id + '"]');
-              var q = 0;
-              try { q = parseFloat(String((qIn && qIn.value) || "").replace(",", ".")); } catch (e) { q = 0; }
-              if (!(q > 0)) return;
-              n += 1;
-              var rp = row.querySelector('[name="in_seller_phone_' + id + '"]');
-              var rn = row.querySelector('[name="in_place_' + id + '"]');
-              var rpay = row.querySelector('[name="in_payment_status_' + id + '"]');
-              var rnote = row.querySelector('[name="in_note_' + id + '"]');
-              if (rp) { rp.value = pv; normalizePhoneInput(rp); }
-              if (rn) rn.value = nv;
-              if (rpay && payVal) rpay.value = payVal;
-              if (rnote && noteRaw) rnote.value = noteRaw;
-              var rh = row.querySelector('.shop-store-seller-hint[data-seller-hint="' + id + '"]');
-              if (rh) rh.textContent = "";
-            });
-            if (copyInFb) {
-              if (!n) {
-                copyInFb.textContent = "No rows updated — enter a positive quantity on the lines you are stocking in, then click again.";
-              } else {
-                copyInFb.textContent =
-                  "Copied phone, name" + (payVal ? ", payment" : "") + (noteRaw ? ", note" : "") + " to " + n + " line(s).";
-              }
-            }
-          });
-        }
-      }
+          if (open) {
 
-      if (formOut) {
-        formOut.querySelectorAll(".shop-store-out-refunded").forEach(function (sel) {
-          function sync() {
-            var id = sel.getAttribute("data-item-id");
-            if (!id) return;
-            var amt = formOut.querySelector('[name="out_refund_amount_' + id + '"]');
-            if (!amt) return;
-            var yes = sel.value === "yes";
-            amt.disabled = !yes;
-            if (!yes) amt.value = "";
+            try { panel.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {}
+
           }
-          sel.addEventListener("change", sync);
-          sync();
-        });
-        var copyOutBtn = document.getElementById("shop-store-copy-out-rows");
-        var copyOutReason = document.getElementById("shop-store-out-apply-reason");
-        var copyOutRefunded = document.getElementById("shop-store-out-apply-refunded");
-        var copyOutNote = document.getElementById("shop-store-out-apply-note");
-        var copyOutFb = document.getElementById("shop-store-copy-out-feedback");
-        if (copyOutBtn) {
-          copyOutBtn.addEventListener("click", function () {
-            var reason = copyOutReason ? String(copyOutReason.value || "").trim().toLowerCase() : "";
-            var allowed = { return: 1, waste: 1, display: 1 };
-            if (!reason || !allowed[reason]) {
-              if (copyOutFb) copyOutFb.textContent = "Choose a reason (Return, Waste, or Display) first.";
-              return;
-            }
-            var refYes = copyOutRefunded && copyOutRefunded.value === "yes";
-            var refVal = refYes ? "yes" : "no";
-            var noteRaw = copyOutNote ? String(copyOutNote.value || "").trim().toUpperCase() : "";
-            var n = 0;
-            formOut.querySelectorAll(".shop-store-row-out").forEach(function (row) {
-              var id = row.getAttribute("data-item-id");
-              if (!id) return;
-              var qIn = row.querySelector('input[name="out_qty_' + id + '"]');
-              var q = 0;
-              try { q = parseFloat(String((qIn && qIn.value) || "").replace(",", ".")); } catch (e) { q = 0; }
-              if (!(q > 0)) return;
-              n += 1;
-              var rReason = row.querySelector('[name="out_reason_' + id + '"]');
-              var rRef = row.querySelector('[name="out_refunded_' + id + '"]');
-              var rAmt = row.querySelector('[name="out_refund_amount_' + id + '"]');
-              var rNote = row.querySelector('[name="out_note_' + id + '"]');
-              if (rReason) rReason.value = reason;
-              if (rRef) {
-                rRef.value = refVal;
-                rRef.dispatchEvent(new Event("change"));
-              }
-              if (refYes && rAmt) {
-                var unit = parseFloat(String(row.getAttribute("data-last-buy-price") || "0"));
-                if (!isFinite(unit) || unit < 0) unit = 0;
-                var total = Math.round(q * unit * 100) / 100;
-                rAmt.value = total >= 0 ? total.toFixed(2) : "0.00";
-              }
-              if (rNote && noteRaw) rNote.value = noteRaw;
-            });
-            if (copyOutFb) {
-              copyOutFb.textContent = n
-                ? "Copied reason" + (noteRaw ? " + note" : "") + " to " + n + " line(s) with quantity"
-                    + (refYes ? "; refund amounts set to qty × last buying price (edit as needed)." : ".")
-                : "No rows updated — enter a positive quantity out on the lines you need, then click again.";
-            }
-          });
-        }
-      }
 
-      // ----- LIVE SEARCH ACROSS BOTH GRIDS -----
-      var searchInput = document.getElementById("shop-store-live-search");
-      var visibleCountEl = document.getElementById("shop-store-search-visible-count");
-
-      function applyLiveSearch() {
-        var query = searchInput ? String(searchInput.value || "").trim().toLowerCase() : "";
-        var active = activeForm();
-        var visibleInActive = 0;
-
-        [formIn, formOut].forEach(function (formEl) {
-          if (!formEl) return;
-          var visibleByCategory = {};
-          // First pass: filter rows by data-stock-search
-          formEl.querySelectorAll("tbody tr.shop-store-row").forEach(function (row) {
-            var hay = String(row.getAttribute("data-stock-search") || "");
-            var show = !query || hay.indexOf(query) !== -1;
-            row.classList.toggle("hidden", !show);
-            if (show) {
-              visibleByCategory[String(row.getAttribute("data-stock-category") || "")] = true;
-              if (formEl === active) visibleInActive += 1;
-            }
-          });
-          // Second pass: hide category headers whose rows are all filtered out
-          formEl.querySelectorAll("tbody tr.shop-store-cat-row").forEach(function (row) {
-            var catKey = String(row.getAttribute("data-cat") || "");
-            row.classList.toggle("hidden", !!query && !visibleByCategory[catKey]);
-          });
         });
 
-        if (visibleCountEl) visibleCountEl.textContent = String(visibleInActive);
+      });
+
+    })();
+
+  </script>
+
+  <script>
+
+    (function () {
+
+      var stack = document.querySelector(".shop-mgmt-tabbed");
+
+      if (!stack) return;
+
+      var panels = stack.querySelectorAll(".shop-mgmt-tabpanel");
+
+      var tabIds = ["shop-store-items-catalog", "shop-store-stock-in", "shop-store-stock-out", "shop-store-activity"];
+
+      var tabs = document.querySelectorAll(".shop-mgmt-tab");
+
+
+
+      function showPanel(id) {
+
+        panels.forEach(function (panel) {
+
+          panel.classList.toggle("shop-mgmt-tabpanel--active", panel.id === id);
+
+        });
+
+        tabs.forEach(function (tab) {
+
+          var href = tab.getAttribute("href") || "";
+
+          var on = href === "#" + id;
+
+          tab.classList.toggle("shop-analytics-tab-active", on);
+
+        });
+
       }
 
-      if (searchInput) {
-        searchInput.addEventListener("input", applyLiveSearch);
-      }
-      // Run once on load so the count is correct from the start
-      applyLiveSearch();
 
-      // ----- ROW FOCUS HIGHLIGHT (qty inputs) -----
-      function highlightAndScroll(row) {
+
+      function revealStockRow(row) {
+
         if (!row) return;
-        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
-        try {
-          row.scrollIntoView({ block: "center", behavior: "smooth" });
-        } catch (e) {}
-        setTimeout(function () {
-          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
-        }, 1200);
-      }
-      [".shop-store-in-qty", ".shop-store-out-qty"].forEach(function (sel) {
-        document.querySelectorAll(sel).forEach(function (input) {
-          input.addEventListener("focus", function () {
-            var row = input.closest("tr.shop-store-row");
-            if (!row) return;
-            if (searchInput && (searchInput.value || "").trim() !== "") {
-              // Clear the active search so the row is no longer filtered out, then highlight
-              searchInput.value = "";
-              applyLiveSearch();
-              requestAnimationFrame(function () { highlightAndScroll(row); });
-            } else {
-              highlightAndScroll(row);
-            }
-          });
-        });
-      });
 
-      // ----- CLIENT-SIDE SUBMIT VALIDATION (STOCK IN) -----
-      if (formIn) {
-        formIn.addEventListener("submit", function (ev) {
-          var allowedPay = { pending_payment: 1, partially_paid: 1, paid: 1 };
-          var problems = [];
-          var firstBad = null;
-          formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
-            var id = row.getAttribute("data-item-id");
-            if (!id) return;
-            var label = "Item #" + id;
-            var qIn = row.querySelector('input[name="in_qty_' + id + '"]');
-            var bp = row.querySelector('input[name="in_buying_price_' + id + '"]');
-            var place = row.querySelector('input[name="in_place_' + id + '"]');
-            var phone = row.querySelector('input[name="in_seller_phone_' + id + '"]');
-            var pay = row.querySelector('select[name="in_payment_status_' + id + '"]');
-            var note = row.querySelector('input[name="in_note_' + id + '"]');
-            var qtyStr = String((qIn && qIn.value) || "").trim();
-            var qPos = null;
-            if (qtyStr) {
-              var n = parseFloat(qtyStr.replace(",", "."));
-              if (!isFinite(n) || !(n > 0)) qPos = false;
-              else qPos = n;
-            }
-            var bpS = (bp && bp.value || "").trim();
-            var plS = (place && place.value || "").trim();
-            var phS = (phone && phone.value || "").trim();
-            var payS = (pay && pay.value || "").trim().toLowerCase();
-            var ntS = (note && note.value || "").trim();
-            var payOk = !!allowedPay[payS];
-            var otherTouched = !!(bpS || plS || phS || payOk || ntS);
+        row.classList.remove("hidden");
 
-            if (typeof qPos === "number") {
-              if (!bpS) {
-                problems.push(label + ": buying price is required with quantity.");
-                firstBad = firstBad || row;
-              }
-              if (!plS) {
-                problems.push(label + ": seller name / place is required with quantity.");
-                firstBad = firstBad || row;
-              }
-              if (!payOk) {
-                problems.push(label + ": select payment (Not paid, Partially paid, or Paid).");
-                firstBad = firstBad || row;
-              }
-            } else if (qPos === false) {
-              problems.push(label + ": enter a valid positive quantity or clear this row.");
-              firstBad = firstBad || row;
-            } else if (otherTouched) {
-              problems.push(label + ": enter quantity or clear buying price, seller, phone, payment, and note.");
-              firstBad = firstBad || row;
-            }
-          });
-          if (problems.length) {
-            ev.preventDefault();
-            window.alert(problems.slice(0, 6).join("\n") + (problems.length > 6 ? "\n…" : ""));
-            if (firstBad) {
-              try {
-                firstBad.classList.remove("hidden");
-                firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
-              } catch (e2) {}
-            }
+        var prev = row.previousElementSibling;
+
+        while (prev) {
+
+          if (prev.classList.contains("shop-store-cat-row")) {
+
+            prev.classList.remove("hidden");
+
+            break;
+
           }
-        });
+
+          prev = prev.previousElementSibling;
+
+        }
+
       }
 
-      // ----- CLIENT-SIDE SUBMIT VALIDATION (STOCK OUT) -----
-      if (formOut) {
-        formOut.addEventListener("submit", function (ev) {
-          var allowedReason = { return: 1, waste: 1, display: 1 };
-          var problems = [];
-          var firstBad = null;
-          formOut.querySelectorAll(".shop-store-row-out").forEach(function (row) {
-            var id = row.getAttribute("data-item-id");
-            if (!id) return;
-            var label = "Item #" + id;
-            var qIn = row.querySelector('input[name="out_qty_' + id + '"]');
-            var reasonSel = row.querySelector('[name="out_reason_' + id + '"]');
-            var refSel = row.querySelector('[name="out_refunded_' + id + '"]');
-            var refAmt = row.querySelector('[name="out_refund_amount_' + id + '"]');
-            var note = row.querySelector('input[name="out_note_' + id + '"]');
-            var qtyStr = String((qIn && qIn.value) || "").trim();
-            var qPos = null;
-            if (qtyStr) {
-              var n = parseFloat(qtyStr.replace(",", "."));
-              if (!isFinite(n) || !(n > 0)) qPos = false;
-              else qPos = n;
-            }
-            var reasonS = (reasonSel && reasonSel.value || "").trim().toLowerCase();
-            var reasonOk = !!allowedReason[reasonS];
-            var refS = (refSel && refSel.value || "").trim().toLowerCase();
-            var ramS = (refAmt && refAmt.value || "").trim();
-            var ntS = (note && note.value || "").trim();
-            var otherTouched = reasonOk || !!ramS || !!ntS;
 
-            // Don't overcheck stock here (server is the source of truth) but
-            // do prevent a sale that obviously exceeds the cached qty
-            var displayedStock = NaN;
-            var stockCell = row.querySelector('td.font-semibold.tabular-nums');
-            if (stockCell) {
-              displayedStock = parseFloat(String(stockCell.textContent || "").trim().replace(",", "."));
-            }
 
-            if (typeof qPos === "number") {
-              if (!reasonOk) {
-                problems.push(label + ": select a stock-out reason (Return, Waste, or Display).");
-                firstBad = firstBad || row;
-              }
-              if (refS === "yes" && !ramS) {
-                problems.push(label + ": enter refund amount when refunded is Yes.");
-                firstBad = firstBad || row;
-              }
-              if (isFinite(displayedStock) && qPos > displayedStock) {
-                problems.push(label + ": qty out (" + qPos + ") exceeds current stock (" + displayedStock + ").");
-                firstBad = firstBad || row;
-              }
-            } else if (qPos === false) {
-              problems.push(label + ": enter a valid positive quantity or clear this row.");
-              firstBad = firstBad || row;
-            } else if (otherTouched) {
-              problems.push(label + ": enter quantity out or clear reason, refund amount, and note.");
-              firstBad = firstBad || row;
-            }
-          });
-          if (problems.length) {
-            ev.preventDefault();
-            window.alert(problems.slice(0, 6).join("\n") + (problems.length > 6 ? "\n…" : ""));
-            if (firstBad) {
-              try {
-                firstBad.classList.remove("hidden");
-                firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
-              } catch (e2) {}
-            }
-          }
-        });
-      }
-    })();
-  </script>
-  <script>
-    (function () {
-      var input = document.getElementById("js-stock-item-search");
-      var rows = document.querySelectorAll(".js-stock-row");
-      var countEl = document.getElementById("js-stock-visible-count");
-      if (!input || !countEl) return;
+      function focusStockItem(mode, itemId) {
 
-      function sync() {
-        var q = (input.value || "").trim().toLowerCase();
-        var n = 0;
-        rows.forEach(function (row) {
-          var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
-          var show = !q || hay.indexOf(q) !== -1;
-          row.style.display = show ? "" : "none";
-          if (show) n += 1;
-        });
-        countEl.textContent = String(n);
-      }
+        var rowId = mode === "out"
 
-      input.addEventListener("input", sync);
-      input.addEventListener("change", sync);
+          ? "shop-store-stock-out-row-" + itemId
 
-      function focusRowAfterClear(row, qtyEl) {
+          : "shop-store-stock-in-row-" + itemId;
+
+        var row = document.getElementById(rowId);
+
         if (!row) return;
-        row.classList.add("ring-2", "ring-brand-400/60", "bg-brand-500/10");
-        try {
-          row.scrollIntoView({ block: "center", behavior: "smooth" });
-        } catch (e) {}
-        setTimeout(function () {
-          row.classList.remove("ring-2", "ring-brand-400/60", "bg-brand-500/10");
-        }, 1400);
-        if (qtyEl && document.activeElement !== qtyEl) {
-          qtyEl.focus({ preventScroll: true });
+
+        var searchId = mode === "out" ? "shop-store-out-search" : "shop-store-in-search";
+
+        var searchEl = document.getElementById(searchId);
+
+        if (searchEl && searchEl.value) {
+
+          searchEl.value = "";
+
+          searchEl.dispatchEvent(new Event("input", { bubbles: true }));
+
         }
+
+        revealStockRow(row);
+
+        row.classList.remove("shop-mgmt-stock-row-focus", "shop-mgmt-stock-row-focus--out");
+
+        row.classList.add("shop-mgmt-stock-row-focus");
+
+        if (mode === "out") row.classList.add("shop-mgmt-stock-row-focus--out");
+
+        window.setTimeout(function () {
+
+          row.classList.remove("shop-mgmt-stock-row-focus", "shop-mgmt-stock-row-focus--out");
+
+        }, 2600);
+
+        var scrollParent = row.closest(".shop-mgmt-bulk-table-scroll") || row.closest(".sa-stock-mgmt-scroll");
+
+        if (scrollParent) {
+
+          var targetTop = row.offsetTop - Math.max(0, (scrollParent.clientHeight - row.offsetHeight) / 2);
+
+          try { scrollParent.scrollTo({ top: targetTop, behavior: "smooth" }); } catch (e) { scrollParent.scrollTop = targetTop; }
+
+        } else {
+
+          try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e2) {}
+
+        }
+
+        var qtyInput = row.querySelector(mode === "out" ? ".shop-store-out-qty" : ".shop-store-in-qty");
+
+        if (qtyInput) window.setTimeout(function () { try { qtyInput.focus({ preventScroll: true }); } catch (e3) { qtyInput.focus(); } }, 320);
+
       }
 
-      document.querySelectorAll(".js-stock-qty-input").forEach(function (qtyEl) {
-        qtyEl.addEventListener("focus", function () {
-          var row = qtyEl.closest(".js-stock-row");
-          if ((input.value || "").trim() !== "") {
-            input.value = "";
-            sync();
-            requestAnimationFrame(function () {
-              focusRowAfterClear(row, qtyEl);
-            });
-          } else {
-            focusRowAfterClear(row, qtyEl);
+
+
+      function syncFromHash() {
+
+        var raw = (location.hash || "#shop-store-items-catalog").replace(/^#/, "");
+
+        var panelId = raw;
+
+        var stockFocus = null;
+
+        var inMatch = raw.match(/^shop-store-stock-in-item-(\d+)$/);
+
+        var outMatch = raw.match(/^shop-store-stock-out-item-(\d+)$/);
+
+        if (inMatch) {
+
+          panelId = "shop-store-stock-in";
+
+          stockFocus = { mode: "in", itemId: inMatch[1] };
+
+        } else if (outMatch) {
+
+          panelId = "shop-store-stock-out";
+
+          stockFocus = { mode: "out", itemId: outMatch[1] };
+
+        } else if (raw.indexOf("shop-store-item-") === 0) {
+
+          panelId = "shop-store-items-catalog";
+
+        } else if (tabIds.indexOf(panelId) === -1) {
+
+          panelId = "shop-store-items-catalog";
+
+        }
+
+        showPanel(panelId);
+
+        if (stockFocus) {
+
+          window.setTimeout(function () { focusStockItem(stockFocus.mode, stockFocus.itemId); }, 60);
+
+          return;
+
+        }
+
+        if (raw.indexOf("shop-store-item-") === 0) {
+
+          var catalogRow = document.getElementById(raw);
+
+          if (catalogRow) {
+
+            window.setTimeout(function () {
+
+              try { catalogRow.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {}
+
+            }, 60);
+
           }
+
+        }
+
+      }
+
+
+
+      tabs.forEach(function (tab) {
+
+        tab.addEventListener("click", function (ev) {
+
+          var href = tab.getAttribute("href") || "";
+
+          if (href.indexOf("#") !== 0) return;
+
+          ev.preventDefault();
+
+          if (location.hash !== href) location.hash = href;
+
+          else syncFromHash();
+
         });
+
       });
 
-    })();
-  </script>
-  {% if view == 'auto' %}
-  <script>
-    (function () {
-      var sel = document.getElementById("batch-request-source");
-      var th = document.getElementById("js-source-stock-heading");
-      var form = document.getElementById("js-batch-request-stock-form");
-      var api = {{ url_for('shop_stock_management_source_stock_json', shop_id=shop.id)|tojson }};
-      if (!sel || !th) return;
+      window.addEventListener("hashchange", syncFromHash);
 
-      function parseAvailFromCell(cell) {
-        var t = (cell && (cell.textContent || "").trim()) || "0";
-        var n = parseFloat(t);
-        return isNaN(n) ? 0 : Math.max(0, n);
-      }
+      document.querySelectorAll('a[href^="#shop-store-"]').forEach(function (link) {
 
-      function syncRequestQtyInputsFromSource() {
-        document.querySelectorAll(".js-request-stock-qty").forEach(function (qtyInput) {
-          var row = qtyInput.closest("tr");
-          var cell = row && row.querySelector(".js-source-stock-cell");
-          var avail = parseAvailFromCell(cell);
-          qtyInput.setAttribute("max", String(avail));
-          qtyInput.title = avail
-            ? "Request up to " + avail + " (available at source)."
-            : "No stock at this source — you cannot request this item.";
-          if (avail <= 0) {
-            qtyInput.disabled = true;
-            qtyInput.value = "";
-            qtyInput.classList.add("opacity-60");
-          } else {
-            qtyInput.disabled = false;
-            qtyInput.classList.remove("opacity-60");
-            var v = parseFloat(String(qtyInput.value || "").replace(",", "."));
-            if (!isNaN(v) && v > avail) qtyInput.value = String(avail);
-          }
+        link.addEventListener("click", function (ev) {
+
+          var href = link.getAttribute("href") || "";
+
+          if (href.indexOf("#") !== 0) return;
+
+          if (href.indexOf("-item-") !== -1) ev.preventDefault();
+
+          if (location.hash !== href) location.hash = href;
+
+          else syncFromHash();
+
         });
-      }
 
-      function refreshSourceStock() {
-        var q = "batch_request_source=" + encodeURIComponent(sel.value || "company");
-        var u = api + (api.indexOf("?") >= 0 ? "&" : "?") + q;
-        fetch(u, { credentials: "same-origin", headers: { Accept: "application/json" } })
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            if (!data || !data.ok) return;
-            var map = data.stock_by_item_id || {};
-            var label = (data.label || "Source").trim();
-            th.textContent = "Stock — " + label;
-            document.querySelectorAll(".js-source-stock-cell").forEach(function (cell) {
-              var id = cell.getAttribute("data-item-id");
-              var v = map[String(id)];
-              if (typeof v === "number" && !isNaN(v)) {
-                cell.textContent = String(v);
-              } else {
-                cell.textContent = "0";
-              }
-            });
-            syncRequestQtyInputsFromSource();
-          })
-          .catch(function () {
-            th.textContent = "Stock at source";
-          });
-      }
-
-      document.querySelectorAll(".js-request-stock-qty").forEach(function (qtyInput) {
-        qtyInput.addEventListener("input", function () {
-          var row = qtyInput.closest("tr");
-          var cell = row && row.querySelector(".js-source-stock-cell");
-          var avail = parseAvailFromCell(cell);
-          if (avail <= 0) return;
-          var v = parseFloat(String(qtyInput.value || "").replace(",", "."));
-          if (!isNaN(v) && v > avail) qtyInput.value = String(avail);
-        });
       });
 
-      if (form) {
-        form.addEventListener("submit", function (ev) {
-          var firstBad = null;
-          document.querySelectorAll(".js-request-stock-qty").forEach(function (qtyInput) {
-            if (qtyInput.disabled) return;
-            var q = parseFloat(String(qtyInput.value || "").replace(",", ".")) || 0;
-            if (!(q > 0)) return;
-            var row = qtyInput.closest("tr");
-            var cell = row && row.querySelector(".js-source-stock-cell");
-            var avail = parseAvailFromCell(cell);
-            if (q > avail) firstBad = firstBad || row;
-          });
-          if (firstBad) {
-            ev.preventDefault();
-            try {
-              firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
-            } catch (e) {}
-            window.alert(
-              "One or more quantities are higher than stock at the selected source. Reduce the quantity or choose another source."
-            );
-          }
-        });
-      }
+      syncFromHash();
 
-      sel.addEventListener("change", refreshSourceStock);
-      refreshSourceStock();
     })();
+
   </script>
-  {% endif %}
-  <script>
-    (function () {
-      var lookupUrl = {{ url_for('seller_lookup')|tojson }};
 
-      function normalizePhoneInput(phone) {
-        var p = (phone.value || "").trim();
-        if (p.indexOf("+254") === 0) {
-          p = "254" + p.slice(4);
-        }
-        p = p.replace(/\s+/g, "");
-        if (phone.value !== p) phone.value = p;
-        return p;
-      }
+  {% include "partials/shop_stock_management_scripts.html" %}
 
-      function runSellerLookup(p, onResult) {
-        var digits = p.replace(/\D/g, "");
-        if (!p) {
-          onResult("empty", null);
-          return;
-        }
-        if (digits.length < 10) {
-          onResult("short", null);
-          return;
-        }
-        var valid10 = /^((07|01)\d{8})$/.test(digits);
-        var valid12 = /^(254\d{9})$/.test(digits);
-        if (!valid10 && !valid12) {
-          onResult("badformat", null);
-          return;
-        }
-        var fd = new FormData();
-        fd.append("seller_phone", p);
-        fetch(lookupUrl, { method: "POST", body: fd })
-          .then(function (r) { return r.json(); })
-          .then(function (data) { onResult("ok", data); })
-          .catch(function () { onResult("err", null); });
-      }
-
-      function bindSellerPhoneLookup(phone, name, hint) {
-        if (!phone || !name) return;
-        var timer = null;
-        phone.addEventListener("input", function () {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(function () {
-            var p = normalizePhoneInput(phone);
-            runSellerLookup(p, function (kind, data) {
-              if (!hint) return;
-              if (kind === "empty") {
-                hint.textContent = "";
-                return;
-              }
-              if (kind === "short") {
-                hint.textContent = "Continue typing seller phone…";
-                return;
-              }
-              if (kind === "badformat") {
-                hint.textContent = "Use 07… or 01… (10 digits) or 254… (12 digits).";
-                return;
-              }
-              if (kind === "ok" && data && data.ok && data.registered && data.seller) {
-                name.value = String(data.seller.seller_name || "").toUpperCase();
-                hint.textContent = "Registered seller found.";
-              } else if (kind === "ok") {
-                hint.textContent = "New phone — enter seller name to register.";
-              }
-            });
-          }, 220);
-        });
-      }
-
-      var applyPhone = document.getElementById("js-apply-all-phone");
-      var applyName = document.getElementById("js-apply-all-name");
-      var applyHint = document.getElementById("js-apply-all-hint");
-      bindSellerPhoneLookup(applyPhone, applyName, applyHint);
-
-      document.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
-        var id = row.getAttribute("data-item-id");
-        if (!id) return;
-        var phone = row.querySelector('.js-seller-phone[data-seller-phone="' + id + '"]');
-        var name = row.querySelector('.js-seller-name[data-seller-name="' + id + '"]');
-        var hint = row.querySelector('.js-seller-hint[data-seller-hint="' + id + '"]');
-        bindSellerPhoneLookup(phone, name, hint);
-      });
-
-      var copyBtn = document.getElementById("js-apply-all-copy-rows");
-      var applyPayment = document.getElementById("js-apply-all-payment");
-      var applyNote = document.getElementById("js-apply-all-note");
-      var copyFeedback = document.getElementById("js-apply-all-copy-feedback");
-      if (copyBtn && applyPhone && applyName) {
-        copyBtn.addEventListener("click", function () {
-          var pv = (applyPhone.value || "").trim();
-          var nv = (applyName.value || "").trim();
-          var payVal = applyPayment && applyPayment.value ? applyPayment.value : "pending_payment";
-          var notev = applyNote ? (applyNote.value || "").trim().toUpperCase() : "";
-          var n = 0;
-          document.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
-            var id = row.getAttribute("data-item-id");
-            if (!id) return;
-            var qIn = row.querySelector(".js-manual-qty");
-            var q = 0;
-            try {
-              q = parseFloat(String((qIn && qIn.value) || "").replace(",", "."));
-            } catch (e) {
-              q = 0;
-            }
-            if (!(q > 0)) return;
-            n += 1;
-            var rp = row.querySelector('[name="seller_phone_' + id + '"]');
-            var rn = row.querySelector('[name="seller_name_' + id + '"]');
-            var rpay = row.querySelector('[name="payment_status_' + id + '"]');
-            var rnote = row.querySelector('[name="note_' + id + '"]');
-            if (rp) rp.value = pv;
-            if (rn) rn.value = nv.toUpperCase();
-            if (rpay) rpay.value = payVal;
-            if (rnote && applyNote) rnote.value = notev;
-          });
-          if (copyFeedback) {
-            copyFeedback.textContent = n
-              ? "Copied to " + n + " line(s) with quantity."
-              : "No rows updated — enter a positive quantity on the lines you are stocking in, then click again.";
-          }
-        });
-      }
-    })();
-  </script>
 {% endblock %}
+
