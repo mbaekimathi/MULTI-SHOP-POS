@@ -18,6 +18,8 @@
 
   {% set bal = mpesa_balance or {} %}
 
+  {% set cb = acct.balance_callbacks or {} %}
+
   <div id="company-account-page" class="mx-auto max-w-3xl space-y-6">
 
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
@@ -98,6 +100,20 @@
 
           <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Live working balance via Safaricom <strong class="font-medium text-[rgb(var(--rc-page-fg))]">AccountBalance</strong> API (requires initiator credentials + reachable HTTPS callback).</p>
 
+          {% if cb.callback_mode %}
+            <p class="mt-2 inline-flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-3 py-1.5 text-xs text-[rgb(var(--rc-muted))]">
+              <span class="font-semibold uppercase tracking-wide text-[rgb(var(--rc-page-fg))]">Active callbacks</span>
+              {% if cb.callback_mode == 'local' %}
+                <span class="rounded-md bg-sky-500/15 px-2 py-0.5 font-medium text-sky-700 dark:text-sky-300">Local dev</span>
+              {% else %}
+                <span class="rounded-md bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-300">Hosted</span>
+              {% endif %}
+              {% if cb.is_local_session %}
+                <span>· you are on localhost</span>
+              {% endif %}
+            </p>
+          {% endif %}
+
           {% if acct.balance_api_url %}
 
             <p class="mt-2 break-all font-mono text-[11px] text-[rgb(var(--rc-muted))]">{{ acct.balance_api_url }}</p>
@@ -170,19 +186,137 @@
 
         <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">
 
+          {% if not acct.initiator_configured or not acct.security_credential_configured %}
           To fetch live balance, add <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Initiator name</strong> and
-
           <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Security credential</strong> in
-
           <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>
-
-          (from your Daraja app / Safaricom certificate). Your hosted HTTPS callback URL must be reachable by Safaricom.
+          (from your Daraja app / Safaricom certificate).
+          {% elif not cb.balance_ready %}
+          Balance callbacks are not configured. Set
+          <strong class="font-medium text-[rgb(var(--rc-page-fg))]">STK callback URL — hosted</strong>
+          (or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">local dev</strong> / ngrok when testing on localhost) in
+          <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>.
+          Safaricom must reach a public HTTPS URL to post the balance back.
+          {% endif %}
 
         </div>
 
       {% endif %}
 
     </div>
+
+
+
+    {% if acct.enabled %}
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+
+      <h3 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Callback URLs</h3>
+
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Same hosted / local setup as STK Push. Balance lookup always needs Safaricom to POST the result to one of these URLs.
+      </p>
+
+      <div class="mt-5 grid gap-4 md:grid-cols-2">
+
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4 {% if cb.callback_mode == 'hosted' %}ring-1 ring-emerald-500/30{% endif %}">
+
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Hosted (HTTPS)</span>
+            {% if cb.callback_mode == 'hosted' %}
+              <span class="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Active</span>
+            {% endif %}
+          </div>
+
+          {% if cb.stk_hosted_url %}
+            <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">STK Push</p>
+            <p class="mt-1 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ cb.stk_hosted_url }}</p>
+          {% endif %}
+
+          {% if cb.hosted_result_url %}
+            <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Balance result</p>
+            <p class="mt-1 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ cb.hosted_result_url }}</p>
+            <p class="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Balance timeout</p>
+            <p class="mt-1 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ cb.hosted_timeout_url }}</p>
+          {% else %}
+            <p class="mt-3 text-xs text-[rgb(var(--rc-muted))]">Set <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Hosted domain</strong> or STK callback URL — hosted in Company settings.</p>
+          {% endif %}
+
+        </div>
+
+
+
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4 {% if cb.callback_mode == 'local' %}ring-1 ring-sky-500/30{% endif %}">
+
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Local dev</span>
+            {% if cb.callback_mode == 'local' %}
+              <span class="rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Active</span>
+            {% endif %}
+            {% if cb.ngrok_autodetected and not cb.local_origin %}
+              <span class="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">ngrok auto</span>
+            {% endif %}
+          </div>
+
+          {% if cb.stk_local_url %}
+            <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">STK Push</p>
+            <p class="mt-1 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ cb.stk_local_url }}</p>
+          {% endif %}
+
+          {% if cb.local_result_url %}
+            <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Balance result</p>
+            <p class="mt-1 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ cb.local_result_url }}</p>
+            <p class="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Balance timeout</p>
+            <p class="mt-1 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ cb.local_timeout_url }}</p>
+          {% else %}
+            <p class="mt-3 text-xs text-[rgb(var(--rc-muted))]">Optional — paste an ngrok HTTPS URL under STK callback URL — local dev, or leave blank if ngrok is running (auto-detected).</p>
+          {% endif %}
+
+        </div>
+
+      </div>
+
+      {% if cb.local_ngrok_free and cb.callback_mode == 'local' %}
+        <div class="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-950 dark:text-rose-100">
+          <strong class="font-semibold">ngrok free blocks Safaricom.</strong>
+          Balance callbacks need Safaricom to POST to your URL. ngrok free shows a browser warning page that Safaricom cannot pass.
+          Set <strong>Hosted domain</strong> in Company settings and refresh from your live server, or use
+          <strong>Cloudflare Tunnel</strong> instead of ngrok free.
+        </div>
+      {% endif %}
+
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          id="mpesa-callback-test"
+          class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          {% if not cb.local_result_url and not cb.hosted_result_url %}disabled{% endif %}
+        >
+          Test callback reachability
+        </button>
+        <p id="mpesa-callback-test-status" class="hidden text-xs text-[rgb(var(--rc-muted))]" role="status"></p>
+      </div>
+
+      {% if cb.is_local_session and cb.callback_mode == 'hosted' and cb.hosted_result_url %}
+        <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+          {% if cb.hosted_fallback %}
+          ngrok free was skipped — refresh uses your <strong>hosted</strong> callback.
+          Your live server must be online to receive Safaricom's POST. If localhost and hosted share the same database, this page will update after the callback.
+          {% else %}
+          You are on localhost but refresh will use the <strong>hosted</strong> callback because no local/ngrok URL is configured.
+          Safaricom will post to your live server — this page will not update until you open it on hosted, or configure local dev / ngrok.
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <p class="mt-4 text-xs text-[rgb(var(--rc-muted))]">
+        Edit URLs in
+        <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Company settings → Daraja</a>.
+      </p>
+
+    </div>
+
+    {% endif %}
 
   </div>
 
@@ -264,13 +398,20 @@
 
 
 
-      function pollStatus(conversationId, originatorId, resultUrl, attempt) {
+      function pollStatus(conversationId, originatorId, resultUrl, callbackMode, hostedFallback, attempt) {
         if (attempt > 45) {
-          var hint = "Safaricom did not post the balance back yet. Check that your hosted HTTPS callback URL is reachable";
+          var hint = "Safaricom did not post the balance back yet.";
+          if (callbackMode === "local") {
+            hint += " ngrok free often blocks Safaricom — set Hosted domain and use your live server, or try Cloudflare Tunnel.";
+          } else if (hostedFallback) {
+            hint += " Check that your hosted server is online and can receive POST callbacks";
+          } else {
+            hint += " Check that your hosted HTTPS callback URL is reachable by Safaricom";
+          }
           if (resultUrl) {
             hint += " (" + resultUrl + ")";
           }
-          hint += ", initiator credentials are correct, and ngrok (if used) is still running.";
+          hint += ", and that initiator credentials are correct.";
           setStatus(hint, "error");
           btn.disabled = false;
           return;
@@ -288,7 +429,7 @@
             if (j.pending) {
               setStatus("Waiting for Safaricom callback… (" + (attempt + 1) + "/45)", "info");
               setTimeout(function () {
-                pollStatus(conversationId, originatorId, resultUrl, attempt + 1);
+                pollStatus(conversationId, originatorId, resultUrl, callbackMode, hostedFallback, attempt + 1);
               }, 2000);
               return;
             }
@@ -356,7 +497,14 @@
             if (res.body.ngrok_warning) {
               setStatus(res.body.ngrok_warning + " Waiting for callback anyway…", "info");
             }
-            pollStatus(cid, orig, res.body.result_url || "", 0);
+            pollStatus(
+              cid,
+              orig,
+              res.body.result_url || "",
+              res.body.callback_mode || "hosted",
+              !!res.body.hosted_fallback,
+              0
+            );
 
           })
 
@@ -369,6 +517,45 @@
           });
 
       });
+
+      var testBtn = document.getElementById("mpesa-callback-test");
+      var testStatus = document.getElementById("mpesa-callback-test-status");
+      if (testBtn && testStatus) {
+        testBtn.addEventListener("click", function () {
+          testBtn.disabled = true;
+          testStatus.classList.remove("hidden");
+          testStatus.textContent = "Probing callback URLs…";
+          fetch("{{ url_for('it_support_accounts_company_account_callback_test') }}", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { Accept: "application/json", "Content-Type": "application/json" },
+            body: "{}",
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              testBtn.disabled = false;
+              if (!j.ok || !j.results || !j.results.length) {
+                testStatus.textContent = "No callback URLs to test.";
+                return;
+              }
+              var parts = j.results.map(function (row) {
+                var label = row.label || "url";
+                if (row.reachable) {
+                  return label + ": reachable";
+                }
+                if (row.reason === "ngrok_free_interstitial") {
+                  return label + ": blocked by ngrok free (Safaricom cannot POST here)";
+                }
+                return label + ": not reachable (" + (row.reason || "failed") + ")";
+              });
+              testStatus.textContent = parts.join(" · ");
+            })
+            .catch(function () {
+              testBtn.disabled = false;
+              testStatus.textContent = "Could not run callback test.";
+            });
+        });
+      }
 
     })();
 

@@ -16,6 +16,12 @@
   min-height: calc(100dvh - var(--mk-header-h));
 }
 
+.mk-main--flush {
+  padding-top: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 .mk-site-header {
   padding-top: env(safe-area-inset-top, 0px);
 }

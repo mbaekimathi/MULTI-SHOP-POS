@@ -1,0 +1,205 @@
+{% extends "employee_layout.html" %}
+{% block title %}Website settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Website settings{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_website_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #website-settings-page .ws-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #website-settings-page .ws-theme-btn.is-selected {
+      border-color: rgba(var(--rc-primary), 0.45);
+      background: rgba(var(--rc-primary), 0.08);
+      box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.2);
+    }
+    #website-settings-page .ws-font-btn.is-selected {
+      border-color: rgba(var(--rc-primary), 0.45);
+      background: rgba(var(--rc-primary), 0.08);
+    }
+    #website-settings-page input[type="color"] {
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  {% set ws = website_ws %}
+  <div id="website-settings-page" class="mx-auto max-w-3xl space-y-6">
+    {% include "partials/website_share_link.html" %}
+
+    <div class="ws-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Public website configuration</h2>
+      <p class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Set the domain where your public shop is hosted. When DNS points to this server, the share link above becomes your live customer URL.
+        Theme, colors, and fonts apply automatically on the generated storefront.
+      </p>
+    </div>
+
+    <form
+      method="post"
+      action="{{ url_for('it_support_website_settings') }}"
+      class="ws-card space-y-8 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm"
+    >
+      <section>
+        <h3 class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Website domain</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+          Your public shop domain (HTTPS). When a visitor opens this address, the generated storefront loads at the homepage
+          (<strong class="font-medium text-[rgb(var(--rc-page-fg))]">/</strong>), using your theme and POS best-sellers.
+          Also syncs to <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Hosted domain</strong> for M-Pesa and share links.
+        </p>
+        <input
+          type="url"
+          name="website_domain"
+          id="website_domain"
+          value="{{ ws.domain or '' }}"
+          placeholder="https://www.yourcompany.com"
+          class="mt-4 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+        />
+      </section>
+
+      <section>
+        <h3 class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Theme style</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Pick a color personality for the public site. You can fine-tune primary and accent below.</p>
+        <input type="hidden" name="theme_style" id="theme_style" value="{{ ws.theme_style }}" />
+        <div class="mt-4 grid gap-3 sm:grid-cols-2" id="website-theme-grid" role="radiogroup" aria-label="Website theme style">
+          {% for style_id, style in website_theme_styles.items() %}
+            <button
+              type="button"
+              class="ws-theme-btn flex items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4 text-left transition hover:border-[rgb(var(--rc-primary))]/30 {% if ws.theme_style == style_id %}is-selected{% endif %}"
+              data-theme-style="{{ style_id }}"
+              data-primary="{{ style.primary }}"
+              data-accent="{{ style.accent }}"
+              aria-pressed="{% if ws.theme_style == style_id %}true{% else %}false{% endif %}"
+            >
+              <span class="mt-0.5 flex shrink-0 gap-1">
+                <span class="h-8 w-8 rounded-lg" style="background: {{ style.primary }}"></span>
+                <span class="h-8 w-8 rounded-lg" style="background: {{ style.accent }}"></span>
+              </span>
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ style.label }}</span>
+                <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">{{ style.tagline }}</span>
+              </span>
+            </button>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section>
+        <h3 class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Brand colors</h3>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-[rgb(var(--rc-muted))]">Primary</label>
+            <div class="relative h-12 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]" id="ws_primary_swatch" style="background: {{ ws.primary_color }}">
+              <input type="color" name="primary_color" id="primary_color" value="{{ ws.primary_color }}" aria-label="Primary color" />
+            </div>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]" id="ws_primary_hex">{{ ws.primary_color }}</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-[rgb(var(--rc-muted))]">Accent</label>
+            <div class="relative h-12 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]" id="ws_accent_swatch" style="background: {{ ws.accent_color }}">
+              <input type="color" name="accent_color" id="accent_color" value="{{ ws.accent_color }}" aria-label="Accent color" />
+            </div>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]" id="ws_accent_hex">{{ ws.accent_color }}</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3 class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Default display mode</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">How the public site first appears before visitors toggle light/dark.</p>
+        <select name="default_theme" class="mt-4 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+          <option value="light" {% if ws.default_theme == 'light' %}selected{% endif %}>Light</option>
+          <option value="dark" {% if ws.default_theme == 'dark' %}selected{% endif %}>Dark</option>
+        </select>
+      </section>
+
+      <section>
+        <h3 class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Typography</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Font used across the public website.</p>
+        <input type="hidden" name="font_family" id="font_family" value="{{ ws.font_family }}" />
+        <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" id="website-font-grid">
+          {% for font in appearance_fonts %}
+            <button
+              type="button"
+              class="ws-font-btn rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-3 text-left transition hover:border-[rgb(var(--rc-primary))]/30 {% if ws.font_family == font.id %}is-selected{% endif %}"
+              data-font-id="{{ font.id }}"
+              style="font-family: {{ font.stack }}"
+            >
+              <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ font.id }}</span>
+              <span class="mt-0.5 block text-[10px] text-[rgb(var(--rc-muted))]">{{ font.tagline }}</span>
+            </button>
+          {% endfor %}
+        </div>
+      </section>
+
+      <div class="flex flex-col-reverse gap-2 border-t border-[rgb(var(--rc-border))] pt-6 sm:flex-row sm:justify-end">
+        <a href="{{ url_for('it_support_website_designs') }}" class="btn-rc btn-rc-ghost px-4 py-2.5 text-sm font-semibold sm:w-auto">Website designs</a>
+        <button type="submit" class="btn-rc btn-rc-primary px-4 py-2.5 text-sm font-semibold sm:w-auto">Save settings</button>
+      </div>
+    </form>
+  </div>
+  <script>
+    (function () {
+      var themeInput = document.getElementById("theme_style");
+      var themeGrid = document.getElementById("website-theme-grid");
+      var primary = document.getElementById("primary_color");
+      var accent = document.getElementById("accent_color");
+      var primarySwatch = document.getElementById("ws_primary_swatch");
+      var accentSwatch = document.getElementById("ws_accent_swatch");
+      var primaryHex = document.getElementById("ws_primary_hex");
+      var accentHex = document.getElementById("ws_accent_hex");
+      var fontInput = document.getElementById("font_family");
+      var fontGrid = document.getElementById("website-font-grid");
+
+      function bindColor(input, swatch, hexEl) {
+        if (!input) return;
+        input.addEventListener("input", function () {
+          swatch.style.background = input.value;
+          hexEl.textContent = input.value;
+        });
+      }
+      bindColor(primary, primarySwatch, primaryHex);
+      bindColor(accent, accentSwatch, accentHex);
+
+      if (themeGrid) {
+        themeGrid.addEventListener("click", function (e) {
+          var btn = e.target.closest("[data-theme-style]");
+          if (!btn) return;
+          var id = btn.getAttribute("data-theme-style");
+          themeInput.value = id;
+          themeGrid.querySelectorAll(".ws-theme-btn").forEach(function (el) {
+            el.classList.toggle("is-selected", el === btn);
+            el.setAttribute("aria-pressed", el === btn ? "true" : "false");
+          });
+          if (primary && btn.dataset.primary) {
+            primary.value = btn.dataset.primary;
+            primarySwatch.style.background = btn.dataset.primary;
+            primaryHex.textContent = btn.dataset.primary;
+          }
+          if (accent && btn.dataset.accent) {
+            accent.value = btn.dataset.accent;
+            accentSwatch.style.background = btn.dataset.accent;
+            accentHex.textContent = btn.dataset.accent;
+          }
+        });
+      }
+
+      if (fontGrid) {
+        fontGrid.addEventListener("click", function (e) {
+          var btn = e.target.closest("[data-font-id]");
+          if (!btn) return;
+          fontInput.value = btn.getAttribute("data-font-id");
+          fontGrid.querySelectorAll(".ws-font-btn").forEach(function (el) {
+            el.classList.toggle("is-selected", el === btn);
+          });
+        });
+      }
+    })();
+  </script>
+{% endblock %}

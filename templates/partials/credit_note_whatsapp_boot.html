@@ -16,7 +16,11 @@
   'unpaidSales': unpaid_sales_count|default(0)|int,
   'hasUnpaid': (unpaid_sales|length > 0) if unpaid_sales is defined else false,
   'payLinkBase': (credit_pay_link if credit_pay_link is defined else ''),
-  'suggestedAmount': (account_balance_due or 0)|float
+  'suggestedAmount': ((sale.remaining_amount if sale is defined else none) or account_balance_due or 0)|float,
+  'focusSaleId': (sale.id if sale is defined else 0)|int,
+  'focusSaleBalance': ((sale.remaining_amount if sale is defined else 0)|float),
+  'pdfUrl': (request.path + (('.pdf' if not request.path.endswith('.pdf') else '') + (('?' + request.query_string.decode()) if request.query_string else ''))),
+  'generatedAt': (report_generated_at if report_generated_at is defined else '')
 }|tojson }}
 </script>
-<script src="{{ url_for('static', filename='js/credit-note-whatsapp.js') }}?v=5" defer></script>
+<script src="{{ url_for('static', filename='js/credit-note-whatsapp.js') }}?v=7" defer></script>

@@ -673,6 +673,30 @@ def role_label(key: str) -> str:
 
 
 @app.context_processor
+def inject_website_settings():
+    try:
+        ws = _website_settings_for_template()
+    except Exception:
+        ws = _default_website_settings()
+    try:
+        is_live = _is_public_website_host_request()
+    except Exception:
+        is_live = False
+    domain = (ws.get("domain") or "").strip().rstrip("/") if isinstance(ws, dict) else ""
+    try:
+        share = _public_storefront_share_info()
+    except Exception:
+        share = {"url": "/site", "kind": "preview", "label": "Preview link", "hint": "", "is_branded": False}
+    return {
+        "website_settings": ws,
+        "is_public_website_host": is_live,
+        "public_storefront_url": domain or None,
+        "public_storefront_share_url": share.get("url") or "/site",
+        "public_storefront_share": share,
+    }
+
+
+@app.context_processor
 def inject_site_settings():
     from theme_presets import (
         DEFAULT_THEME_PRESET,
@@ -1039,8 +1063,18 @@ def _save_branding_upload(file_storage):
 
 @app.route("/")
 def index():
-    """Simple home hub with sign-in and site links."""
+    """POS sign-in hub, or public storefront when request host matches website domain."""
+    if _is_public_website_host_request():
+        return _render_public_storefront()
     return render_template("home.html")
+
+
+@app.route("/site")
+def marketing_home():
+    """Public storefront preview (/site) or redirect to / on the live website domain."""
+    if _is_public_website_host_request():
+        return redirect(url_for("index"), code=301)
+    return _render_public_storefront()
 
 
 @app.route("/features")
@@ -1680,16 +1714,419 @@ def _effective_public_app_url() -> str:
     env = _public_app_url_from_env()
     if env:
         return env
-    return _load_public_app_url_setting()
+    db = _load_public_app_url_setting()
+    if db:
+        return db
+    try:
+        return _normalize_website_domain(_load_website_settings().get("domain") or "")
+    except Exception:
+        return ""
 
 
 def _daraja_external_callback_hint() -> str:
-    """Request URL hint passed to Daraja callback resolution (hosted domain when set)."""
+    """Request URL hint passed to Daraja callback resolution (never localhost)."""
+    from daraja_api import _is_local_callback_host
+
     base = _effective_public_app_url()
     path = url_for("daraja_mpesa_stk_callback", _external=False)
     if base:
-        return base.rstrip("/") + path
-    return url_for("daraja_mpesa_stk_callback", _external=True)
+        candidate = base.rstrip("/") + path
+        if not _is_local_callback_host(candidate):
+            return candidate
+    try:
+        ext = url_for("daraja_mpesa_stk_callback", _external=True)
+    except RuntimeError:
+        ext = ""
+    if ext and not _is_local_callback_host(ext):
+        return ext
+    return ""
+
+
+WEBSITE_SETTINGS_JSON_KEY = "website_settings_json"
+
+WEBSITE_THEME_STYLES: dict[str, dict[str, str]] = {
+    "violet": {"label": "Violet", "tagline": "Modern retail default", "primary": "#9333ea", "accent": "#a855f7"},
+    "emerald": {"label": "Emerald", "tagline": "Fresh & trustworthy", "primary": "#059669", "accent": "#10b981"},
+    "sky": {"label": "Sky", "tagline": "Clear & professional", "primary": "#0284c7", "accent": "#0ea5e9"},
+    "rose": {"label": "Rose", "tagline": "Bold & energetic", "primary": "#e11d48", "accent": "#f43f5e"},
+    "amber": {"label": "Amber", "tagline": "Warm & inviting", "primary": "#d97706", "accent": "#f59e0b"},
+    "slate": {"label": "Slate", "tagline": "Minimal & corporate", "primary": "#475569", "accent": "#64748b"},
+}
+
+
+def _default_website_design() -> dict:
+    return {
+        "hero_eyebrow": "Best sellers · In stock today",
+        "hero_headline": "Shop what your customers",
+        "hero_headline_accent": "buy most often.",
+        "hero_body": (
+            "Browse commonly sold products from your live POS catalogue — "
+            "the same items ringing up at checkout every day."
+        ),
+        "hero_body_secondary": (
+            "Prices and availability sync from your branches. "
+            "Pick up in store or ask about delivery when you visit."
+        ),
+        "meta_description": (
+            "Shop commonly sold products from our catalogue — "
+            "quality items trusted by customers across every branch."
+        ),
+        "cta_primary_label": "Shop best sellers",
+        "cta_secondary_label": "Request quotation",
+        "store_tagline": "Quality products, trusted every day",
+        "featured_section_title": "Commonly sold",
+        "featured_section_subtitle": "Top picks from real sales across your stores.",
+        "promo_banner_text": "Free pickup on all orders · Same prices as in store",
+        "search_placeholder": "Search products, categories…",
+    }
+
+
+def _default_website_settings() -> dict:
+    style = WEBSITE_THEME_STYLES["violet"]
+    return {
+        "domain": "",
+        "theme_style": "violet",
+        "primary_color": style["primary"],
+        "accent_color": style["accent"],
+        "font_family": "Plus Jakarta Sans",
+        "default_theme": "light",
+        "design": _default_website_design(),
+    }
+
+
+def _normalize_website_domain(raw: str) -> str:
+    return _normalize_public_app_url(raw)
+
+
+def _host_from_public_url(raw: str) -> str:
+    """Hostname from a public URL (no port, lowercase)."""
+    u = _normalize_public_app_url(raw)
+    if not u:
+        return ""
+    try:
+        return (urlparse(u).hostname or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def _normalize_host(raw: str) -> str:
+    """Compare hosts with optional www. stripped."""
+    h = (raw or "").split(":")[0].strip().lower().rstrip(".")
+    if h.startswith("www."):
+        return h[4:]
+    return h
+
+
+def _website_public_domain_host() -> str:
+    try:
+        return _host_from_public_url(_load_website_settings().get("domain") or "")
+    except Exception:
+        return ""
+
+
+def _request_host() -> str:
+    try:
+        return _normalize_host(request.host or "")
+    except RuntimeError:
+        return ""
+
+
+def _hosts_equivalent(a: str, b: str) -> bool:
+    na = _normalize_host(a)
+    nb = _normalize_host(b)
+    return bool(na and nb and na == nb)
+
+
+def _is_public_website_host_request() -> bool:
+    """True when the current request host matches Website settings → domain."""
+    configured = _website_public_domain_host()
+    if not configured:
+        return False
+    current = _request_host()
+    if not current:
+        return False
+    return _hosts_equivalent(configured, current)
+
+
+def _public_storefront_url() -> str:
+    """Canonical shareable public shop URL."""
+    return _public_storefront_share_info()["url"]
+
+
+def _public_storefront_share_info() -> dict:
+    """Share link metadata for templates (uses website domain when set)."""
+    try:
+        domain = _normalize_website_domain(_load_website_settings().get("domain") or "")
+    except Exception:
+        domain = ""
+    if domain:
+        url = domain.rstrip("/") + "/"
+        return {
+            "url": url,
+            "kind": "domain",
+            "label": "Share your shop",
+            "hint": "Send this link to customers on WhatsApp, SMS, or social media.",
+            "is_branded": True,
+        }
+    hosted = _effective_public_app_url()
+    if hosted:
+        url = hosted.rstrip("/") + "/"
+        return {
+            "url": url,
+            "kind": "hosted",
+            "label": "Shop link",
+            "hint": "Using your hosted server URL. Set Website domain for a branded link (e.g. www.yourcompany.com).",
+            "is_branded": False,
+        }
+    try:
+        url = url_for("marketing_home", _external=True)
+    except RuntimeError:
+        url = "/site"
+    return {
+        "url": url,
+        "kind": "preview",
+        "label": "Preview link",
+        "hint": "Set a website domain in settings to generate your shareable shop URL.",
+        "is_branded": False,
+    }
+
+
+def _render_public_storefront():
+    products = _website_featured_products(limit=12)
+    return render_template(
+        "marketing/home.html",
+        website_featured_products=products,
+        website_product_categories=_website_product_categories(products),
+        is_live_public_website=_is_public_website_host_request(),
+    )
+
+
+def _sync_website_domain_to_hosted(domain: str) -> None:
+    """Keep Company hosted domain in sync when a public website domain is set."""
+    if not domain or _public_app_url_from_env():
+        return
+    try:
+        from database import set_site_settings
+
+        set_site_settings({"public_app_url": domain})
+    except Exception:
+        pass
+
+
+def _ok_hex_color(s: str) -> bool:
+    s = (s or "").strip().lstrip("#")
+    return len(s) in (3, 6) and all(c in "0123456789abcdefABCDEF" for c in s)
+
+
+def _website_featured_products(limit: int = 12) -> list[dict]:
+    """Serialize featured storefront products with public image URLs."""
+    try:
+        from database import list_website_featured_products
+
+        rows = list_website_featured_products(limit=limit)
+    except Exception:
+        rows = []
+    products: list[dict] = []
+    for r in rows or []:
+        iid = int(r.get("id") or 0)
+        if iid <= 0:
+            continue
+        img_rel = _normalize_static_relative_path(r.get("image_path"))
+        if img_rel.startswith("http://") or img_rel.startswith("https://"):
+            image_url = img_rel
+        elif img_rel:
+            image_url = url_for("static", filename=img_rel)
+        else:
+            image_url = ""
+        products.append(
+            {
+                "id": iid,
+                "category": (r.get("category") or "").strip() or "General",
+                "name": (r.get("name") or "").strip() or "Product",
+                "description": (r.get("description") or "").strip(),
+                "price": float(r.get("price") or 0),
+                "original_price": float(r.get("original_price") or 0),
+                "image_url": image_url,
+                "qty_sold": float(r.get("qty_sold") or 0),
+                "on_sale": float(r.get("original_price") or 0) > float(r.get("price") or 0) + 0.009,
+            }
+        )
+    return products
+
+
+def _website_product_categories(products: list[dict]) -> list[str]:
+    seen: set[str] = set()
+    cats: list[str] = []
+    for p in products or []:
+        c = (p.get("category") or "General").strip() or "General"
+        key = c.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        cats.append(c)
+    return cats
+
+
+def _normalize_storefront_phone(raw: str) -> str:
+    return re.sub(r"\D+", "", (raw or "").strip())
+
+
+def _build_storefront_quotation_lines(cart_lines: list) -> tuple[list[dict], float, int, Optional[str]]:
+    """Validate cart lines against active catalog; return lines, total, item_count, error."""
+    if not cart_lines:
+        return [], 0.0, 0, "Your cart is empty."
+    try:
+        from database import list_website_featured_products
+
+        catalog = {int(p["id"]): p for p in list_website_featured_products(limit=48) if int(p.get("id") or 0) > 0}
+    except Exception:
+        catalog = {}
+    if not catalog:
+        return [], 0.0, 0, "No products are available right now."
+
+    validated: list[dict] = []
+    total = 0.0
+    count = 0
+    for raw in cart_lines:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            iid = int(raw.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if iid <= 0:
+            continue
+        try:
+            qty = int(raw.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0 or qty > 999:
+            continue
+        item = catalog.get(iid)
+        if not item:
+            return [], 0.0, 0, "One or more products are no longer available."
+        price = float(item.get("price") or 0)
+        line_total = round(price * qty, 2)
+        validated.append(
+            {
+                "id": iid,
+                "name": (item.get("name") or "Product")[:200],
+                "qty": qty,
+                "price": price,
+                "total": line_total,
+            }
+        )
+        total += line_total
+        count += qty
+    if not validated:
+        return [], 0.0, 0, "Your cart is empty."
+    return validated, round(total, 2), count, None
+
+
+@app.route("/api/storefront/request-quotation", methods=["POST"])
+def storefront_request_quotation():
+    """Public website cart → online quotation (lead) for IT leads & quotations."""
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("customer_name") or "").strip()
+    phone = _normalize_storefront_phone(data.get("customer_phone") or "")
+    notes = (data.get("customer_notes") or "").strip()[:500]
+
+    if len(name) < 2:
+        return jsonify({"ok": False, "error": "Please enter your name."}), 400
+    if len(phone) < 9:
+        return jsonify({"ok": False, "error": "Please enter a valid phone number."}), 400
+
+    cart_lines = data.get("lines") if isinstance(data.get("lines"), list) else []
+    lines, total, count, err = _build_storefront_quotation_lines(cart_lines)
+    if err:
+        return jsonify({"ok": False, "error": err}), 400
+
+    try:
+        from database import create_shop_pos_quotation
+
+        qid, qerr = create_shop_pos_quotation(
+            shop_id=None,
+            quote_basis="sale",
+            quote_channel="online",
+            total_amount=total,
+            item_count=count,
+            customer_name=name,
+            customer_phone=phone,
+            customer_notes=notes or None,
+            employee_name="Website storefront",
+            lines=lines,
+        )
+    except Exception:
+        qid, qerr = None, None
+    if not qid:
+        return jsonify({"ok": False, "error": qerr or "Could not submit your request. Try again."}), 500
+    return jsonify(
+        {
+            "ok": True,
+            "quote_id": int(qid),
+            "message": "Thank you! Your quotation request was received. We will contact you shortly.",
+        }
+    )
+
+
+def _load_website_settings() -> dict:
+    defaults = _default_website_settings()
+    try:
+        from database import get_site_settings
+
+        raw = (get_site_settings([WEBSITE_SETTINGS_JSON_KEY]).get(WEBSITE_SETTINGS_JSON_KEY) or "").strip()
+    except Exception:
+        raw = ""
+    if not raw:
+        return dict(defaults)
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return dict(defaults)
+    if not isinstance(parsed, dict):
+        return dict(defaults)
+    merged = {**defaults, **{k: v for k, v in parsed.items() if k in defaults and v is not None}}
+    design_defaults = _default_website_design()
+    design_in = parsed.get("design") if isinstance(parsed.get("design"), dict) else {}
+    merged["design"] = {**design_defaults, **{k: str(v) for k, v in design_in.items() if k in design_defaults}}
+    merged["domain"] = _normalize_website_domain(str(merged.get("domain") or ""))
+    theme_style = str(merged.get("theme_style") or "violet").strip().lower()
+    if theme_style not in WEBSITE_THEME_STYLES:
+        theme_style = "violet"
+    merged["theme_style"] = theme_style
+    from theme_presets import normalize_default_theme, normalize_font_family
+
+    merged["font_family"] = normalize_font_family(str(merged.get("font_family") or defaults["font_family"]))
+    merged["default_theme"] = normalize_default_theme(str(merged.get("default_theme") or defaults["default_theme"]))
+    if merged["default_theme"] == "system":
+        merged["default_theme"] = "light"
+    for color_key in ("primary_color", "accent_color"):
+        if not _ok_hex_color(str(merged.get(color_key) or "")):
+            merged[color_key] = defaults[color_key]
+    return merged
+
+
+def _save_website_settings(values: dict) -> bool:
+    try:
+        from database import set_site_settings
+
+        payload = json.dumps(values, separators=(",", ":"))
+        return bool(set_site_settings({WEBSITE_SETTINGS_JSON_KEY: payload}))
+    except Exception:
+        return False
+
+
+def _website_settings_for_template() -> dict:
+    from theme_presets import font_css_stack, google_fonts_url
+
+    ws = _load_website_settings()
+    ws["primary_color_rgb"] = _hex_to_rgb_triplet(ws.get("primary_color"))
+    ws["accent_color_rgb"] = _hex_to_rgb_triplet(ws.get("accent_color"))
+    ws["font_family_stack"] = font_css_stack(ws.get("font_family"))
+    ws["font_google_url"] = google_fonts_url(ws.get("font_family"))
+    style = WEBSITE_THEME_STYLES.get(ws.get("theme_style") or "violet") or WEBSITE_THEME_STYLES["violet"]
+    ws["theme_style_label"] = style["label"]
+    return ws
 
 
 def _load_company_identity_settings() -> dict:
@@ -2511,8 +2948,163 @@ def _daraja_balance_register_pending(*conversation_ids: str) -> None:
         _daraja_balance_status_store(cid, {**pending, "conversation_id": cid, "poll_ids": ids})
 
 
-def _daraja_company_account_context() -> dict:
+_DARAJA_B2C_STATUS: Dict[str, dict] = {}
+_DARAJA_B2C_STATUS_LOCK = threading.Lock()
+_DARAJA_B2C_STATUS_KEY = "daraja_b2c_status_json"
+_DARAJA_B2C_STATUS_MAX = 60
+
+
+def _daraja_b2c_status_load_all() -> dict:
+    try:
+        from database import get_site_settings
+
+        raw = get_site_settings([_DARAJA_B2C_STATUS_KEY]).get(_DARAJA_B2C_STATUS_KEY) or ""
+        data = json.loads(raw) if raw else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _daraja_b2c_status_save_all(data: dict) -> None:
+    try:
+        from database import set_site_settings
+
+        if not isinstance(data, dict):
+            return
+        items = list(data.items())
+        if len(items) > _DARAJA_B2C_STATUS_MAX:
+            items = items[-_DARAJA_B2C_STATUS_MAX :]
+        set_site_settings(
+            {
+                _DARAJA_B2C_STATUS_KEY: json.dumps(
+                    dict(items), separators=(",", ":")
+                )
+            }
+        )
+    except Exception:
+        logger.exception("Failed to persist Daraja B2C status map")
+
+
+def _daraja_b2c_status_store(conversation_id: str, payload: dict) -> None:
+    cid = str(conversation_id or "").strip()
+    if not cid:
+        return
+    incoming = payload if isinstance(payload, dict) else {}
+    with _DARAJA_B2C_STATUS_LOCK:
+        prev = dict(_DARAJA_B2C_STATUS.get(cid) or {})
+        persisted = _daraja_b2c_status_load_all()
+        if not prev:
+            prev = dict(persisted.get(cid) or {})
+        merged = {**prev, **incoming, "conversation_id": cid}
+        _DARAJA_B2C_STATUS[cid] = merged
+        persisted[cid] = merged
+        _daraja_b2c_status_save_all(persisted)
+
+
+def _daraja_b2c_status_get(conversation_id: str) -> Optional[dict]:
+    cid = str(conversation_id or "").strip()
+    if not cid:
+        return None
+    with _DARAJA_B2C_STATUS_LOCK:
+        row = _DARAJA_B2C_STATUS.get(cid)
+        if not row:
+            row = _daraja_b2c_status_load_all().get(cid)
+            if row:
+                _DARAJA_B2C_STATUS[cid] = dict(row)
+        return dict(row) if row else None
+
+
+def _daraja_b2c_status_get_any(conversation_ids: list) -> Optional[dict]:
+    for raw in conversation_ids or []:
+        cid = str(raw or "").strip()
+        if not cid:
+            continue
+        row = _daraja_b2c_status_get(cid)
+        if row:
+            return row
+    return None
+
+
+def _daraja_b2c_register_pending(
+    *conversation_ids: str, meta: Optional[dict] = None
+) -> None:
+    pending = {
+        "pending": True,
+        "completed": False,
+        "timed_out": False,
+        "payment_applied": False,
+        "requested_at": datetime.now().isoformat(timespec="seconds"),
+        **(meta or {}),
+    }
+    ids = []
+    for raw in conversation_ids:
+        cid = str(raw or "").strip()
+        if cid and cid not in ids:
+            ids.append(cid)
+    for cid in ids:
+        _daraja_b2c_status_store(
+            cid, {**pending, "conversation_id": cid, "poll_ids": ids}
+        )
+
+
+def _daraja_b2c_apply_expense_payment(payload: dict) -> bool:
+    if payload.get("payment_applied"):
+        return False
+    tx_id = payload.get("expense_tx_id")
+    tx_scope = str(payload.get("expense_tx_scope") or "").strip().lower()
+    amount = payload.get("payout_amount")
+    if amount is None:
+        amount = payload.get("amount")
+    try:
+        tx_id_int = int(tx_id or 0)
+        pay = float(amount or 0)
+    except (TypeError, ValueError):
+        return False
+    if tx_id_int < 1 or pay <= 0:
+        return False
+    try:
+        if tx_scope == "company":
+            from database import update_company_stock_in_payment
+
+            updated = update_company_stock_in_payment(
+                tx_id_int, additional_payment=pay
+            )
+        else:
+            from database import update_shop_manual_stock_in_payment
+
+            updated = update_shop_manual_stock_in_payment(
+                tx_id_int, additional_payment=pay
+            )
+    except Exception:
+        logger.exception("Failed to apply B2C expense payment tx=%s", tx_id_int)
+        return False
+    return updated is not None
+
+
+def _daraja_expenses_mpesa_context(request_url: str = "") -> dict:
     from daraja_api import (
+        daraja_b2c_settings_ready,
+        daraja_settings_ready,
+        resolve_b2c_callbacks_detailed,
+    )
+
+    settings = _load_daraja_settings()
+    detailed = resolve_b2c_callbacks_detailed(settings, request_url, probe=False)
+    return {
+        "enabled": bool(settings.get("daraja_enabled")),
+        "configured": daraja_settings_ready(settings),
+        "payout_ready": daraja_b2c_settings_ready(settings)
+        and bool(detailed.get("result_url")),
+        "callback_mode": detailed.get("callback_mode") or "hosted",
+        "is_local_session": bool(detailed.get("is_local_session")),
+        "hosted_fallback": bool(detailed.get("hosted_fallback")),
+        "result_url": detailed.get("result_url") or "",
+    }
+
+
+def _daraja_company_account_context(request_url: str = "") -> dict:
+    from daraja_api import (
+        balance_callback_url_options,
         daraja_account_type_label,
         daraja_api_endpoints,
         daraja_balance_settings_ready,
@@ -2528,11 +3120,13 @@ def _daraja_company_account_context() -> dict:
     if "balance" not in snapshot:
         snapshot["balance"] = None
     endpoints = daraja_api_endpoints(settings)
+    balance_callbacks = balance_callback_url_options(settings, request_url)
     return {
         "daraja_endpoints": endpoints,
         "mpesa_account": {
             "configured": daraja_settings_ready(settings),
-            "balance_ready": daraja_balance_settings_ready(settings),
+            "balance_ready": daraja_balance_settings_ready(settings)
+            and balance_callbacks.get("balance_ready"),
             "enabled": bool(settings.get("daraja_enabled")),
             "environment": env,
             "shortcode": shortcode,
@@ -2546,6 +3140,7 @@ def _daraja_company_account_context() -> dict:
                 str(settings.get("daraja_security_credential") or "").strip()
             ),
             "balance_api_url": endpoints.get("account_balance") or "",
+            "balance_callbacks": balance_callbacks,
         },
         "mpesa_balance": snapshot,
     }
@@ -3077,6 +3672,7 @@ def it_support_system_settings():
     _valid_tabs = ("system", "company", "website", "pos", "receipt")
     initial_settings_tab = _tab_q if _tab_q in _valid_tabs else None
     from theme_presets import fonts_for_template, google_fonts_url, theme_presets_for_template
+    from daraja_api import preview_stk_callback_url
 
     font_ids = [f["id"] for f in fonts_for_template()]
     return render_template(
@@ -3085,6 +3681,10 @@ def it_support_system_settings():
         printing_settings=_load_printing_settings(),
         daraja_settings=_daraja_settings_for_template(),
         hosted_api_base=_effective_public_app_url(),
+        stk_callback_preview=preview_stk_callback_url(
+            _load_daraja_settings(),
+            url_for("daraja_mpesa_stk_callback", _external=True),
+        ),
         public_app_url_env_override=bool(_public_app_url_from_env()),
         initial_settings_tab=initial_settings_tab,
         appearance_presets=theme_presets_for_template(),
@@ -7068,6 +7668,43 @@ def it_support_credit_payments_customer():
     )
 
 
+@app.route("/it_support/credit-payments/customer.pdf")
+@login_required
+def it_support_credit_payments_customer_pdf():
+    _it_support_or_super_admin_only()
+    shop_id = request.args.get("shop_id", type=int)
+    if not shop_id:
+        abort(404)
+    shop = _get_shop_or_404(shop_id)
+    customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
+    company_name = ""
+    primary_color = ""
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(["company_name", "primary_color"]) or {}
+        company_name = (stored.get("company_name") or "").strip()
+        primary_color = (stored.get("primary_color") or "").strip()
+    except Exception:
+        pass
+    slug = secure_filename(
+        f"credit-note-{(customer_name or 'customer').replace(' ', '-').lower()}"
+    )
+    return _credit_note_pdf_response(
+        shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+        company_name=company_name or "Company",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        note_ctx=note_ctx,
+        primary_color=primary_color or None,
+        filename_slug=slug or "credit-note",
+    )
+
+
 @app.route("/company/credit-payments/customer")
 @login_required
 def company_credit_payments_customer():
@@ -7093,6 +7730,40 @@ def company_credit_payments_customer():
         embed_record_payment=True,
         company_should_print=should_print,
         **note_ctx,
+    )
+
+
+@app.route("/company/credit-payments/customer.pdf")
+@login_required
+def company_credit_payments_customer_pdf():
+    role_key = (session.get("employee_role") or "").strip().lower()
+    if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
+        abort(403)
+    customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    company_name = ""
+    primary_color = ""
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(["company_name", "primary_color"]) or {}
+        company_name = (stored.get("company_name") or "").strip()
+        primary_color = (stored.get("primary_color") or "").strip()
+    except Exception:
+        pass
+    slug = secure_filename(
+        f"credit-note-{(customer_name or 'customer').replace(' ', '-').lower()}"
+    )
+    return _credit_note_pdf_response(
+        shop_name="All shops",
+        company_name=company_name or "Company",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        note_ctx=note_ctx,
+        company_scope=True,
+        primary_color=primary_color or None,
+        filename_slug=slug or "credit-note",
     )
 
 
@@ -7254,7 +7925,53 @@ def it_support_credit_sale_detail():
         embed_record_payment=True,
         credit_payment_return_to="sale",
         focus_sale_id=sale_id,
+        report_generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
         **note_ctx,
+    )
+
+
+@app.route("/it_support/credit-payments/sale.pdf")
+@login_required
+def it_support_credit_sale_detail_pdf():
+    _it_support_or_super_admin_only()
+    shop_id = request.args.get("shop_id", type=int)
+    sale_id = request.args.get("sale_id", type=int)
+    if not shop_id or not sale_id:
+        abort(404)
+    shop = _get_shop_or_404(shop_id)
+    try:
+        from database import get_shop_credit_sale_detail
+
+        d = get_shop_credit_sale_detail(shop_id=shop_id, sale_id=sale_id) or {}
+    except Exception:
+        d = {}
+    if not d.get("sale"):
+        abort(404)
+    sale = d["sale"]
+    customer_name = (sale.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (sale.get("customer_phone") or "").strip() or "-"
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
+    company_name = ""
+    primary_color = ""
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(["company_name", "primary_color"]) or {}
+        company_name = (stored.get("company_name") or "").strip()
+        primary_color = (stored.get("primary_color") or "").strip()
+    except Exception:
+        pass
+    return _credit_note_pdf_response(
+        shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+        company_name=company_name or "Company",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        note_ctx=note_ctx,
+        primary_color=primary_color or None,
+        focus_sale=d,
+        filename_slug=secure_filename(f"credit-sale-{sale_id}") or "credit-sale",
     )
 
 
@@ -8451,6 +9168,81 @@ def daraja_account_balance_timeout_callback():
         _daraja_balance_status_store(cid, {**payload, "conversation_id": cid})
     if ids:
         logger.info("M-Pesa balance timeout callback for %s", ", ".join(ids))
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+@app.route("/api/daraja/b2c-result", methods=["GET", "POST"])
+def daraja_b2c_result_callback():
+    """Safaricom B2C ResultURL callback."""
+    if request.method == "GET":
+        return jsonify(
+            {
+                "ok": True,
+                "message": "B2C ResultURL endpoint is reachable. Safaricom uses POST.",
+            }
+        )
+    data = _daraja_balance_callback_payload()
+    logger.info("Daraja B2C result callback received (%s bytes)", len(request.get_data() or b""))
+    parsed = {}
+    try:
+        from daraja_api import parse_b2c_callback
+
+        parsed = parse_b2c_callback(data)
+    except Exception:
+        logger.exception("Daraja B2C callback parse failed")
+    cid = str(parsed.get("conversation_id") or "").strip()
+    orig = str(parsed.get("originator_conversation_id") or "").strip()
+    for key in (cid, orig):
+        if not key:
+            continue
+        prev = _daraja_b2c_status_get(key) or {}
+        merged = {**prev, **parsed, "conversation_id": key}
+        if int(parsed.get("result_code") or -1) == 0 and not prev.get("payment_applied"):
+            if _daraja_b2c_apply_expense_payment({**prev, **merged}):
+                merged["payment_applied"] = True
+        _daraja_b2c_status_store(key, merged)
+    if cid or orig:
+        logger.info(
+            "M-Pesa B2C callback conv=%s orig=%s code=%s receipt=%s",
+            cid or "—",
+            orig or "—",
+            parsed.get("result_code"),
+            parsed.get("transaction_receipt"),
+        )
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+@app.route("/api/daraja/b2c-timeout", methods=["GET", "POST"])
+def daraja_b2c_timeout_callback():
+    """Safaricom B2C QueueTimeOutURL callback."""
+    if request.method == "GET":
+        return jsonify(
+            {
+                "ok": True,
+                "message": "B2C timeout URL endpoint is reachable. Safaricom uses POST.",
+            }
+        )
+    data = _daraja_balance_callback_payload()
+    result = data.get("Result") if isinstance(data.get("Result"), dict) else data
+    ids = []
+    for raw in (
+        result.get("ConversationID"),
+        result.get("OriginatorConversationID"),
+    ):
+        cid = str(raw or "").strip()
+        if cid and cid not in ids:
+            ids.append(cid)
+    payload = {
+        "completed": True,
+        "pending": False,
+        "timed_out": True,
+        "result_code": -1,
+        "result_desc": str(result.get("ResultDesc") or "B2C payment timed out."),
+    }
+    for cid in ids:
+        _daraja_b2c_status_store(cid, {**payload, "conversation_id": cid})
+    if ids:
+        logger.info("M-Pesa B2C timeout callback for %s", ", ".join(ids))
     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
@@ -10691,6 +11483,67 @@ def shop_report(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-report.pdf")
+def shop_report_pdf(shop_id: int):
+    """Download shop period report as PDF (same filters as HTML page)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+    }
+    try:
+        from database import get_shop_report
+
+        report_data = get_shop_report(
+            shop_id=int(shop_id),
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        logger.exception("shop_report_pdf failed shop_id=%s", shop_id)
+    generated_at = datetime.now().strftime("%d %b %Y %H:%M")
+    scope_label = (
+        "Confirmed receipts only"
+        if (analytics_scope or "general") == "actual"
+        else "All receipt marks"
+    )
+    try:
+        from report_pdf import build_period_report_pdf
+
+        pdf_bytes = build_period_report_pdf(
+            title="Shop report",
+            entity_name=(shop.get("shop_name") or f"Shop {shop_id}"),
+            period_label=(analytics_filter or {}).get("range_label") or "Today",
+            scope_label=scope_label,
+            report_data=report_data,
+            generated_at=generated_at,
+            primary_color=(shop.get("primary_color") or "").strip() or None,
+        )
+    except Exception:
+        logger.exception("shop_report_pdf build failed shop_id=%s", shop_id)
+        abort(500, description="Could not generate PDF for this report.")
+    shop_slug = secure_filename(
+        str(shop.get("shop_name") or f"shop-{shop_id}").replace(" ", "-").lower()
+    )
+    filename = secure_filename(f"{shop_slug}-report.pdf")
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.route("/shops/<int:shop_id>/shop-receipts")
 def shop_receipts(shop_id: int):
     """POS receipts register: persisted sale/credit rows with date scopes (default today)."""
@@ -11188,6 +12041,97 @@ def _shop_customer_credit_note_context(
     }
 
 
+def _credit_note_unpaid_item_rows(note_ctx: dict, *, company_scope: bool = False) -> list:
+    rows: list = []
+    unpaid_sales = note_ctx.get("credit_sales_unpaid") or []
+    note_items = note_ctx.get("credit_note_items_by_sale_id") or {}
+    credit_acct_by_id = note_ctx.get("credit_acct_by_id") or {}
+    for tx in unpaid_sales:
+        try:
+            sale_id = int(tx.get("id") or 0)
+        except Exception:
+            sale_id = 0
+        sale_items = note_items.get(sale_id) or []
+        if sale_items:
+            for it in sale_items:
+                rows.append(
+                    {
+                        "shop_name": (it.get("shop_name") or tx.get("shop_name") or "").strip(),
+                        "item_name": (it.get("item_name") or "Item").strip(),
+                        "qty": int(it.get("qty") or 0),
+                        "amount": float(it.get("amount") or 0),
+                    }
+                )
+            continue
+        acct = credit_acct_by_id.get(sale_id) or {}
+        rows.append(
+            {
+                "shop_name": (tx.get("shop_name") or "").strip(),
+                "item_name": f"Credit sale #{sale_id}" if sale_id else "Credit sale",
+                "qty": None,
+                "amount": float(acct.get("remaining_amount") or tx.get("total_amount") or 0),
+            }
+        )
+    if company_scope:
+        return rows
+    return [{k: v for k, v in r.items() if k != "shop_name"} for r in rows]
+
+
+def _credit_note_pdf_response(
+    *,
+    shop_name: str,
+    company_name: str,
+    customer_name: str,
+    customer_phone: str,
+    note_ctx: dict,
+    company_scope: bool = False,
+    primary_color: str | None = None,
+    focus_sale: Optional[dict] = None,
+    filename_slug: str = "credit-note",
+) -> Response:
+    from credit_note_pdf import build_credit_note_pdf
+
+    f = note_ctx.get("f") or {}
+    all_time = bool(note_ctx.get("credit_note_all_time"))
+    scope_label = (
+        "Confirmed receipts only"
+        if (note_ctx.get("analytics_scope") or "general") == "actual"
+        else "All receipt marks"
+    )
+    try:
+        pdf_bytes = build_credit_note_pdf(
+            company_name=company_name,
+            shop_name=shop_name,
+            credit_note_ref=str(note_ctx.get("credit_note_ref") or "CN"),
+            period_label=f.get("range_label") or "Full account",
+            all_time=all_time,
+            scope_label=scope_label if not all_time else "",
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            balance_due=float(note_ctx.get("account_balance_due") or 0),
+            outstanding=float(note_ctx.get("unpaid_balance_total") or 0),
+            paid_to_date=float(note_ctx.get("account_paid_total") or 0),
+            unpaid_sales_count=int(note_ctx.get("unpaid_sales_count") or 0),
+            unpaid_items=_credit_note_unpaid_item_rows(
+                note_ctx, company_scope=company_scope
+            ),
+            company_scope=company_scope,
+            pay_link=str(note_ctx.get("credit_pay_link") or ""),
+            focus_sale=focus_sale,
+            generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
+            primary_color=primary_color,
+        )
+    except Exception:
+        logger.exception("credit_note_pdf build failed")
+        abort(500, description="Could not generate credit note PDF.")
+    filename = secure_filename(f"{filename_slug}.pdf")
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 def _company_customer_credit_note_context(customer_name: str, customer_phone: str) -> dict:
     """Credit note + payments context for company-wide customer credit page."""
     f = _all_time_analytics_filter()
@@ -11324,6 +12268,40 @@ def shop_credit_payments_customer(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-credit-payments/customer.pdf")
+def shop_credit_payments_customer_pdf(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not _shop_pos_allow_credit_sale(shop):
+        abort(404)
+    customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
+    company_name = ""
+    try:
+        from database import get_site_settings
+
+        company_name = (get_site_settings(["company_name"]).get("company_name") or "").strip()
+    except Exception:
+        company_name = ""
+    slug = secure_filename(
+        f"credit-note-{(customer_name or 'customer').replace(' ', '-').lower()}"
+    )
+    return _credit_note_pdf_response(
+        shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+        company_name=company_name or "Company",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        note_ctx=note_ctx,
+        primary_color=(shop.get("primary_color") or "").strip() or None,
+        filename_slug=slug or "credit-note",
+    )
+
+
 @app.route("/shops/<int:shop_id>/shop-credit-payments/pay", methods=["POST"])
 def shop_credit_payments_pay(shop_id: int):
     shop = _get_shop_or_404(shop_id)
@@ -11420,6 +12398,47 @@ def shop_credit_sale_detail(shop_id: int, sale_id: int):
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
         primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
         accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-credit-payments/sale/<int:sale_id>.pdf")
+def shop_credit_sale_detail_pdf(shop_id: int, sale_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not _shop_pos_allow_credit_sale(shop):
+        abort(404)
+    try:
+        from database import get_shop_credit_sale_detail
+
+        d = get_shop_credit_sale_detail(shop_id=shop_id, sale_id=sale_id) or {}
+    except Exception:
+        d = {}
+    if not d.get("sale"):
+        abort(404)
+    sale = d["sale"]
+    customer_name = (sale.get("customer_name") or "").strip() or "WALK IN"
+    customer_phone = (sale.get("customer_phone") or "").strip() or "-"
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
+    company_name = ""
+    try:
+        from database import get_site_settings
+
+        company_name = (get_site_settings(["company_name"]).get("company_name") or "").strip()
+    except Exception:
+        company_name = ""
+    return _credit_note_pdf_response(
+        shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+        company_name=company_name or "Company",
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        note_ctx=note_ctx,
+        primary_color=(shop.get("primary_color") or "").strip() or None,
+        focus_sale=d,
+        filename_slug=secure_filename(f"credit-sale-{sale_id}") or "credit-sale",
     )
 
 
@@ -14962,6 +15981,77 @@ def it_support_company_report():
     )
 
 
+@app.route("/it_support/company-report.pdf")
+@login_required
+def it_support_company_report_pdf():
+    """Download company period report as PDF (same filters as HTML page)."""
+    _it_support_only()
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+    }
+    try:
+        from database import get_company_report
+
+        report_data = get_company_report(
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        logger.exception("it_support_company_report_pdf failed")
+    company_name = ""
+    try:
+        from database import get_site_settings
+
+        company_name = (get_site_settings(["company_name"]).get("company_name") or "").strip()
+    except Exception:
+        company_name = ""
+    generated_at = datetime.now().strftime("%d %b %Y %H:%M")
+    primary_color = ""
+    try:
+        from database import get_site_settings
+
+        primary_color = (get_site_settings(["primary_color"]).get("primary_color") or "").strip()
+    except Exception:
+        primary_color = ""
+    scope_label = (
+        "Confirmed receipts only"
+        if (analytics_scope or "general") == "actual"
+        else "All receipt marks"
+    )
+    try:
+        from report_pdf import build_period_report_pdf
+
+        pdf_bytes = build_period_report_pdf(
+            title="Company report",
+            entity_name=company_name or "Company",
+            period_label=(analytics_filter or {}).get("range_label") or "Today",
+            scope_label=scope_label,
+            report_data=report_data,
+            generated_at=generated_at,
+            primary_color=primary_color or None,
+        )
+    except Exception:
+        logger.exception("it_support_company_report_pdf build failed")
+        abort(500, description="Could not generate PDF for this report.")
+    filename = secure_filename(
+        f"{(company_name or 'company').replace(' ', '-').lower()}-report.pdf"
+    )
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.route("/it_support/accounts")
 @login_required
 def it_support_accounts():
@@ -15060,7 +16150,193 @@ def it_support_accounts_expenses():
         shops=shops,
         shop_filter_id=shop_filter_id or 0,
         supplier_q=supplier_q,
+        mpesa_payout=_daraja_expenses_mpesa_context(
+            url_for("daraja_mpesa_stk_callback", _external=True)
+        ),
     )
+
+
+@app.route("/it_support/accounts/expenses/mpesa-pay", methods=["POST"])
+@login_required
+def it_support_accounts_expenses_mpesa_pay():
+    """Send M-Pesa B2C payment to a supplier for an expense line."""
+    _it_support_only()
+    from daraja_api import (
+        DarajaApiError,
+        balance_callback_ngrok_warning,
+        initiate_b2c_payment,
+        normalize_msisdn,
+        resolve_b2c_callbacks_detailed,
+    )
+    from database import get_company_stock_in_transaction, get_shop_manual_stock_in_transaction
+
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        tx_id = int(data.get("tx_id") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid expense reference."}), 400
+    tx_scope = str(data.get("tx_scope") or "").strip().lower()
+    if tx_scope not in ("company", "shop"):
+        return jsonify({"ok": False, "error": "Invalid expense scope."}), 400
+
+    if tx_scope == "company":
+        row = get_company_stock_in_transaction(tx_id)
+    else:
+        row = get_shop_manual_stock_in_transaction(tx_id)
+    if not row:
+        return jsonify({"ok": False, "error": "Expense line not found."}), 404
+
+    balance = float(row.get("balance") or 0)
+    if balance <= 0:
+        return jsonify({"ok": False, "error": "Nothing left to pay on this line."}), 400
+
+    phone = (data.get("phone") or row.get("seller_phone") or "").strip()
+    if phone in ("", "-"):
+        return jsonify(
+            {"ok": False, "error": "Supplier phone number is missing on this purchase."}
+        ), 400
+
+    try:
+        amount = float(data.get("amount") if data.get("amount") is not None else balance)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid payment amount."}), 400
+    if amount <= 0:
+        return jsonify({"ok": False, "error": "Amount must be greater than zero."}), 400
+    if amount > balance + 0.01:
+        return jsonify(
+            {
+                "ok": False,
+                "error": f"Amount exceeds balance ({balance:.2f}).",
+            }
+        ), 400
+    amount = round(min(amount, balance), 2)
+
+    settings = _load_daraja_settings()
+    if not settings.get("daraja_enabled"):
+        return jsonify({"ok": False, "error": "Daraja M-Pesa is not enabled."}), 403
+
+    request_hint = url_for("daraja_mpesa_stk_callback", _external=True)
+    detailed = resolve_b2c_callbacks_detailed(settings, request_hint, probe=True)
+    result_url = detailed.get("result_url") or ""
+    timeout_url = detailed.get("timeout_url") or ""
+    if not result_url or not timeout_url:
+        return jsonify(
+            {
+                "ok": False,
+                "error": detailed.get("error")
+                or "M-Pesa payout callback URL is missing or unreachable.",
+            }
+        ), 400
+
+    item_name = str(row.get("item_name") or "Stock").strip()[:40]
+    seller_name = str(row.get("seller_name") or "Supplier").strip()[:40]
+    remarks = f"Expense {item_name}"[:100]
+    occasion = f"{seller_name}"[:100]
+
+    try:
+        result = initiate_b2c_payment(
+            settings,
+            phone=phone,
+            amount=amount,
+            result_url=result_url,
+            timeout_url=timeout_url,
+            remarks=remarks,
+            occasion=occasion,
+            command_id="BusinessPayment",
+        )
+    except DarajaApiError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception:
+        logger.exception("M-Pesa B2C expense payout failed")
+        return jsonify({"ok": False, "error": "Could not start M-Pesa payout."}), 500
+
+    cid = str(result.get("conversation_id") or "").strip()
+    orig = str(result.get("originator_conversation_id") or "").strip()
+    _daraja_b2c_register_pending(
+        cid,
+        orig,
+        meta={
+            "expense_tx_id": tx_id,
+            "expense_tx_scope": tx_scope,
+            "payout_amount": amount,
+            "payout_phone": normalize_msisdn(phone),
+            "item_name": item_name,
+            "seller_name": seller_name,
+        },
+    )
+    ngrok_warn = balance_callback_ngrok_warning(
+        result_url,
+        callback_mode=detailed.get("callback_mode") or "",
+        probe=detailed.get("probe"),
+        hosted_fallback=bool(detailed.get("hosted_fallback")),
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "conversation_id": cid,
+            "originator_conversation_id": orig,
+            "result_url": result_url,
+            "callback_mode": detailed.get("callback_mode") or "hosted",
+            "hosted_fallback": bool(detailed.get("hosted_fallback")),
+            "ngrok_warning": ngrok_warn or None,
+            "message": ngrok_warn or "M-Pesa payout sent. Waiting for Safaricom confirmation…",
+        }
+    )
+
+
+@app.route("/it_support/accounts/expenses/mpesa-pay-status")
+@login_required
+def it_support_accounts_expenses_mpesa_pay_status():
+    """Poll status of an in-flight M-Pesa B2C expense payout."""
+    _it_support_only()
+    cid = str(request.args.get("conversation_id") or "").strip()
+    orig = str(request.args.get("originator_conversation_id") or "").strip()
+    if not cid and not orig:
+        return jsonify({"ok": False, "error": "conversation_id is required."}), 400
+    row = _daraja_b2c_status_get_any([cid, orig]) or {}
+    if not row:
+        return jsonify({"ok": True, "pending": True, "completed": False})
+    if row.get("timed_out"):
+        return jsonify(
+            {
+                "ok": False,
+                "completed": True,
+                "pending": False,
+                "error": row.get("result_desc") or "M-Pesa payout timed out.",
+            }
+        )
+    if row.get("completed"):
+        if int(row.get("result_code") or -1) != 0:
+            return jsonify(
+                {
+                    "ok": False,
+                    "completed": True,
+                    "pending": False,
+                    "error": row.get("result_desc") or "M-Pesa payout failed.",
+                }
+            )
+        if not row.get("payment_applied"):
+            if _daraja_b2c_apply_expense_payment(row):
+                row = {**row, "payment_applied": True}
+                for key in (
+                    str(row.get("conversation_id") or "").strip(),
+                    cid,
+                    orig,
+                ):
+                    if key:
+                        _daraja_b2c_status_store(key, row)
+        return jsonify(
+            {
+                "ok": True,
+                "completed": True,
+                "pending": False,
+                "payment_applied": bool(row.get("payment_applied")),
+                "transaction_receipt": row.get("transaction_receipt") or "",
+                "amount": row.get("amount") or row.get("payout_amount"),
+                "result_desc": row.get("result_desc") or "Payment sent.",
+            }
+        )
+    return jsonify({"ok": True, "pending": True, "completed": False})
 
 
 @app.route("/it_support/accounts/company-account")
@@ -15068,7 +16344,8 @@ def it_support_accounts_expenses():
 def it_support_accounts_company_account():
     """Company M-Pesa paybill / till account overview."""
     _it_support_only()
-    ctx = _daraja_company_account_context()
+    request_hint = url_for("daraja_mpesa_stk_callback", _external=True)
+    ctx = _daraja_company_account_context(request_hint)
     return render_template(
         "it_support_accounts_company.html",
         mpesa_account=ctx.get("mpesa_account") or {},
@@ -15094,13 +16371,31 @@ def it_support_accounts_company_account_balance_refresh():
         DarajaApiError,
         balance_callback_ngrok_warning,
         initiate_account_balance_query,
-        resolve_balance_callback_urls,
+        probe_callback_url,
+        resolve_balance_callbacks_detailed,
     )
 
     settings = _load_daraja_settings()
-    stk_hint = _daraja_external_callback_hint()
-    result_url, timeout_url = resolve_balance_callback_urls(settings, stk_hint)
-    ngrok_warn = balance_callback_ngrok_warning(result_url)
+    request_hint = url_for("daraja_mpesa_stk_callback", _external=True)
+    detailed = resolve_balance_callbacks_detailed(settings, request_hint, probe=True)
+    result_url = detailed.get("result_url") or ""
+    timeout_url = detailed.get("timeout_url") or ""
+    if not result_url or not timeout_url:
+        return jsonify(
+            {
+                "ok": False,
+                "error": detailed.get("error")
+                or "Balance callback URL is missing or unreachable.",
+                "skipped_callbacks": detailed.get("skipped_callbacks") or [],
+                "probe": detailed.get("probe"),
+            }
+        ), 400
+    ngrok_warn = balance_callback_ngrok_warning(
+        result_url,
+        callback_mode=detailed.get("callback_mode") or "",
+        probe=detailed.get("probe"),
+        hosted_fallback=bool(detailed.get("hosted_fallback")),
+    )
     try:
         result = initiate_account_balance_query(
             settings,
@@ -15129,8 +16424,40 @@ def it_support_accounts_company_account_balance_refresh():
             "api_url": result.get("api_url") or "",
             "ngrok_warning": ngrok_warn or None,
             "message": message,
+            "callback_mode": detailed.get("callback_mode") or "hosted",
+            "is_local_session": bool(detailed.get("is_local_session")),
+            "hosted_fallback": bool(detailed.get("hosted_fallback")),
+            "probe": detailed.get("probe"),
+            "skipped_callbacks": detailed.get("skipped_callbacks") or [],
         }
     )
+
+
+@app.route("/it_support/accounts/company-account/callback-test", methods=["POST"])
+@app.route("/it_support/accounts/company/callback-test", methods=["POST"])
+@login_required
+def it_support_accounts_company_account_callback_test():
+    """Probe whether Safaricom can POST to the active balance callback URL."""
+    _it_support_only()
+    from daraja_api import balance_callback_url_options, probe_callback_url
+
+    settings = _load_daraja_settings()
+    request_hint = url_for("daraja_mpesa_stk_callback", _external=True)
+    opts = balance_callback_url_options(settings, request_hint)
+    targets = [
+        ("local", opts.get("local_result_url") or ""),
+        ("hosted", opts.get("hosted_result_url") or ""),
+        ("active", opts.get("active_result_url") or ""),
+    ]
+    seen: set[str] = set()
+    results = []
+    for label, url in targets:
+        u = str(url or "").strip()
+        if not u or u in seen:
+            continue
+        seen.add(u)
+        results.append({"label": label, "url": u, **probe_callback_url(u)})
+    return jsonify({"ok": True, "results": results})
 
 
 @app.route("/it_support/accounts/company-account/balance-status")
@@ -15671,6 +16998,76 @@ def it_support_employee_delete(emp_id: int):
 def it_support_website_management():
     _it_support_only()
     return render_template("it_support_website_management.html")
+
+
+@app.route("/it_support/website-management/settings", methods=["GET", "POST"])
+@login_required
+def it_support_website_settings():
+    _it_support_only()
+    from theme_presets import fonts_for_template, google_fonts_url, normalize_default_theme, normalize_font_family
+
+    ws = _load_website_settings()
+
+    if request.method == "POST":
+        theme_style = (request.form.get("theme_style") or "violet").strip().lower()
+        if theme_style not in WEBSITE_THEME_STYLES:
+            theme_style = "violet"
+        style = WEBSITE_THEME_STYLES[theme_style]
+        primary_color = (request.form.get("primary_color") or style["primary"]).strip()
+        accent_color = (request.form.get("accent_color") or style["accent"]).strip()
+        if not _ok_hex_color(primary_color):
+            primary_color = style["primary"]
+        if not _ok_hex_color(accent_color):
+            accent_color = style["accent"]
+        default_theme = normalize_default_theme((request.form.get("default_theme") or "light").strip())
+        if default_theme == "system":
+            default_theme = "light"
+        font_family = normalize_font_family((request.form.get("font_family") or ws["font_family"]).strip())
+        domain = _normalize_website_domain((request.form.get("website_domain") or "").strip())
+        updated = {
+            **ws,
+            "domain": domain,
+            "theme_style": theme_style,
+            "primary_color": primary_color,
+            "accent_color": accent_color,
+            "font_family": font_family,
+            "default_theme": default_theme,
+        }
+        ok = _save_website_settings(updated)
+        if ok and domain:
+            _sync_website_domain_to_hosted(domain)
+        if ok:
+            share = _public_storefront_share_info()
+            flash(f"Website settings saved. Share link: {share['url']}", "success")
+        else:
+            flash("Could not save website settings. Try again.", "error")
+        return redirect(url_for("it_support_website_settings"))
+
+    font_ids = [f["id"] for f in fonts_for_template()]
+    return render_template(
+        "it_support_website_settings.html",
+        website_ws=ws,
+        website_theme_styles=WEBSITE_THEME_STYLES,
+        appearance_fonts=fonts_for_template(),
+        appearance_fonts_google_url=google_fonts_url(*font_ids),
+    )
+
+
+@app.route("/it_support/website-management/designs", methods=["GET"])
+@login_required
+def it_support_website_designs():
+    _it_support_only()
+    ws = _load_website_settings()
+    design_defaults = _default_website_design()
+    products = _website_featured_products(limit=12)
+    return render_template(
+        "it_support_website_designs.html",
+        website_ws=ws,
+        website_design=ws.get("design") or design_defaults,
+        website_featured_products=products,
+        website_product_categories=_website_product_categories(products),
+        preview_url=_public_storefront_url(),
+    )
 
 
 @app.route("/ai/my-accountant/summary")

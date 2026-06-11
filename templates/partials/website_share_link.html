@@ -1,0 +1,51 @@
+{# Shareable public shop URL — uses public_storefront_share from context unless overridden. #}
+{% set _share = share if share is defined else (public_storefront_share if public_storefront_share is defined else none) %}
+{% set _url = share_url if share_url is defined else (_share.url if _share else (public_storefront_share_url if public_storefront_share_url is defined else url_for('marketing_home', _external=True))) %}
+{% set _compact = share_compact|default(false) %}
+{% if _share or _url %}
+  <div class="ws-share-link rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] {% if _compact %}p-4{% else %}p-5 sm:p-6{% endif %} shadow-sm" data-ws-share-root>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">
+          {{ _share.label if _share else 'Shop link' }}
+        </p>
+        {% if _share and _share.kind == 'domain' %}
+          <span class="mt-1 inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Live · branded domain</span>
+        {% elif _share and _share.kind == 'hosted' %}
+          <span class="mt-1 inline-flex items-center rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300">Hosted server</span>
+        {% else %}
+          <span class="mt-1 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:text-amber-200">Preview</span>
+        {% endif %}
+        {% if not _compact and _share and _share.hint %}
+          <p class="mt-2 max-w-xl text-sm text-[rgb(var(--rc-muted))]">{{ _share.hint }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+      <div class="relative min-w-0 flex-1">
+        <input
+          type="url"
+          class="ws-share-link__input w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] py-3 pl-4 pr-4 text-sm font-medium text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+          value="{{ _url }}"
+          readonly
+          aria-label="Shareable shop link"
+          data-ws-share-input
+        />
+      </div>
+      <div class="flex shrink-0 flex-wrap gap-2">
+        <button type="button" class="btn-rc btn-rc-primary px-4 py-2.5 text-sm font-semibold" data-ws-share-copy>Copy link</button>
+        <a href="{{ _url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost px-4 py-2.5 text-sm font-semibold">Open</a>
+        <a
+          href="https://wa.me/?text={{ ('Shop with us: ' ~ _url)|urlencode }}"
+          target="_blank"
+          rel="noopener"
+          class="btn-rc btn-rc-ghost px-4 py-2.5 text-sm font-semibold"
+          title="Share on WhatsApp"
+        >WhatsApp</a>
+      </div>
+    </div>
+    <p class="mt-2 hidden text-xs font-semibold text-emerald-700 dark:text-emerald-300" data-ws-share-copied aria-live="polite">Link copied to clipboard.</p>
+  </div>
+  <script src="{{ url_for('static', filename='js/website-share-link.js') }}" defer></script>
+{% endif %}

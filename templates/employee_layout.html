@@ -78,16 +78,21 @@
           </svg>
         </button>
       </div>
-      {% if portal_employee %}
-        <p class="border-b border-[rgb(var(--rc-border))] px-4 pb-2 pt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">
-          Navigate
-        </p>
-      {% endif %}
+      {% block employee_sidebar_navigate_label %}
+        {% if portal_employee %}
+          <p class="border-b border-[rgb(var(--rc-border))] px-4 pb-2 pt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">
+            Navigate
+          </p>
+        {% endif %}
+      {% endblock %}
       <nav class="flex min-h-0 flex-1 flex-col p-3">
         <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-          {% include "partials/employee_portal_sidebar_nav.html" %}
+          {% block employee_sidebar_primary_nav %}
+            {% include "partials/employee_portal_sidebar_nav.html" %}
+          {% endblock %}
           {% block sidebar_links %}{% endblock %}
         </div>
+        {% block employee_sidebar_util_links %}
         {% if portal_employee %}
           <div class="mt-2 flex shrink-0 flex-col gap-1 border-t border-[rgb(var(--rc-border))] pt-2">
             {% if portal_employee.role_key in ('it_support', 'super_admin', 'company_manager') %}
@@ -142,6 +147,7 @@
             </a>
           </div>
         {% endif %}
+        {% endblock %}
         <div class="mt-2 shrink-0 border-t border-[rgb(var(--rc-border))]"></div>
         <form method="post" action="{{ url_for('employee_logout') }}" class="shrink-0 pt-2">
           <button

@@ -1,0 +1,210 @@
+{# Ecommerce storefront block — used on public /site and IT design preview. #}
+{% set _d = website_design if website_design is defined else (website_settings.design if website_settings and website_settings.design else {}) %}
+{% set _products = website_featured_products|default([]) %}
+{% set _cats = website_product_categories|default([]) %}
+{% set _company = site_settings.company_name if site_settings and site_settings.company_name else 'Our Store' %}
+{% set _design_mode = storefront_design_mode|default(false) %}
+{% set _primary = website_settings.primary_color if website_settings else '#9333ea' %}
+{% set _accent = website_settings.accent_color if website_settings else '#a855f7' %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront.css') }}" />
+
+<div
+  id="wsf-root"
+  class="wsf-root relative overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100"
+  style="--mk-primary: {{ _primary }}; --mk-accent: {{ _accent }};"
+  data-quote-url="{{ url_for('storefront_request_quotation') }}"
+  {% if _design_mode %}data-wsf-design-preview="1"{% endif %}
+>
+  <script type="application/json" id="wsf-products-json">{{ _products|tojson }}</script>
+
+  <div class="wsf-ambient" aria-hidden="true">
+    <span class="wsf-ambient__orb wsf-ambient__orb--1"></span>
+    <span class="wsf-ambient__orb wsf-ambient__orb--2"></span>
+    <span class="wsf-ambient__orb wsf-ambient__orb--3"></span>
+  </div>
+
+  {% if _design_mode %}
+    <div class="wsf-design-badge absolute right-3 top-3 z-20 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Live preview</div>
+  {% endif %}
+
+  {% set _include_chrome = storefront_include_chrome|default(true) %}
+  {% if _include_chrome %}
+  <div class="wsf-promo relative z-[2] px-4 py-2.5 text-center text-xs font-semibold sm:text-sm" data-wsf-field="promo_banner_text">
+    {{ _d.promo_banner_text or 'Free pickup on all orders · Same prices as in store' }}
+  </div>
+
+  <header class="wsf-header px-4 py-3 sm:px-6 sm:py-4">
+    <div class="relative z-[1] mx-auto flex max-w-6xl flex-wrap items-center gap-3 sm:gap-4">
+      <div class="flex min-w-0 items-center gap-2.5">
+        <span class="wsf-logo flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl wsf-btn-primary text-sm font-bold text-white">
+          {% if site_settings and site_settings.app_icon %}
+            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full rounded-2xl object-cover" />
+          {% else %}
+            {{ _company[:1]|upper }}
+          {% endif %}
+        </span>
+        <div class="min-w-0">
+          <p class="truncate text-sm font-bold tracking-tight">{{ _company }}</p>
+          <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-400" data-wsf-field="store_tagline">{{ _d.store_tagline or 'Quality products, trusted every day' }}</p>
+        </div>
+      </div>
+
+      <div class="wsf-search order-3 flex min-w-0 flex-1 basis-full items-center gap-2 rounded-full px-4 py-2.5 sm:order-none sm:basis-auto sm:min-w-[14rem] lg:min-w-[20rem]">
+        <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="search"
+          class="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400"
+          placeholder="{{ _d.search_placeholder or 'Search products, categories…' }}"
+          aria-label="Search products"
+        />
+      </div>
+
+      <div class="ml-auto flex items-center gap-2 sm:gap-3">
+        <button type="button" class="wsf-cart-btn relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white/80 text-zinc-700 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-200" aria-label="Open cart" data-wsf-open-cart>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          <span class="wsf-cart-count absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white wsf-btn-primary hidden" data-wsf-cart-count>0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+  {% else %}
+  <div class="wsf-promo relative z-[2] px-4 py-2.5 text-center text-xs font-semibold sm:text-sm" data-wsf-field="promo_banner_text">
+    {{ _d.promo_banner_text or 'Free pickup on all orders · Same prices as in store' }}
+  </div>
+  {% endif %}
+
+  <div class="wsf-strip mx-auto max-w-6xl px-4 sm:px-6">
+    <h1 class="wsf-strip__title" data-wsf-field="featured_section_title">{{ _d.featured_section_title or 'Commonly sold' }}</h1>
+    <p class="wsf-strip__sub" data-wsf-field="featured_section_subtitle">{{ _d.featured_section_subtitle or 'Top picks from real sales — add to cart and request a quotation in seconds.' }}</p>
+  </div>
+
+  <section id="wsf-products" class="wsf-section px-4 pb-12 pt-4 sm:px-6 sm:pb-16">
+    <div class="mx-auto max-w-6xl">
+      <div class="wsf-section-head flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {% if _cats %}
+          <div class="flex flex-wrap gap-2" role="tablist" aria-label="Categories">
+            <button type="button" class="wsf-cat-pill is-active rounded-full px-4 py-2 text-xs font-semibold" data-wsf-cat="all">All</button>
+            {% for cat in _cats %}
+              <button type="button" class="wsf-cat-pill rounded-full px-4 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300" data-wsf-cat="{{ cat|upper }}">{{ cat }}</button>
+            {% endfor %}
+          </div>
+        {% else %}
+          <span></span>
+        {% endif %}
+        <p class="text-xs font-medium text-zinc-500"><span id="wsf-visible-count">{{ _products|length }}</span> product{{ '' if _products|length == 1 else 's' }}</p>
+      </div>
+
+      {% if _products %}
+        <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="wsf-product-grid">
+          {% for p in _products %}
+            <article
+              class="wsf-product-card group flex flex-col overflow-hidden rounded-2xl"
+              data-wsf-product-cat="{{ p.category|upper }}"
+              style="--wsf-delay: {{ (loop.index0 * 0.06)|round(2) }}s"
+            >
+              <div class="wsf-product-card__img-wrap relative">
+                {% if p.image_url %}
+                  <img src="{{ p.image_url }}" alt="{{ p.name }}" class="h-full w-full object-cover" loading="lazy" />
+                {% else %}
+                  <div class="flex h-full w-full flex-col items-center justify-center gap-1 text-zinc-400">
+                    <span class="text-4xl font-bold opacity-40">{{ p.name[:1]|upper }}</span>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider">No image</span>
+                  </div>
+                {% endif %}
+                <span class="wsf-product-card__badge absolute left-2 top-2 rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">{{ p.category }}</span>
+                {% if p.on_sale %}
+                  <span class="absolute right-2 top-2 rounded-lg bg-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-lg">Sale</span>
+                {% elif p.qty_sold > 0 %}
+                  <span class="absolute right-2 top-2 rounded-lg bg-zinc-900/80 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur dark:bg-white/90 dark:text-zinc-900">{{ '%.0f'|format(p.qty_sold) }}+ sold</span>
+                {% endif %}
+              </div>
+              <div class="flex flex-1 flex-col p-4">
+                <h3 class="line-clamp-2 text-sm font-semibold leading-snug">{{ p.name }}</h3>
+                {% if p.description %}
+                  <p class="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{{ p.description }}</p>
+                {% endif %}
+                <div class="mt-auto flex items-end justify-between gap-2 pt-4">
+                  <div>
+                    <p class="text-base font-bold tabular-nums mk-brand-text">KES {{ '%.2f'|format(p.price) }}</p>
+                    {% if p.on_sale %}
+                      <p class="text-xs text-zinc-400 line-through tabular-nums">KES {{ '%.2f'|format(p.original_price) }}</p>
+                    {% endif %}
+                  </div>
+                  <button type="button" class="wsf-add-btn wsf-btn-primary rounded-full px-4 py-2 text-xs font-bold" data-wsf-add-id="{{ p.id }}">
+                    <span>Add</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="wsf-empty-state mt-8 rounded-2xl px-6 py-16 text-center">
+          <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">No active products yet</p>
+          <p class="mt-2 text-sm text-zinc-500">Register items in Item management and complete sales in POS — commonly sold products will appear here automatically.</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <footer class="wsf-footer px-4 py-10 text-center sm:px-6">
+    <p class="text-sm font-semibold">{{ _company }}</p>
+    <p class="mt-1 text-xs text-zinc-500">In-store prices · Request a quotation online — we follow up from Leads &amp; quotations</p>
+    {% if site_settings and site_settings.company_phone %}
+      <a href="tel:{{ site_settings.company_phone }}" class="mt-3 inline-block text-sm font-semibold mk-brand-text transition hover:opacity-80">{{ site_settings.company_phone }}</a>
+    {% endif %}
+  </footer>
+
+  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-btn-primary is-hidden" data-wsf-open-cart aria-label="View cart">
+    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+    Cart · <span data-wsf-fab-count>0</span>
+  </button>
+
+  <div id="wsf-toast" class="wsf-toast" role="status" aria-live="polite"></div>
+
+  <div id="wsf-cart-backdrop" class="wsf-cart-backdrop" aria-hidden="true"></div>
+  <aside id="wsf-cart-drawer" class="wsf-cart-drawer" aria-label="Shopping cart" aria-hidden="true">
+    <div class="wsf-cart-drawer__head">
+      <div>
+        <p class="text-sm font-bold">Your cart</p>
+        <p class="text-xs text-zinc-500">Submit to request a quotation</p>
+      </div>
+      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200/80 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" data-wsf-close-cart aria-label="Close cart">&times;</button>
+    </div>
+    <div class="wsf-cart-drawer__body">
+      <div id="wsf-cart-lines"></div>
+      <div id="wsf-quote-form-wrap" class="mt-4 hidden">
+        <form id="wsf-quote-form" class="space-y-3">
+          <div>
+            <label class="wsf-quote-label" for="wsf-customer-name">Your name</label>
+            <input class="wsf-quote-field" id="wsf-customer-name" name="customer_name" required autocomplete="name" placeholder="Full name" />
+          </div>
+          <div>
+            <label class="wsf-quote-label" for="wsf-customer-phone">Phone</label>
+            <input class="wsf-quote-field" id="wsf-customer-phone" name="customer_phone" required autocomplete="tel" placeholder="e.g. 0712 345 678" />
+          </div>
+          <div>
+            <label class="wsf-quote-label" for="wsf-customer-notes">Message (optional)</label>
+            <textarea class="wsf-quote-field" id="wsf-customer-notes" name="customer_notes" rows="2" placeholder="Delivery address, preferred branch, etc."></textarea>
+          </div>
+          <div id="wsf-quote-error" class="wsf-quote-msg wsf-quote-msg--error hidden" role="alert"></div>
+          <div id="wsf-quote-success" class="wsf-quote-msg wsf-quote-msg--success hidden" role="status"></div>
+        </form>
+      </div>
+    </div>
+    <div class="wsf-cart-drawer__foot">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Estimated total</span>
+        <span id="wsf-cart-total" class="text-base font-bold tabular-nums mk-brand-text">KES 0.00</span>
+      </div>
+      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-btn-primary mt-3 w-full rounded-full py-3 text-sm font-bold">Request quotation</button>
+      <p class="mt-2 text-center text-[10px] text-zinc-500">Creates a lead in Leads &amp; quotations for your team to follow up.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/website-storefront-cart.js') }}" defer></script>

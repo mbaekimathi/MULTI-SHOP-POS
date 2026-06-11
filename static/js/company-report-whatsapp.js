@@ -1,5 +1,5 @@
 /**
- * Share company / shop period report summary on WhatsApp (wa.me).
+ * Share company / shop period report as PDF on WhatsApp (server PDF + Web Share API).
  */
 (function () {
   "use strict";
@@ -41,6 +41,53 @@
       return "https://api.whatsapp.com/send?phone=" + phone + "&text=" + encoded;
     }
     return "https://api.whatsapp.com/send?text=" + encoded;
+  }
+
+  function slugify(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w\s-]+/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  function pdfFileName(data) {
+    var base = slugify(data.shopName || data.companyName || "report") || "report";
+    var period = slugify(data.periodLabel || "");
+    return base + "-report" + (period ? "-" + period : "") + ".pdf";
+  }
+
+  function getPdfFetchUrl(data) {
+    if (data && data.pdfUrl) return String(data.pdfUrl);
+    var url = new URL(window.location.href);
+    var path = url.pathname.replace(/\/$/, "");
+    if (!path.endsWith(".pdf")) path += ".pdf";
+    url.pathname = path;
+    return url.toString();
+  }
+
+  function buildShortCaption(data) {
+    var title = String(data.reportTitle || "REPORT").trim() || "REPORT";
+    var name = String(data.shopName || data.companyName || "Report").trim() || "Report";
+    var period = String(data.periodLabel || "Selected period").trim();
+    var lines = [
+      "*" + title + "*",
+      name,
+      "Period: " + period,
+    ];
+    if (data.scopeLabel) lines.push("Scope: " + data.scopeLabel);
+    lines.push("");
+    lines.push(
+      "Revenue " + fmtMoney(data.totalRevenue) +
+      " · Expenditure " + fmtMoney(data.totalExpenditure) +
+      " · Net " + fmtMoney(data.netProfit)
+    );
+    lines.push("");
+    lines.push("Full report attached as PDF.");
+    if (data.generatedAt) lines.push("Generated " + data.generatedAt);
+    return lines.join("\n");
   }
 
   function buildMessage(data, visibleRows) {
@@ -139,14 +186,61 @@
     return input ? String(input.value || "").trim() : "";
   }
 
-  function shareReport() {
-    var data = readBoot();
-    if (!data) {
-      window.alert("Report data is not available on this page.");
-      return;
+  function setButtonBusy(btn, busy) {
+    if (!btn) return;
+    if (busy) {
+      if (!btn.dataset.crWaHtml) {
+        btn.dataset.crWaHtml = btn.innerHTML;
+      }
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      btn.innerHTML = "Preparing PDF…";
+    } else {
+      btn.disabled = false;
+      btn.removeAttribute("aria-busy");
+      if (btn.dataset.crWaHtml) {
+        btn.innerHTML = btn.dataset.crWaHtml;
+      }
     }
-    var visible = scrapeVisibleRows();
-    var text = buildMessage(data, visible);
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 1500);
+  }
+
+  function generatePdfBlob(data) {
+    var pdfUrl = getPdfFetchUrl(data);
+    return fetch(pdfUrl, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/pdf" },
+    }).then(function (res) {
+      if (!res.ok) {
+        return res.text().then(function (body) {
+          var msg = (body || "").replace(/<[^>]+>/g, " ").trim();
+          throw new Error(msg || ("Could not download PDF (HTTP " + res.status + ")."));
+        });
+      }
+      return res.blob();
+    }).then(function (blob) {
+      if (!blob || blob.size < 32) {
+        throw new Error("PDF file was empty.");
+      }
+      return blob;
+    });
+  }
+
+  function openWhatsApp(text) {
     var url = whatsAppUrl(readSharePhone(), text);
     try {
       window.open(url, "_blank", "noopener,noreferrer");
@@ -155,13 +249,75 @@
     }
   }
 
+  function shareTextReport(data) {
+    var visible = scrapeVisibleRows();
+    openWhatsApp(buildMessage(data, visible));
+  }
+
+  function sharePdfBlob(data, blob) {
+    var filename = pdfFileName(data);
+    var caption = buildShortCaption(data);
+    var file;
+
+    try {
+      file = new File([blob], filename, { type: "application/pdf" });
+    } catch (e) {
+      file = null;
+    }
+
+    if (file && navigator.share && navigator.canShare) {
+      var payload = { title: caption, text: caption, files: [file] };
+      if (navigator.canShare(payload)) {
+        return navigator.share(payload).catch(function (err) {
+          if (err && err.name === "AbortError") return;
+          throw err;
+        });
+      }
+    }
+
+    downloadBlob(blob, filename);
+    openWhatsApp(
+      caption +
+        "\n\nPDF saved as \"" + filename + "\". Attach it in WhatsApp before sending."
+    );
+  }
+
+  function shareReport(btn) {
+    var data = readBoot();
+    if (!data) {
+      window.alert("Report data is not available on this page.");
+      return Promise.resolve();
+    }
+
+    setButtonBusy(btn, true);
+    return generatePdfBlob(data)
+      .then(function (blob) {
+        return sharePdfBlob(data, blob);
+      })
+      .catch(function (err) {
+        if (
+          window.confirm(
+            (err && err.message
+              ? err.message + "\n\n"
+              : "Could not create a PDF for this report.\n\n") +
+              "Share a text summary on WhatsApp instead?"
+          )
+        ) {
+          shareTextReport(data);
+        }
+      })
+      .finally(function () {
+        setButtonBusy(btn, false);
+      });
+  }
+
   function bind() {
     document.querySelectorAll(
       "[data-company-report-whatsapp-share], [data-shop-report-whatsapp-share]"
     ).forEach(function (btn) {
       btn.addEventListener("click", function (e) {
         e.preventDefault();
-        shareReport();
+        shareReport(btn);
       });
     });
     document.querySelectorAll(

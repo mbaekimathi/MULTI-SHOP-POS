@@ -1,95 +1,108 @@
-{# IT: manage store_stock_items — compact UI. #}
+{# IT: manage store_stock_items — matches company stock update table style. #}
 {% set catalog = store_catalog_items or [] %}
 {% set manage_open_id = manage_item_id|default(none) %}
 {% set catalog_panel_open = manage_open_id %}
 
-<section id="it-store-items-catalog" class="it-stock-mgmt-section sa-stock-panel">
-  <div class="it-stock-mgmt-section__head">
-    <h2 class="it-stock-mgmt-section__title">Manage items <span class="it-stock-mgmt-section__meta">· {{ catalog|length }} SKUs</span></h2>
-    <button type="button" id="it-store-catalog-toggle" class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-medium" aria-expanded="{% if catalog_panel_open %}true{% else %}false{% endif %}" aria-controls="it-store-items-catalog-body">
+<section id="it-store-items-catalog">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Manage items <span class="font-normal text-[rgb(var(--rc-muted))]">· {{ catalog|length }} SKUs</span></h3>
+    <button type="button" id="it-store-catalog-toggle" class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-bold uppercase tracking-wider" aria-expanded="{% if catalog_panel_open %}true{% else %}false{% endif %}" aria-controls="it-store-items-catalog-body">
       {% if catalog_panel_open %}Hide list{% else %}Show list{% endif %}
     </button>
   </div>
 
-  <div id="it-store-items-catalog-body" class="{% if not catalog_panel_open %}hidden{% endif %} mt-3">
+  <div id="it-store-items-catalog-body" class="{% if not catalog_panel_open %}hidden{% endif %} mt-4">
     {% if not catalog %}
       <p class="text-sm text-[rgb(var(--rc-muted))]">No items yet.</p>
     {% else %}
-      <div class="sa-stock-mgmt-scroll">
-        <table class="sa-stock-data-table sa-stock-mgmt-table sa-stock-mgmt-table--compact text-sm">
-          <thead>
-            <tr>
-              <th class="sa-stock-col-shop">Shop</th>
-              <th class="sa-stock-col-item">Item</th>
-              <th class="sa-stock-col-reason">Category</th>
-              <th class="sa-stock-col-qty sa-stock-col-hide-sm">Unit</th>
-              <th class="sa-stock-col-stock sa-stock-th--num">Qty</th>
-              <th class="sa-stock-col-pay">Status</th>
-              <th class="sa-stock-col-actions sa-stock-th--actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for it in catalog %}
-              {% set is_active = (it.status or '') == 'active' %}
-              {% set row_open = manage_open_id and (it.id|int == manage_open_id|int) %}
-              <tr id="it-store-item-{{ it.id }}" class="{% if not is_active %}opacity-60{% endif %}">
-                <td class="text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ it.shop_name or ('#' ~ it.shop_id) }}</td>
-                <td class="sa-stock-mgmt-item-cell">
-                  <div class="sa-stock-mgmt-item-name">{{ it.name }}</div>
-                  {% if it.description %}<div class="sa-stock-mgmt-item-meta">{{ it.description }}</div>{% endif %}
-                </td>
-                <td class="text-[rgb(var(--rc-muted))]">{{ it.category }}</td>
-                <td class="sa-stock-col-hide-sm">{{ (it.measure_unit or '')|upper }}</td>
-                <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
-                <td class="text-xs {% if is_active %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
-                  {% if is_active %}Active{% else %}Off{% endif %}
-                </td>
-                <td class="sa-stock-mgmt-actions-cell">
-                  <div class="flex flex-wrap justify-end gap-1">
-                    <a href="{{ url_for('it_support_stock_management', manage_item=it.id) }}#it-store-item-{{ it.id }}" class="btn-rc btn-rc-ghost px-2 py-1 text-xs">{% if row_open %}Close{% else %}Edit{% endif %}</a>
-                    <form method="post" action="{{ url_for('it_support_stock_management') }}" class="inline">
-                      <input type="hidden" name="action" value="toggle_it_store_stock_item_status" />
-                      <input type="hidden" name="store_item_id" value="{{ it.id }}" />
-                      <button type="submit" class="btn-rc btn-rc-ghost px-2 py-1 text-xs">{% if is_active %}Suspend{% else %}On{% endif %}</button>
-                    </form>
-                    <form method="post" action="{{ url_for('it_support_stock_management') }}" class="inline" onsubmit="return confirm('Delete this item?');">
-                      <input type="hidden" name="action" value="delete_it_store_stock_item" />
-                      <input type="hidden" name="store_item_id" value="{{ it.id }}" />
-                      <button type="submit" class="btn-rc btn-rc-danger px-2 py-1 text-xs">Del</button>
-                    </form>
-                  </div>
-                </td>
+      <div class="overflow-hidden border border-[rgb(var(--rc-border))] max-md:-mx-4 max-md:rounded-none max-md:border-x-0 sm:max-md:-mx-6 md:rounded-2xl">
+        <div class="bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Store SKUs</h4>
+        </div>
+        <div class="it-stock-table-wrap min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
+          <table class="it-stock-grid-table min-w-[44rem] w-full text-xs md:text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Shop</th>
+                <th class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Item</th>
+                <th class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Category</th>
+                <th class="hidden px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:table-cell sm:px-3 sm:text-xs">Unit</th>
+                <th class="px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Qty</th>
+                <th class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Status</th>
+                <th class="px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Actions</th>
               </tr>
-              {% if row_open %}
-                <tr class="sa-stock-mgmt-edit-row">
-                  <td colspan="7" class="bg-[rgb(var(--rc-surface-2))]/50 px-2 py-3">
-                    <form method="post" action="{{ url_for('it_support_stock_management') }}" class="grid gap-2 sm:grid-cols-2">
-                      <input type="hidden" name="action" value="update_it_store_stock_item" />
-                      <input type="hidden" name="store_item_id" value="{{ it.id }}" />
-                      <p class="text-xs text-[rgb(var(--rc-muted))] sm:col-span-2">{{ it.shop_name or ('Shop #' ~ it.shop_id) }}</p>
-                      <label class="block"><span class="text-xs text-[rgb(var(--rc-muted))]">Name</span>
-                        <input name="name" required value="{{ it.name }}" class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm" /></label>
-                      <label class="block"><span class="text-xs text-[rgb(var(--rc-muted))]">Category</span>
-                        <input name="category" required value="{{ it.category }}" class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm" /></label>
-                      <label class="block sm:col-span-2"><span class="text-xs text-[rgb(var(--rc-muted))]">Description</span>
-                        <textarea name="description" rows="2" class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm">{{ it.description or '' }}</textarea></label>
-                      <label class="block"><span class="text-xs text-[rgb(var(--rc-muted))]">Measure</span>
-                        <select name="measure_unit" required class="mt-0.5 w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm">
-                          {% for mu in inline_register_measure_options or [] %}
-                            <option value="{{ mu }}" {% if (it.measure_unit or '')|lower == mu %}selected{% endif %}>{{ mu|upper }}</option>
-                          {% endfor %}
-                        </select></label>
-                      <div class="flex gap-2 sm:col-span-2">
-                        <button type="submit" class="btn-rc btn-rc-primary px-3 py-1.5 text-sm">Save</button>
-                        <a href="{{ url_for('it_support_stock_management') }}#it-store-items-catalog" class="btn-rc btn-rc-ghost px-3 py-1.5 text-sm">Cancel</a>
-                      </div>
-                    </form>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for it in catalog %}
+                {% set is_active = (it.status or '') == 'active' %}
+                {% set row_open = manage_open_id and (it.id|int == manage_open_id|int) %}
+                <tr id="it-store-item-{{ it.id }}" class="{% if not is_active %}opacity-60{% endif %}">
+                  <td class="px-2 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap sm:px-3">{{ it.shop_name or ('#' ~ it.shop_id) }}</td>
+                  <td class="px-2 py-2 sm:px-3">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
+                    {% if it.description %}<div class="text-[10px] text-[rgb(var(--rc-muted))] sm:text-xs">{{ it.description }}</div>{% endif %}
+                  </td>
+                  <td class="px-2 py-2 text-[rgb(var(--rc-muted))] sm:px-3">{{ it.category }}</td>
+                  <td class="hidden px-2 py-2 sm:table-cell sm:px-3">{{ (it.measure_unit or '')|upper }}</td>
+                  <td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3">{{ it.stock_qty }}</td>
+                  <td class="px-2 py-2 text-xs sm:px-3 {% if is_active %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
+                    {% if is_active %}Active{% else %}Off{% endif %}
+                  </td>
+                  <td class="px-2 py-2 text-right sm:px-3">
+                    <div class="flex flex-wrap justify-end gap-1">
+                      <a href="{{ url_for('it_support_stock_management', manage_item=it.id) }}#it-store-item-{{ it.id }}" class="btn-rc btn-rc-ghost px-2 py-1 text-xs">{% if row_open %}Close{% else %}Edit{% endif %}</a>
+                      <form method="post" action="{{ url_for('it_support_stock_management') }}" class="inline">
+                        <input type="hidden" name="action" value="toggle_it_store_stock_item_status" />
+                        <input type="hidden" name="store_item_id" value="{{ it.id }}" />
+                        <button type="submit" class="btn-rc btn-rc-ghost px-2 py-1 text-xs">{% if is_active %}Suspend{% else %}On{% endif %}</button>
+                      </form>
+                      <form method="post" action="{{ url_for('it_support_stock_management') }}" class="inline" onsubmit="return confirm('Delete this item?');">
+                        <input type="hidden" name="action" value="delete_it_store_stock_item" />
+                        <input type="hidden" name="store_item_id" value="{{ it.id }}" />
+                        <button type="submit" class="btn-rc btn-rc-danger px-2 py-1 text-xs">Del</button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
-              {% endif %}
-            {% endfor %}
-          </tbody>
-        </table>
+                {% if row_open %}
+                  <tr>
+                    <td colspan="7" class="bg-[rgb(var(--rc-surface-2))]/50 px-4 py-4">
+                      <form method="post" action="{{ url_for('it_support_stock_management') }}" class="grid gap-4 sm:grid-cols-2">
+                        <input type="hidden" name="action" value="update_it_store_stock_item" />
+                        <input type="hidden" name="store_item_id" value="{{ it.id }}" />
+                        <p class="text-xs text-[rgb(var(--rc-muted))] sm:col-span-2">{{ it.shop_name or ('Shop #' ~ it.shop_id) }}</p>
+                        <label class="block">
+                          <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Name</span>
+                          <input name="name" required value="{{ it.name }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm" />
+                        </label>
+                        <label class="block">
+                          <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Category</span>
+                          <input name="category" required value="{{ it.category }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm" />
+                        </label>
+                        <label class="block sm:col-span-2">
+                          <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Description</span>
+                          <textarea name="description" rows="2" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm">{{ it.description or '' }}</textarea>
+                        </label>
+                        <label class="block">
+                          <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Measure</span>
+                          <select name="measure_unit" required class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm">
+                            {% for mu in inline_register_measure_options or [] %}
+                              <option value="{{ mu }}" {% if (it.measure_unit or '')|lower == mu %}selected{% endif %}>{{ mu|upper }}</option>
+                            {% endfor %}
+                          </select>
+                        </label>
+                        <div class="flex gap-2 sm:col-span-2">
+                          <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Save</button>
+                          <a href="{{ url_for('it_support_stock_management') }}#it-store-items-catalog" class="btn-rc btn-rc-ghost px-4 py-2 text-sm">Cancel</a>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     {% endif %}
   </div>

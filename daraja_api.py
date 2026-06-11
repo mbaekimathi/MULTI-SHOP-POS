@@ -29,7 +29,7 @@ _DARAJA_PATHS = {
     "stk_query": "/mpesa/stkpushquery/v1/query",
     "account_balance": "/mpesa/accountbalance/v1/query",
     "transaction_status": "/mpesa/transactionstatus/v1/query",
-    "b2c": "/mpesa/b2c/v1/paymentrequest",
+    "b2c": "/mpesa/b2c/v3/paymentrequest",
     "b2b": "/mpesa/b2b/v1/paymentrequest",
     "reversal": "/mpesa/reversal/v1/request",
     "c2b_register_v1": "/mpesa/c2b/v1/registerurl",
@@ -301,10 +301,10 @@ def _humanize_daraja_error(message: str, payload: Optional[dict] = None) -> str:
     if "invalid callbackurl" in low or "400.002.02" in low:
         return (
             "Safaricom rejected the STK callback URL (400.002.02). It must be a "
-            "public HTTPS URL — not localhost or 127.0.0.1. On localhost, set "
-            "Company settings → STK callback URL — hosted to your live server "
-            "(payment status is then checked directly with Safaricom), or use ngrok "
-            "in the local dev callback field."
+            "public HTTPS URL — not localhost or 127.0.0.1. In Company settings set "
+            "Hosted domain (or STK callback URL — hosted) to your live HTTPS server "
+            "(STK status is then polled from Safaricom), run ngrok/Cloudflare Tunnel "
+            "for local dev, or paste the ngrok HTTPS URL under STK callback URL — local dev."
         )
     if "incapsula" in low or "_incapsula" in low:
         return _incapsula_block_message()
@@ -579,6 +579,18 @@ def _try_local_ngrok_callback_url() -> str:
     return ""
 
 
+def _usable_callback_url(url: str, *, stk_path: bool = False) -> str:
+    """Drop localhost/LAN/placeholder URLs; optionally append STK callback path."""
+    u = (url or "").strip().rstrip("/")
+    if not u or _is_placeholder_callback_url(u) or _is_local_callback_host(u + "/"):
+        return ""
+    parsed = urlparse(u)
+    path = (parsed.path or "").rstrip("/")
+    if stk_path and path in ("", "/"):
+        u = f"{u}/api/daraja/mpesa-callback"
+    return _normalize_callback_https(u)
+
+
 def resolve_callback_url(settings: dict, request_url: str = "") -> str:
     """
     Pick STK callback URL for local dev vs hosted deployment.
@@ -596,55 +608,86 @@ def resolve_callback_url(settings: dict, request_url: str = "") -> str:
     """
     env_override = (os.getenv("DARAJA_CALLBACK_URL") or "").strip().rstrip("/")
     if env_override:
-        return _normalize_callback_https(env_override)
+        resolved = _usable_callback_url(env_override, stk_path=True)
+        if resolved:
+            return resolved
 
-    hosted = str(settings.get("daraja_callback_url") or "").strip().rstrip("/")
-    local = str(settings.get("daraja_callback_url_local") or "").strip().rstrip("/")
+    hosted = _usable_callback_url(
+        str(settings.get("daraja_callback_url") or "").strip().rstrip("/"),
+        stk_path=True,
+    )
+    local = _usable_callback_url(
+        str(settings.get("daraja_callback_url_local") or "").strip().rstrip("/"),
+        stk_path=True,
+    )
     local_env = (os.getenv("DARAJA_CALLBACK_URL_LOCAL") or "").strip().rstrip("/")
     if local_env:
-        local = local_env
-    if _is_placeholder_callback_url(local):
-        local = ""
-    if _is_placeholder_callback_url(hosted):
-        hosted = ""
+        local = _usable_callback_url(local_env, stk_path=True) or local
     public_base = str(settings.get("public_app_url") or "").strip().rstrip("/")
     if public_base and not public_base.lower().startswith(("http://", "https://")):
         public_base = "https://" + public_base.lstrip("/")
-    if not hosted and public_base:
-        hosted = f"{public_base.rstrip('/')}/api/daraja/mpesa-callback"
+    if not hosted and public_base and not _is_local_callback_host(public_base + "/"):
+        hosted = _usable_callback_url(
+            f"{public_base.rstrip('/')}/api/daraja/mpesa-callback"
+        )
 
     req = str(request_url or "").strip().rstrip("/")
-    is_local_req = _is_local_callback_host(req) if req else False
+    if req and _is_local_callback_host(req):
+        req = ""
     req_is_public = bool(req and not _is_local_callback_host(req))
+    is_local_req = bool(
+        req and _is_local_callback_host(req)
+    )  # always False once localhost req cleared
+    if not req:
+        # Browser on localhost: url_for(_external=True) is often 127.0.0.1 — treat as local dev.
+        is_local_req = True
     auto_ngrok = _try_local_ngrok_callback_url()
 
     if is_local_req:
-        # Prefer hosted HTTPS even on localhost — STK status is polled via STK Query API.
-        # Auto-ngrok often breaks when ngrok free blocks Safaricom (DS timeout / no callback).
+        # Prefer hosted HTTPS on localhost — STK status is polled via STK Query API.
         if hosted:
-            return _normalize_callback_https(hosted)
+            return hosted
         if local:
-            return _normalize_callback_https(local)
+            return local
         if auto_ngrok:
             logger.info("Daraja STK using auto-detected ngrok callback: %s", auto_ngrok)
             return auto_ngrok
         return ""
 
     if hosted:
-        return _normalize_callback_https(hosted)
+        return hosted
     if req_is_public:
-        if not req.lower().startswith("https://") and auto_ngrok:
+        resolved = _usable_callback_url(req, stk_path=True)
+        if resolved:
+            return resolved
+        if auto_ngrok:
             logger.info(
                 "Daraja STK using ngrok callback (request URL was HTTP): %s", auto_ngrok
             )
             return auto_ngrok
-        return _normalize_callback_https(req)
     if local:
-        return _normalize_callback_https(local)
+        return local
     if auto_ngrok:
         logger.info("Daraja STK fallback to auto-detected ngrok callback: %s", auto_ngrok)
         return auto_ngrok
     return ""
+
+
+def preview_stk_callback_url(settings: dict, request_url: str = "") -> dict:
+    """Resolved STK callback for UI / diagnostics."""
+    hint = str(request_url or "").strip()
+    if hint and _is_local_callback_host(hint):
+        hint = ""
+    resolved = resolve_callback_url(settings, hint)
+    auto_ngrok = _try_local_ngrok_callback_url()
+    return {
+        "resolved_url": resolved,
+        "ready": bool(resolved),
+        "auto_ngrok_url": auto_ngrok or "",
+        "uses_ngrok": bool(
+            resolved and auto_ngrok and resolved.rstrip("/") == auto_ngrok.rstrip("/")
+        ),
+    }
 
 
 def _callback_base_origin(url: str) -> str:
@@ -664,67 +707,349 @@ def _is_ngrok_free_host(url: str) -> bool:
     return host.endswith(".ngrok-free.app") or host.endswith(".ngrok-free.dev")
 
 
-def resolve_balance_callback_urls(
-    settings: dict, request_url: str = ""
-) -> tuple[str, str]:
-    """
-    Public HTTPS Result/Timeout URLs for Account Balance API.
+BALANCE_RESULT_PATH = "/api/daraja/account-balance-result"
+BALANCE_TIMEOUT_PATH = "/api/daraja/account-balance-timeout"
+B2C_RESULT_PATH = "/api/daraja/b2c-result"
+B2C_TIMEOUT_PATH = "/api/daraja/b2c-timeout"
 
-    Unlike STK (which can poll Safaricom directly), balance *requires* a working
-    inbound callback. Prefer the hosted HTTPS URL over auto-detected ngrok,
-    because ngrok free often blocks Safaricom's servers.
-    """
+
+def _async_urls_from_origin(
+    origin: str, result_path: str, timeout_path: str
+) -> tuple[str, str]:
+    base = (origin or "").strip().rstrip("/")
+    if not base or _is_local_callback_host(base + "/"):
+        return "", ""
+    rp = (result_path or "").strip()
+    tp = (timeout_path or "").strip()
+    if not rp.startswith("/"):
+        rp = "/" + rp
+    if not tp.startswith("/"):
+        tp = "/" + tp
+    return f"{base}{rp}", f"{base}{tp}"
+
+
+def _balance_urls_from_origin(origin: str) -> tuple[str, str]:
+    return _async_urls_from_origin(origin, BALANCE_RESULT_PATH, BALANCE_TIMEOUT_PATH)
+
+
+def _b2c_urls_from_origin(origin: str) -> tuple[str, str]:
+    return _async_urls_from_origin(origin, B2C_RESULT_PATH, B2C_TIMEOUT_PATH)
+
+
+def _daraja_callback_origins(settings: dict) -> dict:
+    """Resolve hosted / local / ngrok origins used for Daraja callbacks."""
     env_override = (os.getenv("DARAJA_CALLBACK_URL") or "").strip().rstrip("/")
-    hosted = str(settings.get("daraja_callback_url") or "").strip().rstrip("/")
-    local = str(settings.get("daraja_callback_url_local") or "").strip().rstrip("/")
-    if _is_placeholder_callback_url(hosted):
-        hosted = ""
-    if _is_placeholder_callback_url(local):
-        local = ""
+    hosted_cb = str(settings.get("daraja_callback_url") or "").strip().rstrip("/")
+    local_cb = str(settings.get("daraja_callback_url_local") or "").strip().rstrip("/")
+    local_env = (os.getenv("DARAJA_CALLBACK_URL_LOCAL") or "").strip().rstrip("/")
+    if local_env:
+        local_cb = local_env
+    if _is_placeholder_callback_url(hosted_cb):
+        hosted_cb = ""
+    if _is_placeholder_callback_url(local_cb):
+        local_cb = ""
+
     public_base = str(settings.get("public_app_url") or "").strip().rstrip("/")
     if public_base and not public_base.lower().startswith(("http://", "https://")):
         public_base = "https://" + public_base.lstrip("/")
 
-    bases: list[str] = []
+    hosted_origin = ""
     if env_override:
-        bases.append(_callback_base_origin(env_override))
-    if hosted:
-        bases.append(_callback_base_origin(hosted))
-    if public_base:
-        bases.append(public_base.rstrip("/"))
-    if local:
-        bases.append(_callback_base_origin(local))
+        hosted_origin = _callback_base_origin(env_override) or env_override.rstrip("/")
+    elif hosted_cb:
+        hosted_origin = _callback_base_origin(_normalize_callback_https(hosted_cb))
+    elif public_base:
+        hosted_origin = public_base.rstrip("/")
+
+    local_origin = ""
+    if local_cb:
+        local_origin = _callback_base_origin(_normalize_callback_https(local_cb))
 
     auto_ngrok = _try_local_ngrok_callback_url()
-    if auto_ngrok:
-        bases.append(_callback_base_origin(auto_ngrok))
+    ngrok_origin = _callback_base_origin(auto_ngrok) if auto_ngrok else ""
+
+    return {
+        "hosted_origin": hosted_origin,
+        "local_origin": local_origin,
+        "ngrok_origin": ngrok_origin,
+        "ngrok_autodetected": bool(auto_ngrok),
+        "stk_hosted_url": (
+            f"{hosted_origin.rstrip('/')}/api/daraja/mpesa-callback" if hosted_origin else ""
+        ),
+        "stk_local_url": _normalize_callback_https(local_cb) if local_cb else (auto_ngrok or ""),
+    }
+
+
+def balance_callback_url_options(settings: dict, request_url: str = "") -> dict:
+    """Hosted vs local balance callback URLs for UI, plus the active pair for this session."""
+    origins = _daraja_callback_origins(settings)
+    hosted_origin = origins.get("hosted_origin") or ""
+    local_origin = origins.get("local_origin") or ""
+    ngrok_origin = origins.get("ngrok_origin") or ""
+
+    hosted_result, hosted_timeout = _balance_urls_from_origin(hosted_origin)
+    local_display_origin = local_origin or ngrok_origin
+    local_result, local_timeout = _balance_urls_from_origin(local_display_origin)
+
+    detailed = resolve_balance_callbacks_detailed(settings, request_url, probe=False)
+    active_result = detailed.get("result_url") or ""
+    active_timeout = detailed.get("timeout_url") or ""
+
+    req = str(request_url or "").strip()
+    is_local_session = _is_local_callback_host(req) if req else False
+    callback_mode = detailed.get("callback_mode") or "hosted"
+
+    stk_active = resolve_callback_url(settings, request_url)
+
+    return {
+        **origins,
+        "hosted_result_url": hosted_result,
+        "hosted_timeout_url": hosted_timeout,
+        "local_result_url": local_result,
+        "local_timeout_url": local_timeout,
+        "active_result_url": active_result,
+        "active_timeout_url": active_timeout,
+        "callback_mode": callback_mode,
+        "is_local_session": is_local_session,
+        "stk_active_url": stk_active,
+        "balance_ready": bool(active_result and active_timeout),
+        "local_ngrok_free": _is_ngrok_free_host(local_result),
+        "hosted_fallback": bool(detailed.get("hosted_fallback")),
+    }
+
+
+def _is_ngrok_interstitial_body(body: str) -> bool:
+    low = (body or "").lower()
+    if "ngrok" not in low:
+        return False
+    markers = (
+        "you are about to visit",
+        "visit site",
+        "ngrok.com/docs",
+        "err_ngrok",
+        "browser warning",
+    )
+    return any(marker in low for marker in markers)
+
+
+def probe_callback_url(url: str, timeout: float = 8.0) -> dict:
+    """
+    POST probe to check whether Safaricom can reach a callback URL.
+
+    ngrok free returns an HTML interstitial unless the client sends
+    ngrok-skip-browser-warning — Safaricom does not, so balance callbacks fail.
+    """
+    target = (url or "").strip()
+    if not target:
+        return {"reachable": False, "reason": "empty_url"}
+    try:
+        req = urllib.request.Request(
+            target,
+            data=b"{}",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "Safaricom",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            code = int(getattr(resp, "status", None) or resp.getcode() or 0)
+            body = resp.read().decode("utf-8", errors="replace")[:4000]
+    except urllib.error.HTTPError as exc:
+        code = int(exc.code or 0)
+        body = exc.read().decode("utf-8", errors="replace")[:4000]
+    except Exception as exc:
+        return {"reachable": False, "reason": "connection_failed", "error": str(exc)}
+
+    if _is_ngrok_interstitial_body(body):
+        return {
+            "reachable": False,
+            "reason": "ngrok_free_interstitial",
+            "http_status": code,
+            "ngrok_free": True,
+        }
+    try:
+        data = json.loads(body)
+        if isinstance(data, dict) and (
+            data.get("ResultCode") is not None or data.get("ok") is True
+        ):
+            return {
+                "reachable": True,
+                "reason": "app_acknowledged",
+                "http_status": code,
+            }
+    except (json.JSONDecodeError, TypeError):
+        pass
+    if 200 <= code < 300:
+        return {"reachable": True, "reason": "http_ok", "http_status": code}
+    return {
+        "reachable": False,
+        "reason": "unexpected_response",
+        "http_status": code,
+    }
+
+
+def resolve_async_callback_urls_detailed(
+    settings: dict,
+    request_url: str = "",
+    *,
+    result_path: str = BALANCE_RESULT_PATH,
+    timeout_path: str = BALANCE_TIMEOUT_PATH,
+    probe: bool = False,
+) -> dict:
+    """Pick async Result/Timeout URLs (balance, B2C, etc.) with optional ngrok probe."""
+    origins = _daraja_callback_origins(settings)
+    hosted_origin = origins.get("hosted_origin") or ""
+    local_origin = origins.get("local_origin") or ""
+    ngrok_origin = origins.get("ngrok_origin") or ""
+    auto_ngrok = origins.get("ngrok_autodetected")
 
     req = str(request_url or "").strip().rstrip("/")
-    if req and not _is_local_callback_host(req):
-        bases.append(_callback_base_origin(req))
+    is_local_req = _is_local_callback_host(req) if req else False
 
-    stk_fallback = resolve_callback_url(settings, request_url)
-    if stk_fallback:
-        bases.append(_callback_base_origin(stk_fallback))
+    def pair(origin: str) -> tuple[str, str]:
+        return _async_urls_from_origin(origin, result_path, timeout_path)
 
-    seen: set[str] = set()
-    for base in bases:
-        if not base or base in seen:
+    origin_order: list[tuple[str, str]] = []
+    if is_local_req:
+        origin_order = [
+            ("local", local_origin),
+            ("ngrok", ngrok_origin),
+            ("hosted", hosted_origin),
+        ]
+    else:
+        origin_order = [
+            ("hosted", hosted_origin),
+            ("ngrok", ngrok_origin),
+            ("local", local_origin),
+        ]
+    if req and not is_local_req:
+        origin_order.append(("request", _callback_base_origin(req)))
+
+    skipped: list[dict] = []
+    last_probe: Optional[dict] = None
+    for source, origin in origin_order:
+        result, timeout = pair(origin)
+        if not result:
             continue
-        seen.add(base)
-        if _is_local_callback_host(base + "/"):
-            continue
-        return (
-            f"{base}/api/daraja/account-balance-result",
-            f"{base}/api/daraja/account-balance-timeout",
+        probe_result = None
+        if probe and _is_ngrok_free_host(result):
+            probe_result = probe_callback_url(result)
+            last_probe = probe_result
+            if not probe_result.get("reachable"):
+                skipped.append({"url": result, "source": source, **probe_result})
+                logger.warning(
+                    "Skipping callback Safaricom cannot reach: %s (%s)",
+                    result,
+                    probe_result.get("reason"),
+                )
+                continue
+        callback_mode = "hosted" if source == "hosted" else "local"
+        return {
+            "result_url": result,
+            "timeout_url": timeout,
+            "callback_mode": callback_mode,
+            "callback_source": source,
+            "hosted_fallback": is_local_req and source == "hosted" and bool(skipped),
+            "skipped_callbacks": skipped,
+            "probe": probe_result or last_probe,
+            "is_local_session": is_local_req,
+            "ngrok_free": _is_ngrok_free_host(result),
+        }
+
+    error = "No reachable callback URL is configured."
+    if skipped:
+        error = (
+            "ngrok free blocks Safaricom callbacks (browser warning page). "
+            "Set Hosted domain in Company settings and keep your live server running, "
+            "or use Cloudflare Tunnel instead of ngrok free."
         )
-    return "", ""
+    return {
+        "result_url": "",
+        "timeout_url": "",
+        "callback_mode": "local" if is_local_req else "hosted",
+        "callback_source": "",
+        "hosted_fallback": False,
+        "skipped_callbacks": skipped,
+        "probe": last_probe,
+        "is_local_session": is_local_req,
+        "ngrok_free": False,
+        "error": error,
+    }
 
 
-def balance_callback_ngrok_warning(result_url: str) -> str:
+def resolve_balance_callbacks_detailed(
+    settings: dict, request_url: str = "", *, probe: bool = False
+) -> dict:
+    return resolve_async_callback_urls_detailed(
+        settings,
+        request_url,
+        result_path=BALANCE_RESULT_PATH,
+        timeout_path=BALANCE_TIMEOUT_PATH,
+        probe=probe,
+    )
+
+
+def resolve_b2c_callbacks_detailed(
+    settings: dict, request_url: str = "", *, probe: bool = False
+) -> dict:
+    return resolve_async_callback_urls_detailed(
+        settings,
+        request_url,
+        result_path=B2C_RESULT_PATH,
+        timeout_path=B2C_TIMEOUT_PATH,
+        probe=probe,
+    )
+
+
+def resolve_balance_callback_urls(
+    settings: dict, request_url: str = "", *, probe: bool = False
+) -> tuple[str, str]:
+    """
+    Public HTTPS Result/Timeout URLs for Account Balance API.
+
+    Unlike STK (polled via STK Query), balance requires a working inbound callback.
+    On localhost, prefer local/ngrok so Safaricom posts back to this machine.
+    On hosted deployment, prefer hosted HTTPS (public_app_url / daraja_callback_url).
+    When probe=True, skip ngrok free URLs that return the browser interstitial.
+    """
+    detailed = resolve_balance_callbacks_detailed(
+        settings, request_url, probe=probe
+    )
+    return detailed.get("result_url") or "", detailed.get("timeout_url") or ""
+
+
+def balance_callback_ngrok_warning(
+    result_url: str,
+    *,
+    callback_mode: str = "",
+    probe: Optional[dict] = None,
+    hosted_fallback: bool = False,
+) -> str:
     """User-facing hint when ngrok free may block Safaricom callbacks."""
+    if probe and probe.get("reason") == "ngrok_free_interstitial":
+        if hosted_fallback:
+            return (
+                "ngrok free blocked Safaricom — using your hosted callback URL instead. "
+                "Your live server must be online to receive the balance."
+            )
+        return (
+            "ngrok free blocks Safaricom callbacks (browser warning page). "
+            "Set Hosted domain in Company settings, or use Cloudflare Tunnel."
+        )
     if not _is_ngrok_free_host(result_url or ""):
         return ""
+    if hosted_fallback:
+        return (
+            "Using hosted callback because ngrok free cannot receive Safaricom POSTs. "
+            "Ensure your live server is running."
+        )
+    if callback_mode == "local":
+        return (
+            "Using ngrok free — Safaricom cannot reach it. "
+            "Set Hosted domain and refresh from your live server, or use Cloudflare Tunnel."
+        )
     return (
         "Using ngrok free — Safaricom often cannot reach it. Set "
         "'STK callback URL — hosted' to your live HTTPS server for balance checks."
@@ -1315,6 +1640,394 @@ def initiate_account_balance_query(
     return {
         **data,
         "api_url": balance_url,
+        "conversation_id": conversation_id,
+        "originator_conversation_id": str(
+            data.get("OriginatorConversationID") or ""
+        ).strip(),
+        "pending": True,
+        "completed": False,
+    }
+
+
+def _b2c_url(settings: dict) -> str:
+    return _daraja_api_url(settings, "b2c")
+
+
+def daraja_b2c_settings_ready(settings: dict) -> bool:
+    """True when B2C disbursement can be requested (same credentials as balance)."""
+    return daraja_balance_settings_ready(settings)
+
+
+def resolve_b2c_callback_urls(
+    settings: dict, request_url: str = "", *, probe: bool = False
+) -> tuple[str, str]:
+    detailed = resolve_b2c_callbacks_detailed(settings, request_url, probe=probe)
+    return detailed.get("result_url") or "", detailed.get("timeout_url") or ""
+
+
+def _parse_daraja_result_parameters(result: dict) -> dict:
+    params_raw = (result.get("ResultParameters") or {}).get("ResultParameter")
+    params: list = []
+    if isinstance(params_raw, list):
+        params = params_raw
+    elif isinstance(params_raw, dict):
+        params = [params_raw]
+    out: dict[str, str] = {}
+    for p in params:
+        if not isinstance(p, dict):
+            continue
+        key = str(p.get("Key") or "").strip()
+        val = p.get("Value")
+        if key:
+            out[key] = str(val if val is not None else "").strip()
+    return out
+
+
+def parse_b2c_callback(data: dict) -> dict:
+    """Extract B2C payment fields from Daraja ResultURL payload."""
+    root = data if isinstance(data, dict) else {}
+    result = root.get("Result") if isinstance(root.get("Result"), dict) else root
+    result_code = result.get("ResultCode")
+    result_desc = str(result.get("ResultDesc") or "").strip()
+    try:
+        code_int = int(result_code)
+    except (TypeError, ValueError):
+        code_int = -1
+
+    params = _parse_daraja_result_parameters(result)
+    amount = None
+    for key in ("TransactionAmount", "Amount"):
+        if params.get(key):
+            try:
+                amount = float(params[key])
+                break
+            except (TypeError, ValueError):
+                pass
+    receipt = params.get("TransactionReceipt") or params.get("ReceiptNo") or ""
+    phone = params.get("ReceiverPartyPublicName") or params.get("B2CRecipientPublicName") or ""
+
+    return {
+        "result_code": code_int,
+        "result_desc": result_desc,
+        "amount": amount,
+        "transaction_receipt": receipt,
+        "receiver_phone": phone,
+        "conversation_id": str(
+            result.get("ConversationID") or root.get("ConversationID") or ""
+        ).strip(),
+        "originator_conversation_id": str(
+            result.get("OriginatorConversationID")
+            or root.get("OriginatorConversationID")
+            or ""
+        ).strip(),
+        "transaction_id": str(
+            result.get("TransactionID") or root.get("TransactionID") or ""
+        ).strip(),
+        "completed": True,
+        "pending": False,
+        "timed_out": False,
+    }
+
+
+def initiate_b2c_payment(
+    settings: dict,
+    *,
+    phone: str,
+    amount: float,
+    result_url: str,
+    timeout_url: str,
+    remarks: str = "Expense payment",
+    occasion: str = "",
+    command_id: str = "BusinessPayment",
+) -> Dict[str, Any]:
+    """Send money from business paybill/till to a customer phone (B2C)."""
+    if not daraja_b2c_settings_ready(settings):
+        raise DarajaApiError(
+            "M-Pesa B2C payout needs Daraja enabled with short code, initiator name, "
+            "and security credential in Company settings."
+        )
+
+    result_url = str(result_url or "").strip()
+    timeout_url = str(timeout_url or "").strip()
+    if not result_url or not timeout_url:
+        raise DarajaApiError(
+            "B2C callback URL is missing. Set a hosted HTTPS callback URL in Company settings."
+        )
+    for label, url in (("Result", result_url), ("Timeout", timeout_url)):
+        validate_callback_url(url, settings)
+        if _is_placeholder_callback_url(url):
+            raise DarajaApiError(
+                f"B2C {label} URL is a placeholder. Set a public HTTPS Daraja callback URL."
+            )
+        if _daraja_environment(settings) == "production" and not url.lower().startswith(
+            "https://"
+        ):
+            raise DarajaApiError(f"Production B2C {label} URL must use HTTPS.")
+
+    msisdn = normalize_msisdn(phone)
+    if len(msisdn) < 12:
+        raise DarajaApiError("Enter a valid M-Pesa phone number for the recipient.")
+
+    try:
+        amount_int = int(round(float(amount)))
+    except (TypeError, ValueError):
+        raise DarajaApiError("Invalid payout amount.") from None
+    if amount_int < 1:
+        raise DarajaApiError("Payout amount must be at least 1 KES.")
+
+    cmd = str(command_id or "BusinessPayment").strip()
+    if cmd not in ("BusinessPayment", "SalaryPayment", "PromotionPayment"):
+        cmd = "BusinessPayment"
+
+    shortcode = _sandbox_shortcode(settings)
+    initiator = str(settings.get("daraja_initiator_name") or "").strip()
+    credential = str(settings.get("daraja_security_credential") or "").strip()
+    token = get_access_token(settings)
+    body = {
+        "InitiatorName": initiator,
+        "SecurityCredential": credential,
+        "CommandID": cmd,
+        "Amount": amount_int,
+        "PartyA": shortcode,
+        "PartyB": msisdn,
+        "Remarks": (remarks or "Expense payment")[:100],
+        "QueueTimeOutURL": timeout_url,
+        "ResultURL": result_url,
+        "Occasion": (occasion or "")[:100],
+    }
+    b2c_url = _b2c_url(settings)
+    logger.info(
+        "Daraja B2C request env=%s url=%s shortcode=%s phone=%s amount=%s",
+        _daraja_environment(settings),
+        b2c_url,
+        shortcode,
+        msisdn,
+        amount_int,
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    data = _daraja_request_with_retries(
+        "POST",
+        b2c_url,
+        headers,
+        body,
+        retries=3,
+    )
+    response_code = str(data.get("ResponseCode") or "").strip()
+    if response_code and response_code != "0":
+        raise DarajaApiError(
+            str(
+                data.get("ResponseDescription")
+                or data.get("errorMessage")
+                or "B2C payment request was rejected."
+            ),
+            data,
+        )
+    conversation_id = str(data.get("ConversationID") or "").strip()
+    if not conversation_id:
+        raise DarajaApiError(
+            "Daraja did not return a conversation ID for the B2C payment.",
+            data,
+        )
+    return {
+        **data,
+        "api_url": b2c_url,
+        "conversation_id": conversation_id,
+        "originator_conversation_id": str(
+            data.get("OriginatorConversationID") or ""
+        ).strip(),
+        "pending": True,
+        "completed": False,
+    }
+
+
+def _b2c_url(settings: dict) -> str:
+    return _daraja_api_url(settings, "b2c")
+
+
+def daraja_b2c_settings_ready(settings: dict) -> bool:
+    """True when B2C disbursement can be requested (same credentials as balance)."""
+    return daraja_balance_settings_ready(settings)
+
+
+def resolve_b2c_callback_urls(
+    settings: dict, request_url: str = "", *, probe: bool = False
+) -> tuple[str, str]:
+    detailed = resolve_b2c_callbacks_detailed(settings, request_url, probe=probe)
+    return detailed.get("result_url") or "", detailed.get("timeout_url") or ""
+
+
+def _parse_daraja_result_parameters(result: dict) -> dict:
+    params_raw = (result.get("ResultParameters") or {}).get("ResultParameter")
+    params: list = []
+    if isinstance(params_raw, list):
+        params = params_raw
+    elif isinstance(params_raw, dict):
+        params = [params_raw]
+    out: dict[str, str] = {}
+    for p in params:
+        if not isinstance(p, dict):
+            continue
+        key = str(p.get("Key") or "").strip()
+        val = p.get("Value")
+        if key:
+            out[key] = str(val if val is not None else "").strip()
+    return out
+
+
+def parse_b2c_callback(data: dict) -> dict:
+    """Extract B2C payment fields from Daraja ResultURL payload."""
+    root = data if isinstance(data, dict) else {}
+    result = root.get("Result") if isinstance(root.get("Result"), dict) else root
+    result_code = result.get("ResultCode")
+    result_desc = str(result.get("ResultDesc") or "").strip()
+    try:
+        code_int = int(result_code)
+    except (TypeError, ValueError):
+        code_int = -1
+
+    params = _parse_daraja_result_parameters(result)
+    amount = None
+    for key in ("TransactionAmount", "Amount"):
+        if params.get(key):
+            try:
+                amount = float(params[key])
+                break
+            except (TypeError, ValueError):
+                pass
+    receipt = params.get("TransactionReceipt") or params.get("ReceiptNo") or ""
+    phone = params.get("ReceiverPartyPublicName") or params.get("B2CRecipientPublicName") or ""
+
+    return {
+        "result_code": code_int,
+        "result_desc": result_desc,
+        "amount": amount,
+        "transaction_receipt": receipt,
+        "receiver_phone": phone,
+        "conversation_id": str(
+            result.get("ConversationID") or root.get("ConversationID") or ""
+        ).strip(),
+        "originator_conversation_id": str(
+            result.get("OriginatorConversationID")
+            or root.get("OriginatorConversationID")
+            or ""
+        ).strip(),
+        "transaction_id": str(
+            result.get("TransactionID") or root.get("TransactionID") or ""
+        ).strip(),
+        "completed": True,
+        "pending": False,
+        "timed_out": False,
+    }
+
+
+def initiate_b2c_payment(
+    settings: dict,
+    *,
+    phone: str,
+    amount: float,
+    result_url: str,
+    timeout_url: str,
+    remarks: str = "Expense payment",
+    occasion: str = "",
+    command_id: str = "BusinessPayment",
+) -> Dict[str, Any]:
+    """Send money from business paybill/till to a customer phone (B2C)."""
+    if not daraja_b2c_settings_ready(settings):
+        raise DarajaApiError(
+            "M-Pesa B2C payout needs Daraja enabled with short code, initiator name, "
+            "and security credential in Company settings."
+        )
+
+    result_url = str(result_url or "").strip()
+    timeout_url = str(timeout_url or "").strip()
+    if not result_url or not timeout_url:
+        raise DarajaApiError(
+            "B2C callback URL is missing. Set a hosted HTTPS callback URL in Company settings."
+        )
+    for label, url in (("Result", result_url), ("Timeout", timeout_url)):
+        validate_callback_url(url, settings)
+        if _is_placeholder_callback_url(url):
+            raise DarajaApiError(
+                f"B2C {label} URL is a placeholder. Set a public HTTPS Daraja callback URL."
+            )
+        if _daraja_environment(settings) == "production" and not url.lower().startswith(
+            "https://"
+        ):
+            raise DarajaApiError(f"Production B2C {label} URL must use HTTPS.")
+
+    msisdn = normalize_msisdn(phone)
+    if len(msisdn) < 12:
+        raise DarajaApiError("Enter a valid M-Pesa phone number for the recipient.")
+
+    try:
+        amount_int = int(round(float(amount)))
+    except (TypeError, ValueError):
+        raise DarajaApiError("Invalid payout amount.") from None
+    if amount_int < 1:
+        raise DarajaApiError("Payout amount must be at least 1 KES.")
+
+    cmd = str(command_id or "BusinessPayment").strip()
+    if cmd not in ("BusinessPayment", "SalaryPayment", "PromotionPayment"):
+        cmd = "BusinessPayment"
+
+    shortcode = _sandbox_shortcode(settings)
+    initiator = str(settings.get("daraja_initiator_name") or "").strip()
+    credential = str(settings.get("daraja_security_credential") or "").strip()
+    token = get_access_token(settings)
+    body = {
+        "InitiatorName": initiator,
+        "SecurityCredential": credential,
+        "CommandID": cmd,
+        "Amount": amount_int,
+        "PartyA": shortcode,
+        "PartyB": msisdn,
+        "Remarks": (remarks or "Expense payment")[:100],
+        "QueueTimeOutURL": timeout_url,
+        "ResultURL": result_url,
+        "Occasion": (occasion or "")[:100],
+    }
+    b2c_url = _b2c_url(settings)
+    logger.info(
+        "Daraja B2C request env=%s url=%s shortcode=%s phone=%s amount=%s",
+        _daraja_environment(settings),
+        b2c_url,
+        shortcode,
+        msisdn,
+        amount_int,
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    data = _daraja_request_with_retries(
+        "POST",
+        b2c_url,
+        headers,
+        body,
+        retries=3,
+    )
+    response_code = str(data.get("ResponseCode") or "").strip()
+    if response_code and response_code != "0":
+        raise DarajaApiError(
+            str(
+                data.get("ResponseDescription")
+                or data.get("errorMessage")
+                or "B2C payment request was rejected."
+            ),
+            data,
+        )
+    conversation_id = str(data.get("ConversationID") or "").strip()
+    if not conversation_id:
+        raise DarajaApiError(
+            "Daraja did not return a conversation ID for the B2C payment.",
+            data,
+        )
+    return {
+        **data,
+        "api_url": b2c_url,
         "conversation_id": conversation_id,
         "originator_conversation_id": str(
             data.get("OriginatorConversationID") or ""

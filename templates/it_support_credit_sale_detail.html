@@ -8,17 +8,112 @@
 {% endblock %}
 
 {% block employee_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
+  {% set company = site_settings.company_name if site_settings else 'Point of Sale' %}
+  {% set sale_balance = (sale.remaining_amount or 0)|float %}
+  {% set acct_due = (account_balance_due or 0)|float %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
 
-  <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
-    <div class="shop-cust-credit-page__toolbar no-print">
-      <a href="{{ url_for('it_support_credit_payments_customer', shop_id=shop.id, customer_name=customer_name, customer_phone=customer_phone) }}" class="rev-btn rev-btn--ghost">← Customer account</a>
-      <a href="{{ url_for('it_support_credit_payments') }}" class="rev-btn rev-btn--ghost">All credit payments</a>
-      {% include "partials/credit_note_whatsapp_button.html" %}
-      <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
-    </div>
+  <div class="shop-cust-credit-page shop-cust-credit-page--sale mx-auto w-full max-w-6xl">
+    <header class="cr-sale-hero no-print" aria-labelledby="cr-sale-hero-title">
+      <div class="cr-sale-hero__bar"></div>
+      <div class="cr-sale-hero__inner">
+        <nav class="cr-sale-breadcrumb" aria-label="Breadcrumb">
+          <a href="{{ url_for('it_support_credit_payments') }}">Credit payments</a>
+          <span aria-hidden="true">/</span>
+          <a href="{{ url_for('it_support_credit_payments_customer', shop_id=shop.id, customer_name=customer_name, customer_phone=customer_phone) }}">Customer account</a>
+          <span aria-hidden="true">/</span>
+          <span>Sale #{{ sale.id }}</span>
+        </nav>
 
-    {% include "partials/credit_sale_line_items.html" %}
+        <div class="cr-sale-hero__row">
+          <div class="cr-sale-hero__intro">
+            <p class="cr-sale-hero__eyebrow">{{ company }} · {{ shop.shop_name }}</p>
+            <h1 id="cr-sale-hero-title" class="cr-sale-hero__title">Credit sale #{{ sale.id }}</h1>
+            <p class="cr-sale-hero__meta">
+              {{ sale.created_at }}
+              {% if sale.employee_name %} · Served by {{ sale.employee_name }}{% if sale.employee_code %} ({{ sale.employee_code }}){% endif %}{% endif %}
+            </p>
+            <p class="cr-sale-hero__customer">
+              <span class="cr-sale-hero__customer-label">Customer</span>
+              <strong>{{ sale.customer_name }}</strong>
+              <span class="cr-sale-hero__customer-phone">{{ sale.customer_phone }}</span>
+            </p>
+          </div>
+
+          <div class="cr-sale-hero__kpis" role="group" aria-label="Sale amounts">
+            <div class="cr-sale-kpi">
+              <span class="cr-sale-kpi__label">Sale amount</span>
+              <span class="cr-sale-kpi__value">{{ "%.2f"|format(sale.total_amount or 0) }}</span>
+            </div>
+            <div class="cr-sale-kpi cr-sale-kpi--paid">
+              <span class="cr-sale-kpi__label">Paid</span>
+              <span class="cr-sale-kpi__value">{{ "%.2f"|format(sale.paid_amount or 0) }}</span>
+            </div>
+            <div class="cr-sale-kpi cr-sale-kpi--due">
+              <span class="cr-sale-kpi__label">This sale balance</span>
+              <span class="cr-sale-kpi__value">{{ "%.2f"|format(sale_balance) }}</span>
+            </div>
+            <div class="cr-sale-kpi cr-sale-kpi--account">
+              <span class="cr-sale-kpi__label">Account balance</span>
+              <span class="cr-sale-kpi__value">{{ "%.2f"|format(acct_due) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cr-sale-hero__actions">
+          {% include "partials/credit_note_whatsapp_button.html" %}
+          <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print</button>
+          <a href="{{ url_for('it_support_credit_payments_customer', shop_id=shop.id, customer_name=customer_name, customer_phone=customer_phone) }}" class="rev-btn rev-btn--ghost">Customer account</a>
+        </div>
+      </div>
+    </header>
+
+    {% if items %}
+    <section class="cr-sale-items-card no-print" aria-labelledby="cr-sale-items-heading">
+      <div class="cr-sale-items-card__head">
+        <h2 id="cr-sale-items-heading" class="cr-sale-items-card__title">Items on this sale</h2>
+        <p class="cr-sale-items-card__desc">Line-level breakdown for credit sale #{{ sale.id }}</p>
+      </div>
+      <div class="shop-cn-items-table-wrap">
+        <table class="shop-cn-items-table">
+          <thead>
+            <tr>
+              <th scope="col">Item</th>
+              <th scope="col" class="num">Qty</th>
+              <th scope="col" class="num">Unit price</th>
+              <th scope="col" class="num">Line total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in items %}
+            <tr>
+              <td>{{ it.item_name }}</td>
+              <td class="num tabular-nums">{{ it.qty }}</td>
+              <td class="num tabular-nums">{{ "%.2f"|format(it.unit_price or 0) }}</td>
+              <td class="num tabular-nums">{{ "%.2f"|format(it.line_total or 0) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if credit_pay_link and sale_balance > 0.009 %}
+    <section class="cr-sale-pay-card no-print" aria-labelledby="cr-sale-pay-heading">
+      <div class="cr-sale-pay-card__accent"></div>
+      <div class="cr-sale-pay-card__body">
+        <div>
+          <h2 id="cr-sale-pay-heading" class="cr-sale-pay-card__title">M-Pesa payment link</h2>
+          <p class="cr-sale-pay-card__desc">This link is included in the WhatsApp message when you share the PDF.</p>
+        </div>
+        <div class="cr-sale-pay-card__link-wrap">
+          <code id="cr-sale-pay-link" class="cr-sale-pay-card__link" data-pay-link-base="{{ credit_pay_link }}">{{ credit_pay_link }}</code>
+          <button type="button" class="rev-btn rev-btn--ghost cr-sale-pay-card__copy" data-copy-pay-link>Copy link</button>
+        </div>
+      </div>
+    </section>
+    {% endif %}
 
     {% with compact_only=true %}
       {% include "partials/shop_customer_credit_note.html" %}
@@ -33,10 +128,33 @@
 
   <script>
     (function () {
+      var copyBtn = document.querySelector("[data-copy-pay-link]");
+      var linkEl = document.getElementById("cr-sale-pay-link");
+      if (copyBtn && linkEl) {
+        copyBtn.addEventListener("click", function () {
+          var base = linkEl.getAttribute("data-pay-link-base") || linkEl.textContent || "";
+          var phoneInput = document.querySelector("[data-credit-note-wa-phone]");
+          var phone = phoneInput ? String(phoneInput.value || "").trim() : "";
+          var url = base;
+          if (phone && phone !== "-") {
+            url += (url.indexOf("?") >= 0 ? "&" : "?") + "phone=" + encodeURIComponent(phone);
+          }
+          var amount = {{ sale_balance|tojson }};
+          if (amount > 0.009) {
+            url += (url.indexOf("?") >= 0 ? "&" : "?") + "amount=" + encodeURIComponent(amount.toFixed(2));
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function () {
+              copyBtn.textContent = "Copied";
+              setTimeout(function () { copyBtn.textContent = "Copy link"; }, 2000);
+            });
+          }
+        });
+      }
+
       if (window.location.hash !== "#shop-credit-payments") return;
       var el = document.getElementById("shop-credit-payments");
       if (el) requestAnimationFrame(function () { el.scrollIntoView({ behavior: "smooth", block: "start" }); });
     })();
   </script>
 {% endblock %}
-

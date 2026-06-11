@@ -946,6 +946,8 @@
               <li>{{ hosted_api_base }}/api/daraja/mpesa-callback</li>
               <li>{{ hosted_api_base }}/api/daraja/account-balance-result</li>
               <li>{{ hosted_api_base }}/api/daraja/account-balance-timeout</li>
+              <li>{{ hosted_api_base }}/api/daraja/b2c-result</li>
+              <li>{{ hosted_api_base }}/api/daraja/b2c-timeout</li>
               <li>{{ hosted_api_base }}/pay/credit/&lt;token&gt;</li>
             </ul>
             <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">STK callback URL below can be left blank to use the M-Pesa callback endpoint above automatically.</p>
@@ -1066,8 +1068,22 @@
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Only needed if you want Safaricom callbacks (and the M-Pesa receipt reference) on <em>this</em> machine — e.g. ngrok to localhost. Otherwise leave blank and use the hosted URL above.</p>
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Sandbox test phone: <strong>254708374149</strong> · shortcode <strong>174379</strong> · passkey from Daraja Lipa Na M-Pesa Online (or leave passkey blank to use the public sandbox default).</p>
           </div>
+          {% set stk_cb = stk_callback_preview or {} %}
+          <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Active STK callback (this server)</p>
+            {% if stk_cb.resolved_url %}
+              <p class="mt-2 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ stk_cb.resolved_url }}</p>
+              {% if stk_cb.uses_ngrok %}
+                <p class="mt-2 text-xs text-amber-800 dark:text-amber-200">Using auto-detected ngrok. ngrok free may block Safaricom — prefer Hosted domain for production STK.</p>
+              {% endif %}
+            {% else %}
+              <p class="mt-2 text-xs text-rose-700 dark:text-rose-300">No valid STK callback URL. Set <strong>Hosted domain</strong> to your live HTTPS server, or run ngrok / Cloudflare Tunnel and paste the HTTPS URL under local dev.</p>
+              {% if stk_cb.auto_ngrok_url %}
+                <p class="mt-1 break-all font-mono text-[10px] text-[rgb(var(--rc-muted))]">ngrok detected: {{ stk_cb.auto_ngrok_url }}</p>
+              {% endif %}
+            {% endif %}
+          </div>
           <div class="md:col-span-2">
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Account reference (optional)</label>
             <input
               name="daraja_account_reference"
               type="text"

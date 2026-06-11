@@ -1211,10 +1211,265 @@ html[data-theme="dark"] .shop-cn-sale-card__table tfoot td:last-child {
   box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.12);
 }
 
+/* —— IT Support credit sale detail (professional layout) —— */
+.shop-cust-credit-page--sale {
+  gap: 1.5rem;
+}
+
+.cr-sale-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface));
+  box-shadow: 0 20px 45px -28px rgba(15, 23, 42, 0.45);
+}
+
+.cr-sale-hero__bar {
+  height: 4px;
+  background: linear-gradient(90deg, rgb(249, 115, 22), rgb(251, 191, 36), rgb(16, 185, 129));
+}
+
+.cr-sale-hero__inner {
+  padding: 1.25rem 1.5rem 1.35rem;
+}
+
+.cr-sale-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-breadcrumb a {
+  color: rgb(var(--rc-primary));
+  text-decoration: none;
+}
+
+.cr-sale-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.cr-sale-hero__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem 2rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.cr-sale-hero__eyebrow {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-hero__title {
+  margin-top: 0.35rem;
+  font-size: clamp(1.5rem, 3vw, 1.85rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: rgb(var(--rc-page-fg));
+}
+
+.cr-sale-hero__meta {
+  margin-top: 0.45rem;
+  font-size: 0.8125rem;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-hero__customer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.65rem;
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface-2) / 0.45);
+  font-size: 0.875rem;
+}
+
+.cr-sale-hero__customer-label {
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-hero__customer-phone {
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-hero__kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(7.5rem, 1fr));
+  gap: 0.65rem;
+  min-width: min(100%, 18rem);
+}
+
+.cr-sale-kpi {
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface-2) / 0.35);
+}
+
+.cr-sale-kpi__label {
+  display: block;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-kpi__value {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--rc-page-fg));
+}
+
+.cr-sale-kpi--paid {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.cr-sale-kpi--paid .cr-sale-kpi__value {
+  color: rgb(5, 150, 105);
+}
+
+.cr-sale-kpi--due {
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.08);
+}
+
+.cr-sale-kpi--due .cr-sale-kpi__value {
+  color: rgb(190, 24, 93);
+}
+
+.cr-sale-kpi--account {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.cr-sale-kpi--account .cr-sale-kpi__value {
+  color: rgb(180, 83, 9);
+}
+
+html[data-theme="dark"] .cr-sale-kpi--due .cr-sale-kpi__value {
+  color: rgb(251, 113, 133);
+}
+
+html[data-theme="dark"] .cr-sale-kpi--account .cr-sale-kpi__value {
+  color: rgb(251, 191, 36);
+}
+
+.cr-sale-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgb(var(--rc-border));
+}
+
+.cr-sale-items-card,
+.cr-sale-pay-card {
+  border-radius: 1rem;
+  border: 1px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface));
+  box-shadow: 0 12px 32px -22px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+}
+
+.cr-sale-items-card__head,
+.cr-sale-pay-card__body {
+  padding: 1.1rem 1.35rem;
+}
+
+.cr-sale-items-card__title,
+.cr-sale-pay-card__title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: rgb(var(--rc-page-fg));
+}
+
+.cr-sale-items-card__desc,
+.cr-sale-pay-card__desc {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: rgb(var(--rc-muted));
+}
+
+.cr-sale-items-card .shop-cn-items-table-wrap {
+  border-top: 1px solid rgb(var(--rc-border));
+}
+
+.cr-sale-pay-card__accent {
+  height: 3px;
+  background: linear-gradient(90deg, #25d366, #128c7e);
+}
+
+.cr-sale-pay-card__body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.cr-sale-pay-card__link-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: min(100%, 28rem);
+}
+
+.cr-sale-pay-card__link {
+  display: block;
+  flex: 1 1 16rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px dashed rgba(37, 211, 102, 0.45);
+  background: rgba(37, 211, 102, 0.06);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  word-break: break-all;
+  color: rgb(4, 120, 87);
+}
+
+.shop-cust-credit-page--sale .shop-credit-note {
+  margin-top: 0;
+}
+
+@media (min-width: 768px) {
+  .cr-sale-hero__kpis {
+    grid-template-columns: repeat(2, minmax(8rem, 1fr));
+  }
+}
+
 @media print {
   .no-print,
   .shop-cust-credit-page__toolbar,
   .shop-cust-sale-focus,
+  .cr-sale-hero,
+  .cr-sale-items-card,
+  .cr-sale-pay-card,
   .shop-cust-pay-card,
   .shop-cust-tx-section {
     display: none !important;

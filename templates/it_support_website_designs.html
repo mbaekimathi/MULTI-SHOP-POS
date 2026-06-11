@@ -1,0 +1,44 @@
+{% extends "employee_layout.html" %}
+{% block title %}Website designs — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Website designs{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_website_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #website-designs-page {
+      max-width: none;
+    }
+    #website-designs-page .wsf-design-shell {
+      min-height: 36rem;
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  {% set d = website_design %}
+  <div id="website-designs-page" class="space-y-4">
+    {% with share_compact=true %}
+      {% include "partials/website_share_link.html" %}
+    {% endwith %}
+
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Storefront</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          Your public shop with commonly sold items from POS.
+          <span class="text-[rgb(var(--rc-muted))]">{{ website_featured_products|length }} products shown.</span>
+          Theme from
+          <a href="{{ url_for('it_support_website_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Website settings</a>.
+        </p>
+      </div>
+      <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-sm font-semibold">Open link</a>
+    </div>
+
+    <div class="wsf-design-shell">
+      {% with website_design=d, storefront_design_mode=false %}
+        {% include "partials/website_ecommerce_storefront.html" %}
+      {% endwith %}
+    </div>
+  </div>
+{% endblock %}

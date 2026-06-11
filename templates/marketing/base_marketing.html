@@ -2,14 +2,19 @@
 <html
   lang="en"
   class="scroll-smooth"
-  data-marketing-theme="light"
-  style="--rc-font-family: {{ (site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack }}"
+  data-marketing-theme="{{ website_settings.default_theme if website_settings else 'light' }}"
+  style="--mk-primary: {{ website_settings.primary_color if website_settings else '#9333ea' }}; --mk-accent: {{ website_settings.accent_color if website_settings else '#a855f7' }}; --rc-font-family: {{ (website_settings.font_family if website_settings else 'Plus Jakarta Sans')|font_stack }}"
 >
   <script>
     (function () {
       try {
+        var def = document.documentElement.getAttribute("data-marketing-theme") || "light";
         var t = localStorage.getItem("marketing-theme");
-        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-marketing-theme", t);
+        if (t === "dark" || t === "light") {
+          document.documentElement.setAttribute("data-marketing-theme", t);
+        } else if (def === "dark" || def === "light") {
+          document.documentElement.setAttribute("data-marketing-theme", def);
+        }
       } catch (e) {}
     })();
   </script>
@@ -20,8 +25,14 @@
     {% set _icon = site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg' %}
     <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
     <title>{% block title %}{{ pub_brand_name }}{% endblock %} — {{ pub_title_suffix }}</title>
-    <meta name="description" content="{% block meta_description %}Run every store with clear sales, stock, and reporting — one view of your retail business, from the shop to head office.{% endblock %}" />
-    {% include "partials/theme_font_link.html" %}
+    <meta name="description" content="{% block meta_description %}{{ website_settings.design.meta_description if website_settings and website_settings.design else 'Run every store with clear sales, stock, and reporting — one view of your retail business, from the shop to head office.' }}{% endblock %}" />
+    {% if website_settings and website_settings.font_google_url %}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      <link rel="stylesheet" href="{{ website_settings.font_google_url }}" />
+    {% else %}
+      {% include "partials/theme_font_link.html" %}
+    {% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -80,13 +91,26 @@
       }
     </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing.css') }}" />
+    <style>
+      .mk-brand-bg { background-color: var(--mk-primary); }
+      .mk-brand-bg-hover:hover { background-color: color-mix(in srgb, var(--mk-primary) 88%, white); }
+      .mk-brand-text { color: var(--mk-primary); }
+      .mk-brand-text-muted { color: color-mix(in srgb, var(--mk-primary) 72%, white); }
+      .mk-brand-ring { --tw-ring-color: color-mix(in srgb, var(--mk-accent) 35%, transparent); }
+      .mk-brand-border-active { border-color: color-mix(in srgb, var(--mk-primary) 40%, transparent); }
+      .mk-brand-glow { background-color: color-mix(in srgb, var(--mk-primary) 15%, transparent); }
+    </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
     {% block extra_head %}{% endblock %}
   </head>
   <body class="font-sans antialiased overflow-x-hidden text-zinc-900 dark:text-zinc-100">
-    {% include "marketing/partials/header.html" %}
-    <main class="mk-main">{% block content %}{% endblock %}</main>
-    {% include "marketing/partials/footer.html" %}
+    {% block marketing_header %}
+      {% include "marketing/partials/header.html" %}
+    {% endblock %}
+    <main class="mk-main{% block main_class %}{% endblock %}">{% block content %}{% endblock %}</main>
+    {% block marketing_footer %}
+      {% include "marketing/partials/footer.html" %}
+    {% endblock %}
     <script src="{{ url_for('static', filename='marketing/js/marketing.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
   </body>

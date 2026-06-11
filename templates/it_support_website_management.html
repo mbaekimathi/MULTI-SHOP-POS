@@ -1,5 +1,38 @@
 {% extends "employee_layout.html" %}
 {% block title %}Website management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Website management{% endblock %}
-{% block employee_content %}{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_website_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-4xl space-y-6">
+    {% include "partials/website_share_link.html" %}
 
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-violet-600/90 dark:text-violet-400/90">Public site</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Website management</h2>
+      <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Configure your public website domain, theme, colors, and fonts. When hosted, your domain automatically serves the generated shop page with products from POS.
+      </p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <a
+        href="{{ url_for('it_support_website_settings') }}"
+        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Configuration</p>
+        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Website settings</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Domain, theme style, brand colors, display mode, and typography.</p>
+      </a>
+      <a
+        href="{{ url_for('it_support_website_designs') }}"
+        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Content</p>
+        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Website designs</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Live storefront preview — same page customers see on your hosted domain.</p>
+      </a>
+    </div>
+  </div>
+{% endblock %}

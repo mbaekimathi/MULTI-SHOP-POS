@@ -4,3 +4,4 @@ python-dotenv>=1.0.0
 python-escpos>=3.0
 qrcode[pil]>=7.4
 pillow>=10.0
+fpdf2>=2.7.0

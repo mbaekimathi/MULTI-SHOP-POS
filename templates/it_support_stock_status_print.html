@@ -220,7 +220,7 @@
           });
         }
 
-        var headCols = ["No.", "Item"];
+        var headCols = ["Item"];
         if (withQty) {
           if (options.scope === "all" || options.scope === "company") headCols.push("Company");
           visibleShops.forEach(function (sh) {
@@ -234,9 +234,8 @@
           return "<th>" + escapeHtml(h) + "</th>";
         }).join("") + "</tr>";
 
-        var tableRows = allRows.map(function (r, idx) {
+        var tableRows = allRows.map(function (r) {
           var cols = [
-            "<td style='text-align:center'>" + (idx + 1) + "</td>",
             "<td>" + escapeHtml(r.name || "") + "</td>"
           ];
           if (withQty) {
@@ -262,22 +261,22 @@
         var contentLabel = withQty ? "Current stock (with quantities)" : "Stock only (item names)";
 
         return "<!doctype html><html><head><meta charset='utf-8'><title>Stock Status Print</title><style>" +
-          "@page{size:80mm auto;margin:2mm}" +
+          "@page{size:80mm auto;margin:1.5mm}" +
           "html,body{height:auto;overflow:visible}" +
-          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:11pt;line-height:1.2}" +
-          ".sheet{width:76mm;max-width:76mm}" +
-          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:8px;margin-bottom:10px}" +
-          ".co-name{font-size:13pt;font-weight:700;margin:0 0 4px;line-height:1.2}" +
-          ".co-line{font-size:9pt;color:#222;font-weight:600;margin:2px 0;line-height:1.25;word-wrap:break-word}" +
-          "h1{margin:0 0 4px;font-size:14pt;font-weight:700}" +
-          "p{margin:0 0 8px;font-size:10pt;font-weight:700;color:#222}" +
-          "table{width:100%;border-collapse:collapse;font-size:10pt;table-layout:fixed}" +
-          "th,td{border:1px solid #6b7280;padding:4px 3px;vertical-align:middle;font-weight:700;word-wrap:break-word}" +
-          "th{background:#e5e7eb;text-align:left}" +
+          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:7pt;line-height:1.1}" +
+          ".sheet{width:77mm;max-width:77mm}" +
+          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:3px;margin-bottom:4px}" +
+          ".co-name{font-size:8pt;font-weight:700;margin:0 0 1px;line-height:1.1}" +
+          ".co-line{font-size:6pt;color:#222;font-weight:600;margin:0;line-height:1.15;word-wrap:break-word}" +
+          "h1{margin:0 0 2px;font-size:8pt;font-weight:700}" +
+          "p{margin:0 0 3px;font-size:6.5pt;font-weight:700;color:#222;line-height:1.15}" +
+          "table{width:100%;border-collapse:collapse;font-size:6.5pt;table-layout:fixed}" +
+          "th,td{border:1px solid #6b7280;padding:1px 2px;vertical-align:middle;font-weight:600;word-wrap:break-word;line-height:1.1}" +
+          "th{background:#e5e7eb;text-align:left;font-size:6pt}" +
           "tbody tr:nth-child(even){background:#fafafa}" +
           "thead{display:table-row-group}" +
           "tr{page-break-inside:auto;break-inside:auto}" +
-          "td{height:18px}" +
+          "td{height:11px}" +
           "</style></head><body>" +
           "<div class='sheet'>" +
           buildCompanyHeaderHtml() +
@@ -291,15 +290,14 @@
         var rows = (payload && payload.rows) || [];
         var shopName = (payload && payload.shop_name) || "Shop";
         var reportDate = (payload && payload.date) || "";
-        var headCols = ["No.", "Item", "Opening", "Added", "Moved", "Sold", "Remaining"];
+        var headCols = ["Item", "Opening", "Added", "Moved", "Sold", "Remaining"];
         var tableHead = "<tr>" + headCols.map(function (h) {
           return "<th>" + escapeHtml(h) + "</th>";
         }).join("") + "</tr>";
         var blankQty =
-          "<td class='blank-qty' style='text-align:right;min-height:28px'>&nbsp;</td>";
-        var tableRows = rows.map(function (r, idx) {
+          "<td class='blank-qty' style='text-align:right'>&nbsp;</td>";
+        var tableRows = rows.map(function (r) {
           var cols = [
-            "<td style='text-align:center'>" + (idx + 1) + "</td>",
             "<td>" + escapeHtml(r.name || "") + "</td>",
             blankQty,
             blankQty,
@@ -316,23 +314,23 @@
           "<strong>Sold</strong> = POS and other manual stock-outs; " +
           "<strong>Remaining</strong> = stock at end of day.</p>";
         return "<!doctype html><html><head><meta charset='utf-8'><title>Day stock count</title><style>" +
-          "@page{size:A4 landscape;margin:10mm}" +
+          "@page{size:A4 landscape;margin:5mm}" +
           "html,body{height:auto;overflow:visible}" +
-          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:11pt;line-height:1.25}" +
+          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:7pt;line-height:1.1}" +
           ".sheet{max-width:100%}" +
-          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:10px;margin-bottom:12px}" +
-          ".co-name{font-size:18pt;font-weight:700;margin:0 0 6px;line-height:1.2}" +
-          ".co-line{font-size:10pt;color:#333;font-weight:600;margin:3px 0;line-height:1.3;word-wrap:break-word}" +
-          "h1{margin:0 0 6px;font-size:16pt;font-weight:700}" +
-          "p.sub{margin:0 0 10px;font-size:11pt;font-weight:700;color:#333}" +
-          "p.note{margin:10px 0 0;font-size:9pt;color:#444;line-height:1.35}" +
-          "table{width:100%;border-collapse:collapse;font-size:10pt;table-layout:fixed}" +
-          "th,td{border:1px solid #6b7280;padding:5px 6px;vertical-align:middle;word-wrap:break-word}" +
-          "th{background:#e5e7eb;text-align:left}" +
+          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:3px;margin-bottom:4px}" +
+          ".co-name{font-size:9pt;font-weight:700;margin:0 0 1px;line-height:1.1}" +
+          ".co-line{font-size:6.5pt;color:#333;font-weight:600;margin:0;line-height:1.15;word-wrap:break-word}" +
+          "h1{margin:0 0 2px;font-size:9pt;font-weight:700}" +
+          "p.sub{margin:0 0 3px;font-size:7pt;font-weight:700;color:#333;line-height:1.1}" +
+          "p.note{margin:3px 0 0;font-size:5.5pt;color:#444;line-height:1.2}" +
+          "table{width:100%;border-collapse:collapse;font-size:6.5pt;table-layout:fixed}" +
+          "th,td{border:1px solid #6b7280;padding:1px 2px;vertical-align:middle;word-wrap:break-word;line-height:1.1}" +
+          "th{background:#e5e7eb;text-align:left;font-size:6pt;font-weight:700}" +
           "tbody tr:nth-child(even){background:#fafafa}" +
           "thead{display:table-header-group}" +
           "tr{page-break-inside:avoid}" +
-          "td.blank-qty{min-height:28px;height:28px}" +
+          "td.blank-qty{min-height:14px;height:14px}" +
           "</style></head><body>" +
           "<div class='sheet'>" +
           buildCompanyHeaderHtml() +

@@ -92,7 +92,7 @@
       #shop-report-page .hidden { display: none !important; }
     }
   </style>
-  <script src="{{ url_for('static', filename='js/company-report-whatsapp.js') }}?v=3" defer></script>
+  <script src="{{ url_for('static', filename='js/company-report-whatsapp.js') }}?v=5" defer></script>
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
@@ -279,6 +279,7 @@
   <script type="application/json" id="shop-report-whatsapp-data">
     {
       "reportTitle": "SHOP REPORT",
+      "pdfUrl": {{ (url_for('shop_report_pdf', shop_id=shop.id) + (('?' + request.query_string.decode()) if request.query_string else ''))|tojson }},
       "shopName": {{ shop.shop_name|tojson }},
       "periodLabel": {{ (f.range_label or 'Today')|tojson }},
       "scopeLabel": {{ ('Confirmed receipts only' if (analytics_scope or 'general') == 'actual' else 'All receipt marks')|tojson }},

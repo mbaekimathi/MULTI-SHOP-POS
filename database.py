@@ -1759,6 +1759,74 @@ def list_active_catalog_items_for_it_analytics(
     return rows
 
 
+def list_website_featured_products(limit: int = 12) -> list:
+    """Catalog items for the public storefront, ranked by all-time POS qty sold."""
+    lim = max(1, min(int(limit), 48))
+    if not table_exists("items"):
+        return []
+    sales_join = ""
+    qty_col = "0"
+    if table_exists("shop_pos_sale_items") and table_exists("shop_pos_sales"):
+        sales_join = """
+    LEFT JOIN (
+        SELECT si.item_id, COALESCE(SUM(si.qty), 0) AS qty_sold
+        FROM shop_pos_sale_items si
+        JOIN shop_pos_sales s ON s.id = si.sale_id
+        WHERE si.item_id IS NOT NULL AND si.item_id > 0
+        GROUP BY si.item_id
+    ) sales ON sales.item_id = i.id"""
+        qty_col = "COALESCE(sales.qty_sold, 0)"
+    sql = f"""
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        i.description,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        {qty_col} AS qty_sold
+    FROM items i
+    {sales_join}
+    WHERE i.status = 'active'
+    ORDER BY {qty_col} DESC, i.name ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (lim,))
+            rows = cur.fetchall() or []
+    except Exception:
+        rows = []
+    out = []
+    for r in rows:
+        try:
+            price = float(r.get("selling_price") if r.get("selling_price") is not None else r.get("price") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        try:
+            orig = float(r.get("price") or 0)
+        except (TypeError, ValueError):
+            orig = 0.0
+        try:
+            qty_sold = float(r.get("qty_sold") or 0)
+        except (TypeError, ValueError):
+            qty_sold = 0.0
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "category": (r.get("category") or "").strip() or "General",
+                "name": (r.get("name") or "").strip() or "Product",
+                "description": (r.get("description") or "").strip(),
+                "price": round(price, 2),
+                "original_price": round(orig, 2),
+                "image_path": (r.get("image_path") or "").strip(),
+                "qty_sold": qty_sold,
+            }
+        )
+    return out
+
+
 def search_seller_names(prefix: str, limit: int = 8):
     q = (prefix or "").strip()
     if len(q) < 1:
@@ -5808,6 +5876,18 @@ def init_shop_pos_quotations_table():
                     )
                 except pymysql.Error as e:
                     logger.warning("Could not relax shop_pos_quotations.shop_id: %s", e)
+                if not column_exists("shop_pos_quotations", "customer_notes"):
+                    try:
+                        cur.execute(
+                            """
+                            ALTER TABLE shop_pos_quotations
+                            ADD COLUMN customer_notes VARCHAR(500) NULL
+                            AFTER customer_phone
+                            """
+                        )
+                        logger.info("Added shop_pos_quotations.customer_notes.")
+                    except pymysql.Error as e:
+                        logger.warning("Could not add customer_notes: %s", e)
         logger.info("Table shop_pos_quotations is ready.")
         return True
     except pymysql.Error as e:
@@ -6788,6 +6868,7 @@ def create_shop_pos_quotation(
     item_count: int,
     customer_name: Optional[str] = None,
     customer_phone: Optional[str] = None,
+    customer_notes: Optional[str] = None,
     employee_id: Optional[int] = None,
     employee_code: Optional[str] = None,
     employee_name: Optional[str] = None,
@@ -6858,13 +6939,18 @@ def create_shop_pos_quotation(
 
     ensure_shop_pos_quotations_client_txn_column()
     client_txn = (client_txn_id or "").strip()[:64] or None
+    notes_val = (customer_notes or "").strip()[:500] or None
+    has_notes_col = column_exists("shop_pos_quotations", "customer_notes")
 
     sql = """
     INSERT INTO shop_pos_quotations
         (shop_id, quote_basis, quote_channel, total_amount, item_count, customer_name, customer_phone,
-         lines_json, employee_id, employee_code, employee_name, client_txn_id)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
+         {notes_col}lines_json, employee_id, employee_code, employee_name, client_txn_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, {notes_val} %s, %s, %s, %s, %s)
+    """.format(
+        notes_col="customer_notes, " if has_notes_col else "",
+        notes_val="%s, " if has_notes_col else "",
+    )
     try:
         with get_cursor(commit=True) as cur:
             if client_txn and shop_id is not None:
@@ -6879,23 +6965,27 @@ def create_shop_pos_quotation(
                 existing = cur.fetchone()
                 if existing:
                     return int(existing.get("id") or 0), None
-            cur.execute(
-                sql,
-                (
-                    int(shop_id) if shop_id is not None else None,
-                    basis,
-                    channel,
-                    amount,
-                    count,
-                    (customer_name or "").strip()[:190] or None,
-                    (customer_phone or "").strip()[:40] or None,
+            params = [
+                int(shop_id) if shop_id is not None else None,
+                basis,
+                channel,
+                amount,
+                count,
+                (customer_name or "").strip()[:190] or None,
+                (customer_phone or "").strip()[:40] or None,
+            ]
+            if has_notes_col:
+                params.append(notes_val)
+            params.extend(
+                [
                     blob,
                     int(employee_id) if employee_id is not None else None,
                     (employee_code or "").strip()[:6] or None,
                     (employee_name or "").strip()[:190] or None,
                     client_txn,
-                ),
+                ]
             )
+            cur.execute(sql, tuple(params))
             qid = int(cur.lastrowid or 0)
             return (qid if qid else None), None
     except pymysql.Error as e:
