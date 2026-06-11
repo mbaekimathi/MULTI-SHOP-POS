@@ -690,6 +690,7 @@ def inject_site_settings():
         "company_phone": "",
         "company_facebook": "",
         "company_instagram": "",
+        "public_app_url": "",
         "app_icon": "",
         "primary_color": "#f97316",
         "accent_color": "#fb923c",
@@ -1640,7 +1641,55 @@ _COMPANY_IDENTITY_KEYS = (
     "company_phone",
     "company_facebook",
     "company_instagram",
+    "public_app_url",
 )
+
+
+def _normalize_public_app_url(raw: str) -> str:
+    """Normalize hosted public base URL (https://domain, no trailing slash)."""
+    u = (raw or "").strip().rstrip("/")
+    if not u:
+        return ""
+    if not u.lower().startswith(("http://", "https://")):
+        u = "https://" + u.lstrip("/")
+    if u.lower().startswith("http://") and "localhost" not in u.lower():
+        u = "https://" + u[7:]
+    return u.rstrip("/")
+
+
+def _public_app_url_from_env() -> str:
+    for key in ("PUBLIC_APP_URL", "APP_BASE_URL"):
+        env = _normalize_public_app_url(os.getenv(key) or "")
+        if env:
+            return env
+    return ""
+
+
+def _load_public_app_url_setting() -> str:
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(["public_app_url"]).get("public_app_url") or ""
+    except Exception:
+        stored = ""
+    return _normalize_public_app_url(stored)
+
+
+def _effective_public_app_url() -> str:
+    """Public HTTPS base for share links and hosted API callbacks (env overrides DB)."""
+    env = _public_app_url_from_env()
+    if env:
+        return env
+    return _load_public_app_url_setting()
+
+
+def _daraja_external_callback_hint() -> str:
+    """Request URL hint passed to Daraja callback resolution (hosted domain when set)."""
+    base = _effective_public_app_url()
+    path = url_for("daraja_mpesa_stk_callback", _external=False)
+    if base:
+        return base.rstrip("/") + path
+    return url_for("daraja_mpesa_stk_callback", _external=True)
 
 
 def _load_company_identity_settings() -> dict:
@@ -1650,6 +1699,7 @@ def _load_company_identity_settings() -> dict:
         "company_phone": "",
         "company_facebook": "",
         "company_instagram": "",
+        "public_app_url": "",
         "app_icon": "",
     }
     try:
@@ -1900,6 +1950,7 @@ def _default_daraja_settings() -> dict:
         "daraja_callback_url_local": "",
         "daraja_initiator_name": "",
         "daraja_security_credential": "",
+        "daraja_stk_auto_customer_from_mpesa": True,
     }
 
 
@@ -1922,6 +1973,9 @@ def _load_daraja_settings() -> dict:
         legacy = str(merged.get(cred_key) or "").strip()
         merged[cred_key] = dedicated or legacy
     merged["daraja_enabled"] = merged.get("daraja_enabled") in (True, "true", "1", 1, "True")
+    merged["daraja_stk_auto_customer_from_mpesa"] = merged.get(
+        "daraja_stk_auto_customer_from_mpesa"
+    ) not in (False, "false", "0", 0, "False")
     env = str(merged.get("daraja_environment") or "sandbox").strip().lower()
     if env not in ("sandbox", "production"):
         env = "sandbox"
@@ -1931,6 +1985,7 @@ def _load_daraja_settings() -> dict:
         tx = "CustomerBuyGoodsOnline"
     merged["daraja_transaction_type"] = tx
     merged["daraja_shortcode"] = str(merged.get("daraja_shortcode") or "").strip()
+    merged["public_app_url"] = _effective_public_app_url()
     return merged
 
 
@@ -2012,18 +2067,101 @@ def _daraja_settings_from_form() -> dict:
         "daraja_callback_url_local": _keep("daraja_callback_url_local", max_len=500),
         "daraja_initiator_name": _keep("daraja_initiator_name", max_len=128),
         "daraja_security_credential": _keep("daraja_security_credential", max_len=4000),
+        "daraja_stk_auto_customer_from_mpesa": (
+            _b("daraja_stk_auto_customer_from_mpesa")
+            if "daraja_stk_auto_customer_from_mpesa" in request.form
+            else bool(existing.get("daraja_stk_auto_customer_from_mpesa", True))
+        ),
         "daraja_oauth_ok": existing.get("daraja_oauth_ok"),
         "daraja_oauth_checked_at": existing.get("daraja_oauth_checked_at"),
     }
+
+
+def _shop_customer_api_payload(row) -> Optional[dict]:
+    if not row:
+        return None
+    return {
+        "id": row.get("id"),
+        "customer_name": (row.get("customer_name") or "").strip(),
+        "phone": (row.get("phone") or "").strip(),
+    }
+
+
+def _stk_row_mpesa_payer(row: dict) -> tuple[str, str]:
+    """Payer name and phone from merged STK status (callback metadata + stored fields)."""
+    from daraja_api import extract_mpesa_payer_from_stk_metadata, normalize_msisdn
+
+    meta = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    fallback_phone = str(row.get("phone") or row.get("mpesa_payer_phone") or "")
+    payer_name, payer_phone = extract_mpesa_payer_from_stk_metadata(meta, fallback_phone)
+    if not payer_name:
+        payer_name = str(row.get("mpesa_payer_name") or "").strip()
+    if not payer_name and row.get("credit_pay"):
+        payer_name = str(row.get("customer_name") or "").strip()
+    phone = normalize_msisdn(payer_phone or fallback_phone)
+    return payer_name.strip(), phone
+
+
+def _maybe_auto_register_shop_customer_from_mpesa_stk(
+    shop_id: int, row: dict
+) -> tuple[Optional[dict], bool]:
+    """After STK paid: match or register shop customer. Returns (customer, was_new)."""
+    if not shop_id or not row:
+        return None, False
+
+    from database import (
+        get_public_customer_by_phone,
+        get_shop_customer_by_phone,
+        upsert_shop_customer,
+    )
+
+    payer_name, phone = _stk_row_mpesa_payer(row)
+    if len(re.sub(r"\D", "", phone)) < 9:
+        return None, False
+
+    existing = get_shop_customer_by_phone(shop_id, phone)
+    if existing:
+        return _shop_customer_api_payload(existing), False
+
+    settings = _load_daraja_settings()
+    if not settings.get("daraja_stk_auto_customer_from_mpesa"):
+        if payer_name:
+            return {"id": None, "customer_name": payer_name, "phone": phone}, False
+        return None, False
+
+    name = payer_name
+    if len(name) < 2:
+        pub = get_public_customer_by_phone(phone)
+        if pub:
+            name = str(pub.get("customer_name") or "").strip()
+    if len(name) < 2:
+        return None, False
+
+    if not upsert_shop_customer(shop_id, name, phone):
+        return None, False
+    created = get_shop_customer_by_phone(shop_id, phone)
+    if not created:
+        return None, False
+    logger.info(
+        "Auto-registered shop customer from M-Pesa STK shop=%s phone=%s name=%s",
+        shop_id,
+        phone,
+        name,
+    )
+    return _shop_customer_api_payload(created), True
 
 
 def _daraja_pos_boot_payload() -> dict:
     try:
         from daraja_api import daraja_settings_ready
 
-        return {"enabled": daraja_settings_ready(_load_daraja_settings())}
+        settings = _load_daraja_settings()
+        return {
+            "enabled": daraja_settings_ready(settings),
+            "autoCustomerFromMpesa": bool(settings.get("daraja_stk_auto_customer_from_mpesa")),
+        }
     except Exception:
-        return {"enabled": False}
+        return {"enabled": False, "autoCustomerFromMpesa": False}
 
 
 _CREDIT_PAY_TOKEN_SALT = "credit-mpesa-pay-v1"
@@ -2082,14 +2220,11 @@ def _public_share_base_url() -> str:
     Public base URL for WhatsApp-shareable links.
 
     WhatsApp only linkifies URLs customers can open (HTTPS public host).
-    Prefer PUBLIC_APP_URL, ngrok, or Daraja hosted callback domain.
+    Prefer PUBLIC_APP_URL / Company hosted domain, ngrok, or Daraja callback domain.
     """
-    for key in ("PUBLIC_APP_URL", "APP_BASE_URL"):
-        env = (os.getenv(key) or "").strip().rstrip("/")
-        if env:
-            if env.lower().startswith(("http://", "https://")):
-                return env
-            return "https://" + env.lstrip("/")
+    hosted = _effective_public_app_url()
+    if hosted:
+        return hosted
 
     try:
         from daraja_api import _is_local_callback_host, _try_local_ngrok_callback_url
@@ -2847,6 +2982,7 @@ def it_support_system_settings():
         company_phone = (request.form.get("company_phone") or "").strip()
         company_facebook = (request.form.get("company_facebook") or "").strip()
         company_instagram = (request.form.get("company_instagram") or "").strip()
+        public_app_url = _normalize_public_app_url((request.form.get("public_app_url") or "").strip())
         primary_color = (request.form.get("primary_color") or "#f97316").strip()
         accent_color = (request.form.get("accent_color") or "#fb923c").strip()
         from theme_presets import normalize_default_theme, normalize_font_family, normalize_theme_preset
@@ -2897,6 +3033,7 @@ def it_support_system_settings():
                 "company_phone": company_phone,
                 "company_facebook": company_facebook,
                 "company_instagram": company_instagram,
+                "public_app_url": public_app_url,
                 "primary_color": primary_color,
                 "accent_color": accent_color,
                 "font_family": font_family,
@@ -2947,6 +3084,8 @@ def it_support_system_settings():
         receipt_settings=_load_receipt_settings(),
         printing_settings=_load_printing_settings(),
         daraja_settings=_daraja_settings_for_template(),
+        hosted_api_base=_effective_public_app_url(),
+        public_app_url_env_override=bool(_public_app_url_from_env()),
         initial_settings_tab=initial_settings_tab,
         appearance_presets=theme_presets_for_template(),
         appearance_fonts=fonts_for_template(),
@@ -8207,6 +8346,9 @@ def daraja_mpesa_stk_callback():
         if val is not None and str(val).strip():
             receipt_no = str(val).strip()
             break
+    from daraja_api import extract_mpesa_payer_from_stk_metadata
+
+    mpesa_payer_name, mpesa_payer_phone = extract_mpesa_payer_from_stk_metadata(metadata, "")
     if checkout_id:
         _mpesa_stk_status_store(
             checkout_id,
@@ -8217,6 +8359,8 @@ def daraja_mpesa_stk_callback():
                 "result_desc": result_desc,
                 "metadata": metadata,
                 "mpesa_receipt_number": receipt_no or None,
+                "mpesa_payer_name": mpesa_payer_name or None,
+                "mpesa_payer_phone": mpesa_payer_phone or None,
                 "completed": True,
                 "pending": False,
             },
@@ -8333,7 +8477,7 @@ def shop_pos_mpesa_stk_push(shop_id: int):
 
     account_ref = settings.get("daraja_account_reference") or shop.get("shop_code") or shop.get("shop_name") or "POS"
     account_ref = str(account_ref or "POS").strip()[:12]
-    callback_url = url_for("daraja_mpesa_stk_callback", _external=True)
+    callback_url = _daraja_external_callback_hint()
     try:
         result = initiate_stk_push(
             settings,
@@ -8473,6 +8617,15 @@ def shop_pos_mpesa_stk_status(shop_id: int, checkout_request_id: str):
         str(row.get("result_desc") or ""),
         environment=settings.get("daraja_environment") or "sandbox",
     )
+    customer = None
+    auto_registered_customer = False
+    mpesa_phone = ""
+    mpesa_payer_name = ""
+    if paid:
+        mpesa_payer_name, mpesa_phone = _stk_row_mpesa_payer(row)
+        customer, auto_registered_customer = _maybe_auto_register_shop_customer_from_mpesa_stk(
+            shop_id, row
+        )
     return jsonify(
         {
             "ok": True,
@@ -8482,6 +8635,10 @@ def shop_pos_mpesa_stk_status(shop_id: int, checkout_request_id: str):
             "pending": pending,
             "failed": failed,
             "mpesa_receipt_number": receipt_no,
+            "mpesa_phone": mpesa_phone or None,
+            "mpesa_payer_name": mpesa_payer_name or None,
+            "customer": customer,
+            "auto_registered_customer": auto_registered_customer,
         }
     )
 
@@ -8593,7 +8750,7 @@ def credit_pay_public_stk_push(token: str):
         settings.get("daraja_account_reference") or shop.get("shop_code") or "CREDIT"
     )
     account_ref = str(account_ref or "CREDIT").strip()[:12]
-    callback_url = url_for("daraja_mpesa_stk_callback", _external=True)
+    callback_url = _daraja_external_callback_hint()
     shop_id = int(ctx["shop_id"])
     try:
         result = initiate_stk_push(
@@ -8674,6 +8831,15 @@ def credit_pay_public_stk_status(token: str, checkout_request_id: str):
         str(row.get("result_desc") or ""),
         environment=settings.get("daraja_environment") or "sandbox",
     )
+    customer = None
+    auto_registered_customer = False
+    mpesa_phone = ""
+    mpesa_payer_name = ""
+    if paid:
+        mpesa_payer_name, mpesa_phone = _stk_row_mpesa_payer(row)
+        customer, auto_registered_customer = _maybe_auto_register_shop_customer_from_mpesa_stk(
+            int(ctx["shop_id"]), row
+        )
     return jsonify(
         {
             "ok": True,
@@ -8684,6 +8850,10 @@ def credit_pay_public_stk_status(token: str, checkout_request_id: str):
             "mpesa_receipt_number": receipt_no,
             "status": row,
             "status_message": status_message,
+            "mpesa_phone": mpesa_phone or None,
+            "mpesa_payer_name": mpesa_payer_name or None,
+            "customer": customer,
+            "auto_registered_customer": auto_registered_customer,
         }
     )
 
@@ -10453,6 +10623,66 @@ def shop_dashboard(shop_id: int):
         shop=shop,
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         pos_inventory_mode=_pos_inventory_mode(shop),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-report")
+def shop_report(shop_id: int):
+    """Single-shop period report: revenue, expenditure, and per-item stock + sales."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+    }
+    try:
+        from database import get_shop_report
+
+        report_data = get_shop_report(
+            shop_id=int(shop_id),
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        logger.exception("shop_report failed shop_id=%s", shop_id)
+    report_should_print = (request.args.get("print") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    share_qs = request.query_string.decode("utf-8") if request.query_string else ""
+    share_path = url_for("shop_report", shop_id=shop_id)
+    share_url = f"{_public_share_base_url()}{share_path}"
+    if share_qs:
+        share_url = f"{share_url}?{share_qs}"
+    return render_template(
+        "shop_report.html",
+        shop=shop,
+        analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
+        report_data=report_data,
+        item_rows=report_data.get("items") or [],
+        report_share_url=share_url,
+        report_should_print=report_should_print,
+        report_generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
+        shop_portal=True,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -14675,6 +14905,63 @@ def it_support_hr_settings():
     return render_template("it_support_hr_settings.html", hr_employee_shop_link_mode=mode)
 
 
+@app.route("/it_support/company-report")
+@login_required
+def it_support_company_report():
+    """Company-wide report: revenue, expenditure, and per-item stock + sales."""
+    _it_support_only()
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+    }
+    try:
+        from database import get_company_report
+
+        report_data = get_company_report(
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        logger.exception("it_support_company_report failed")
+    report_should_print = (request.args.get("print") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    share_qs = request.query_string.decode("utf-8") if request.query_string else ""
+    share_path = url_for("it_support_company_report")
+    share_url = f"{_public_share_base_url()}{share_path}"
+    if share_qs:
+        share_url = f"{share_url}?{share_qs}"
+    company_name = ""
+    try:
+        from database import get_site_settings
+
+        company_name = (get_site_settings(["company_name"]).get("company_name") or "").strip()
+    except Exception:
+        company_name = ""
+    report_generated_at = datetime.now().strftime("%d %b %Y %H:%M")
+    return render_template(
+        "it_support_company_report.html",
+        analytics_filter=analytics_filter,
+        analytics_scope=analytics_scope,
+        report_data=report_data,
+        item_rows=report_data.get("items") or [],
+        report_share_url=share_url,
+        report_company_name=company_name,
+        report_should_print=report_should_print,
+        report_generated_at=report_generated_at,
+    )
+
+
 @app.route("/it_support/accounts")
 @login_required
 def it_support_accounts():
@@ -14811,7 +15098,7 @@ def it_support_accounts_company_account_balance_refresh():
     )
 
     settings = _load_daraja_settings()
-    stk_hint = url_for("daraja_mpesa_stk_callback", _external=True)
+    stk_hint = _daraja_external_callback_hint()
     result_url, timeout_url = resolve_balance_callback_urls(settings, stk_hint)
     ngrok_warn = balance_callback_ngrok_warning(result_url)
     try:

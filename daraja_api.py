@@ -82,6 +82,35 @@ def normalize_msisdn(phone: str) -> str:
     return digits
 
 
+def extract_mpesa_payer_from_stk_metadata(
+    metadata: Optional[dict], fallback_phone: str = ""
+) -> tuple[str, str]:
+    """Best-effort payer name and phone from STK CallbackMetadata (or merged status dict)."""
+    meta = metadata if isinstance(metadata, dict) else {}
+    phone_raw = str(
+        meta.get("PhoneNumber")
+        or meta.get("phone")
+        or meta.get("MSISDN")
+        or fallback_phone
+        or ""
+    ).strip()
+    phone = normalize_msisdn(phone_raw) or phone_raw
+
+    name_parts: list[str] = []
+    for key in ("FirstName", "MiddleName", "LastName"):
+        part = str(meta.get(key) or "").strip()
+        if part:
+            name_parts.append(part)
+    name = " ".join(name_parts).strip()
+    if not name:
+        for key in ("CustomerName", "PayerName", "Name", "BillRefNumber"):
+            candidate = str(meta.get(key) or "").strip()
+            if len(candidate) >= 2 and not candidate.isdigit():
+                name = candidate
+                break
+    return name, phone
+
+
 def stk_timestamp() -> str:
     """Daraja password must use East Africa Time (Nairobi)."""
     try:
@@ -578,6 +607,11 @@ def resolve_callback_url(settings: dict, request_url: str = "") -> str:
         local = ""
     if _is_placeholder_callback_url(hosted):
         hosted = ""
+    public_base = str(settings.get("public_app_url") or "").strip().rstrip("/")
+    if public_base and not public_base.lower().startswith(("http://", "https://")):
+        public_base = "https://" + public_base.lstrip("/")
+    if not hosted and public_base:
+        hosted = f"{public_base.rstrip('/')}/api/daraja/mpesa-callback"
 
     req = str(request_url or "").strip().rstrip("/")
     is_local_req = _is_local_callback_host(req) if req else False
@@ -647,12 +681,17 @@ def resolve_balance_callback_urls(
         hosted = ""
     if _is_placeholder_callback_url(local):
         local = ""
+    public_base = str(settings.get("public_app_url") or "").strip().rstrip("/")
+    if public_base and not public_base.lower().startswith(("http://", "https://")):
+        public_base = "https://" + public_base.lstrip("/")
 
     bases: list[str] = []
     if env_override:
         bases.append(_callback_base_origin(env_override))
     if hosted:
         bases.append(_callback_base_origin(hosted))
+    if public_base:
+        bases.append(public_base.rstrip("/"))
     if local:
         bases.append(_callback_base_origin(local))
 

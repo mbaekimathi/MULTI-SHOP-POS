@@ -1,0 +1,432 @@
+{% extends "employee_layout.html" %}
+{% block title %}Company report — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Company report{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_portal_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+  <style>
+    #company-report-page .cr-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #company-report-page .cr-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.85), rgba(56, 189, 248, 0.85), rgba(245, 158, 11, 0.85));
+    }
+    #company-report-page .cr-table-wrap {
+      max-height: min(72vh, 780px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #company-report-page .cr-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #company-report-page .cr-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem;
+    }
+    #company-report-page .cr-wa-phone {
+      min-width: 11rem;
+    }
+    #company-report-page .cr-btn-whatsapp {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      border-radius: 0.75rem;
+      background: #25d366;
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.625rem 1rem;
+      border: 0;
+      cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+    #company-report-page .cr-btn-whatsapp:hover {
+      filter: brightness(0.95);
+    }
+    #company-report-page .cr-print-header {
+      display: none;
+    }
+    @page {
+      margin: 12mm;
+    }
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #company-report-print,
+      #company-report-print * {
+        visibility: visible;
+      }
+      #company-report-print {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+      }
+      #employee-sidebar,
+      #employee-sidebar-backdrop,
+      header,
+      .no-print {
+        display: none !important;
+      }
+      #company-report-page .cr-card {
+        border: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+      }
+      #company-report-page .cr-print-header {
+        display: block !important;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #000;
+      }
+      #company-report-page .cr-table-wrap {
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      #company-report-page .cr-table,
+      #company-report-page .cr-table th,
+      #company-report-page .cr-table td {
+        color: #000 !important;
+        background: #fff !important;
+      }
+      #company-report-page .cr-table thead tr {
+        position: static !important;
+      }
+      #company-report-page .cr-table th,
+      #company-report-page .cr-table td {
+        border: 1px solid #ccc !important;
+        font-size: 10px !important;
+        padding: 4px 6px !important;
+      }
+      #company-report-page .cr-stat {
+        break-inside: avoid;
+      }
+      #company-report-page .hidden {
+        display: none !important;
+      }
+    }
+  </style>
+  <script src="{{ url_for('static', filename='js/company-report-whatsapp.js') }}?v=2" defer></script>
+{% endblock %}
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set rd = report_data or {} %}
+  {% set rows = item_rows or [] %}
+  {% set _company = report_company_name or (site_settings.company_name if site_settings else 'Company') %}
+  <div id="company-report-page" class="mx-auto max-w-7xl space-y-6">
+    <div id="company-report-print" class="space-y-6">
+    <div class="cr-print-header">
+      <h1 class="text-xl font-bold text-black">{{ _company }}</h1>
+      <p class="mt-1 text-sm font-semibold text-black">Company report</p>
+      <p class="text-sm text-black">Period: {{ f.range_label or 'Today' }}{% if (analytics_scope or 'general') == 'actual' %} · Confirmed receipts only{% endif %}</p>
+      <p class="mt-2 text-xs text-black">
+        Revenue {{ "%.2f"|format(rd.total_revenue or 0) }}
+        (Sales {{ "%.2f"|format(rd.sale_revenue or 0) }} · Credit {{ "%.2f"|format(rd.credit_revenue or 0) }}
+        · Cash {{ "%.2f"|format(rd.cash_revenue or 0) }} · M-Pesa {{ "%.2f"|format(rd.mpesa_revenue or 0) }})
+        · Expenditure {{ "%.2f"|format(rd.total_expenditure or 0) }}
+        · Net {{ "%.2f"|format(rd.net_profit or 0) }}
+      </p>
+      {% if report_generated_at %}<p class="text-xs text-gray-700">Printed {{ report_generated_at }}</p>{% endif %}
+    </div>
+
+    <div class="cr-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600/90 dark:text-brand-400/90">Company · Report</p>
+          <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Company report</h2>
+          <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+            Revenue from POS sales, expenditure from stock purchases, and per-item stock movement across company warehouse and all shops.
+            Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+          </p>
+        </div>
+        <div class="cr-actions no-print shrink-0">
+          <div class="cr-wa-phone">
+            <label for="company-report-wa-phone" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">WhatsApp to (optional)</label>
+            <input
+              id="company-report-wa-phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              data-company-report-wa-phone
+              placeholder="e.g. 0712345678"
+              class="w-full min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm"
+            />
+          </div>
+          <button type="button" data-company-report-whatsapp-share class="cr-btn-whatsapp" aria-label="Share company report on WhatsApp">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Share on WhatsApp
+          </button>
+          <button type="button" data-company-report-print class="btn-rc btn-rc-primary min-h-[2.55rem] px-4 py-2 text-sm font-semibold">Print report</button>
+        </div>
+      </div>
+
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="cr-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total revenue</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{{ "%.2f"|format(rd.total_revenue or 0) }}</div>
+        </div>
+        <div class="cr-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total expenditure</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-amber-600 dark:text-amber-400">{{ "%.2f"|format(rd.total_expenditure or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Stock purchases (company + shop receipts)</div>
+        </div>
+        <div class="cr-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Net profit</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums {% if (rd.net_profit or 0) >= 0 %}text-[rgb(var(--rc-page-fg))]{% else %}text-rose-500{% endif %}">{{ "%.2f"|format(rd.net_profit or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Revenue minus expenditure</div>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-3 sm:grid-cols-2">
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4">
+          <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Revenue by sale type</p>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash sales</div>
+              <div class="mt-1 text-xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(rd.sale_revenue or 0) }}</div>
+            </div>
+            <div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Credit sales</div>
+              <div class="mt-1 text-xl font-extrabold tabular-nums text-sky-600 dark:text-sky-400">{{ "%.2f"|format(rd.credit_revenue or 0) }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4">
+          <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Revenue by payment</p>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash</div>
+              <div class="mt-1 text-xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(rd.cash_revenue or 0) }}</div>
+            </div>
+            <div>
+              <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">M-Pesa</div>
+              <div class="mt-1 text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{{ "%.2f"|format(rd.mpesa_revenue or 0) }}</div>
+            </div>
+          </div>
+          <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Cash and M-Pesa are amounts collected on receipts (split-tender included).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cr-card no-print rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Period filters</h3>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Filters apply automatically when you change a value.</p>
+      <form
+        id="company-report-filter-form"
+        method="get"
+        action="{{ url_for('it_support_company_report') }}"
+        class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end"
+      >
+        <div>
+          <label for="cr-filter-mode" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period type</label>
+          <select id="cr-filter-mode" name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
+            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div id="cr-filter-single-day" {% if (f.mode or 'single_day') != 'single_day' %}class="hidden"{% endif %}>
+          <label for="cr-filter-day" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Date</label>
+          <input id="cr-filter-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="cr-filter-period-start" {% if (f.mode or '') != 'period' %}class="hidden"{% endif %}>
+          <label for="cr-filter-start" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">From</label>
+          <input id="cr-filter-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="cr-filter-period-end" {% if (f.mode or '') != 'period' %}class="hidden"{% endif %}>
+          <label for="cr-filter-end" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">To</label>
+          <input id="cr-filter-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="cr-filter-month" {% if (f.mode or '') != 'month' %}class="hidden"{% endif %}>
+          <label for="cr-filter-month-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Month</label>
+          <input id="cr-filter-month-input" type="month" name="month" value="{{ f.month or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="cr-filter-year" {% if (f.mode or '') != 'year' %}class="hidden"{% endif %}>
+          <label for="cr-filter-year-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Year</label>
+          <input id="cr-filter-year-input" type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="min-h-[2.55rem] w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label for="cr-filter-scope" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt scope</label>
+          <select id="cr-filter-scope" name="analytics_scope" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="general" {% if (analytics_scope or 'general') != 'actual' %}selected{% endif %}>General — all marks</option>
+            <option value="actual" {% if (analytics_scope or 'general') == 'actual' %}selected{% endif %}>Actual — confirmed only</option>
+          </select>
+        </div>
+      </form>
+    </div>
+
+    <div class="cr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Items in period</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+              Starting and ending stock are company warehouse plus all shops. Stock sold and revenue come from POS lines.
+            </p>
+          </div>
+          <input
+            id="company-report-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search item or category…"
+            class="no-print min-w-[12rem] flex-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 sm:max-w-xs"
+          />
+        </div>
+      </div>
+      {% if rows %}
+        <div class="cr-table-wrap overflow-x-auto">
+          <table id="company-report-table" class="cr-table min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="sticky left-0 z-20 bg-[rgb(var(--rc-surface-2))] px-4 py-3 shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="px-4 py-3 text-right">Starting stock</th>
+                <th class="px-4 py-3 text-right">Ending stock</th>
+                <th class="px-4 py-3 text-right">Stock in</th>
+                <th class="px-4 py-3 text-right">Stock out</th>
+                <th class="px-4 py-3 text-right">Stock sold</th>
+                <th class="px-4 py-3 text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in rows %}
+                <tr
+                  class="cr-row transition hover:bg-[rgb(var(--rc-surface-2))]/40"
+                  data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or ''))|lower }}"
+                >
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-4 py-3 shadow-[1px_0_0_rgb(var(--rc-border))]">
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
+                    {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
+                  </td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.starting_stock or 0 }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.ending_stock or 0 }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{{ row.stock_in or 0 }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums text-rose-500">{{ row.stock_out or 0 }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.stock_sold or 0 }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.revenue or 0) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No item activity found for this period.</p>
+      {% endif %}
+    </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="company-report-whatsapp-data">
+    {
+      "companyName": {{ _company|tojson }},
+      "periodLabel": {{ (f.range_label or 'Today')|tojson }},
+      "scopeLabel": {{ ('Confirmed receipts only' if (analytics_scope or 'general') == 'actual' else 'All receipt marks')|tojson }},
+      "totalRevenue": {{ (rd.total_revenue or 0)|float }},
+      "saleRevenue": {{ (rd.sale_revenue or 0)|float }},
+      "creditRevenue": {{ (rd.credit_revenue or 0)|float }},
+      "cashRevenue": {{ (rd.cash_revenue or 0)|float }},
+      "mpesaRevenue": {{ (rd.mpesa_revenue or 0)|float }},
+      "totalExpenditure": {{ (rd.total_expenditure or 0)|float }},
+      "netProfit": {{ (rd.net_profit or 0)|float }},
+      "shareUrl": {{ (report_share_url or '')|tojson }},
+      "generatedAt": {{ (report_generated_at or '')|tojson }},
+      "items": [
+        {% for row in rows[:25] %}
+        {
+          "name": {{ (row.name or '')|tojson }},
+          "startingStock": {{ row.starting_stock or 0 }},
+          "endingStock": {{ row.ending_stock or 0 }},
+          "stockIn": {{ row.stock_in or 0 }},
+          "stockOut": {{ row.stock_out or 0 }},
+          "stockSold": {{ row.stock_sold or 0 }},
+          "revenue": {{ (row.revenue or 0)|float }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ]
+    }
+  </script>
+  <script>
+    (function () {
+      var form = document.getElementById("company-report-filter-form");
+      var mode = document.getElementById("cr-filter-mode");
+      var day = document.getElementById("cr-filter-single-day");
+      var periodStart = document.getElementById("cr-filter-period-start");
+      var periodEnd = document.getElementById("cr-filter-period-end");
+      var month = document.getElementById("cr-filter-month");
+      var year = document.getElementById("cr-filter-year");
+      var search = document.getElementById("company-report-search");
+      var rows = document.querySelectorAll("#company-report-table .cr-row");
+
+      function syncModePanels() {
+        if (!mode) return;
+        var m = mode.value || "single_day";
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (periodStart) periodStart.classList.toggle("hidden", m !== "period");
+        if (periodEnd) periodEnd.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+
+      function submitForm() {
+        if (!form) return;
+        if (window.itSupportAnalyticsFilter && typeof window.itSupportAnalyticsFilter.save === "function") {
+          window.itSupportAnalyticsFilter.save(new FormData(form));
+        }
+        if (typeof form.requestSubmit === "function") {
+          form.requestSubmit();
+        } else {
+          form.submit();
+        }
+      }
+
+      if (mode) {
+        mode.addEventListener("change", function () {
+          syncModePanels();
+          submitForm();
+        });
+        syncModePanels();
+      }
+
+      if (form) {
+        form.querySelectorAll("input, select").forEach(function (el) {
+          if (el === mode) return;
+          el.addEventListener("change", submitForm);
+        });
+      }
+
+      if (search && rows.length) {
+        search.addEventListener("input", function () {
+          var q = (search.value || "").trim().toLowerCase();
+          rows.forEach(function (tr) {
+            var hay = tr.getAttribute("data-search") || "";
+            tr.classList.toggle("hidden", q.length > 0 && hay.indexOf(q) === -1);
+          });
+        });
+      }
+
+      {% if report_should_print %}
+      window.addEventListener("load", function () { window.print(); });
+      {% endif %}
+    })();
+  </script>
+{% endblock %}

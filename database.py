@@ -3676,14 +3676,18 @@ def resolve_seller_name_and_phone(seller_phone: str, seller_name: str) -> tuple[
 
 
 def get_public_customer_by_phone(phone: str):
-    p = (phone or "").strip()
+    p = _normalize_phone(phone or "")
     if not p:
         return None
     sql = "SELECT id, customer_name, phone, created_at, updated_at FROM public_customers WHERE phone=%s LIMIT 1"
     try:
         with get_cursor() as cur:
-            cur.execute(sql, (p,))
-            return cur.fetchone()
+            for key in _seller_phone_lookup_keys(p):
+                cur.execute(sql, (key,))
+                row = cur.fetchone()
+                if row:
+                    return row
+            return None
     except pymysql.Error:
         return None
 
@@ -10504,6 +10508,17 @@ def get_shop_credit_analytics(
     return out
 
 
+def _canonical_kenya_phone(phone: str) -> str:
+    """Prefer 254… storage for Kenyan mobiles when recognizable."""
+    p = _normalize_phone(phone or "")
+    digits = re.sub(r"\D", "", p)
+    if len(digits) == 10 and digits.startswith(("07", "01")):
+        return "254" + digits[1:]
+    if len(digits) == 12 and digits.startswith("254"):
+        return digits
+    return p
+
+
 def get_shop_customer_by_phone(shop_id: int, phone: str):
     sql = """
     SELECT id, shop_id, customer_name, phone, created_at, updated_at
@@ -10513,15 +10528,19 @@ def get_shop_customer_by_phone(shop_id: int, phone: str):
     """
     try:
         with get_cursor() as cur:
-            cur.execute(sql, (int(shop_id), (phone or "").strip()))
-            return cur.fetchone()
+            for key in _seller_phone_lookup_keys(phone):
+                cur.execute(sql, (int(shop_id), key))
+                row = cur.fetchone()
+                if row:
+                    return row
+            return None
     except pymysql.Error:
         return None
 
 
 def upsert_shop_customer(shop_id: int, customer_name: str, phone: str) -> bool:
     name = (customer_name or "").strip()
-    ph = (phone or "").strip()
+    ph = _canonical_kenya_phone((phone or "").strip())
     if not name or not ph:
         return False
     sql = """
@@ -12511,6 +12530,540 @@ def get_company_stock_movement_analytics(analytics_filter: dict, shop_id: Option
             ]
     except pymysql.Error:
         return out
+    return out
+
+
+def _report_catalog_by_item_id(rows: list) -> dict:
+    out: dict = {}
+    for r in rows or []:
+        try:
+            iid = int(r.get("item_id") or 0)
+        except Exception:
+            continue
+        if iid > 0:
+            out[iid] = r
+    return out
+
+
+def _report_fetch_item_meta_by_ids(item_ids: list[int]) -> dict:
+    """Name/category for report rows not in the active catalog snapshot."""
+    ids = sorted({int(x) for x in (item_ids or []) if int(x) > 0})
+    if not ids:
+        return {}
+    placeholders = ",".join(["%s"] * len(ids))
+    sql = f"""
+    SELECT id AS item_id, category, name
+    FROM items
+    WHERE id IN ({placeholders})
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(ids))
+            return _report_catalog_by_item_id(cur.fetchall() or [])
+    except pymysql.Error:
+        return {}
+
+
+def _report_item_had_period_activity(
+    stock_in: int, stock_out: int, stock_sold: int, revenue: float
+) -> bool:
+    return bool(stock_in or stock_out or stock_sold or abs(float(revenue or 0)) > 1e-9)
+
+
+def get_company_report(analytics_filter: dict, analytics_scope: str = "general"):
+    """Company-wide period report: revenue, expenditure, and per-item stock + sales."""
+    af = analytics_filter or {}
+    range_end = (af.get("range_end_exclusive") or "").strip()
+    st_where, st_params = _analytics_where_clause(af, "st")
+    sst_where, sst_params = _analytics_where_clause(af, "sst")
+    scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
+    sale_range_where, sale_range_params = _analytics_where_clause(af, "s")
+    sale_where = f"{sale_range_where} AND {scope_where}"
+    sale_params = list(sale_range_params) + list(scope_params)
+
+    movement_sql = f"""
+    SELECT
+        mv.item_id,
+        COALESCE(SUM(CASE WHEN mv.direction = 'in' THEN mv.qty ELSE 0 END), 0) AS stock_in,
+        COALESCE(SUM(CASE WHEN mv.direction = 'out' THEN mv.qty ELSE 0 END), 0) AS stock_out
+    FROM (
+        SELECT st.item_id, st.direction, st.qty
+        FROM stock_transactions st
+        WHERE {st_where}
+        UNION ALL
+        SELECT sst.item_id, sst.direction, sst.qty
+        FROM shop_stock_transactions sst
+        WHERE {sst_where}
+    ) mv
+    GROUP BY mv.item_id
+    """
+
+    expenditure_sql = f"""
+    SELECT COALESCE(SUM(x.qty * COALESCE(x.buying_price, 0)), 0) AS total_expenditure
+    FROM (
+        SELECT st.qty, st.buying_price
+        FROM stock_transactions st
+        WHERE {st_where} AND st.direction = 'in'
+        UNION ALL
+        SELECT sst.qty, sst.buying_price
+        FROM shop_stock_transactions sst
+        WHERE {sst_where} AND sst.direction = 'in' AND sst.source = 'manual'
+    ) x
+    """
+
+    sales_by_id_sql = f"""
+    SELECT
+        si.item_id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    WHERE {sale_where} AND si.item_id IS NOT NULL AND si.item_id > 0
+    GROUP BY si.item_id
+    """
+
+    join_name_catalog = """
+    INNER JOIN (
+        SELECT MIN(i.id) AS id, LOWER(TRIM(i.name)) AS nm
+        FROM items i
+        WHERE i.status = 'active' AND COALESCE(i.stock_update_enabled, 0) = 1
+        GROUP BY LOWER(TRIM(i.name))
+    ) im ON im.nm = LOWER(TRIM(COALESCE(si.item_name, '')))
+        AND LENGTH(TRIM(COALESCE(si.item_name, ''))) > 0
+    """
+    sales_by_name_sql = f"""
+    SELECT
+        im.id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    {join_name_catalog}
+    WHERE {sale_where} AND (si.item_id IS NULL OR si.item_id = 0)
+    GROUP BY im.id
+    """
+
+    revenue_totals_sql = f"""
+    SELECT
+        COALESCE(SUM(CASE WHEN s.sale_type IN ('sale', 'credit') THEN s.total_amount ELSE 0 END), 0) AS total_revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN s.total_amount ELSE 0 END), 0) AS sale_revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN s.total_amount ELSE 0 END), 0) AS credit_revenue,
+        COALESCE(SUM(s.cash_amount), 0) AS cash_revenue,
+        COALESCE(SUM(s.mpesa_amount), 0) AS mpesa_revenue
+    FROM shop_pos_sales s
+    WHERE {sale_where}
+    """
+
+    ending_company_sql = """
+    SELECT st.item_id, CAST(st.stock_after AS SIGNED) AS qty
+    FROM stock_transactions st
+    INNER JOIN (
+        SELECT item_id, MAX(id) AS mid
+        FROM stock_transactions
+        WHERE created_at < %s
+        GROUP BY item_id
+    ) z ON z.mid = st.id
+    """
+    ending_shop_sql = """
+    SELECT sst.item_id, COALESCE(SUM(CAST(sst.shop_stock_after AS SIGNED)), 0) AS qty
+    FROM shop_stock_transactions sst
+    INNER JOIN (
+        SELECT shop_id, item_id, MAX(id) AS mid
+        FROM shop_stock_transactions
+        WHERE created_at < %s
+        GROUP BY shop_id, item_id
+    ) z ON z.mid = sst.id
+    GROUP BY sst.item_id
+    """
+    current_stock_sql = """
+    SELECT
+        i.id AS item_id,
+        i.category,
+        i.name,
+        COALESCE(i.stock_qty, 0) AS company_stock_qty,
+        COALESCE(SUM(si.shop_stock_qty), 0) AS shop_stock_qty
+    FROM items i
+    LEFT JOIN shop_items si ON si.item_id = i.id
+    WHERE i.status = 'active'
+    GROUP BY i.id, i.category, i.name, i.stock_qty
+    ORDER BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') ASC, i.name ASC
+    """
+
+    out = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+    }
+    movement_map: dict = {}
+    sales_map: dict = {}
+    ending_map: dict = {}
+    catalog_rows: list = []
+
+    try:
+        with get_cursor() as cur:
+            cur.execute(revenue_totals_sql, tuple(sale_params))
+            rt = cur.fetchone() or {}
+            out["total_revenue"] = float(rt.get("total_revenue") or 0)
+            out["sale_revenue"] = float(rt.get("sale_revenue") or 0)
+            out["credit_revenue"] = float(rt.get("credit_revenue") or 0)
+            out["cash_revenue"] = float(rt.get("cash_revenue") or 0)
+            out["mpesa_revenue"] = float(rt.get("mpesa_revenue") or 0)
+
+            cur.execute(expenditure_sql, tuple(st_params + sst_params))
+            et = cur.fetchone() or {}
+            out["total_expenditure"] = float(et.get("total_expenditure") or 0)
+
+            cur.execute(movement_sql, tuple(st_params + sst_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    movement_map[iid] = {
+                        "stock_in": int(r.get("stock_in") or 0),
+                        "stock_out": int(r.get("stock_out") or 0),
+                    }
+
+            cur.execute(sales_by_id_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid <= 0:
+                    continue
+                sales_map[iid] = {
+                    "stock_sold": int(r.get("stock_sold") or 0),
+                    "revenue": float(r.get("revenue") or 0),
+                }
+
+            cur.execute(sales_by_name_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid <= 0:
+                    continue
+                prev = sales_map.get(iid) or {"stock_sold": 0, "revenue": 0.0}
+                sales_map[iid] = {
+                    "stock_sold": int(prev["stock_sold"]) + int(r.get("stock_sold") or 0),
+                    "revenue": float(prev["revenue"]) + float(r.get("revenue") or 0),
+                }
+
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_end):
+                cur.execute(ending_company_sql, (range_end,))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        ending_map.setdefault(iid, {"company": 0, "shop": 0})
+                        ending_map[iid]["company"] = int(r.get("qty") or 0)
+                cur.execute(ending_shop_sql, (range_end,))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        ending_map.setdefault(iid, {"company": 0, "shop": 0})
+                        ending_map[iid]["shop"] = int(r.get("qty") or 0)
+
+            cur.execute(current_stock_sql)
+            catalog_rows = cur.fetchall() or []
+    except pymysql.Error:
+        return out
+
+    out["net_profit"] = round(out["total_revenue"] - out["total_expenditure"], 2)
+    catalog_by_id = _report_catalog_by_item_id(catalog_rows)
+    affected_ids = set(movement_map.keys()) | set(sales_map.keys())
+    missing_meta = _report_fetch_item_meta_by_ids(
+        [iid for iid in affected_ids if iid not in catalog_by_id]
+    )
+    items_out = []
+    for iid in affected_ids:
+        r = catalog_by_id.get(iid) or missing_meta.get(iid) or {}
+        mv = movement_map.get(iid) or {"stock_in": 0, "stock_out": 0}
+        sl = sales_map.get(iid) or {"stock_sold": 0, "revenue": 0.0}
+        stock_in = int(mv["stock_in"])
+        stock_out = int(mv["stock_out"])
+        stock_sold = int(sl["stock_sold"])
+        revenue = float(sl["revenue"])
+        if not _report_item_had_period_activity(stock_in, stock_out, stock_sold, revenue):
+            continue
+        company_qty = int(r.get("company_stock_qty") or 0)
+        shop_qty = int(r.get("shop_stock_qty") or 0)
+        current_total = company_qty + shop_qty
+        end_parts = ending_map.get(iid)
+        if end_parts:
+            ending_stock = int(end_parts.get("company") or 0) + int(end_parts.get("shop") or 0)
+        else:
+            ending_stock = current_total
+        starting_stock = ending_stock - stock_in + stock_out
+        items_out.append(
+            {
+                "item_id": iid,
+                "category": (r.get("category") or "").strip(),
+                "name": (r.get("name") or "").strip() or f"Item #{iid}",
+                "starting_stock": starting_stock,
+                "ending_stock": ending_stock,
+                "stock_in": stock_in,
+                "stock_out": stock_out,
+                "stock_sold": stock_sold,
+                "revenue": round(revenue, 2),
+            }
+        )
+
+    items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
+    out["items"] = items_out
+    return out
+
+
+def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str = "general"):
+    """Single-shop period report: revenue, expenditure, and per-item stock + sales."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return {
+            "total_revenue": 0.0,
+            "sale_revenue": 0.0,
+            "credit_revenue": 0.0,
+            "cash_revenue": 0.0,
+            "mpesa_revenue": 0.0,
+            "total_expenditure": 0.0,
+            "net_profit": 0.0,
+            "items": [],
+        }
+    if sid <= 0:
+        return {
+            "total_revenue": 0.0,
+            "sale_revenue": 0.0,
+            "credit_revenue": 0.0,
+            "cash_revenue": 0.0,
+            "mpesa_revenue": 0.0,
+            "total_expenditure": 0.0,
+            "net_profit": 0.0,
+            "items": [],
+        }
+
+    af = analytics_filter or {}
+    range_end = (af.get("range_end_exclusive") or "").strip()
+    sst_where, sst_params = _analytics_where_clause(af, "sst")
+    sst_where = f"({sst_where}) AND sst.shop_id=%s"
+    sst_params = list(sst_params) + [sid]
+    scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
+    sale_range_where, sale_range_params = _analytics_where_clause(af, "s")
+    sale_where = f"s.shop_id=%s AND {sale_range_where} AND {scope_where}"
+    sale_params = [sid] + list(sale_range_params) + list(scope_params)
+
+    movement_sql = f"""
+    SELECT
+        sst.item_id,
+        COALESCE(SUM(CASE WHEN sst.direction = 'in' THEN sst.qty ELSE 0 END), 0) AS stock_in,
+        COALESCE(SUM(CASE WHEN sst.direction = 'out' THEN sst.qty ELSE 0 END), 0) AS stock_out
+    FROM shop_stock_transactions sst
+    WHERE {sst_where}
+    GROUP BY sst.item_id
+    """
+
+    expenditure_sql = f"""
+    SELECT COALESCE(SUM(sst.qty * COALESCE(sst.buying_price, 0)), 0) AS total_expenditure
+    FROM shop_stock_transactions sst
+    WHERE {sst_where} AND sst.direction = 'in' AND sst.source = 'manual'
+    """
+
+    sales_by_id_sql = f"""
+    SELECT
+        si.item_id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    WHERE {sale_where} AND si.item_id IS NOT NULL AND si.item_id > 0
+    GROUP BY si.item_id
+    """
+
+    join_name_catalog = """
+    INNER JOIN (
+        SELECT MIN(i.id) AS id, LOWER(TRIM(i.name)) AS nm
+        FROM items i
+        WHERE i.status = 'active' AND COALESCE(i.stock_update_enabled, 0) = 1
+        GROUP BY LOWER(TRIM(i.name))
+    ) im ON im.nm = LOWER(TRIM(COALESCE(si.item_name, '')))
+        AND LENGTH(TRIM(COALESCE(si.item_name, ''))) > 0
+    """
+    sales_by_name_sql = f"""
+    SELECT
+        im.id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    {join_name_catalog}
+    WHERE {sale_where} AND (si.item_id IS NULL OR si.item_id = 0)
+    GROUP BY im.id
+    """
+
+    revenue_totals_sql = f"""
+    SELECT
+        COALESCE(SUM(CASE WHEN s.sale_type IN ('sale', 'credit') THEN s.total_amount ELSE 0 END), 0) AS total_revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN s.total_amount ELSE 0 END), 0) AS sale_revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN s.total_amount ELSE 0 END), 0) AS credit_revenue,
+        COALESCE(SUM(s.cash_amount), 0) AS cash_revenue,
+        COALESCE(SUM(s.mpesa_amount), 0) AS mpesa_revenue
+    FROM shop_pos_sales s
+    WHERE {sale_where}
+    """
+
+    ending_shop_sql = """
+    SELECT sst.item_id, CAST(sst.shop_stock_after AS SIGNED) AS qty
+    FROM shop_stock_transactions sst
+    INNER JOIN (
+        SELECT item_id, MAX(id) AS mid
+        FROM shop_stock_transactions
+        WHERE shop_id = %s AND created_at < %s
+        GROUP BY item_id
+    ) z ON z.mid = sst.id
+    """
+    current_stock_sql = """
+    SELECT
+        si.item_id,
+        i.category,
+        i.name,
+        COALESCE(si.shop_stock_qty, 0) AS shop_stock_qty
+    FROM shop_items si
+    JOIN items i ON i.id = si.item_id
+    WHERE si.shop_id = %s AND i.status = 'active'
+    ORDER BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') ASC, i.name ASC
+    """
+
+    out = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+    }
+    movement_map: dict = {}
+    sales_map: dict = {}
+    ending_map: dict = {}
+    catalog_rows: list = []
+
+    try:
+        with get_cursor() as cur:
+            cur.execute(revenue_totals_sql, tuple(sale_params))
+            rt = cur.fetchone() or {}
+            out["total_revenue"] = float(rt.get("total_revenue") or 0)
+            out["sale_revenue"] = float(rt.get("sale_revenue") or 0)
+            out["credit_revenue"] = float(rt.get("credit_revenue") or 0)
+            out["cash_revenue"] = float(rt.get("cash_revenue") or 0)
+            out["mpesa_revenue"] = float(rt.get("mpesa_revenue") or 0)
+
+            cur.execute(expenditure_sql, tuple(sst_params))
+            et = cur.fetchone() or {}
+            out["total_expenditure"] = float(et.get("total_expenditure") or 0)
+
+            cur.execute(movement_sql, tuple(sst_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    movement_map[iid] = {
+                        "stock_in": int(r.get("stock_in") or 0),
+                        "stock_out": int(r.get("stock_out") or 0),
+                    }
+
+            cur.execute(sales_by_id_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid <= 0:
+                    continue
+                sales_map[iid] = {
+                    "stock_sold": int(r.get("stock_sold") or 0),
+                    "revenue": float(r.get("revenue") or 0),
+                }
+
+            cur.execute(sales_by_name_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid <= 0:
+                    continue
+                prev = sales_map.get(iid) or {"stock_sold": 0, "revenue": 0.0}
+                sales_map[iid] = {
+                    "stock_sold": int(prev["stock_sold"]) + int(r.get("stock_sold") or 0),
+                    "revenue": float(prev["revenue"]) + float(r.get("revenue") or 0),
+                }
+
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_end):
+                cur.execute(ending_shop_sql, (sid, range_end))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        ending_map[iid] = int(r.get("qty") or 0)
+
+            cur.execute(current_stock_sql, (sid,))
+            catalog_rows = cur.fetchall() or []
+    except pymysql.Error:
+        return out
+
+    out["net_profit"] = round(out["total_revenue"] - out["total_expenditure"], 2)
+    catalog_by_id = _report_catalog_by_item_id(catalog_rows)
+    affected_ids = set(movement_map.keys()) | set(sales_map.keys())
+    missing_meta = _report_fetch_item_meta_by_ids(
+        [iid for iid in affected_ids if iid not in catalog_by_id]
+    )
+    items_out = []
+    for iid in affected_ids:
+        r = catalog_by_id.get(iid) or missing_meta.get(iid) or {}
+        mv = movement_map.get(iid) or {"stock_in": 0, "stock_out": 0}
+        sl = sales_map.get(iid) or {"stock_sold": 0, "revenue": 0.0}
+        stock_in = int(mv["stock_in"])
+        stock_out = int(mv["stock_out"])
+        stock_sold = int(sl["stock_sold"])
+        revenue = float(sl["revenue"])
+        if not _report_item_had_period_activity(stock_in, stock_out, stock_sold, revenue):
+            continue
+        shop_qty = int(r.get("shop_stock_qty") or 0)
+        ending_stock = ending_map.get(iid, shop_qty)
+        starting_stock = ending_stock - stock_in + stock_out
+        items_out.append(
+            {
+                "item_id": iid,
+                "category": (r.get("category") or "").strip(),
+                "name": (r.get("name") or "").strip() or f"Item #{iid}",
+                "starting_stock": starting_stock,
+                "ending_stock": ending_stock,
+                "stock_in": stock_in,
+                "stock_out": stock_out,
+                "stock_sold": stock_sold,
+                "revenue": round(revenue, 2),
+            }
+        )
+
+    items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
+    out["items"] = items_out
     return out
 
 

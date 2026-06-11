@@ -917,6 +917,44 @@
       </div>
 
       <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
+        <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Hosted domain (public APIs)</h3>
+        <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
+          Your live HTTPS domain when the app is hosted (e.g. on cPanel). Used for M-Pesa callbacks, balance webhooks, WhatsApp credit pay links, and other public API URLs — even when you develop on <code class="rounded bg-[rgb(var(--rc-surface-2))] px-1 py-0.5 text-xs">127.0.0.1</code>.
+        </p>
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Company domain (HTTPS)</label>
+            <input
+              name="public_app_url"
+              type="url"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ site_settings.public_app_url if site_settings else '' }}"
+              placeholder="https://pos.yourcompany.com"
+              autocomplete="url"
+            />
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+              Enter the full URL or domain only (<strong>pos.yourcompany.com</strong>). Saved without a trailing slash.
+              {% if public_app_url_env_override %}
+                <span class="block mt-1 text-amber-700 dark:text-amber-300">Note: <code class="text-[10px]">PUBLIC_APP_URL</code> in <code class="text-[10px]">.env</code> overrides this value on the server.</span>
+              {% endif %}
+            </p>
+          </div>
+          {% if hosted_api_base %}
+          <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">API endpoints on this domain</p>
+            <ul class="mt-2 space-y-1.5 font-mono text-[11px] leading-relaxed text-[rgb(var(--rc-page-fg))] break-all">
+              <li>{{ hosted_api_base }}/api/daraja/mpesa-callback</li>
+              <li>{{ hosted_api_base }}/api/daraja/account-balance-result</li>
+              <li>{{ hosted_api_base }}/api/daraja/account-balance-timeout</li>
+              <li>{{ hosted_api_base }}/pay/credit/&lt;token&gt;</li>
+            </ul>
+            <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">STK callback URL below can be left blank to use the M-Pesa callback endpoint above automatically.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div class="max-w-2xl">
             <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Daraja API (M-Pesa)</h3>
@@ -1014,7 +1052,7 @@
               value="{{ ds.daraja_callback_url or '' }}"
               placeholder="https://your-domain.com/api/daraja/mpesa-callback"
             />
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Public HTTPS URL (your live server). <strong>Required for STK Push even from localhost</strong> — Safaricom validates this when sending the prompt. Payment status is then checked directly with Safaricom (no tunnel needed).</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Optional if <strong>Hosted domain</strong> is set above (auto-fills <code class="text-[10px]">/api/daraja/mpesa-callback</code>). Otherwise enter your live HTTPS callback URL. <strong>Required for STK Push from localhost</strong> when no hosted domain is configured.</p>
           </div>
           <div class="md:col-span-2">
             <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">STK callback URL — local dev (optional)</label>
@@ -1037,6 +1075,23 @@
               value="{{ ds.daraja_account_reference or '' }}"
               placeholder="Default reference on STK Push (e.g. shop name or invoice prefix)"
             />
+          </div>
+          <div class="md:col-span-2">
+            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+              <input
+                type="checkbox"
+                name="daraja_stk_auto_customer_from_mpesa"
+                value="1"
+                class="rc-receipt-switch mt-0.5 shrink-0"
+                {% if ds.daraja_stk_auto_customer_from_mpesa %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Auto-register customers from M-Pesa STK</span>
+                <span class="mt-1 block text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+                  After a successful STK payment, if the phone is not already saved for that shop, register the customer using the payer name from the M-Pesa callback (POS fills the customer field automatically). Requires a reachable STK callback URL so Safaricom can post payment details.
+                </span>
+              </span>
+            </label>
           </div>
           <div>
             <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Initiator name (optional)</label>

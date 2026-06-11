@@ -1011,6 +1011,58 @@
         background-position: 200% 50%;
       }
     }
+    #pos-cart-toggle-fab,
+    #pos-hold-toggle-fab {
+      left: auto;
+      right: max(0.65rem, env(safe-area-inset-right));
+      transition:
+        right 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+        left 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+        bottom 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+        top 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+        transform 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 0.28s ease,
+        box-shadow 0.28s ease;
+    }
+    @media (min-width: 640px) {
+      #pos-cart-toggle-fab,
+      #pos-hold-toggle-fab {
+        right: max(0.75rem, env(safe-area-inset-right));
+      }
+    }
+  /* Slide FABs beside the cart panel when open — synced easing with the drawer. */
+    body.pos-cart-drawer-open #pos-cart-toggle-fab,
+    body.pos-cart-drawer-open #pos-hold-toggle-fab {
+      animation: none !important;
+    }
+    @media (min-width: 1024px) {
+      body.pos-cart-drawer-open #pos-cart-toggle-fab,
+      body.pos-cart-drawer-open #pos-hold-toggle-fab {
+        right: calc(min(26rem, 100vw) + max(0.75rem, env(safe-area-inset-right)));
+      }
+    }
+    @media (max-width: 1023px) {
+      body.pos-cart-drawer-open #pos-cart-toggle-fab {
+        right: max(0.65rem, env(safe-area-inset-right));
+        left: auto;
+        top: auto;
+        bottom: calc(42dvh + max(0.85rem, env(safe-area-inset-bottom)));
+        transform: none;
+      }
+      body.pos-cart-drawer-open #pos-hold-toggle-fab {
+        right: max(0.65rem, env(safe-area-inset-right));
+        left: auto;
+        top: auto;
+        bottom: calc(42dvh + max(0.85rem, env(safe-area-inset-bottom)) + 4.6rem);
+        transform: none;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #pos-cart-toggle-fab,
+      #pos-hold-toggle-fab {
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+    }
     #pos-cart-toggle-fab {
       z-index: 65;
       backdrop-filter: blur(14px);

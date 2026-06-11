@@ -3211,6 +3211,117 @@ var saleType = "sale";
         updateCustomerSectionState();
       }
 
+      function mpesaStkCustomerFieldsReady() {
+        var nameEl = document.getElementById("pos-customer-name");
+        var phoneEl = document.getElementById("pos-customer-phone");
+        var name = ((nameEl && nameEl.value) || "").trim();
+        var phone = normalizePhone((phoneEl && phoneEl.value) || "");
+        return name.length >= 2 && lenDigits(phone) >= 9;
+      }
+
+      function maybeStopMpesaStkPollAfterCustomerSync() {
+        if (mpesaStkPaidConfirmed && mpesaStkReceiptRef && mpesaStkCustomerFieldsReady()) {
+          stopMpesaStkPoll();
+        }
+      }
+
+      function mpesaPayerFromStkStatus(j) {
+        if (!j) return { name: "", phone: "" };
+        var status = j.status || {};
+        var meta = status.metadata || {};
+        var c = j.customer || null;
+        var phone = normalizePhone(
+          (c && c.phone) ||
+            j.mpesa_phone ||
+            status.mpesa_payer_phone ||
+            status.phone ||
+            meta.PhoneNumber ||
+            ""
+        );
+        var name = String(
+          (c && c.customer_name) ||
+            j.mpesa_payer_name ||
+            status.mpesa_payer_name ||
+            ""
+        ).trim();
+        return { name: name, phone: phone, customer: c };
+      }
+
+      function applyMpesaStkAutoCustomer(j) {
+        if (!j) return;
+        var payer = mpesaPayerFromStkStatus(j);
+        var c = payer.customer;
+        var nameEl = document.getElementById("pos-customer-name");
+        var phoneEl = document.getElementById("pos-customer-phone");
+        var phone = payer.phone;
+        var name = payer.name;
+
+        if (phone && phoneEl) phoneEl.value = phone;
+        if (name && nameEl) nameEl.value = name;
+
+        if (c && c.id) {
+          knownCustomer = c;
+          if (nameEl && c.customer_name) nameEl.value = c.customer_name;
+          if (phoneEl && c.phone) phoneEl.value = c.phone;
+          if (j.auto_registered_customer) {
+            setCustomerLookupStatus("Customer registered from M-Pesa payment.", "ok");
+          } else {
+            setCustomerLookupStatus("Customer matched from shop records.", "ok");
+          }
+          updateCustomerSectionState();
+          maybeStopMpesaStkPollAfterCustomerSync();
+          return;
+        }
+
+        if (phone && lenDigits(phone) >= 9 && CUSTOMER_LOOKUP_API && !customerLookupInFlight) {
+          customerLookupInFlight = true;
+          fetch(CUSTOMER_LOOKUP_API, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ phone: phone }),
+          })
+            .then(function (r) {
+              return r.json().then(function (body) {
+                if (!r.ok || !body.ok) throw new Error((body && body.error) || "Lookup failed");
+                return body;
+              });
+            })
+            .then(function (body) {
+              var found = body.customer || null;
+              if (found) {
+                knownCustomer = found;
+                if (nameEl && found.customer_name) nameEl.value = found.customer_name;
+                if (phoneEl && found.phone) phoneEl.value = found.phone;
+                setCustomerLookupStatus("Customer matched from shop records.", "ok");
+              } else if (name) {
+                knownCustomer = null;
+                setCustomerLookupStatus(
+                  "M-Pesa payer name filled. Save after employee verification if needed.",
+                  "ok"
+                );
+              } else if (phone) {
+                knownCustomer = null;
+                setCustomerLookupStatus("M-Pesa phone confirmed. Add customer name if needed.", "muted");
+              }
+              updateCustomerSectionState();
+              maybeStopMpesaStkPollAfterCustomerSync();
+            })
+            .catch(function () {
+              if (name || phone) updateCustomerSectionState();
+            })
+            .finally(function () {
+              customerLookupInFlight = false;
+            });
+          return;
+        }
+
+        if (name || phone) {
+          updateCustomerSectionState();
+          maybeStopMpesaStkPollAfterCustomerSync();
+        }
+      }
+
       function maybeRegisterCustomerAfterAuth() {
         if (!authorizedEmployee || customerRegisterInFlight) return Promise.resolve();
         var nameEl = document.getElementById("pos-customer-name");
@@ -4083,19 +4194,19 @@ var saleType = "sale";
               mpesaStkPaidConfirmed = true;
               var receiptRef = extractMpesaReceiptFromStatus(j);
               showMpesaPaymentConfirmed(receiptRef);
+              applyMpesaStkAutoCustomer(j);
               setMpesaStkRetryUi(false);
               mpesaStkSendInFlight = false;
               setMpesaStkButtonsBusy(false);
               if (receiptRef) {
-                stopMpesaStkPoll();
                 setMpesaStkStatus("Payment confirmed on M-Pesa. Ref: " + receiptRef, "ok");
-                updateMpesaStkPushUi();
-                return;
+              } else {
+                setMpesaStkStatus(
+                  "Payment confirmed on M-Pesa. Waiting for Safaricom reference…",
+                  "ok"
+                );
               }
-              setMpesaStkStatus(
-                "Payment confirmed on M-Pesa. Waiting for Safaricom reference…",
-                "ok"
-              );
+              // Keep polling so late Safaricom callbacks can deliver payer metadata.
               restartMpesaStkPollTimer();
               updateMpesaStkPushUi();
               return;
@@ -8244,6 +8355,9 @@ var saleType = "sale";
           requestAnimationFrame(function () {
             drawer.classList.add("is-open");
             backdrop.classList.add("is-visible");
+            try {
+              document.body.classList.add("pos-cart-drawer-open");
+            } catch (eBodyCls) {}
             setBodyScrollLock(true);
           });
           cartTriggers.forEach(function (t) {
@@ -8252,6 +8366,9 @@ var saleType = "sale";
         } else {
           drawer.classList.remove("is-open");
           backdrop.classList.remove("is-visible");
+          try {
+            document.body.classList.remove("pos-cart-drawer-open");
+          } catch (eBodyCls2) {}
           backdrop.setAttribute("aria-hidden", "true");
           setBodyScrollLock(false);
           cartTriggers.forEach(function (t) {
