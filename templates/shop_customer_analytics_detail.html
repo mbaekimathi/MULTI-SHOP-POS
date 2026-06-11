@@ -9,7 +9,7 @@
 
 {% block shop_content %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=7" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=3"></script>
 
   {% set f = analytics_filter or {} %}
@@ -22,6 +22,10 @@
 
       <div id="analytics-view-credit-note" class="it-analytics-credit-note mt-3">
         <div class="shop-cust-credit-page">
+          <div class="shop-cust-credit-page__toolbar no-print">
+            {% include "partials/credit_note_whatsapp_button.html" %}
+            <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
+          </div>
           {% with compact_only=true %}
             {% include "partials/shop_customer_credit_note.html" %}
           {% endwith %}

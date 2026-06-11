@@ -1,11 +1,11 @@
 {% extends "shop_layout.html" %}
-{% block title %}POS printing — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}POS printing{% endblock %}
+{% block title %}Point of sale settings — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Point of sale settings{% endblock %}
 {% block head %}
   {% include "partials/shop_settings_switch_styles.html" %}
 {% endblock %}
 {% block shop_sidebar_links %}
-  {% set shop_settings_nav_active = 'pos_printing' %}
+  {% set shop_settings_nav_active = 'pos' %}
   {% include "partials/shop_settings_nav.html" %}
 {% endblock %}
 {% block shop_content %}
@@ -13,7 +13,7 @@
   <form method="post" action="{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}" class="space-y-8">
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
       <div class="border-b border-[rgb(var(--rc-border))] pb-4">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">POS printing</h2>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Point of sale</h2>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Matches company settings unless you customize for this shop.</p>
       </div>
 
@@ -224,7 +224,7 @@
     </div>
 
     <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
-      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save POS printing</button>
+      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save point of sale settings</button>
     </div>
   </form>
 {% endblock %}

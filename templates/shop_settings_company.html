@@ -1,0 +1,96 @@
+{% extends "shop_layout.html" %}
+{% block title %}Company settings — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Company settings{% endblock %}
+{% block shop_sidebar_links %}
+  {% set shop_settings_nav_active = 'company' %}
+  {% include "partials/shop_settings_nav.html" %}
+{% endblock %}
+{% block shop_content %}
+  {% set cs = company_settings %}
+  <form method="post" action="{{ url_for('shop_settings_company', shop_id=shop.id) }}" enctype="multipart/form-data" class="space-y-8">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Company identity and contact details for this shop. Matches company settings unless you customize for this shop.</p>
+      </div>
+
+      <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+        <input type="checkbox" name="shop_company_custom" value="1" class="mt-1 h-4 w-4 rounded border-[rgb(var(--rc-border))]" {% if shop_company_custom %}checked{% endif %} />
+        <span>
+          <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customize company details for this shop</span>
+          <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">When off, this shop uses the same company name, contact, and logo as <strong class="font-medium text-[rgb(var(--rc-page-fg))]">IT → System settings → Company settings</strong>.</span>
+        </span>
+      </label>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2">
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Company name</label>
+          <input
+            name="company_name"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_name or 'Point of Sale' }}"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Email</label>
+          <input
+            name="company_email"
+            type="email"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_email or '' }}"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Phone</label>
+          <input
+            name="company_phone"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_phone or '' }}"
+          />
+        </div>
+        <div class="md:col-span-2">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop logo</label>
+          <p class="mb-2 text-sm text-[rgb(var(--rc-muted))]">Shown on POS and receipts for this shop when customization is on. Otherwise the company app icon is used.</p>
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="h-14 w-14 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
+              {% if cs.shop_logo %}
+                <img src="{{ url_for('static', filename=cs.shop_logo) }}" alt="Shop logo" class="h-full w-full object-cover" />
+              {% elif cs.app_icon %}
+                <img src="{{ url_for('static', filename=cs.app_icon) }}" alt="Company icon" class="h-full w-full object-cover" />
+              {% else %}
+                <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="Default icon" class="h-full w-full object-cover" />
+              {% endif %}
+            </div>
+            <div class="min-w-[16rem] flex-1">
+              <input name="shop_logo" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.ico,.svg" class="block w-full text-sm text-[rgb(var(--rc-muted))]" />
+              <label class="mt-2 inline-flex items-center gap-2 text-sm text-[rgb(var(--rc-muted))]">
+                <input type="checkbox" name="remove_shop_logo" value="1" class="h-4 w-4 rounded border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]" />
+                Remove shop logo (use company icon)
+              </label>
+            </div>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Facebook</label>
+          <input
+            name="company_facebook"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_facebook or '' }}"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Instagram</label>
+          <input
+            name="company_instagram"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_instagram or '' }}"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save company settings</button>
+    </div>
+  </form>
+{% endblock %}

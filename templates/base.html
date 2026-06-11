@@ -681,6 +681,72 @@
       html[data-theme="light"] .auth-simple-page.form-auth-bg--home .form-auth-grid {
         opacity: 0.35;
       }
+      /* Home gateway (/) — larger standard split-panel card */
+      .form-auth-bg--home .myacct-shell {
+        max-width: 76rem;
+      }
+      @media (min-width: 1024px) {
+        .form-auth-bg--home .myacct-shell {
+          padding-inline: 2rem;
+        }
+      }
+      @media (min-width: 900px) {
+        .form-auth-bg--home .myacct-frame {
+          grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+          min-height: 34rem;
+        }
+        .form-auth-bg--home .myacct-frame__brand {
+          padding: 3.25rem 3rem;
+        }
+        .form-auth-bg--home .myacct-frame__panel {
+          padding: 3.25rem 3rem;
+          gap: 1.75rem;
+        }
+      }
+      .form-auth-bg--home .myacct-frame__brand-inner {
+        gap: 1.35rem;
+      }
+      .form-auth-bg--home .myacct-frame__brand-tagline {
+        font-size: clamp(1.85rem, 2.8vw, 2.55rem);
+      }
+      .form-auth-bg--home .myacct-frame__brand-sub {
+        font-size: 1.05rem;
+        max-width: 34rem;
+      }
+      .form-auth-bg--home .myacct-frame__brand-bullets {
+        gap: 0.7rem;
+      }
+      .form-auth-bg--home .myacct-frame__brand-bullets li {
+        font-size: 0.95rem;
+      }
+      .form-auth-bg--home .myacct-frame__panel-heading {
+        font-size: clamp(1.65rem, 2.4vw, 2rem);
+      }
+      .form-auth-bg--home .myacct-frame__panel-sub {
+        font-size: 1rem;
+      }
+      .form-auth-bg--home .myacct-frame__panel-body {
+        gap: 0.85rem;
+      }
+      .form-auth-bg--home .myacct-cta {
+        padding: 1.05rem 1.2rem;
+        border-radius: 1rem;
+      }
+      .form-auth-bg--home .myacct-cta__icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.75rem;
+      }
+      .form-auth-bg--home .myacct-cta__icon svg {
+        width: 1.35rem;
+        height: 1.35rem;
+      }
+      .form-auth-bg--home .myacct-cta__label {
+        font-size: 1.05rem;
+      }
+      .form-auth-bg--home .myacct-cta__hint {
+        font-size: 0.85rem;
+      }
       .auth-home-shell {
         width: 100%;
         animation: auth-page-in-default 480ms cubic-bezier(0.22, 1, 0.36, 1);

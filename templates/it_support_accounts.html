@@ -1,0 +1,52 @@
+{% extends "employee_layout.html" %}
+{% block title %}Accounts — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Accounts{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_accounts_hub_sidebar.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="mx-auto max-w-4xl space-y-6">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Finance · Payroll</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Accounts</h2>
+      <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Manage company payroll, salary registration, advances, and staff loans. Use the sidebar or the shortcuts below.
+      </p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <a
+        href="{{ url_for('it_support_company_salaries') }}"
+        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payroll</p>
+        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Payroll overview</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Roster, payout details, and pay-period balances.</p>
+      </a>
+      <a
+        href="{{ url_for('it_support_register_salary') }}"
+        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payroll</p>
+        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Register salary</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Post payroll lines and payout methods for staff.</p>
+      </a>
+      <a
+        href="{{ url_for('it_support_register_advance') }}"
+        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payroll</p>
+        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Register advance</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Book salary advances against upcoming payroll.</p>
+      </a>
+      <a
+        href="{{ url_for('it_support_register_loan') }}"
+        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
+      >
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payroll</p>
+        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Register loan</h3>
+        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Track staff loans and repayment schedules.</p>
+      </a>
+    </div>
+  </div>
+{% endblock %}

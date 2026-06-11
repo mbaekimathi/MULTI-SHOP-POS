@@ -102,36 +102,6 @@
           </footer>
         </main>
       </article>
-
-      <aside class="myacct-install" data-pwa-install-host hidden>
-        <span class="myacct-install__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
-          </svg>
-        </span>
-        <span class="myacct-install__text">
-          <strong>Install {{ pub_brand_name }}</strong>
-          <span>One-tap launch · faster loads · offline-aware</span>
-        </span>
-        <button type="button" class="myacct-install__btn" data-pwa-install>Install</button>
-      </aside>
-
-      <p class="myacct-footnote">&copy; {{ pub_brand_name }} · Multi-store POS workspace</p>
     </div>
-
-    <script>
-      (function () {
-        var host = document.querySelector('[data-pwa-install-host]');
-        if (!host) return;
-        function inStandalone() {
-          try {
-            if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
-          } catch (e) {}
-          return window.navigator.standalone === true;
-        }
-        if (inStandalone()) return;
-        host.hidden = false;
-      })();
-    </script>
   </div>
 {% endblock %}

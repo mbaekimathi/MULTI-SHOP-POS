@@ -1,6 +1,11 @@
 {# Runtime config for deferred POS JavaScript bundles. #}
-{% if shop.shop_logo %}
+{% set _shop_co = shop_company_settings if shop_company_settings is defined else (company_settings if company_settings is defined else none) %}
+{% if _shop_co and _shop_co.shop_logo %}
+  {% set receipt_logo_url = url_for('static', filename=_shop_co.shop_logo) %}
+{% elif shop.shop_logo %}
   {% set receipt_logo_url = url_for('static', filename=shop.shop_logo) %}
+{% elif _shop_co and _shop_co.app_icon %}
+  {% set receipt_logo_url = url_for('static', filename=_shop_co.app_icon) %}
 {% elif site_settings and site_settings.app_icon %}
   {% set receipt_logo_url = url_for('static', filename=site_settings.app_icon) %}
 {% else %}
@@ -11,6 +16,7 @@
     "shopId": shop.id|int,
     "inventoryMode": pos_inventory_mode,
     "printing": pos_printing_settings,
+    "daraja": daraja_pos_boot if daraja_pos_boot is defined else {"enabled": false},
     "receiptSettings": pos_receipt_settings,
     "holdEnabled": (pos_printing_settings.pos_cart_mode == 'withhold'),
     "apis": {
@@ -36,19 +42,21 @@
       "printAgentStatus": url_for('shop_pos_print_agent_status', shop_id=shop.id),
       "printAgentConfigure": url_for('shop_pos_print_agent_configure', shop_id=shop.id),
       "printerTcpReachable": url_for('shop_pos_printer_tcp_reachable', shop_id=shop.id),
+      "mpesaStkPush": url_for('shop_pos_mpesa_stk_push', shop_id=shop.id),
+      "mpesaStkStatusBase": ('/shops/' ~ shop.id|string ~ '/shop-pos/mpesa-stk-status/'),
       "incomingStockRequests": url_for('shop_pos_incoming_stock_requests_json', shop_id=shop.id),
       "holdSave": url_for('shop_pos_hold_save', shop_id=shop.id),
       "holdList": url_for('shop_pos_hold_list', shop_id=shop.id),
       "holdGetBase": ('/shops/' ~ shop.id|string ~ '/shop-pos/hold/'),
     },
     "site": {
-      "company_name": (site_settings.company_name if site_settings else "") or "",
-      "company_email": (site_settings.company_email if site_settings else "") or "",
-      "company_phone": (site_settings.company_phone if site_settings else "") or "",
+      "company_name": (_shop_co.company_name if _shop_co else (site_settings.company_name if site_settings else "")) or "",
+      "company_email": (_shop_co.company_email if _shop_co else (site_settings.company_email if site_settings else "")) or "",
+      "company_phone": (_shop_co.company_phone if _shop_co else (site_settings.company_phone if site_settings else "")) or "",
       "shop_name": shop.shop_name or "",
       "shop_code": shop.shop_code or "",
       "shop_location": shop.shop_location or "",
-      "app_icon_url": url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'),
+      "app_icon_url": url_for('static', filename=_shop_co.app_icon) if _shop_co and _shop_co.app_icon else (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg')),
       "receipt_logo_url": receipt_logo_url,
     },
   }|tojson }};

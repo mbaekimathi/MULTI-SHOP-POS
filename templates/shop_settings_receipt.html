@@ -71,9 +71,9 @@
       var body = document.getElementById("receipt-preview-body");
       var paper = document.getElementById("receipt-print-preview");
       window.RECEIPT_PREVIEW_META = {
-        companyName: {{ (site_settings.company_name if site_settings else "Point of Sale")|tojson }},
-        companyEmail: {{ (site_settings.company_email if site_settings else "")|tojson }},
-        companyPhone: {{ (site_settings.company_phone if site_settings else "")|tojson }},
+        companyName: {{ (company_settings.company_name if company_settings else (site_settings.company_name if site_settings else "Point of Sale"))|tojson }},
+        companyEmail: {{ (company_settings.company_email if company_settings else (site_settings.company_email if site_settings else ""))|tojson }},
+        companyPhone: {{ (company_settings.company_phone if company_settings else (site_settings.company_phone if site_settings else ""))|tojson }},
         companyAddress: "",
         appIconUrl: {{ (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'))|tojson }},
       };
@@ -279,7 +279,8 @@
 
         html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
         html += '<div style="text-align:center;font-size:0.85em;opacity:0.7">Thank you</div>';
-        html += '<div style="text-align:center;font-size:0.75em;opacity:0.45;margin-top:2px">Powered by Richcom POS</div>';
+        html +=
+          '<div style="text-align:center;font-size:0.72em;opacity:0.45;margin-top:2px;line-height:1.35">BUILT &amp; MAINTAINED BY<br>FINAGRITECH SOLUTIONS</div>';
 
         body.innerHTML = html;
       }

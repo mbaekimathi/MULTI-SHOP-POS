@@ -1,15 +1,26 @@
 {% extends "shop_layout.html" %}
-{% block title %}Appearance — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}Appearance{% endblock %}
+{% block title %}Appearance settings — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Appearance settings{% endblock %}
 {% block shop_sidebar_links %}
   {% set shop_settings_nav_active = 'appearance' %}
   {% include "partials/shop_settings_nav.html" %}
 {% endblock %}
 {% block shop_content %}
+  {% set ap = appearance_settings %}
   <form method="post" action="{{ url_for('shop_settings_appearance', shop_id=shop.id) }}" class="space-y-8">
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</h2>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Theme and colors for this shop session. POS printing and receipt options are on their own pages.</p>
+      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop appearance</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Matches company appearance unless you customize for this shop.</p>
+      </div>
+
+      <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+        <input type="checkbox" name="shop_appearance_custom" value="1" class="mt-1 h-4 w-4 rounded border-[rgb(var(--rc-border))]" {% if shop_appearance_custom %}checked{% endif %} />
+        <span>
+          <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customize appearance for this shop</span>
+          <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">When off, this shop uses the same theme, fonts, and colors as <strong class="font-medium text-[rgb(var(--rc-page-fg))]">IT → System settings → Appearance</strong>.</span>
+        </span>
+      </label>
 
       <div class="mt-6 grid gap-4 md:grid-cols-2">
         <div>
@@ -18,8 +29,8 @@
             name="default_theme"
             class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
           >
-            <option value="dark" {% if (shop.default_theme or 'dark') == 'dark' %}selected{% endif %}>Dark</option>
-            <option value="light" {% if (shop.default_theme or 'dark') == 'light' %}selected{% endif %}>Light</option>
+            <option value="dark" {% if (ap.default_theme or 'dark') == 'dark' %}selected{% endif %}>Dark</option>
+            <option value="light" {% if (ap.default_theme or 'dark') == 'light' %}selected{% endif %}>Light</option>
           </select>
         </div>
 
@@ -30,7 +41,7 @@
             class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
             style="font-family: inherit"
           >
-            {% set _shop_font = shop.font_family or 'Plus Jakarta Sans' %}
+            {% set _shop_font = ap.font_family or 'Plus Jakarta Sans' %}
             {% set _last_cat = namespace(value='') %}
             {% for font in appearance_fonts %}
               {% if font.category != _last_cat.value %}
@@ -56,7 +67,7 @@
             name="primary_color"
             type="color"
             class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2"
-            value="{{ shop.primary_color or '#10b981' }}"
+            value="{{ ap.primary_color or '#f97316' }}"
           />
         </div>
 
@@ -66,14 +77,14 @@
             name="accent_color"
             type="color"
             class="h-12 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-2"
-            value="{{ shop.accent_color or '#14b8a6' }}"
+            value="{{ ap.accent_color or '#fb923c' }}"
           />
         </div>
       </div>
     </div>
 
     <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
-      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save appearance</button>
+      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save appearance settings</button>
     </div>
   </form>
 {% endblock %}

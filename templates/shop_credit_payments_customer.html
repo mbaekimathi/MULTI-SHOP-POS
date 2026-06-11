@@ -7,11 +7,12 @@
 {% endblock %}
 {% block shop_content %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=7" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
 
   <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
     <div class="shop-cust-credit-page__toolbar no-print">
       <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="rev-btn rev-btn--ghost">← Credit payments</a>
+      {% include "partials/credit_note_whatsapp_button.html" %}
       <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
     </div>
 

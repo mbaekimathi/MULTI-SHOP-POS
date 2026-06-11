@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Pay credit — {{ shop.shop_name if shop is defined else "Shop" }}{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/credit-pay-public.css') }}?v=3" />
+{% endblock %}
+{% block body %}
+  <section class="credit-pay-page">
+    {% if error %}
+    <div class="credit-pay-card">
+      <h1 class="credit-pay-card__title">Payment unavailable</h1>
+      <p class="credit-pay-card__error">{{ error }}</p>
+    </div>
+    {% else %}
+    <div class="credit-pay-layout">
+      <aside class="credit-pay-card" aria-label="M-Pesa payment">
+        <p class="credit-pay-card__eyebrow">{{ company_name }}</p>
+        <h1 class="credit-pay-card__title">Pay your credit</h1>
+        <p class="credit-pay-card__shop">{{ shop.shop_name }}</p>
+        <p class="credit-pay-card__customer">Hello {{ customer_name }}</p>
+
+        <div class="credit-pay-card__summary">
+          <span class="credit-pay-card__summary-label">Balance due</span>
+          <span class="credit-pay-card__summary-value">KES {{ "%.2f"|format(account_balance_due or 0) }}</span>
+        </div>
+        {% if suggested_amount|float < (account_balance_due or 0)|float %}
+        <p class="credit-pay-card__cap">You can pay up to KES {{ "%.2f"|format(suggested_amount) }} on this link.</p>
+        {% endif %}
+
+        <form id="credit-pay-form" class="credit-pay-form" novalidate>
+          <div class="credit-pay-field">
+            <label for="credit-pay-phone">M-Pesa phone</label>
+            <input
+              id="credit-pay-phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              placeholder="e.g. 0712345678"
+              value="{{ default_phone }}"
+              required
+            />
+          </div>
+          <div class="credit-pay-field">
+            <label for="credit-pay-amount">Amount (KES)</label>
+            <input
+              id="credit-pay-amount"
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="1"
+              max="{{ suggested_amount }}"
+              value="{{ "%.2f"|format(default_amount) }}"
+              required
+            />
+            <p class="credit-pay-field__hint">Pay any amount up to KES {{ "%.2f"|format(suggested_amount) }}.</p>
+          </div>
+          <button type="submit" id="credit-pay-submit" class="credit-pay-submit">
+            Pay with M-Pesa
+          </button>
+        </form>
+
+        <p id="credit-pay-status" class="credit-pay-status" role="status"></p>
+        <div id="credit-pay-success" class="credit-pay-success hidden">
+          <p class="credit-pay-success__title">Payment received</p>
+          <p id="credit-pay-success-msg" class="credit-pay-success__msg"></p>
+          <p id="credit-pay-success-ref" class="credit-pay-success__ref hidden"></p>
+        </div>
+      </aside>
+
+      <div class="credit-pay-account">
+        {% set site_settings = {'company_name': company_name} %}
+        {% with compact_only=true, public_credit_pay=true %}
+          {% include "partials/shop_customer_credit_note.html" %}
+        {% endwith %}
+        {% include "partials/shop_customer_credit_sales.html" %}
+        {% include "partials/shop_customer_credit_transactions.html" %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block scripts %}
+  {% if not error and pay_token is defined %}
+  <script type="application/json" id="credit-pay-boot">
+  {{ {
+    'token': pay_token,
+    'maxAmount': suggested_amount|float,
+    'apis': {
+      'stkPush': ('/api/pay/credit/' ~ pay_token ~ '/stk-push'),
+      'stkStatusBase': ('/api/pay/credit/' ~ pay_token ~ '/stk-status/'),
+      'record': ('/api/pay/credit/' ~ pay_token ~ '/record')
+    }
+  }|tojson }}
+  </script>
+  <script src="{{ url_for('static', filename='js/credit-pay-public.js') }}?v=2" defer></script>
+  {% endif %}
+{% endblock %}

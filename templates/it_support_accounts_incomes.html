@@ -1,0 +1,194 @@
+{% extends "employee_layout.html" %}
+{% block title %}Incomes — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Incomes{% endblock %}
+{% block sidebar_links %}
+  {% set accounts_hub_nav = 'incomes' %}
+  {% include "partials/it_support_accounts_hub_sidebar.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+  <style>
+    #incomes-page .incomes-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #incomes-page .incomes-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.85), rgba(56, 189, 248, 0.85));
+    }
+    #incomes-page .incomes-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #incomes-page .incomes-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set rows = income_rows or [] %}
+  <div id="incomes-page" class="mx-auto max-w-7xl space-y-6">
+    <div class="incomes-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Accounts · Income</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Cash &amp; M-Pesa incomes</h2>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        POS cash sales, M-Pesa sales, split-tender receipts, and credit account settlements paid by cash or M-Pesa.
+        Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+      </p>
+
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Cash total</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_cash or 0) }}</div>
+        </div>
+        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">M-Pesa total</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_mpesa or 0) }}</div>
+        </div>
+        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Combined</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_income or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ income_totals.count or 0 }} payment{{ '' if (income_totals.count or 0) == 1 else 's' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="incomes-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h3>
+      <form method="get" action="{{ url_for('it_support_accounts_incomes') }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period mode</label>
+          <select id="incomes-filter-mode" name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <option value="single_day" {% if f.mode == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if f.mode == 'period' %}selected{% endif %}>Date range</option>
+            <option value="month" {% if f.mode == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if f.mode == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div id="incomes-filter-single-day" {% if f.mode != 'single_day' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Day</label>
+          <input type="date" name="single_day" value="{{ f.single_day or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="incomes-filter-period" {% if f.mode != 'period' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">From</label>
+          <input type="date" name="start_date" value="{{ f.start_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="incomes-filter-period-end" {% if f.mode != 'period' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">To</label>
+          <input type="date" name="end_date" value="{{ f.end_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="incomes-filter-month" {% if f.mode != 'month' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Month</label>
+          <input type="month" name="month" value="{{ f.month or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="incomes-filter-year" {% if f.mode != 'year' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Year</label>
+          <input type="number" name="year" min="2000" max="2100" value="{{ f.year or '' }}" class="min-h-[2.55rem] w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop</label>
+          <select name="shop_id" class="min-h-[2.55rem] min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="">All shops</option>
+            {% for s in shops or [] %}
+              <option value="{{ s.id }}" {% if shop_filter_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment</label>
+          <select name="payment_method" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="" {% if not payment_method_filter %}selected{% endif %}>Cash &amp; M-Pesa</option>
+            <option value="cash" {% if payment_method_filter == 'cash' %}selected{% endif %}>Cash only</option>
+            <option value="mpesa" {% if payment_method_filter == 'mpesa' %}selected{% endif %}>M-Pesa only</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Apply</button>
+          <a href="{{ url_for('it_support_accounts_incomes') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Reset</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="incomes-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      {% if rows %}
+        <div class="incomes-table-wrap overflow-x-auto">
+          <table class="incomes-table min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-4 py-3">When</th>
+                <th class="px-4 py-3">Shop</th>
+                <th class="px-4 py-3">Source</th>
+                <th class="px-4 py-3">Reference</th>
+                <th class="px-4 py-3">M-Pesa ref</th>
+                <th class="px-4 py-3">Method</th>
+                <th class="px-4 py-3 text-right">Cash</th>
+                <th class="px-4 py-3 text-right">M-Pesa</th>
+                <th class="px-4 py-3 text-right">Total</th>
+                <th class="px-4 py-3">Customer</th>
+                <th class="px-4 py-3">Staff</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in rows %}
+                <tr class="transition hover:bg-[rgb(var(--rc-surface-2))]/40">
+                  <td class="whitespace-nowrap px-4 py-3 tabular-nums text-[rgb(var(--rc-muted))]">{{ row.created_at_iso or row.created_at or '—' }}</td>
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.shop_name or '—' }}</div>
+                    {% if row.shop_code %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.shop_code }}</div>{% endif %}
+                  </td>
+                  <td class="px-4 py-3">
+                    {% if row.income_source == 'credit_payment' %}
+                      <span class="inline-flex rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 ring-1 ring-sky-400/25 dark:text-sky-300">Credit paid</span>
+                    {% else %}
+                      <span class="inline-flex rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">POS sale</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-4 py-3 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.reference or '—' }}</td>
+                  <td class="px-4 py-3 font-mono text-xs font-semibold tracking-wide text-[rgb(var(--rc-page-fg))]">{{ row.mpesa_reference or '—' }}</td>
+                  <td class="px-4 py-3 capitalize text-[rgb(var(--rc-page-fg))]">{{ (row.payment_method or '—')|replace('_', ' ') }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.cash_amount or 0) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.mpesa_amount or 0) }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ row.customer_name or '—' }}</td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ row.employee_name or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No cash or M-Pesa payments found for this period.</p>
+      {% endif %}
+    </div>
+  </div>
+  <script>
+    (function () {
+      var mode = document.getElementById("incomes-filter-mode");
+      var day = document.getElementById("incomes-filter-single-day");
+      var period = document.getElementById("incomes-filter-period");
+      var periodEnd = document.getElementById("incomes-filter-period-end");
+      var month = document.getElementById("incomes-filter-month");
+      var year = document.getElementById("incomes-filter-year");
+      if (!mode || !day || !period || !periodEnd || !month || !year) return;
+      function sync() {
+        var m = mode.value || "single_day";
+        day.classList.toggle("hidden", m !== "single_day");
+        period.classList.toggle("hidden", m !== "period");
+        periodEnd.classList.toggle("hidden", m !== "period");
+        month.classList.toggle("hidden", m !== "month");
+        year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

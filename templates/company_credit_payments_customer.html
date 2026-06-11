@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block employee_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=9" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
 
   <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
     <div class="shop-cust-credit-page__toolbar no-print">
@@ -20,6 +20,7 @@
       {% else %}
         <a href="{{ url_for('it_support_credit_payments') }}" class="rev-btn rev-btn--ghost">← Credit payments</a>
       {% endif %}
+      {% include "partials/credit_note_whatsapp_button.html" %}
       <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
       <a href="{{ url_for('company_credit_payments_customer', customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id, print=1) }}" class="rev-btn rev-btn--ghost">Print full statement</a>
     </div>

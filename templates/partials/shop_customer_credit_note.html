@@ -144,6 +144,7 @@
     {{ credit_note_unpaid_list() }}
     {% if not embed_record_payment|default(false) %}
     <div class="shop-credit-note__actions no-print">
+      {% include "partials/credit_note_whatsapp_button.html" %}
       <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
       {% if pos_allow_credit_sale|default(false) %}
       <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=customer_name, customer_phone=customer_phone) }}#shop-record-payment" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider">Update payment</a>
@@ -153,3 +154,6 @@
     {% endif %}
   </article>
 </div>
+{% if not public_credit_pay|default(false) %}
+{% include "partials/credit_note_whatsapp_boot.html" %}
+{% endif %}

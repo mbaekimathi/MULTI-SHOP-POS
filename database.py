@@ -2242,6 +2242,14 @@ def init_shops_table():
                 cur.execute(
                     "ALTER TABLE shops ADD COLUMN receipt_settings_json LONGTEXT NULL AFTER printing_settings_json"
                 )
+            if not column_exists("shops", "appearance_settings_json"):
+                cur.execute(
+                    "ALTER TABLE shops ADD COLUMN appearance_settings_json LONGTEXT NULL AFTER receipt_settings_json"
+                )
+            if not column_exists("shops", "company_settings_json"):
+                cur.execute(
+                    "ALTER TABLE shops ADD COLUMN company_settings_json LONGTEXT NULL AFTER appearance_settings_json"
+                )
         logger.info("Table shops is ready.")
         return True
     except pymysql.Error as e:
@@ -2286,7 +2294,7 @@ def shop_code_available(shop_code: str) -> bool:
 def list_shops(limit: int = 500):
     sql = """
     SELECT id, shop_name, shop_code, shop_location, status, default_theme, font_family, primary_color, accent_color, shop_logo,
-           printing_settings_json, receipt_settings_json, created_at
+           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json, created_at
     FROM shops
     ORDER BY created_at DESC
     LIMIT %s
@@ -2299,7 +2307,7 @@ def list_shops(limit: int = 500):
 def get_shop_by_id(shop_id: int):
     sql = """
     SELECT id, shop_name, shop_code, shop_password_hash, shop_location, status, default_theme, font_family, primary_color, accent_color, shop_logo,
-           printing_settings_json, receipt_settings_json, created_at
+           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json, created_at
     FROM shops
     WHERE id=%s
     LIMIT 1
@@ -2312,7 +2320,7 @@ def get_shop_by_id(shop_id: int):
 def get_shop_by_code(shop_code: str):
     sql = """
     SELECT id, shop_name, shop_code, shop_password_hash, shop_location, status, default_theme, font_family, primary_color, accent_color, shop_logo,
-           printing_settings_json, receipt_settings_json, created_at
+           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json, created_at
     FROM shops
     WHERE shop_code=%s
     LIMIT 1
@@ -2331,6 +2339,8 @@ def update_shop_settings(
     accent_color: str,
     printing_settings_json: Optional[str] = None,
     receipt_settings_json: Optional[str] = None,
+    appearance_settings_json: Optional[str] = None,
+    company_settings_json: Optional[str] = None,
 ) -> bool:
     if default_theme not in ("dark", "light"):
         return False
@@ -2347,7 +2357,8 @@ def update_shop_settings(
     sql = """
     UPDATE shops
     SET default_theme=%s, font_family=%s, primary_color=%s, accent_color=%s,
-        printing_settings_json=%s, receipt_settings_json=%s
+        printing_settings_json=%s, receipt_settings_json=%s, appearance_settings_json=%s,
+        company_settings_json=%s
     WHERE id=%s
     """
     with get_cursor(commit=True) as cur:
@@ -2360,10 +2371,41 @@ def update_shop_settings(
                 accent_color,
                 printing_settings_json,
                 receipt_settings_json,
+                appearance_settings_json,
+                company_settings_json,
                 int(shop_id),
             ),
         )
         # MySQL reports 0 affected rows when values are unchanged; still a successful save.
+        if cur.rowcount > 0:
+            return True
+        cur.execute("SELECT 1 FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
+        return cur.fetchone() is not None
+
+
+def update_shop_company_settings(
+    shop_id: int,
+    *,
+    company_settings_json: Optional[str],
+    shop_logo: Optional[str] = None,
+    update_shop_logo: bool = False,
+) -> bool:
+    if update_shop_logo:
+        sql = """
+        UPDATE shops
+        SET company_settings_json=%s, shop_logo=%s
+        WHERE id=%s
+        """
+        params = (company_settings_json, shop_logo, int(shop_id))
+    else:
+        sql = """
+        UPDATE shops
+        SET company_settings_json=%s
+        WHERE id=%s
+        """
+        params = (company_settings_json, int(shop_id))
+    with get_cursor(commit=True) as cur:
+        cur.execute(sql, params)
         if cur.rowcount > 0:
             return True
         cur.execute("SELECT 1 FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
@@ -3891,6 +3933,210 @@ def ensure_shop_pos_sales_client_txn_column() -> bool:
     except pymysql.Error as e:
         logger.warning("Could not add shop_pos_sales.client_txn_id: %s", e)
         return False
+
+
+def ensure_shop_pos_sales_mpesa_receipt_column() -> bool:
+    """Store Safaricom M-Pesa receipt code for POS STK/checkouts."""
+    init_shop_pos_sales_table()
+    try:
+        with get_cursor(commit=True) as cur:
+            if not column_exists("shop_pos_sales", "mpesa_receipt_number"):
+                cur.execute(
+                    """
+                    ALTER TABLE shop_pos_sales
+                    ADD COLUMN mpesa_receipt_number VARCHAR(32) NULL DEFAULT NULL
+                    AFTER mpesa_amount
+                    """
+                )
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not add shop_pos_sales.mpesa_receipt_number: %s", e)
+        return False
+
+
+_MPESA_STK_REQUESTS_TABLE_READY = False
+
+
+def init_mpesa_stk_requests_table() -> bool:
+    """Persist Lipa Na M-Pesa STK Push status and Safaricom receipt references."""
+    global _MPESA_STK_REQUESTS_TABLE_READY
+    if _MPESA_STK_REQUESTS_TABLE_READY and table_exists("mpesa_stk_requests"):
+        return True
+    sql = """
+    CREATE TABLE IF NOT EXISTS mpesa_stk_requests (
+        checkout_request_id VARCHAR(64) NOT NULL PRIMARY KEY,
+        merchant_request_id VARCHAR(64) NULL,
+        shop_id INT NULL,
+        phone VARCHAR(24) NULL,
+        amount DECIMAL(12,2) NULL,
+        result_code VARCHAR(16) NULL,
+        result_desc VARCHAR(512) NULL,
+        mpesa_receipt_number VARCHAR(32) NULL,
+        completed TINYINT(1) NOT NULL DEFAULT 0,
+        pending TINYINT(1) NOT NULL DEFAULT 1,
+        status_json JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_mpesa_stk_shop (shop_id),
+        INDEX idx_mpesa_stk_receipt (mpesa_receipt_number),
+        INDEX idx_mpesa_stk_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        _MPESA_STK_REQUESTS_TABLE_READY = True
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init mpesa_stk_requests: %s", e)
+        return False
+
+
+def _mpesa_receipt_from_stk_payload(data: dict) -> str:
+    direct = str((data or {}).get("mpesa_receipt_number") or "").strip()
+    if direct:
+        return direct[:32]
+    meta = (data or {}).get("metadata")
+    if not isinstance(meta, dict):
+        return ""
+    for key in ("MpesaReceiptNumber", "mpesa_receipt_number", "ReceiptNumber"):
+        val = str(meta.get(key) or "").strip()
+        if val:
+            return val[:32]
+    return ""
+
+
+def _mpesa_stk_status_json(data: dict) -> str:
+    try:
+        return json.dumps(data or {}, ensure_ascii=False, default=str)
+    except Exception:
+        return "{}"
+
+
+def _mpesa_stk_status_from_row(row: Optional[dict]) -> Optional[dict]:
+    if not row:
+        return None
+    raw = row.get("status_json")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (bytes, bytearray)):
+        raw = raw.decode("utf-8", errors="replace")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+    out = {
+        "checkout_request_id": row.get("checkout_request_id"),
+        "merchant_request_id": row.get("merchant_request_id"),
+        "shop_id": row.get("shop_id"),
+        "phone": row.get("phone"),
+        "amount": float(row.get("amount") or 0) if row.get("amount") is not None else None,
+        "result_code": row.get("result_code"),
+        "result_desc": row.get("result_desc"),
+        "mpesa_receipt_number": row.get("mpesa_receipt_number"),
+        "completed": bool(row.get("completed")),
+        "pending": bool(row.get("pending")),
+    }
+    receipt = str(row.get("mpesa_receipt_number") or "").strip()
+    if receipt:
+        out["metadata"] = {"MpesaReceiptNumber": receipt}
+    return out
+
+
+def upsert_mpesa_stk_request(checkout_request_id: str, data: dict) -> bool:
+    """Insert or update STK push status (merged payload stored as JSON)."""
+    cid = str(checkout_request_id or "").strip()
+    if not cid or not init_mpesa_stk_requests_table():
+        return False
+    d = data if isinstance(data, dict) else {}
+    receipt = _mpesa_receipt_from_stk_payload(d)
+    if receipt:
+        d = {**d, "mpesa_receipt_number": receipt}
+    rc = d.get("result_code")
+    result_code = "" if rc is None else str(rc).strip()[:16]
+    result_desc = str(d.get("result_desc") or "").strip()[:512]
+    completed = 1 if d.get("completed") else 0
+    pending = 1 if d.get("pending") else 0
+    if completed and str(rc) == "0":
+        pending = 0
+    sql = """
+    INSERT INTO mpesa_stk_requests (
+        checkout_request_id, merchant_request_id, shop_id, phone, amount,
+        result_code, result_desc, mpesa_receipt_number, completed, pending, status_json
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        merchant_request_id = COALESCE(VALUES(merchant_request_id), merchant_request_id),
+        shop_id = COALESCE(VALUES(shop_id), shop_id),
+        phone = COALESCE(VALUES(phone), phone),
+        amount = COALESCE(VALUES(amount), amount),
+        result_code = COALESCE(NULLIF(VALUES(result_code), ''), result_code),
+        result_desc = COALESCE(NULLIF(VALUES(result_desc), ''), result_desc),
+        mpesa_receipt_number = COALESCE(NULLIF(VALUES(mpesa_receipt_number), ''), mpesa_receipt_number),
+        completed = GREATEST(completed, VALUES(completed)),
+        pending = CASE
+            WHEN VALUES(completed) = 1 AND VALUES(result_code) = '0' THEN 0
+            WHEN VALUES(pending) = 0 THEN 0
+            ELSE pending
+        END,
+        status_json = VALUES(status_json),
+        updated_at = CURRENT_TIMESTAMP
+    """
+    try:
+        shop_id = d.get("shop_id")
+        try:
+            shop_id_val = int(shop_id) if shop_id is not None else None
+        except (TypeError, ValueError):
+            shop_id_val = None
+        amt = d.get("amount")
+        try:
+            amount_val = round(float(amt), 2) if amt is not None else None
+        except (TypeError, ValueError):
+            amount_val = None
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                sql,
+                (
+                    cid[:64],
+                    str(d.get("merchant_request_id") or "").strip()[:64] or None,
+                    shop_id_val,
+                    str(d.get("phone") or "").strip()[:24] or None,
+                    amount_val,
+                    result_code or None,
+                    result_desc or None,
+                    receipt or None,
+                    completed,
+                    pending,
+                    _mpesa_stk_status_json(d),
+                ),
+            )
+        return True
+    except pymysql.Error as e:
+        logger.warning("upsert_mpesa_stk_request failed for %s: %s", cid, e)
+        return False
+
+
+def get_mpesa_stk_request(checkout_request_id: str) -> Optional[dict]:
+    cid = str(checkout_request_id or "").strip()
+    if not cid or not init_mpesa_stk_requests_table():
+        return None
+    sql = """
+    SELECT checkout_request_id, merchant_request_id, shop_id, phone, amount,
+           result_code, result_desc, mpesa_receipt_number, completed, pending, status_json
+    FROM mpesa_stk_requests
+    WHERE checkout_request_id = %s
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (cid[:64],))
+            row = cur.fetchone()
+        return _mpesa_stk_status_from_row(row)
+    except pymysql.Error as e:
+        logger.warning("get_mpesa_stk_request failed for %s: %s", cid, e)
+        return None
 
 
 def _safe_receipt_settings_dict(raw: Any) -> dict:
@@ -6763,6 +7009,7 @@ def create_shop_pos_sale(
     inventory_mode: str = "shop",
     client_txn_id: Optional[str] = None,
     skip_stock_deduction: bool = False,
+    mpesa_receipt_number: Optional[str] = None,
 ) -> Tuple[bool, Optional[str], Optional[int], Optional[str]]:
     """
     Apply inventory for exactly one pathway per sale (no shelf + portion double-move).
@@ -6893,11 +7140,13 @@ def create_shop_pos_sale(
     ensure_shop_pos_sales_inventory_mode_column()
     ensure_shop_pos_sales_receipt_columns()
     ensure_shop_pos_sales_client_txn_column()
+    ensure_shop_pos_sales_mpesa_receipt_column()
     client_txn = (client_txn_id or "").strip()[:64] or None
+    mpesa_ref = (mpesa_receipt_number or "").strip()[:32] or None
     sale_sql = """
     INSERT INTO shop_pos_sales
-        (shop_id, sale_type, payment_method, cash_amount, mpesa_amount, total_amount, item_count, customer_name, customer_phone, employee_id, employee_code, employee_name, receipt_number, receipt_scope_key, receipt_sequence, client_txn_id, credit_due_date, inventory_mode)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (shop_id, sale_type, payment_method, cash_amount, mpesa_amount, mpesa_receipt_number, total_amount, item_count, customer_name, customer_phone, employee_id, employee_code, employee_name, receipt_number, receipt_scope_key, receipt_sequence, client_txn_id, credit_due_date, inventory_mode)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     line_sql = """
     INSERT INTO shop_pos_sale_items
@@ -7014,6 +7263,7 @@ def create_shop_pos_sale(
                     pay_method or None,
                     cash_val,
                     mpesa_val,
+                    mpesa_ref,
                     amount,
                     count,
                     (customer_name or "").strip()[:190] or None,
@@ -7429,6 +7679,225 @@ def list_all_shops_pos_sales_receipt_rows(
             rr["created_at_iso"] = str(cat)
         out.append(rr)
     return out
+
+
+def _parse_credit_payment_note_method(note: Optional[str]) -> str:
+    """Infer payment method from shop_credit_payments.note (cash, mpesa, bank, other)."""
+    raw_note = (note or "").strip()
+    note_lower = raw_note.lower()
+    marker = "method="
+    if marker in note_lower:
+        parsed = note_lower.split(marker, 1)[1].split()[0].strip(" ,.;:|")
+        if parsed in ("cash", "mpesa", "bank", "other"):
+            return parsed
+    if "mpesa" in note_lower:
+        return "mpesa"
+    if "cash" in note_lower:
+        return "cash"
+    if "bank" in note_lower:
+        return "bank"
+    return "other"
+
+
+def _extract_mpesa_reference_from_note(note: Optional[str]) -> str:
+    """Extract Safaricom M-Pesa receipt code from payment note text."""
+    raw = (note or "").strip()
+    if not raw:
+        return ""
+    m = re.search(
+        r"(?:m-?pesa\s*ref(?:erence)?\s*[:#]\s*)([A-Z0-9]{6,14})",
+        raw,
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1).strip().upper()
+    return ""
+
+
+def _income_row_created_iso(created_at) -> str:
+    if hasattr(created_at, "isoformat"):
+        return created_at.isoformat(timespec="seconds")
+    if created_at is None:
+        return ""
+    return str(created_at)
+
+
+def list_all_shops_income_payments(
+    analytics_filter: Optional[dict],
+    *,
+    shop_id: Optional[int] = None,
+    payment_method: Optional[str] = None,
+    limit: int = 8000,
+) -> dict:
+    """Cash and M-Pesa income across all shops: POS sales + credit settlements."""
+    ensure_shop_credit_payments_schema()
+    ensure_shop_pos_sales_receipt_columns()
+    ensure_shop_pos_sales_mpesa_receipt_column()
+    af = analytics_filter if isinstance(analytics_filter, dict) else {}
+    rng_sql, rng_params = _analytics_where_clause(af, "s")
+    params: list = []
+    where_parts = [
+        "s.sale_type = 'sale'",
+        "s.payment_method IN ('cash', 'mpesa', 'both')",
+        rng_sql,
+    ]
+    params.extend(rng_params)
+    if shop_id is not None and int(shop_id) > 0:
+        where_parts.append("s.shop_id = %s")
+        params.append(int(shop_id))
+    where_sql = " AND ".join(where_parts)
+    lim = max(1, min(int(limit or 8000), 30000))
+
+    pos_sql = f"""
+    SELECT
+        s.id AS row_id,
+        s.shop_id,
+        COALESCE(sh.shop_name, '') AS shop_name,
+        COALESCE(sh.shop_code, '') AS shop_code,
+        s.payment_method,
+        s.cash_amount,
+        s.mpesa_amount,
+        s.mpesa_receipt_number,
+        s.total_amount,
+        s.receipt_number,
+        s.customer_name,
+        s.employee_name,
+        s.created_at
+    FROM shop_pos_sales s
+    LEFT JOIN shops sh ON sh.id = s.shop_id
+    WHERE {where_sql}
+    ORDER BY s.created_at DESC, s.id DESC
+    LIMIT %s
+    """
+    pos_params = list(params) + [lim]
+    rows: list = []
+    try:
+        with get_cursor() as cur:
+            cur.execute(pos_sql, tuple(pos_params))
+            for r in cur.fetchall() or []:
+                pm = (r.get("payment_method") or "").strip().lower()
+                cash_amt = float(r.get("cash_amount") or 0)
+                mpesa_amt = float(r.get("mpesa_amount") or 0)
+                total_amt = float(r.get("total_amount") or 0)
+                mpesa_ref = (r.get("mpesa_receipt_number") or "").strip()
+                rows.append(
+                    {
+                        "income_source": "pos_sale",
+                        "row_id": int(r.get("row_id") or 0),
+                        "shop_id": int(r.get("shop_id") or 0),
+                        "shop_name": r.get("shop_name") or "",
+                        "shop_code": r.get("shop_code") or "",
+                        "payment_method": pm,
+                        "cash_amount": cash_amt,
+                        "mpesa_amount": mpesa_amt,
+                        "total_amount": total_amt,
+                        "mpesa_reference": mpesa_ref,
+                        "reference": (r.get("receipt_number") or "").strip()
+                        or f"Sale #{int(r.get('row_id') or 0)}",
+                        "customer_name": (r.get("customer_name") or "").strip() or "—",
+                        "employee_name": (r.get("employee_name") or "").strip() or "—",
+                        "created_at": r.get("created_at"),
+                        "created_at_iso": _income_row_created_iso(r.get("created_at")),
+                    }
+                )
+    except pymysql.Error:
+        rows = []
+
+    credit_where = ["1=1"]
+    credit_params: list = []
+    if af:
+        rw, rp = _analytics_where_clause(af, "scp")
+        credit_where.append(f"({rw})")
+        credit_params.extend(rp)
+    if shop_id is not None and int(shop_id) > 0:
+        credit_where.append("scp.shop_id = %s")
+        credit_params.append(int(shop_id))
+    credit_sql = f"""
+    SELECT
+        scp.id AS row_id,
+        scp.shop_id,
+        COALESCE(sh.shop_name, '') AS shop_name,
+        COALESCE(sh.shop_code, '') AS shop_code,
+        scp.amount,
+        scp.note,
+        COALESCE(NULLIF(scp.customer_name, ''), 'WALK IN') AS customer_name,
+        scp.created_at
+    FROM shop_credit_payments scp
+    LEFT JOIN shops sh ON sh.id = scp.shop_id
+    WHERE {' AND '.join(credit_where)}
+    ORDER BY scp.created_at DESC, scp.id DESC
+    LIMIT %s
+    """
+    credit_params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(credit_sql, tuple(credit_params))
+            for r in cur.fetchall() or []:
+                method = _parse_credit_payment_note_method(r.get("note"))
+                if method not in ("cash", "mpesa"):
+                    continue
+                amt = float(r.get("amount") or 0)
+                if amt <= 0:
+                    continue
+                cash_amt = amt if method == "cash" else 0.0
+                mpesa_amt = amt if method == "mpesa" else 0.0
+                mpesa_ref = _extract_mpesa_reference_from_note(r.get("note"))
+                rows.append(
+                    {
+                        "income_source": "credit_payment",
+                        "row_id": int(r.get("row_id") or 0),
+                        "shop_id": int(r.get("shop_id") or 0),
+                        "shop_name": r.get("shop_name") or "",
+                        "shop_code": r.get("shop_code") or "",
+                        "payment_method": method,
+                        "cash_amount": cash_amt,
+                        "mpesa_amount": mpesa_amt,
+                        "total_amount": amt,
+                        "mpesa_reference": mpesa_ref,
+                        "reference": f"Credit payment #{int(r.get('row_id') or 0)}",
+                        "customer_name": r.get("customer_name") or "WALK IN",
+                        "employee_name": "—",
+                        "created_at": r.get("created_at"),
+                        "created_at_iso": _income_row_created_iso(r.get("created_at")),
+                    }
+                )
+    except pymysql.Error:
+        pass
+
+    pm_filter = (payment_method or "").strip().lower()
+    if pm_filter == "cash":
+        rows = [
+            r
+            for r in rows
+            if float(r.get("cash_amount") or 0) > 0
+            and (r.get("payment_method") or "") in ("cash", "both")
+        ]
+    elif pm_filter == "mpesa":
+        rows = [
+            r
+            for r in rows
+            if float(r.get("mpesa_amount") or 0) > 0
+            and (r.get("payment_method") or "") in ("mpesa", "both")
+        ]
+
+    def _sort_key(row: dict):
+        cat = row.get("created_at")
+        if hasattr(cat, "timestamp"):
+            return (cat.timestamp(), int(row.get("row_id") or 0))
+        return (0.0, int(row.get("row_id") or 0))
+
+    rows.sort(key=_sort_key, reverse=True)
+    rows = rows[:lim]
+
+    total_cash = sum(float(r.get("cash_amount") or 0) for r in rows)
+    total_mpesa = sum(float(r.get("mpesa_amount") or 0) for r in rows)
+    return {
+        "rows": rows,
+        "total_cash": total_cash,
+        "total_mpesa": total_mpesa,
+        "total_income": total_cash + total_mpesa,
+        "count": len(rows),
+    }
 
 
 def bulk_mark_shop_pos_receipts(

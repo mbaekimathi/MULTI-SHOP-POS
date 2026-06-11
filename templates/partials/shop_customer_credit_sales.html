@@ -1,0 +1,57 @@
+{# Credit sales (transactions) for one shop customer #}
+{% set sales = credit_account_txs if credit_account_txs is defined else [] %}
+{% set sales_total = namespace(value=0, paid=0, due=0) %}
+{% for s in sales %}
+  {% set sales_total.value = sales_total.value + (s.total_amount|float) %}
+  {% set sales_total.paid = sales_total.paid + (s.paid_amount|float) %}
+  {% set sales_total.due = sales_total.due + (s.remaining_amount|float) %}
+{% endfor %}
+
+<section id="shop-credit-sales" class="shop-cust-tx-section" aria-labelledby="shop-cust-tx-sales-heading">
+  <div class="shop-cust-tx-section__head">
+    <div>
+      <h3 id="shop-cust-tx-sales-heading" class="shop-cust-tx-section__title">Credit sales</h3>
+      <p class="shop-cust-tx-section__desc">
+        {{ sales|length }} sale{% if sales|length != 1 %}s{% endif %}
+        · {{ "%.2f"|format(sales_total.value) }} total
+        · {{ "%.2f"|format(sales_total.due) }} outstanding
+      </p>
+    </div>
+  </div>
+
+  {% if not sales %}
+  <p class="shop-cust-tx-empty">No credit sales on this account yet.</p>
+  {% else %}
+  <div class="shop-cn-items-table-wrap">
+    <table class="shop-cn-items-table shop-cn-items-table--sales">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Sale</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="num">Total</th>
+          <th scope="col" class="num">Paid</th>
+          <th scope="col" class="num">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sales|reverse %}
+        {% set st = (s.credit_status or 'not_paid')|lower %}
+        <tr>
+          <td class="whitespace-nowrap">{{ s.created_at or '—' }}</td>
+          <td>#{{ s.id }}{% if s.item_count %} · {{ s.item_count }} item{% if s.item_count != 1 %}s{% endif %}{% endif %}</td>
+          <td>
+            <span class="shop-cn-sale-status shop-cn-sale-status--{{ st }}">
+              {% if st == 'paid' %}Paid{% elif st == 'partially_paid' %}Partial{% else %}Unpaid{% endif %}
+            </span>
+          </td>
+          <td class="num tabular-nums">{{ "%.2f"|format(s.total_amount or 0) }}</td>
+          <td class="num tabular-nums">{{ "%.2f"|format(s.paid_amount or 0) }}</td>
+          <td class="num tabular-nums shop-cn-sale-balance">{{ "%.2f"|format(s.remaining_amount or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>

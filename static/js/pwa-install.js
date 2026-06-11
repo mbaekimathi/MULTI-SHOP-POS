@@ -150,7 +150,6 @@
   function buildCardHtml(mode) {
     const name = appName();
     const icon = appIconUrl();
-    const desc = "Quick launch, full-screen workspace, faster reloads and offline-aware.";
 
     if (mode === "manual") {
       const browser = detectBrowserLabel();
@@ -159,11 +158,10 @@
           <img src="${icon}" alt="" loading="lazy" decoding="async" />
         </div>
         <div class="pwa-install__body">
-          <p class="pwa-install__eyebrow">Install ${name}</p>
-          <h3 class="pwa-install__title">${browser === "ios" ? "Add to Home Screen" : "Install the app"}</h3>
+          <h3 class="pwa-install__title">${browser === "ios" ? "Add to Home Screen" : "Install " + name}</h3>
           <p class="pwa-install__desc">${browser === "ios"
-              ? "iOS doesn't auto-prompt — just a couple of taps:"
-              : "Your browser will let you install it from the menu:"}</p>
+              ? "Use Share, then Add to Home Screen."
+              : "Use your browser menu to install the app."}</p>
           ${manualHelpHtml(browser)}
           <div class="pwa-install__actions pwa-install__actions--single">
             <button type="button" class="pwa-install__btn pwa-install__btn--ghost" data-pwa-dismiss>Got it</button>
@@ -182,33 +180,11 @@
         <img src="${icon}" alt="" loading="lazy" decoding="async" />
       </div>
       <div class="pwa-install__body">
-        <p class="pwa-install__eyebrow">Install app</p>
         <h3 class="pwa-install__title">Install ${name}</h3>
-        <p class="pwa-install__desc">${desc}</p>
-        <div class="pwa-install__features" aria-hidden="true">
-          <span class="pwa-install__feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
-            One-tap launch
-          </span>
-          <span class="pwa-install__feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
-            Faster &amp; smoother
-          </span>
-          <span class="pwa-install__feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/></svg>
-            Works offline
-          </span>
-        </div>
+        <p class="pwa-install__desc">Add to your device for quick access.</p>
         <div class="pwa-install__actions">
-          <button type="button" class="pwa-install__btn pwa-install__btn--primary" data-pwa-confirm>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
-            </svg>
-            Install now
-          </button>
-          <button type="button" class="pwa-install__btn pwa-install__btn--ghost" data-pwa-later>
-            Not now
-          </button>
+          <button type="button" class="pwa-install__btn pwa-install__btn--primary" data-pwa-confirm>Install</button>
+          <button type="button" class="pwa-install__btn pwa-install__btn--ghost" data-pwa-later>Not now</button>
         </div>
       </div>
       <button type="button" class="pwa-install__close" data-pwa-dismiss aria-label="Dismiss install prompt">

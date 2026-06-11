@@ -12,7 +12,7 @@
   </div>
 
   {% if not payments %}
-  <p class="shop-cust-tx-empty">No payments recorded yet. Use <strong>Update payment</strong> above when the customer pays.</p>
+  <p class="shop-cust-tx-empty">{% if public_credit_pay|default(false) %}No payments recorded yet.{% else %}No payments recorded yet. Use <strong>Update payment</strong> above when the customer pays.{% endif %}</p>
   {% else %}
   <div class="shop-cn-items-table-wrap">
     <table class="shop-cn-items-table shop-cn-items-table--payments">

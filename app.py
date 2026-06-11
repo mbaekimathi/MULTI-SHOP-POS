@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
 import project_env  # noqa: F401 — loads .env.example then .env before os.getenv below
 from flask import (
     Flask,
@@ -34,6 +36,7 @@ from flask import (
     stream_with_context,
     url_for,
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -45,6 +48,16 @@ JOS_VERSION = (os.getenv("JOS_VERSION") or "1.0.0").strip()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB uploads
+
+# ngrok and other reverse proxies forward HTTP to Flask; trust X-Forwarded-* so
+# url_for(..., _external=True) and request.url_root use the public HTTPS URL.
+if (os.getenv("TRUST_PROXY_HEADERS") or "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Long-lived "remember this device" sessions so the till stays signed in across
 # restarts and brief offline periods. Cached pages render in an authenticated
@@ -326,24 +339,11 @@ def inject_font_catalog():
 
 
 def _effective_pos_theme_colors(shop: dict) -> tuple[str, str]:
-    """Shop primary/accent when set; otherwise company (IT) defaults from site settings."""
-    company_pri = "#f97316"
-    company_acc = "#fb923c"
-    try:
-        from database import get_site_settings
-
-        ss = get_site_settings(["primary_color", "accent_color"]) or {}
-        if (ss.get("primary_color") or "").strip():
-            company_pri = str(ss["primary_color"]).strip()
-        if (ss.get("accent_color") or "").strip():
-            company_acc = str(ss["accent_color"]).strip()
-    except Exception:
-        pass
-    sp = (shop.get("primary_color") or "").strip()
-    sa = (shop.get("accent_color") or "").strip()
+    """Shop primary/accent when appearance is customized; otherwise company defaults."""
+    eff = _effective_appearance_settings_for_shop(shop)
     return (
-        _hex_to_rgb_triplet(sp if sp else company_pri),
-        _hex_to_rgb_triplet(sa if sa else company_acc),
+        _hex_to_rgb_triplet(eff.get("primary_color") or "#f97316"),
+        _hex_to_rgb_triplet(eff.get("accent_color") or "#fb923c"),
     )
 
 
@@ -396,6 +396,8 @@ def _effective_portal_font_family() -> str:
     except (TypeError, ValueError):
         return site_font
     if not shop:
+        return site_font
+    if not _shop_has_appearance_override(shop):
         return site_font
     shop_font = (shop.get("font_family") or "").strip()
     return normalize_font_family(shop_font) if shop_font else site_font
@@ -1574,6 +1576,113 @@ def _shop_has_receipt_override(shop: dict) -> bool:
     return _parse_shop_settings_json(shop.get("receipt_settings_json")) is not None
 
 
+def _shop_has_appearance_override(shop: dict) -> bool:
+    return _parse_shop_settings_json(shop.get("appearance_settings_json")) is not None
+
+
+def _load_company_appearance_settings() -> dict:
+    from theme_presets import DEFAULT_FONT_FAMILY, normalize_default_theme, normalize_font_family
+
+    defaults = {
+        "default_theme": "dark",
+        "font_family": DEFAULT_FONT_FAMILY,
+        "primary_color": "#f97316",
+        "accent_color": "#fb923c",
+    }
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(["default_theme", "font_family", "primary_color", "accent_color"]) or {}
+    except Exception:
+        stored = {}
+    return {
+        "default_theme": normalize_default_theme(stored.get("default_theme") or defaults["default_theme"]),
+        "font_family": normalize_font_family(stored.get("font_family") or defaults["font_family"]),
+        "primary_color": (stored.get("primary_color") or defaults["primary_color"]).strip() or defaults["primary_color"],
+        "accent_color": (stored.get("accent_color") or defaults["accent_color"]).strip() or defaults["accent_color"],
+    }
+
+
+def _effective_appearance_settings_for_shop(shop: dict) -> dict:
+    base = _load_company_appearance_settings()
+    data = _parse_shop_settings_json(shop.get("appearance_settings_json"))
+    if not data:
+        return base
+    merged = {**base, **data}
+    from theme_presets import normalize_default_theme, normalize_font_family
+
+    merged["default_theme"] = normalize_default_theme(merged.get("default_theme"))
+    merged["font_family"] = normalize_font_family(merged.get("font_family"))
+    for k in ("primary_color", "accent_color"):
+        v = (merged.get(k) or "").strip()
+        if not re.match(r"^#[0-9a-fA-F]{6}$", v):
+            merged[k] = base[k]
+    return merged
+
+
+def _shop_theme_template_vars(shop: dict) -> dict:
+    eff = _effective_appearance_settings_for_shop(shop)
+    pri = eff.get("primary_color") or "#f97316"
+    acc = eff.get("accent_color") or "#fb923c"
+    sid = shop["id"]
+    return {
+        "theme_key": f"richcom-theme-shop-{sid}",
+        "theme_default": eff.get("default_theme") or "dark",
+        "font_family": eff.get("font_family") or "Plus Jakarta Sans",
+        "primary_color_rgb": _hex_to_rgb_triplet(pri),
+        "accent_color_rgb": _hex_to_rgb_triplet(acc),
+    }
+
+
+_COMPANY_IDENTITY_KEYS = (
+    "company_name",
+    "company_email",
+    "company_phone",
+    "company_facebook",
+    "company_instagram",
+)
+
+
+def _load_company_identity_settings() -> dict:
+    defaults = {
+        "company_name": "Point of Sale",
+        "company_email": "",
+        "company_phone": "",
+        "company_facebook": "",
+        "company_instagram": "",
+        "app_icon": "",
+    }
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(list(_COMPANY_IDENTITY_KEYS) + ["app_icon"]) or {}
+    except Exception:
+        stored = {}
+    out = {k: (stored.get(k) or defaults[k]).strip() if k != "company_name" else (stored.get(k) or defaults[k]).strip() or defaults[k] for k in defaults}
+    if not out["company_name"]:
+        out["company_name"] = "Point of Sale"
+    return out
+
+
+def _shop_has_company_override(shop: dict) -> bool:
+    return _parse_shop_settings_json(shop.get("company_settings_json")) is not None
+
+
+def _effective_company_settings_for_shop(shop: dict) -> dict:
+    base = _load_company_identity_settings()
+    data = _parse_shop_settings_json(shop.get("company_settings_json"))
+    if not data:
+        return {**base, "shop_logo": (shop.get("shop_logo") or "").strip()}
+    merged = dict(base)
+    for k in _COMPANY_IDENTITY_KEYS:
+        if k in data and str(data.get(k) or "").strip():
+            merged[k] = str(data[k]).strip()
+        elif k in data:
+            merged[k] = str(data.get(k) or "").strip()
+    merged["shop_logo"] = (shop.get("shop_logo") or "").strip()
+    return merged
+
+
 def _enforce_exclusive_pos_inventory(merged: dict) -> None:
     """
     Exactly one POS inventory posture is active among:
@@ -1755,6 +1864,556 @@ def _effective_receipt_settings_for_shop(shop: dict) -> dict:
     merged["receipt_qr_mode"] = qm
     merged["receipt_width"] = _normalize_receipt_width_value(merged.get("receipt_width"))
     return merged
+
+
+DARAJA_CREDENTIAL_KEYS = (
+    "daraja_consumer_key",
+    "daraja_consumer_secret",
+    "daraja_passkey",
+    "daraja_security_credential",
+)
+DARAJA_SECRET_KEYS = ("daraja_consumer_secret", "daraja_passkey", "daraja_security_credential")
+DARAJA_KEEP_IF_BLANK = (
+    "daraja_consumer_key",
+    "daraja_consumer_secret",
+    "daraja_passkey",
+    "daraja_security_credential",
+    "daraja_shortcode",
+    "daraja_callback_url",
+    "daraja_callback_url_local",
+    "daraja_account_reference",
+    "daraja_initiator_name",
+)
+
+
+def _default_daraja_settings() -> dict:
+    return {
+        "daraja_enabled": False,
+        "daraja_environment": "sandbox",
+        "daraja_consumer_key": "",
+        "daraja_consumer_secret": "",
+        "daraja_passkey": "",
+        "daraja_shortcode": "",
+        "daraja_transaction_type": "CustomerBuyGoodsOnline",
+        "daraja_account_reference": "",
+        "daraja_callback_url": "",
+        "daraja_callback_url_local": "",
+        "daraja_initiator_name": "",
+        "daraja_security_credential": "",
+    }
+
+
+def _load_daraja_settings() -> dict:
+    from database import get_site_settings
+
+    defaults = _default_daraja_settings()
+    store_keys = ["daraja_settings_json", *DARAJA_CREDENTIAL_KEYS]
+    stored = get_site_settings(store_keys)
+    raw = stored.get("daraja_settings_json") or "{}"
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    merged = {**defaults, **data}
+    for cred_key in DARAJA_CREDENTIAL_KEYS:
+        dedicated = str(stored.get(cred_key) or "").strip()
+        legacy = str(merged.get(cred_key) or "").strip()
+        merged[cred_key] = dedicated or legacy
+    merged["daraja_enabled"] = merged.get("daraja_enabled") in (True, "true", "1", 1, "True")
+    env = str(merged.get("daraja_environment") or "sandbox").strip().lower()
+    if env not in ("sandbox", "production"):
+        env = "sandbox"
+    merged["daraja_environment"] = env
+    tx = str(merged.get("daraja_transaction_type") or "CustomerBuyGoodsOnline").strip()
+    if tx not in ("CustomerBuyGoodsOnline", "CustomerPayBillOnline"):
+        tx = "CustomerBuyGoodsOnline"
+    merged["daraja_transaction_type"] = tx
+    merged["daraja_shortcode"] = str(merged.get("daraja_shortcode") or "").strip()
+    return merged
+
+
+def _daraja_settings_persist_payload(settings: dict) -> dict:
+    """Persist non-secret Daraja config in JSON; credentials in dedicated site_settings keys."""
+    creds = {k: str(settings.get(k) or "").strip() for k in DARAJA_CREDENTIAL_KEYS}
+    public = {k: v for k, v in settings.items() if k not in DARAJA_CREDENTIAL_KEYS}
+    for cred_key in DARAJA_CREDENTIAL_KEYS:
+        public.pop(cred_key, None)
+    payload = {"daraja_settings_json": json.dumps(public, separators=(",", ":"))}
+    payload.update(creds)
+    return payload
+
+
+def _test_daraja_oauth_settings(settings: dict) -> Optional[str]:
+    """Return an error message when Daraja OAuth fails, else None."""
+    if not settings.get("daraja_enabled"):
+        return None
+    from daraja_api import DarajaApiError, daraja_settings_ready, get_access_token
+
+    if not daraja_settings_ready(settings):
+        return "Daraja is enabled but consumer key and secret are required."
+    try:
+        get_access_token(settings)
+        return None
+    except DarajaApiError as exc:
+        return str(exc)
+
+
+def _daraja_settings_for_template(merged: Optional[dict] = None) -> dict:
+    """Strip secret values before rendering settings UI."""
+    data = dict(merged if merged is not None else _load_daraja_settings())
+    data["daraja_consumer_key_configured"] = bool(str(data.get("daraja_consumer_key") or "").strip())
+    oauth_ok = data.get("daraja_oauth_ok")
+    if oauth_ok in (True, "true", "1", 1, "True"):
+        data["daraja_oauth_ok"] = True
+    elif oauth_ok in (False, "false", "0", 0, "False"):
+        data["daraja_oauth_ok"] = False
+    else:
+        data["daraja_oauth_ok"] = None
+    for k in DARAJA_SECRET_KEYS:
+        data[k + "_configured"] = bool(str(data.get(k) or "").strip())
+        data.pop(k, None)
+    return data
+
+
+def _daraja_settings_from_form() -> dict:
+    existing = _load_daraja_settings()
+
+    def _b(key: str) -> bool:
+        return (request.form.get(key) or "").strip() == "1"
+
+    def _keep(key: str, *, max_len: Optional[int] = None) -> str:
+        v = (request.form.get(key) or "").strip()
+        if not v and key in DARAJA_KEEP_IF_BLANK:
+            v = str(existing.get(key) or "").strip()
+        if max_len is not None and len(v) > max_len:
+            v = v[:max_len]
+        return v
+
+    env = (request.form.get("daraja_environment") or existing.get("daraja_environment") or "sandbox")
+    env = str(env).strip().lower()
+    if env not in ("sandbox", "production"):
+        env = "sandbox"
+    tx = (request.form.get("daraja_transaction_type") or existing.get("daraja_transaction_type") or "CustomerBuyGoodsOnline")
+    tx = str(tx).strip()
+    if tx not in ("CustomerBuyGoodsOnline", "CustomerPayBillOnline"):
+        tx = "CustomerBuyGoodsOnline"
+    return {
+        "daraja_enabled": _b("daraja_enabled"),
+        "daraja_environment": env,
+        "daraja_consumer_key": _keep("daraja_consumer_key", max_len=256),
+        "daraja_consumer_secret": _keep("daraja_consumer_secret", max_len=512),
+        "daraja_passkey": _keep("daraja_passkey", max_len=512),
+        "daraja_shortcode": _keep("daraja_shortcode", max_len=32),
+        "daraja_transaction_type": tx,
+        "daraja_account_reference": _keep("daraja_account_reference", max_len=64),
+        "daraja_callback_url": _keep("daraja_callback_url", max_len=500),
+        "daraja_callback_url_local": _keep("daraja_callback_url_local", max_len=500),
+        "daraja_initiator_name": _keep("daraja_initiator_name", max_len=128),
+        "daraja_security_credential": _keep("daraja_security_credential", max_len=4000),
+        "daraja_oauth_ok": existing.get("daraja_oauth_ok"),
+        "daraja_oauth_checked_at": existing.get("daraja_oauth_checked_at"),
+    }
+
+
+def _daraja_pos_boot_payload() -> dict:
+    try:
+        from daraja_api import daraja_settings_ready
+
+        return {"enabled": daraja_settings_ready(_load_daraja_settings())}
+    except Exception:
+        return {"enabled": False}
+
+
+_CREDIT_PAY_TOKEN_SALT = "credit-mpesa-pay-v1"
+_CREDIT_PAY_TOKEN_MAX_AGE_SECONDS = 14 * 24 * 3600
+
+
+def _credit_pay_token_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt=_CREDIT_PAY_TOKEN_SALT)
+
+
+def _make_credit_pay_token(
+    shop_id: int,
+    customer_name: str,
+    customer_phone: str,
+    max_amount: float,
+) -> str:
+    payload = {
+        "s": int(shop_id),
+        "n": (customer_name or "WALK IN").strip()[:120],
+        "p": (customer_phone or "-").strip()[:32],
+        "m": round(max(float(max_amount or 0), 0), 2),
+    }
+    return _credit_pay_token_serializer().dumps(payload)
+
+
+def _parse_credit_pay_token(token: str) -> dict:
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        raise ValueError("Payment link is missing.")
+    try:
+        raw = _credit_pay_token_serializer().loads(
+            raw_token, max_age=_CREDIT_PAY_TOKEN_MAX_AGE_SECONDS
+        )
+    except SignatureExpired as exc:
+        raise ValueError(
+            "This payment link has expired. Ask the shop for a new credit note."
+        ) from exc
+    except BadSignature as exc:
+        raise ValueError("This payment link is invalid.") from exc
+    if not isinstance(raw, dict):
+        raise ValueError("This payment link is invalid.")
+    shop_id = int(raw.get("s") or 0)
+    if shop_id <= 0:
+        raise ValueError("This payment link is invalid.")
+    return {
+        "shop_id": shop_id,
+        "customer_name": str(raw.get("n") or "WALK IN").strip() or "WALK IN",
+        "customer_phone": str(raw.get("p") or "-").strip() or "-",
+        "max_amount": float(raw.get("m") or 0),
+        "token": raw_token,
+    }
+
+
+def _public_share_base_url() -> str:
+    """
+    Public base URL for WhatsApp-shareable links.
+
+    WhatsApp only linkifies URLs customers can open (HTTPS public host).
+    Prefer PUBLIC_APP_URL, ngrok, or Daraja hosted callback domain.
+    """
+    for key in ("PUBLIC_APP_URL", "APP_BASE_URL"):
+        env = (os.getenv(key) or "").strip().rstrip("/")
+        if env:
+            if env.lower().startswith(("http://", "https://")):
+                return env
+            return "https://" + env.lstrip("/")
+
+    try:
+        from daraja_api import _is_local_callback_host, _try_local_ngrok_callback_url
+
+        ngrok_cb = _try_local_ngrok_callback_url()
+        if ngrok_cb:
+            parsed = urlparse(ngrok_cb)
+            if parsed.scheme and parsed.netloc:
+                return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+        hosted = str(_load_daraja_settings().get("daraja_callback_url") or "").strip().rstrip("/")
+        if hosted and not _is_local_callback_host(hosted):
+            parsed = urlparse(hosted)
+            if parsed.scheme and parsed.netloc:
+                return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    except Exception:
+        pass
+
+    try:
+        root = (request.url_root or "").strip().rstrip("/")
+        if root:
+            from daraja_api import _is_local_callback_host
+
+            if not _is_local_callback_host(root):
+                return root
+    except Exception:
+        pass
+    return ""
+
+
+def _credit_pay_public_link(
+    shop_id: int,
+    customer_name: str,
+    customer_phone: str,
+    max_amount: float,
+) -> str:
+    try:
+        from daraja_api import daraja_settings_ready
+
+        if not daraja_settings_ready(_load_daraja_settings()):
+            return ""
+    except Exception:
+        return ""
+    if int(shop_id or 0) <= 0:
+        return ""
+    if float(max_amount or 0) < 0.01:
+        return ""
+    tok = _make_credit_pay_token(shop_id, customer_name, customer_phone, max_amount)
+    path = url_for("credit_pay_public", token=tok, _external=False)
+    public_base = _public_share_base_url()
+    if public_base:
+        link = public_base.rstrip("/") + path
+        if link.lower().startswith("http://") and "ngrok" not in link.lower():
+            link = "https://" + link[7:]
+        return link
+    return url_for("credit_pay_public", token=tok, _external=True)
+
+
+_MPESA_STK_STATUS: Dict[str, dict] = {}
+_MPESA_STK_STATUS_LOCK = threading.Lock()
+
+
+def _mpesa_stk_merge_status(prev: dict, incoming: dict) -> dict:
+    prev = prev if isinstance(prev, dict) else {}
+    incoming = incoming if isinstance(incoming, dict) else {}
+    merged = {**prev, **incoming}
+    prev_meta = prev.get("metadata") if isinstance(prev.get("metadata"), dict) else {}
+    new_meta = incoming.get("metadata")
+    if isinstance(new_meta, dict):
+        merged["metadata"] = {**prev_meta, **new_meta}
+    receipt = _mpesa_stk_receipt_number(merged)
+    if receipt:
+        merged["mpesa_receipt_number"] = receipt
+    return merged
+
+
+def _mpesa_stk_status_store(checkout_request_id: str, payload: dict) -> None:
+    cid = str(checkout_request_id or "").strip()
+    if not cid:
+        return
+    incoming = payload if isinstance(payload, dict) else {}
+    prev: dict = {}
+    try:
+        from database import get_mpesa_stk_request
+
+        prev = get_mpesa_stk_request(cid) or {}
+    except Exception:
+        logger.debug("STK DB load before merge failed for %s", cid, exc_info=True)
+    if not prev:
+        with _MPESA_STK_STATUS_LOCK:
+            prev = dict(_MPESA_STK_STATUS.get(cid) or {})
+    merged = _mpesa_stk_merge_status(prev, incoming)
+    with _MPESA_STK_STATUS_LOCK:
+        _MPESA_STK_STATUS[cid] = merged
+    try:
+        from database import upsert_mpesa_stk_request
+
+        upsert_mpesa_stk_request(cid, merged)
+    except Exception:
+        logger.exception("Failed to persist M-Pesa STK status for %s", cid)
+
+
+def _mpesa_stk_receipt_number(row: Optional[dict]) -> str:
+    """Safaricom M-Pesa receipt reference (MpesaReceiptNumber) when STK payment succeeded."""
+    if not row:
+        return ""
+    direct = str(row.get("mpesa_receipt_number") or "").strip()
+    if direct:
+        return direct
+    meta = row.get("metadata")
+    if not isinstance(meta, dict):
+        return ""
+    for key in ("MpesaReceiptNumber", "mpesa_receipt_number", "ReceiptNumber"):
+        val = str(meta.get(key) or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def _mpesa_stk_status_get(checkout_request_id: str) -> Optional[dict]:
+    cid = str(checkout_request_id or "").strip()
+    if not cid:
+        return None
+    row: Optional[dict] = None
+    try:
+        from database import get_mpesa_stk_request
+
+        row = get_mpesa_stk_request(cid)
+    except Exception:
+        logger.debug("M-Pesa STK DB load failed for %s", cid, exc_info=True)
+    if not row:
+        with _MPESA_STK_STATUS_LOCK:
+            mem = _MPESA_STK_STATUS.get(cid)
+            row = dict(mem) if mem else None
+    elif row:
+        with _MPESA_STK_STATUS_LOCK:
+            _MPESA_STK_STATUS[cid] = row
+    return dict(row) if row else None
+
+
+_DARAJA_BALANCE_STATUS: Dict[str, dict] = {}
+_DARAJA_BALANCE_STATUS_LOCK = threading.Lock()
+_DARAJA_BALANCE_SNAPSHOT_KEY = "daraja_account_balance_json"
+_DARAJA_BALANCE_STATUS_KEY = "daraja_balance_status_json"
+_DARAJA_BALANCE_STATUS_MAX = 40
+
+
+def _daraja_balance_snapshot_load() -> dict:
+    try:
+        from database import get_site_settings
+
+        raw = (
+            get_site_settings([_DARAJA_BALANCE_SNAPSHOT_KEY]).get(
+                _DARAJA_BALANCE_SNAPSHOT_KEY
+            )
+            or ""
+        )
+        data = json.loads(raw) if raw else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _daraja_balance_status_load_all() -> dict:
+    try:
+        from database import get_site_settings
+
+        raw = (
+            get_site_settings([_DARAJA_BALANCE_STATUS_KEY]).get(
+                _DARAJA_BALANCE_STATUS_KEY
+            )
+            or ""
+        )
+        data = json.loads(raw) if raw else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _daraja_balance_status_save_all(data: dict) -> None:
+    try:
+        from database import set_site_settings
+
+        if not isinstance(data, dict):
+            return
+        items = list(data.items())
+        if len(items) > _DARAJA_BALANCE_STATUS_MAX:
+            items = items[-_DARAJA_BALANCE_STATUS_MAX :]
+        set_site_settings(
+            {
+                _DARAJA_BALANCE_STATUS_KEY: json.dumps(
+                    dict(items), separators=(",", ":")
+                )
+            }
+        )
+    except Exception:
+        logger.exception("Failed to persist Daraja balance status map")
+
+
+def _daraja_balance_snapshot_save(payload: dict) -> None:
+    try:
+        from database import set_site_settings
+
+        set_site_settings(
+            {
+                _DARAJA_BALANCE_SNAPSHOT_KEY: json.dumps(
+                    payload, separators=(",", ":")
+                )
+            }
+        )
+    except Exception:
+        logger.exception("Failed to persist Daraja balance snapshot")
+
+
+def _daraja_balance_status_store(conversation_id: str, payload: dict) -> None:
+    cid = str(conversation_id or "").strip()
+    if not cid:
+        return
+    incoming = payload if isinstance(payload, dict) else {}
+    with _DARAJA_BALANCE_STATUS_LOCK:
+        prev = dict(_DARAJA_BALANCE_STATUS.get(cid) or {})
+        persisted = _daraja_balance_status_load_all()
+        if not prev:
+            prev = dict(persisted.get(cid) or {})
+        merged = {**prev, **incoming, "conversation_id": cid}
+        _DARAJA_BALANCE_STATUS[cid] = merged
+        persisted[cid] = merged
+        _daraja_balance_status_save_all(persisted)
+    if merged.get("completed") and merged.get("result_code") == 0:
+        snap = _daraja_balance_snapshot_load()
+        snap.update(
+            {
+                "balance": merged.get("balance"),
+                "currency": merged.get("currency") or snap.get("currency") or "KES",
+                "account_label": merged.get("account_label")
+                or snap.get("account_label")
+                or "",
+                "result_desc": merged.get("result_desc") or "",
+                "result_code": merged.get("result_code"),
+                "conversation_id": cid,
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+        )
+        _daraja_balance_snapshot_save(snap)
+
+
+def _daraja_balance_status_get(conversation_id: str) -> Optional[dict]:
+    cid = str(conversation_id or "").strip()
+    if not cid:
+        return None
+    with _DARAJA_BALANCE_STATUS_LOCK:
+        row = _DARAJA_BALANCE_STATUS.get(cid)
+        if not row:
+            row = _daraja_balance_status_load_all().get(cid)
+            if row:
+                _DARAJA_BALANCE_STATUS[cid] = dict(row)
+        return dict(row) if row else None
+
+
+def _daraja_balance_status_get_any(conversation_ids: list) -> Optional[dict]:
+    for raw in conversation_ids or []:
+        cid = str(raw or "").strip()
+        if not cid:
+            continue
+        row = _daraja_balance_status_get(cid)
+        if row:
+            return row
+    return None
+
+
+def _daraja_balance_register_pending(*conversation_ids: str) -> None:
+    pending = {
+        "pending": True,
+        "completed": False,
+        "timed_out": False,
+        "requested_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    ids = []
+    for raw in conversation_ids:
+        cid = str(raw or "").strip()
+        if cid and cid not in ids:
+            ids.append(cid)
+    for cid in ids:
+        _daraja_balance_status_store(cid, {**pending, "conversation_id": cid, "poll_ids": ids})
+
+
+def _daraja_company_account_context() -> dict:
+    from daraja_api import (
+        daraja_account_type_label,
+        daraja_api_endpoints,
+        daraja_balance_settings_ready,
+        daraja_settings_ready,
+    )
+
+    settings = _load_daraja_settings()
+    shortcode = str(settings.get("daraja_shortcode") or "").strip()
+    env = str(settings.get("daraja_environment") or "sandbox").strip().lower()
+    if not shortcode and env == "sandbox":
+        shortcode = "174379"
+    snapshot = _daraja_balance_snapshot_load()
+    if "balance" not in snapshot:
+        snapshot["balance"] = None
+    endpoints = daraja_api_endpoints(settings)
+    return {
+        "daraja_endpoints": endpoints,
+        "mpesa_account": {
+            "configured": daraja_settings_ready(settings),
+            "balance_ready": daraja_balance_settings_ready(settings),
+            "enabled": bool(settings.get("daraja_enabled")),
+            "environment": env,
+            "shortcode": shortcode,
+            "account_type": daraja_account_type_label(settings),
+            "transaction_type": settings.get("daraja_transaction_type")
+            or "CustomerBuyGoodsOnline",
+            "initiator_configured": bool(
+                str(settings.get("daraja_initiator_name") or "").strip()
+            ),
+            "security_credential_configured": bool(
+                str(settings.get("daraja_security_credential") or "").strip()
+            ),
+            "balance_api_url": endpoints.get("account_balance") or "",
+        },
+        "mpesa_balance": snapshot,
+    }
 
 
 def _receipt_settings_from_form() -> dict:
@@ -2223,6 +2882,15 @@ def it_support_system_settings():
         try:
             from database import set_site_settings
 
+            daraja_form = _daraja_settings_from_form()
+            daraja_oauth_err = _test_daraja_oauth_settings(daraja_form)
+            if not daraja_form.get("daraja_enabled"):
+                daraja_form["daraja_oauth_ok"] = None
+            elif daraja_oauth_err:
+                daraja_form["daraja_oauth_ok"] = False
+            else:
+                daraja_form["daraja_oauth_ok"] = True
+            daraja_form["daraja_oauth_checked_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
             values = {
                 "company_name": company_name,
                 "company_email": company_email,
@@ -2237,6 +2905,7 @@ def it_support_system_settings():
                 "receipt_settings_json": json.dumps(_receipt_settings_from_form(), separators=(",", ":")),
                 "printing_settings_json": json.dumps(_printing_settings_from_form(), separators=(",", ":")),
             }
+            values.update(_daraja_settings_persist_payload(daraja_form))
             if app_icon_path is not None:
                 values["app_icon"] = app_icon_path
             ok = set_site_settings(values)
@@ -2246,14 +2915,19 @@ def it_support_system_settings():
         if ok:
             if wants_json:
                 ps_after = _load_printing_settings()
-                return jsonify(
-                    {
-                        "ok": True,
-                        "printing_pos_patch": _printing_settings_pos_panel_client_payload(ps_after),
-                        "printing_compulsory_sale": bool(ps_after.get("print_compulsory_sale")),
-                    }
-                )
-            flash("Settings updated.", "success")
+                payload = {
+                    "ok": True,
+                    "printing_pos_patch": _printing_settings_pos_panel_client_payload(ps_after),
+                    "printing_compulsory_sale": bool(ps_after.get("print_compulsory_sale")),
+                    "daraja_oauth_ok": bool(daraja_form.get("daraja_oauth_ok")),
+                }
+                if daraja_oauth_err:
+                    payload["daraja_oauth_warning"] = daraja_oauth_err
+                return jsonify(payload)
+            if daraja_oauth_err:
+                flash(f"Settings saved, but Daraja OAuth failed: {daraja_oauth_err}", "error")
+            else:
+                flash("Settings updated.", "success")
         else:
             if wants_json:
                 return jsonify(
@@ -2272,6 +2946,7 @@ def it_support_system_settings():
         "it_support_system_settings.html",
         receipt_settings=_load_receipt_settings(),
         printing_settings=_load_printing_settings(),
+        daraja_settings=_daraja_settings_for_template(),
         initial_settings_tab=initial_settings_tab,
         appearance_presets=theme_presets_for_template(),
         appearance_fonts=fonts_for_template(),
@@ -6751,7 +7426,7 @@ def shop_pos(shop_id: int):
     else:
         buy_items_catalog = items
 
-    pri_rgb, acc_rgb = _effective_pos_theme_colors(shop)
+    shop_co = _effective_company_settings_for_shop(shop)
     return render_template(
         "shop_pos.html",
         shop=shop,
@@ -6761,11 +7436,9 @@ def shop_pos(shop_id: int):
         pos_printing_settings=_effective_printing_settings_for_shop(shop),
         pos_inventory_mode=inventory_mode,
         pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
-        theme_key=f"richcom-theme-shop-{shop['id']}",
-        theme_default=shop.get("default_theme") or "dark",
-        font_family=shop.get("font_family") or "Plus Jakarta Sans",
-        primary_color_rgb=pri_rgb,
-        accent_color_rgb=acc_rgb,
+        daraja_pos_boot=_daraja_pos_boot_payload(),
+        shop_company_settings=shop_co,
+        **_shop_theme_template_vars(shop),
     )
 
 
@@ -7512,6 +8185,569 @@ def shop_pos_customer_upsert(shop_id: int):
     )
 
 
+@app.route("/api/daraja/mpesa-callback", methods=["POST"])
+def daraja_mpesa_stk_callback():
+    """Safaricom STK Push result callback (Body STKCallback JSON)."""
+    data = request.get_json(force=True, silent=True) or {}
+    body = data.get("Body") if isinstance(data.get("Body"), dict) else {}
+    stk = body.get("stkCallback") if isinstance(body.get("stkCallback"), dict) else {}
+    checkout_id = str(stk.get("CheckoutRequestID") or "").strip()
+    result_code = stk.get("ResultCode")
+    result_desc = str(stk.get("ResultDesc") or "").strip()
+    metadata = {}
+    for item in stk.get("CallbackMetadata", {}).get("Item", []) or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("Name") or "").strip()
+        if name:
+            metadata[name] = item.get("Value")
+    receipt_no = ""
+    for key in ("MpesaReceiptNumber", "mpesa_receipt_number", "ReceiptNumber"):
+        val = metadata.get(key)
+        if val is not None and str(val).strip():
+            receipt_no = str(val).strip()
+            break
+    if checkout_id:
+        _mpesa_stk_status_store(
+            checkout_id,
+            {
+                "checkout_request_id": checkout_id,
+                "merchant_request_id": str(stk.get("MerchantRequestID") or "").strip(),
+                "result_code": result_code,
+                "result_desc": result_desc,
+                "metadata": metadata,
+                "mpesa_receipt_number": receipt_no or None,
+                "completed": True,
+                "pending": False,
+            },
+        )
+        if receipt_no:
+            logger.info("M-Pesa STK callback stored receipt %s for %s", receipt_no, checkout_id)
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+def _daraja_balance_callback_payload() -> dict:
+    data = request.get_json(force=True, silent=True)
+    if isinstance(data, dict) and data:
+        return data
+    raw = (request.get_data(as_text=True) or "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("Daraja balance callback non-JSON body: %s", raw[:500])
+        return {}
+
+
+@app.route("/api/daraja/account-balance-result", methods=["GET", "POST"])
+def daraja_account_balance_result_callback():
+    """Safaricom AccountBalance ResultURL callback."""
+    if request.method == "GET":
+        return jsonify(
+            {
+                "ok": True,
+                "message": "Balance ResultURL endpoint is reachable. Safaricom uses POST.",
+            }
+        )
+    data = _daraja_balance_callback_payload()
+    logger.info("Daraja balance result callback received (%s bytes)", len(request.get_data() or b""))
+    parsed = {}
+    try:
+        from daraja_api import parse_account_balance_callback
+
+        parsed = parse_account_balance_callback(data)
+    except Exception:
+        logger.exception("Daraja balance callback parse failed")
+    cid = str(parsed.get("conversation_id") or "").strip()
+    orig = str(parsed.get("originator_conversation_id") or "").strip()
+    for key in (cid, orig):
+        if key:
+            _daraja_balance_status_store(key, parsed)
+    if cid or orig:
+        logger.info(
+            "M-Pesa balance callback conv=%s orig=%s code=%s balance=%s",
+            cid or "—",
+            orig or "—",
+            parsed.get("result_code"),
+            parsed.get("balance"),
+        )
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+@app.route("/api/daraja/account-balance-timeout", methods=["GET", "POST"])
+def daraja_account_balance_timeout_callback():
+    """Safaricom AccountBalance QueueTimeOutURL callback."""
+    if request.method == "GET":
+        return jsonify(
+            {
+                "ok": True,
+                "message": "Balance timeout URL endpoint is reachable. Safaricom uses POST.",
+            }
+        )
+    data = _daraja_balance_callback_payload()
+    result = data.get("Result") if isinstance(data.get("Result"), dict) else data
+    ids = []
+    for raw in (
+        result.get("ConversationID"),
+        result.get("OriginatorConversationID"),
+    ):
+        cid = str(raw or "").strip()
+        if cid and cid not in ids:
+            ids.append(cid)
+    payload = {
+        "completed": True,
+        "pending": False,
+        "timed_out": True,
+        "result_code": -1,
+        "result_desc": str(result.get("ResultDesc") or "Balance request timed out."),
+    }
+    for cid in ids:
+        _daraja_balance_status_store(cid, {**payload, "conversation_id": cid})
+    if ids:
+        logger.info("M-Pesa balance timeout callback for %s", ", ".join(ids))
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/mpesa-stk-push", methods=["POST"])
+def shop_pos_mpesa_stk_push(shop_id: int):
+    """Send Lipa Na M-Pesa STK Push to the customer phone."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+
+    data = request.get_json(force=True, silent=True) or {}
+    phone = (data.get("phone") or "").strip()
+    try:
+        amount = float(data.get("amount") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid M-Pesa amount."}), 400
+
+    settings = _load_daraja_settings()
+    from daraja_api import DarajaApiError, initiate_stk_push, normalize_msisdn
+
+    if not settings.get("daraja_enabled"):
+        return jsonify({"ok": False, "error": "Daraja M-Pesa is not enabled. Configure it in Company settings."}), 403
+
+    account_ref = settings.get("daraja_account_reference") or shop.get("shop_code") or shop.get("shop_name") or "POS"
+    account_ref = str(account_ref or "POS").strip()[:12]
+    callback_url = url_for("daraja_mpesa_stk_callback", _external=True)
+    try:
+        result = initiate_stk_push(
+            settings,
+            phone=phone,
+            amount=amount,
+            callback_url=callback_url,
+            account_reference=account_ref,
+            transaction_desc=f"{shop.get('shop_name') or 'POS'} sale"[:13],
+        )
+    except DarajaApiError as exc:
+        logger.warning("STK Push rejected for shop %s: %s", shop_id, exc)
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception:
+        logger.exception("STK Push failed for shop %s", shop_id)
+        return jsonify({"ok": False, "error": "Could not send STK Push. Try again."}), 500
+
+    checkout_id = str(result.get("CheckoutRequestID") or "").strip()
+    merchant_id = str(result.get("MerchantRequestID") or "").strip()
+    if checkout_id:
+        _mpesa_stk_status_store(
+            checkout_id,
+            {
+                "checkout_request_id": checkout_id,
+                "merchant_request_id": merchant_id,
+                "shop_id": shop_id,
+                "phone": normalize_msisdn(phone),
+                "amount": round(amount, 2),
+                "result_code": None,
+                "result_desc": str(result.get("CustomerMessage") or result.get("ResponseDescription") or "").strip(),
+                "completed": False,
+            },
+        )
+    return jsonify(
+        {
+            "ok": True,
+            "checkout_request_id": checkout_id,
+            "merchant_request_id": merchant_id,
+            "customer_message": str(
+                result.get("CustomerMessage") or result.get("ResponseDescription") or "STK Push sent."
+            ).strip(),
+            "phone": normalize_msisdn(phone),
+            "amount": round(amount, 2),
+        }
+    )
+
+
+def _mpesa_stk_refresh_from_daraja_query(row: dict) -> dict:
+    """Poll Safaricom STK Query API when callback has not arrived (e.g. localhost)."""
+    if not row:
+        return row
+    from daraja_api import (
+        DarajaApiError,
+        _stk_query_payload_pending,
+        _stk_result_desc_is_pending,
+        query_stk_push,
+    )
+
+    if row.get("completed"):
+        desc = str(row.get("result_desc") or "")
+        if _stk_result_desc_is_pending(desc):
+            row = {**row, "completed": False, "pending": True}
+        else:
+            return row
+
+    settings = _load_daraja_settings()
+    if not settings.get("daraja_enabled"):
+        return row
+    checkout_id = str(row.get("checkout_request_id") or "").strip()
+    if not checkout_id:
+        return row
+    try:
+        q = query_stk_push(settings, checkout_id)
+    except DarajaApiError:
+        logger.debug("STK query pending/failed for %s", checkout_id, exc_info=True)
+        return row
+    if _stk_query_payload_pending(q):
+        merged = {
+            **row,
+            "pending": True,
+            "completed": False,
+            "result_desc": q.get("ResultDesc")
+            or q.get("result_desc")
+            or "Waiting for M-Pesa payment on phone…",
+            "queried_via_daraja": True,
+        }
+        _mpesa_stk_status_store(checkout_id, merged)
+        return merged
+    patch = {
+        "result_code": q.get("result_code", q.get("ResultCode")),
+        "result_desc": q.get("result_desc") or q.get("ResultDesc") or "",
+        "completed": True,
+        "pending": False,
+        "queried_via_daraja": True,
+    }
+    merged = {**row, **{k: v for k, v in patch.items() if v is not None}}
+    _mpesa_stk_status_store(checkout_id, merged)
+    return merged
+
+
+def _mpesa_stk_status_pending(row: dict, paid: bool) -> bool:
+    if paid or not row:
+        return False
+    if row.get("pending"):
+        return True
+    if not row.get("completed"):
+        return True
+    return _mpesa_stk_result_desc_is_pending(str(row.get("result_desc") or ""))
+
+
+def _mpesa_stk_result_desc_is_pending(desc: str) -> bool:
+    from daraja_api import _stk_result_desc_is_pending
+
+    return _stk_result_desc_is_pending(desc)
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/mpesa-stk-status/<checkout_request_id>", methods=["GET"])
+def shop_pos_mpesa_stk_status(shop_id: int, checkout_request_id: str):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    row = _mpesa_stk_status_get(checkout_request_id)
+    if not row:
+        return jsonify({"ok": False, "error": "STK request not found."}), 404
+    if int(row.get("shop_id") or 0) not in (0, shop_id):
+        return jsonify({"ok": False, "error": "STK request not found."}), 404
+    row = _mpesa_stk_refresh_from_daraja_query(row)
+    paid = str(row.get("result_code")) == "0"
+    pending = _mpesa_stk_status_pending(row, paid)
+    failed = bool(row.get("completed")) and not paid and not pending
+    receipt_no = _mpesa_stk_receipt_number(row) if paid else ""
+    from daraja_api import humanize_stk_result
+
+    settings = _load_daraja_settings()
+    status_message = humanize_stk_result(
+        row.get("result_code"),
+        str(row.get("result_desc") or ""),
+        environment=settings.get("daraja_environment") or "sandbox",
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "status": row,
+            "status_message": status_message,
+            "paid": paid,
+            "pending": pending,
+            "failed": failed,
+            "mpesa_receipt_number": receipt_no,
+        }
+    )
+
+
+@app.route("/pay/credit/<token>")
+def credit_pay_public(token: str):
+    """Public M-Pesa credit payment page (from WhatsApp link)."""
+    try:
+        ctx = _parse_credit_pay_token(token)
+    except ValueError as exc:
+        return render_template("credit_pay_public.html", error=str(exc)), 400
+    shop = _get_shop_or_404(ctx["shop_id"])
+    if not _shop_pos_allow_credit_sale(shop):
+        return render_template(
+            "credit_pay_public.html",
+            error="Credit payments are not enabled for this shop.",
+        ), 403
+    settings = _load_daraja_settings()
+    from daraja_api import daraja_settings_ready
+
+    if not daraja_settings_ready(settings):
+        return render_template(
+            "credit_pay_public.html",
+            error="M-Pesa payments are not configured. Contact the shop.",
+        ), 503
+    suggested = float(ctx["max_amount"] or 0)
+    amount_raw = (request.args.get("amount") or "").strip()
+    phone_raw = (request.args.get("phone") or "").strip()
+    try:
+        amount = float(amount_raw) if amount_raw else suggested
+    except (TypeError, ValueError):
+        amount = suggested
+    amount = max(0.0, min(amount, suggested))
+    phone = phone_raw or ctx["customer_phone"]
+    if phone == "-":
+        phone = ""
+    company_name = "Point of Sale"
+    try:
+        from database import get_site_settings
+
+        company_name = (
+            get_site_settings(["company_name"]).get("company_name") or company_name
+        )
+    except Exception:
+        pass
+    credit_ctx = _shop_customer_credit_note_context(
+        ctx["shop_id"],
+        ctx["customer_name"],
+        ctx["customer_phone"],
+    )
+    balance_due = float(credit_ctx.get("account_balance_due") or 0)
+    payment_max = round(min(suggested, balance_due) if balance_due > 0 else suggested, 2)
+    if payment_max < 0.01:
+        payment_max = suggested
+    default_amt = round(amount, 2) if amount >= 0.01 else payment_max
+    default_amt = max(0.0, min(default_amt, payment_max))
+    return render_template(
+        "credit_pay_public.html",
+        shop=shop,
+        pay_ctx=ctx,
+        pay_token=ctx["token"],
+        suggested_amount=payment_max,
+        default_amount=default_amt,
+        default_phone=phone,
+        company_name=company_name,
+        customer_name=ctx["customer_name"],
+        customer_phone=ctx["customer_phone"],
+        public_credit_pay=True,
+        **credit_ctx,
+    )
+
+
+@app.route("/api/pay/credit/<token>/stk-push", methods=["POST"])
+def credit_pay_public_stk_push(token: str):
+    """Initiate STK Push from a signed credit payment link."""
+    try:
+        ctx = _parse_credit_pay_token(token)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    shop = _get_shop_or_404(ctx["shop_id"])
+    if not _shop_pos_allow_credit_sale(shop):
+        return jsonify({"ok": False, "error": "Credit payments are disabled."}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    phone = (data.get("phone") or "").strip()
+    try:
+        amount = float(data.get("amount") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid amount."}), 400
+
+    max_amt = float(ctx["max_amount"] or 0)
+    if amount < 1:
+        return jsonify({"ok": False, "error": "Amount must be at least 1."}), 400
+    if amount > max_amt + 0.02:
+        return jsonify(
+            {
+                "ok": False,
+                "error": f"Amount cannot exceed {max_amt:.2f} on this link.",
+            }
+        ), 400
+
+    settings = _load_daraja_settings()
+    from daraja_api import DarajaApiError, initiate_stk_push, normalize_msisdn
+
+    if not settings.get("daraja_enabled"):
+        return jsonify({"ok": False, "error": "M-Pesa is not enabled."}), 403
+
+    account_ref = (
+        settings.get("daraja_account_reference") or shop.get("shop_code") or "CREDIT"
+    )
+    account_ref = str(account_ref or "CREDIT").strip()[:12]
+    callback_url = url_for("daraja_mpesa_stk_callback", _external=True)
+    shop_id = int(ctx["shop_id"])
+    try:
+        result = initiate_stk_push(
+            settings,
+            phone=phone,
+            amount=amount,
+            callback_url=callback_url,
+            account_reference=account_ref,
+            transaction_desc=f"{shop.get('shop_name') or 'Credit'}"[:13],
+        )
+    except DarajaApiError as exc:
+        logger.warning("Credit pay STK rejected shop %s: %s", shop_id, exc)
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception:
+        logger.exception("Credit pay STK failed shop %s", shop_id)
+        return jsonify({"ok": False, "error": "Could not send STK Push."}), 500
+
+    checkout_id = str(result.get("CheckoutRequestID") or "").strip()
+    merchant_id = str(result.get("MerchantRequestID") or "").strip()
+    if checkout_id:
+        _mpesa_stk_status_store(
+            checkout_id,
+            {
+                "checkout_request_id": checkout_id,
+                "merchant_request_id": merchant_id,
+                "shop_id": shop_id,
+                "phone": normalize_msisdn(phone),
+                "amount": round(amount, 2),
+                "result_code": None,
+                "result_desc": str(
+                    result.get("CustomerMessage") or result.get("ResponseDescription") or ""
+                ).strip(),
+                "completed": False,
+                "credit_pay": True,
+                "credit_pay_token": ctx["token"],
+                "customer_name": ctx["customer_name"],
+                "customer_phone": ctx["customer_phone"],
+            },
+        )
+    return jsonify(
+        {
+            "ok": True,
+            "checkout_request_id": checkout_id,
+            "customer_message": str(
+                result.get("CustomerMessage")
+                or result.get("ResponseDescription")
+                or "STK Push sent."
+            ).strip(),
+        }
+    )
+
+
+@app.route("/api/pay/credit/<token>/stk-status/<checkout_request_id>", methods=["GET"])
+def credit_pay_public_stk_status(token: str, checkout_request_id: str):
+    """Poll STK status for a credit payment link (no login)."""
+    try:
+        ctx = _parse_credit_pay_token(token)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    row = _mpesa_stk_status_get(checkout_request_id)
+    if not row:
+        return jsonify({"ok": False, "error": "Payment request not found."}), 404
+    if str(row.get("credit_pay_token") or "") != ctx["token"]:
+        return jsonify({"ok": False, "error": "Payment request not found."}), 404
+    if int(row.get("shop_id") or 0) != int(ctx["shop_id"]):
+        return jsonify({"ok": False, "error": "Payment request not found."}), 404
+    row = _mpesa_stk_refresh_from_daraja_query(row)
+    paid = str(row.get("result_code")) == "0"
+    pending = _mpesa_stk_status_pending(row, paid)
+    failed = bool(row.get("completed")) and not paid and not pending
+    receipt_no = _mpesa_stk_receipt_number(row) if paid else ""
+    recorded = bool(row.get("credit_payment_recorded"))
+    from daraja_api import humanize_stk_result
+
+    settings = _load_daraja_settings()
+    status_message = humanize_stk_result(
+        row.get("result_code"),
+        str(row.get("result_desc") or ""),
+        environment=settings.get("daraja_environment") or "sandbox",
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "paid": paid,
+            "pending": pending,
+            "failed": failed,
+            "recorded": recorded,
+            "mpesa_receipt_number": receipt_no,
+            "status": row,
+            "status_message": status_message,
+        }
+    )
+
+
+@app.route("/api/pay/credit/<token>/record", methods=["POST"])
+def credit_pay_public_record(token: str):
+    """Apply FIFO credit payment after successful STK on a public pay link."""
+    try:
+        ctx = _parse_credit_pay_token(token)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    checkout_id = str(data.get("checkout_request_id") or "").strip()
+    if not checkout_id:
+        return jsonify({"ok": False, "error": "Checkout request ID is required."}), 400
+
+    row = _mpesa_stk_status_get(checkout_id)
+    if not row or str(row.get("credit_pay_token") or "") != ctx["token"]:
+        return jsonify({"ok": False, "error": "Payment request not found."}), 404
+
+    if row.get("credit_payment_recorded"):
+        return jsonify({"ok": True, "already_recorded": True, "message": "Payment already recorded."})
+
+    row = _mpesa_stk_refresh_from_daraja_query(row)
+    paid = str(row.get("result_code")) == "0"
+    if not paid:
+        return jsonify({"ok": False, "error": "M-Pesa payment is not confirmed yet."}), 400
+
+    amount = float(row.get("amount") or 0)
+    receipt_no = _mpesa_stk_receipt_number(row)
+    note = f"M-Pesa Ref: {receipt_no}" if receipt_no else "M-Pesa STK (pay link)"
+
+    try:
+        from database import apply_shop_credit_payment_fifo
+
+        res = apply_shop_credit_payment_fifo(
+            shop_id=int(ctx["shop_id"]),
+            customer_name=ctx["customer_name"],
+            customer_phone=ctx["customer_phone"],
+            amount=amount,
+            note=note,
+        )
+    except Exception:
+        logger.exception("Credit pay record failed for %s", checkout_id)
+        return jsonify({"ok": False, "error": "Could not record payment."}), 500
+
+    if not res.get("ok"):
+        return jsonify({"ok": False, "error": res.get("error") or "Could not record payment."}), 400
+
+    _mpesa_stk_status_store(
+        checkout_id,
+        {**row, "credit_payment_recorded": True, "credit_payment_note": note},
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Payment recorded. Thank you!",
+            "mpesa_receipt_number": receipt_no,
+            "allocated": res.get("allocated") or [],
+        }
+    )
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/record-sale", methods=["POST"])
 def shop_pos_record_sale(shop_id: int):
     """Record POS sale/credit checkout for analytics."""
@@ -7599,6 +8835,13 @@ def shop_pos_record_sale(shop_id: int):
             held_order_id = None
     if held_order_id is not None and sale_type != "sale":
         return jsonify({"ok": False, "error": "Held orders are finalized through standard sale only."}), 400
+    mpesa_receipt_number = (data.get("mpesa_receipt_number") or "").strip()
+    if not mpesa_receipt_number:
+        stk_checkout_id = (data.get("mpesa_checkout_request_id") or "").strip()
+        if stk_checkout_id:
+            stk_row = _mpesa_stk_status_get(stk_checkout_id)
+            if stk_row and int(stk_row.get("shop_id") or 0) in (0, shop_id):
+                mpesa_receipt_number = _mpesa_stk_receipt_number(stk_row)
     try:
         from database import create_shop_pos_sale
 
@@ -7620,6 +8863,7 @@ def shop_pos_record_sale(shop_id: int):
             inventory_mode=_pos_inventory_mode(shop),
             client_txn_id=client_txn_id,
             skip_stock_deduction=held_order_id is not None,
+            mpesa_receipt_number=mpesa_receipt_number or None,
         )
     except Exception:
         ok, sale_err = False, None
@@ -9707,6 +10951,10 @@ def _shop_customer_credit_note_context(
         "unpaid_sales_count": unpaid_sales_count,
         "credit_note_ref": f"CN-{shop_id}-{datetime.utcnow().strftime('%Y%m%d')}",
         "credit_note_all_time": all_time,
+        "daraja_pos_boot": _daraja_pos_boot_payload(),
+        "credit_pay_link": _credit_pay_public_link(
+            shop_id, customer_name, customer_phone, account_balance_due
+        ),
     }
 
 
@@ -12178,6 +13426,8 @@ def shop_customer_analytics_detail(shop_id: int):
         analytics_filter=analytics_filter,
         analytics_scope=analytics_scope,
     )
+    # note_ctx also carries analytics_scope and credit-only line items; keep full tx map for raw view.
+    note_ctx.pop("transaction_items_by_sale_id", None)
     allow_credit = _shop_pos_allow_credit_sale(shop)
     return render_template(
         "shop_customer_analytics_detail.html",
@@ -12185,7 +13435,6 @@ def shop_customer_analytics_detail(shop_id: int):
         customer_name=customer_name,
         customer_phone=customer_phone,
         analytics_filter=analytics_filter,
-        analytics_scope=analytics_scope,
         customer_analytics=customer_analytics,
         transactions=transactions,
         transaction_items_by_sale_id=items_by_sale_id,
@@ -12240,14 +13489,14 @@ def _shop_settings_template_extra(shop: dict) -> dict:
     return {
         "printing_settings": _effective_printing_settings_for_shop(shop),
         "receipt_settings": _effective_receipt_settings_for_shop(shop),
+        "appearance_settings": _effective_appearance_settings_for_shop(shop),
         "shop_printing_custom": _shop_has_printing_override(shop),
         "shop_receipt_custom": _shop_has_receipt_override(shop),
+        "shop_appearance_custom": _shop_has_appearance_override(shop),
+        "company_settings": _effective_company_settings_for_shop(shop),
+        "shop_company_custom": _shop_has_company_override(shop),
         "pos_allow_credit_sale": _shop_pos_allow_credit_sale(shop),
-        "theme_key": f"richcom-theme-shop-{sid}",
-        "theme_default": shop.get("default_theme") or "dark",
-        "font_family": shop.get("font_family") or "Plus Jakarta Sans",
-        "primary_color_rgb": _hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
-        "accent_color_rgb": _hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+        **_shop_theme_template_vars(shop),
     }
 
 
@@ -12338,29 +13587,102 @@ def shop_settings_appearance(shop_id: int):
     if gate is not None:
         return gate
     if request.method == "POST":
+        use_custom_appearance = (request.form.get("shop_appearance_custom") or "").strip() == "1"
         default_theme = (request.form.get("default_theme") or "").strip().lower()
         from theme_presets import normalize_font_family
 
         font_family = normalize_font_family((request.form.get("font_family") or "").strip())
         primary_color = (request.form.get("primary_color") or "").strip()
         accent_color = (request.form.get("accent_color") or "").strip()
+        appearance_json = None
+        if use_custom_appearance:
+            appearance_json = json.dumps(
+                {
+                    "default_theme": default_theme,
+                    "font_family": font_family,
+                    "primary_color": primary_color,
+                    "accent_color": accent_color,
+                },
+                separators=(",", ":"),
+            )
         try:
             from database import update_shop_settings
 
             ok = update_shop_settings(
                 shop["id"],
-                default_theme=default_theme,
-                font_family=font_family,
-                primary_color=primary_color,
-                accent_color=accent_color,
+                default_theme=default_theme if use_custom_appearance else shop["default_theme"],
+                font_family=font_family if use_custom_appearance else shop["font_family"],
+                primary_color=primary_color if use_custom_appearance else shop["primary_color"],
+                accent_color=accent_color if use_custom_appearance else shop["accent_color"],
                 printing_settings_json=shop.get("printing_settings_json"),
                 receipt_settings_json=shop.get("receipt_settings_json"),
+                appearance_settings_json=appearance_json,
+                company_settings_json=shop.get("company_settings_json"),
             )
         except Exception:
             ok = False
-        flash("Appearance updated." if ok else "Could not update appearance.", "success" if ok else "error")
+        flash(
+            "Appearance settings updated." if ok else "Could not update appearance settings.",
+            "success" if ok else "error",
+        )
         return redirect(url_for("shop_settings_appearance", shop_id=shop["id"]))
     return render_template("shop_settings_appearance.html", shop=shop, **_shop_settings_template_extra(shop))
+
+
+@app.route("/shops/<int:shop_id>/shop-settings/company", methods=["GET", "POST"])
+def shop_settings_company(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if request.method == "POST":
+        use_custom = (request.form.get("shop_company_custom") or "").strip() == "1"
+        company_json = None
+        logo_path = shop.get("shop_logo")
+        update_logo = False
+        if use_custom:
+            company_json = json.dumps(
+                {
+                    "company_name": (request.form.get("company_name") or "").strip() or "Point of Sale",
+                    "company_email": (request.form.get("company_email") or "").strip(),
+                    "company_phone": (request.form.get("company_phone") or "").strip(),
+                    "company_facebook": (request.form.get("company_facebook") or "").strip(),
+                    "company_instagram": (request.form.get("company_instagram") or "").strip(),
+                },
+                separators=(",", ":"),
+            )
+            remove_logo = (request.form.get("remove_shop_logo") or "").strip() == "1"
+            logo_file = request.files.get("shop_logo")
+            if remove_logo:
+                logo_path = ""
+                update_logo = True
+            elif logo_file and getattr(logo_file, "filename", ""):
+                saved = _save_branding_upload(logo_file)
+                if saved is None:
+                    flash("Shop logo must be PNG, JPG, GIF, WebP, ICO, or SVG.", "error")
+                    return redirect(url_for("shop_settings_company", shop_id=shop["id"]))
+                logo_path = saved
+                update_logo = True
+        else:
+            logo_path = ""
+            update_logo = True
+        try:
+            from database import update_shop_company_settings
+
+            ok = update_shop_company_settings(
+                shop["id"],
+                company_settings_json=company_json,
+                shop_logo=logo_path,
+                update_shop_logo=update_logo,
+            )
+        except Exception:
+            ok = False
+        flash(
+            "Company settings updated." if ok else "Could not update company settings.",
+            "success" if ok else "error",
+        )
+        return redirect(url_for("shop_settings_company", shop_id=shop["id"]))
+    return render_template("shop_settings_company.html", shop=shop, **_shop_settings_template_extra(shop))
 
 
 @app.route("/shops/<int:shop_id>/shop-settings/pos-printing", methods=["GET", "POST"])
@@ -12386,10 +13708,12 @@ def shop_settings_pos_printing(shop_id: int):
                 accent_color=shop["accent_color"],
                 printing_settings_json=printing_json,
                 receipt_settings_json=shop.get("receipt_settings_json"),
+                appearance_settings_json=shop.get("appearance_settings_json"),
+                company_settings_json=shop.get("company_settings_json"),
             )
         except Exception:
             ok = False
-        flash("POS printing settings updated." if ok else "Could not update POS printing.", "success" if ok else "error")
+        flash("Point of sale settings updated." if ok else "Could not update point of sale settings.", "success" if ok else "error")
         return redirect(url_for("shop_settings_pos_printing", shop_id=shop["id"]))
     return render_template("shop_settings_pos_printing.html", shop=shop, **_shop_settings_template_extra(shop))
 
@@ -12414,6 +13738,8 @@ def shop_settings_receipt(shop_id: int):
                 accent_color=shop["accent_color"],
                 printing_settings_json=shop.get("printing_settings_json"),
                 receipt_settings_json=receipt_json,
+                appearance_settings_json=shop.get("appearance_settings_json"),
+                company_settings_json=shop.get("company_settings_json"),
             )
         except Exception:
             ok = False
@@ -13347,6 +14673,233 @@ def it_support_hr_settings():
 
     mode = get_hr_employee_shop_link_mode()
     return render_template("it_support_hr_settings.html", hr_employee_shop_link_mode=mode)
+
+
+@app.route("/it_support/accounts")
+@login_required
+def it_support_accounts():
+    """Accounts hub: payroll, advances, and loans."""
+    _it_support_only()
+    return render_template("it_support_accounts.html")
+
+
+@app.route("/it_support/accounts/incomes")
+@login_required
+def it_support_accounts_incomes():
+    """Company incomes: cash and M-Pesa from POS sales and credit settlements."""
+    _it_support_only()
+    analytics_filter = _build_analytics_filter()
+    shop_filter_arg = request.args.get("shop_id", type=int)
+    shop_filter_id = shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
+    payment_method_filter = (request.args.get("payment_method") or "").strip().lower()
+    if payment_method_filter not in ("cash", "mpesa"):
+        payment_method_filter = ""
+    income_totals = {"rows": [], "total_cash": 0.0, "total_mpesa": 0.0, "total_income": 0.0, "count": 0}
+    shops = []
+    try:
+        from database import list_all_shops_income_payments, list_shops
+
+        shops = list_shops(limit=500) or []
+        income_totals = list_all_shops_income_payments(
+            analytics_filter,
+            shop_id=shop_filter_id,
+            payment_method=payment_method_filter or None,
+            limit=8000,
+        )
+    except Exception:
+        logger.exception("it_support_accounts_incomes list failed")
+        try:
+            from database import list_shops
+
+            shops = list_shops(limit=500) or []
+        except Exception:
+            shops = []
+    return render_template(
+        "it_support_accounts_incomes.html",
+        analytics_filter=analytics_filter,
+        income_rows=income_totals.get("rows") or [],
+        income_totals=income_totals,
+        shops=shops,
+        shop_filter_id=shop_filter_id or 0,
+        payment_method_filter=payment_method_filter,
+    )
+
+
+@app.route("/it_support/accounts/expenses")
+@login_required
+def it_support_accounts_expenses():
+    """Company expenses: stock purchases (items bought) with amounts paid."""
+    _it_support_only()
+    from database import _income_row_created_iso, list_company_supplier_stock_ins, list_shops
+
+    analytics_filter = _build_analytics_filter()
+    shop_filter_arg = request.args.get("shop_id", type=int)
+    shop_filter_id = shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
+    supplier_q = (request.args.get("supplier_q") or "").strip()
+    expense_rows: list = []
+    expense_totals = {
+        "total_cost": 0.0,
+        "amount_paid": 0.0,
+        "balance": 0.0,
+        "count": 0,
+    }
+    shops = []
+    try:
+        shops = list_shops(limit=500) or []
+        expense_rows = list_company_supplier_stock_ins(
+            analytics_filter=analytics_filter,
+            shop_id=shop_filter_id,
+            supplier_search=supplier_q or None,
+            limit=8000,
+        ) or []
+        for row in expense_rows:
+            cat = row.get("created_at")
+            row["created_at_iso"] = _income_row_created_iso(cat)
+        expense_totals["total_cost"] = sum(float(r.get("total_cost") or 0) for r in expense_rows)
+        expense_totals["amount_paid"] = sum(float(r.get("amount_paid") or 0) for r in expense_rows)
+        expense_totals["balance"] = sum(float(r.get("balance") or 0) for r in expense_rows)
+        expense_totals["count"] = len(expense_rows)
+    except Exception:
+        logger.exception("it_support_accounts_expenses list failed")
+        try:
+            shops = list_shops(limit=500) or []
+        except Exception:
+            shops = []
+    return render_template(
+        "it_support_accounts_expenses.html",
+        analytics_filter=analytics_filter,
+        expense_rows=expense_rows,
+        expense_totals=expense_totals,
+        shops=shops,
+        shop_filter_id=shop_filter_id or 0,
+        supplier_q=supplier_q,
+    )
+
+
+@app.route("/it_support/accounts/company-account")
+@login_required
+def it_support_accounts_company_account():
+    """Company M-Pesa paybill / till account overview."""
+    _it_support_only()
+    ctx = _daraja_company_account_context()
+    return render_template(
+        "it_support_accounts_company.html",
+        mpesa_account=ctx.get("mpesa_account") or {},
+        mpesa_balance=ctx.get("mpesa_balance") or {},
+        daraja_endpoints=ctx.get("daraja_endpoints") or {},
+    )
+
+
+@app.route("/it_support/accounts/company")
+@login_required
+def it_support_accounts_company_redirect():
+    """Legacy URL → company account page."""
+    return redirect(url_for("it_support_accounts_company_account"))
+
+
+@app.route("/it_support/accounts/company-account/balance-refresh", methods=["POST"])
+@app.route("/it_support/accounts/company/balance-refresh", methods=["POST"])
+@login_required
+def it_support_accounts_company_account_balance_refresh():
+    """Trigger a live M-Pesa account balance lookup via Daraja."""
+    _it_support_only()
+    from daraja_api import (
+        DarajaApiError,
+        balance_callback_ngrok_warning,
+        initiate_account_balance_query,
+        resolve_balance_callback_urls,
+    )
+
+    settings = _load_daraja_settings()
+    stk_hint = url_for("daraja_mpesa_stk_callback", _external=True)
+    result_url, timeout_url = resolve_balance_callback_urls(settings, stk_hint)
+    ngrok_warn = balance_callback_ngrok_warning(result_url)
+    try:
+        result = initiate_account_balance_query(
+            settings,
+            result_url=result_url,
+            timeout_url=timeout_url,
+        )
+    except DarajaApiError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception:
+        logger.exception("M-Pesa balance refresh failed")
+        return jsonify({"ok": False, "error": "Could not request balance. Try again."}), 500
+
+    cid = str(result.get("conversation_id") or "").strip()
+    orig = str(result.get("originator_conversation_id") or "").strip()
+    _daraja_balance_register_pending(cid, orig)
+    message = "Balance request sent. Safaricom will respond shortly."
+    if ngrok_warn:
+        message = ngrok_warn
+    return jsonify(
+        {
+            "ok": True,
+            "conversation_id": cid,
+            "originator_conversation_id": orig,
+            "result_url": result_url,
+            "timeout_url": timeout_url,
+            "api_url": result.get("api_url") or "",
+            "ngrok_warning": ngrok_warn or None,
+            "message": message,
+        }
+    )
+
+
+@app.route("/it_support/accounts/company-account/balance-status")
+@app.route("/it_support/accounts/company/balance-status")
+@login_required
+def it_support_accounts_company_account_balance_status():
+    """Poll status of an in-flight M-Pesa balance lookup."""
+    _it_support_only()
+    cid = str(request.args.get("conversation_id") or "").strip()
+    orig = str(request.args.get("originator_conversation_id") or "").strip()
+    if not cid and not orig:
+        return jsonify({"ok": False, "error": "conversation_id is required."}), 400
+    row = _daraja_balance_status_get_any([cid, orig]) or {}
+    if not row:
+        return jsonify({"ok": True, "pending": True, "completed": False})
+    if row.get("timed_out"):
+        return jsonify(
+            {
+                "ok": False,
+                "completed": True,
+                "pending": False,
+                "error": row.get("result_desc") or "Balance request timed out.",
+            }
+        )
+    if row.get("completed"):
+        if int(row.get("result_code") or -1) != 0:
+            return jsonify(
+                {
+                    "ok": False,
+                    "completed": True,
+                    "pending": False,
+                    "error": row.get("result_desc") or "Balance lookup failed.",
+                }
+            )
+        balance = row.get("balance")
+        if balance is None:
+            return jsonify(
+                {
+                    "ok": False,
+                    "completed": True,
+                    "pending": False,
+                    "error": "Balance response received but amount could not be parsed.",
+                }
+            )
+        return jsonify(
+            {
+                "ok": True,
+                "completed": True,
+                "pending": False,
+                "balance": float(balance),
+                "currency": row.get("currency") or "KES",
+                "account_label": row.get("account_label") or "",
+                "result_desc": row.get("result_desc") or "",
+            }
+        )
+    return jsonify({"ok": True, "pending": True, "completed": False})
 
 
 @app.route("/it_support/salaries")

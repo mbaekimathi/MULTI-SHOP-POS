@@ -11,8 +11,92 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.5rem;
+}
+
+.credit-note-wa-share-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.credit-note-wa-share-block__phone {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+  max-width: 14rem;
+}
+
+.credit-note-wa-share-block__label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-note-wa-share-block__input {
+  display: block;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 2px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface));
+  color: rgb(var(--rc-page-fg));
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.credit-note-wa-share-block__input:focus {
+  border-color: rgba(37, 211, 102, 0.55);
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.12);
+}
+
+.rev-btn--whatsapp,
+.credit-note-wa-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  min-height: 2.35rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 14px -4px rgba(37, 211, 102, 0.55);
+  transition: transform 0.12s, box-shadow 0.12s;
+  flex-shrink: 0;
+}
+
+.rev-btn--whatsapp:hover,
+.credit-note-wa-share:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -4px rgba(37, 211, 102, 0.65);
+}
+
+.credit-note-wa-share__icon {
+  flex-shrink: 0;
+}
+
+.shop-credit-note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0 1.25rem 1.25rem;
 }
 
 /* —— Credit note document —— */
@@ -339,9 +423,16 @@ html[data-theme="dark"] .shop-cust-pay-card__due-value {
   transition: transform 0.12s, box-shadow 0.12s;
 }
 
-.shop-cust-pay-card__btn:hover {
+.shop-cust-pay-card__btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 18px -4px rgba(16, 185, 129, 0.65);
+}
+
+.shop-cust-pay-card__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* —— Transaction cards —— */
@@ -1049,6 +1140,75 @@ html[data-theme="dark"] .shop-cn-sale-card__table tfoot td:last-child {
 
 .shop-cust-sale-focus__table {
   margin-top: 1rem;
+}
+
+/* M-Pesa STK on credit payment forms */
+.shop-cust-pay-card__fields .credit-mpesa-stk--full {
+  grid-column: 1 / -1;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.credit-mpesa-stk__phone-field {
+  margin-bottom: 0.75rem;
+}
+
+.credit-mpesa-stk__phone-field label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-mpesa-stk__phone-input {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 2px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface));
+  color: rgb(var(--rc-page-fg));
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.credit-mpesa-stk__phone-input:focus {
+  border-color: rgba(var(--rc-primary), 0.5);
+  box-shadow: 0 0 0 3px rgba(var(--rc-primary), 0.12);
+}
+
+.credit-mpesa-stk__phone-input:read-only {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.credit-mpesa-stk__send:disabled,
+.credit-mpesa-stk__retry:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.credit-mpesa-stk__status--ok {
+  color: rgb(5, 150, 105);
+  font-weight: 600;
+}
+
+.credit-mpesa-stk__status--error {
+  color: rgb(190, 24, 93);
+  font-weight: 600;
+}
+
+.credit-mpesa-stk__paid:not(.hidden) {
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.12);
 }
 
 @media print {

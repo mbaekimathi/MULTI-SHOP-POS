@@ -1,36 +1,37 @@
-{% extends "employee_layout.html" %}
-{% block title %}Customer credit — {{ customer_name }} — {{ shop.shop_name }}{% endblock %}
-{% block portal_page_title %}Customer credit{% endblock %}
-
-{% block sidebar_links %}
-  <a href="{{ url_for('it_support_credit_payments') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments</a>
-{% endblock %}
-
-{% block employee_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=10" />
-
-  <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
-    <div class="shop-cust-credit-page__toolbar no-print">
-      <a href="{{ url_for('it_support_credit_payments') }}" class="rev-btn rev-btn--ghost">← Credit payments</a>
-      <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
-    </div>
-
-    {% with compact_only=true %}
-      {% include "partials/shop_customer_credit_note.html" %}
-    {% endwith %}
-
-    {% if embed_record_payment %}
-      {% include "partials/it_support_customer_record_payment.html" %}
-    {% endif %}
-
-    {% include "partials/shop_customer_credit_transactions.html" %}
-  </div>
-
-  <script>
-    (function () {
-      if (window.location.hash !== "#shop-credit-payments") return;
-      var el = document.getElementById("shop-credit-payments");
-      if (el) requestAnimationFrame(function () { el.scrollIntoView({ behavior: "smooth", block: "start" }); });
-    })();
-  </script>
-{% endblock %}
+{% extends "employee_layout.html" %}
+{% block title %}Customer credit — {{ customer_name }} — {{ shop.shop_name }}{% endblock %}
+{% block portal_page_title %}Customer credit{% endblock %}
+
+{% block sidebar_links %}
+  <a href="{{ url_for('it_support_credit_payments') }}" class="flex items-center gap-3 rounded-xl bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit payments</a>
+{% endblock %}
+
+{% block employee_content %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
+
+  <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
+    <div class="shop-cust-credit-page__toolbar no-print">
+      <a href="{{ url_for('it_support_credit_payments') }}" class="rev-btn rev-btn--ghost">← Credit payments</a>
+      {% include "partials/credit_note_whatsapp_button.html" %}
+      <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
+    </div>
+
+    {% with compact_only=true %}
+      {% include "partials/shop_customer_credit_note.html" %}
+    {% endwith %}
+
+    {% if embed_record_payment %}
+      {% include "partials/it_support_customer_record_payment.html" %}
+    {% endif %}
+
+    {% include "partials/shop_customer_credit_transactions.html" %}
+  </div>
+
+  <script>
+    (function () {
+      if (window.location.hash !== "#shop-credit-payments") return;
+      var el = document.getElementById("shop-credit-payments");
+      if (el) requestAnimationFrame(function () { el.scrollIntoView({ behavior: "smooth", block: "start" }); });
+    })();
+  </script>
+{% endblock %}

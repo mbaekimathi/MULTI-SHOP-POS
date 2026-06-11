@@ -930,6 +930,7 @@
         </div>
 
         <div id="pos-customer-details-card" class="pos-cart-checkout-card space-y-2 rounded-2xl p-2.5">
+          <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-primary))]">Step 1</p>
           <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Customer</p>
           <div>
             <input id="pos-customer-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Phone (optional)" class="pos-auth-input w-full rounded-xl border px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
@@ -943,8 +944,64 @@
           <p id="pos-customer-rule" class="text-[10px] text-[rgb(var(--rc-muted))] empty:hidden"></p>
         </div>
 
-        <div class="pos-cart-checkout-card space-y-2 rounded-2xl p-2.5">
-          <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Authorize</p>
+        <div id="pos-mpesa-ref-card" class="pos-cart-checkout-card pos-mpesa-ref-card hidden space-y-2 rounded-2xl p-2.5">
+          <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">M-Pesa reference</p>
+          <div id="pos-mpesa-ref-section" class="space-y-1">
+            <label for="pos-mpesa-ref-input" class="mb-1 block text-[11px] font-semibold text-[rgb(var(--rc-muted))]">
+              Confirmation code <span class="font-normal">(optional)</span>
+            </label>
+            <input
+              id="pos-mpesa-ref-input"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              maxlength="32"
+              placeholder="e.g. QGH1A2B3C4"
+              class="pos-auth-input w-full rounded-xl border px-3 py-2.5 text-sm font-mono tracking-wide text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+            />
+            <p id="pos-mpesa-ref-hint" class="text-[10px] leading-relaxed text-[rgb(var(--rc-muted))]">
+              Enter the code from the customer&rsquo;s M-Pesa SMS for manual till or paybill payments. STK Push fills this automatically.
+            </p>
+          </div>
+        </div>
+
+        <div id="pos-mpesa-stk-card" class="pos-cart-checkout-card pos-mpesa-stk-card hidden rounded-2xl p-2.5">
+          <p id="pos-mpesa-stk-setup-note" class="hidden mb-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-amber-800 dark:text-amber-200">
+            Daraja API is not configured. Add credentials under Company settings to send live STK Push prompts.
+          </p>
+          <button
+            type="button"
+            id="pos-mpesa-stk-send"
+            class="pos-mpesa-stk-send inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold uppercase tracking-wide text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300"
+          >
+            Send STK Push
+            <span class="font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">(optional) · KES <span id="pos-mpesa-stk-amount">0.00</span></span>
+          </button>
+          <button
+            type="button"
+            id="pos-mpesa-stk-retry"
+            class="pos-mpesa-stk-retry hidden mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-2.5 text-xs font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300"
+          >
+            Try STK Push again
+          </button>
+          <p id="pos-mpesa-stk-retry-hint" class="pos-mpesa-stk-retry-hint hidden mt-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">
+            Payment was not completed. Tap <strong>Try STK Push again</strong> to send a new prompt to the customer.
+          </p>
+          <p id="pos-mpesa-stk-status" class="mt-1.5 text-[10px] text-[rgb(var(--rc-muted))] empty:hidden"></p>
+          <div id="pos-mpesa-paid-card" class="pos-mpesa-paid-card hidden mt-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-2">
+            <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">M-Pesa payment confirmed</p>
+            <p id="pos-mpesa-paid-ref-line" class="mt-1 hidden text-[11px] font-semibold text-[rgb(var(--rc-text))]">
+              Reference: <span id="pos-mpesa-paid-ref" class="font-mono tracking-wide"></span>
+            </p>
+          </div>
+        </div>
+
+        <div id="pos-auth-card" class="pos-cart-checkout-card space-y-2 rounded-2xl p-2.5">
+          <p class="text-[9px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-primary))]">Step 3</p>
+          <p class="pos-cart-card-heading text-[10px] font-black uppercase tracking-[0.18em]">Authorize &amp; complete</p>
+          <p id="pos-auth-mpesa-hint" class="hidden text-[10px] leading-relaxed text-[rgb(var(--rc-muted))]">STK Push sent (optional). Enter your 6-digit employee code to finish the sale.</p>
           <p id="pos-auth-lock-note" class="hidden rounded-lg border border-rose-400/45 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-700 dark:text-rose-300">
             Locked: add name + phone.
           </p>

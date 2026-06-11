@@ -36,6 +36,9 @@
           <label for="shop-pay-amount">Amount paid</label>
           <input id="shop-pay-amount" name="amount" type="number" step="0.01" min="0" required placeholder="0.00" />
         </div>
+        {% with credit_stk_prefix='shop-credit-stk' %}
+          {% include "partials/credit_mpesa_stk_block.html" %}
+        {% endwith %}
         <div class="shop-cust-pay-card__field">
           <label for="shop-pay-note">Note <span class="font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">(optional)</span></label>
           <input id="shop-pay-note" name="note" type="text" placeholder="e.g. Cash, M-Pesa ref…" />
@@ -45,5 +48,6 @@
         </div>
       </div>
     </form>
+    {% include "partials/credit_mpesa_stk_assets.html" %}
   </div>
 </section>

@@ -1,0 +1,190 @@
+{% extends "employee_layout.html" %}
+{% block title %}Expenses — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Expenses{% endblock %}
+{% block sidebar_links %}
+  {% set accounts_hub_nav = 'expenses' %}
+  {% include "partials/it_support_accounts_hub_sidebar.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+  <style>
+    #expenses-page .expenses-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #expenses-page .expenses-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.85), rgba(239, 68, 68, 0.85));
+    }
+    #expenses-page .expenses-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #expenses-page .expenses-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+  </style>
+{% endblock %}
+{% block employee_content %}
+  {% set f = analytics_filter or {} %}
+  {% set rows = expense_rows or [] %}
+  <div id="expenses-page" class="mx-auto max-w-7xl space-y-6">
+    <div class="expenses-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-600/90 dark:text-amber-400/90">Accounts · Expenses</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Stock purchases</h2>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Items bought through company warehouse stock-in and shop manual receipts — with quantity, unit cost, total spent, and amount paid.
+        Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+      </p>
+
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total cost</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.total_cost or 0) }}</div>
+        </div>
+        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Amount paid</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.amount_paid or 0) }}</div>
+        </div>
+        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance remaining</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.balance or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ expense_totals.count or 0 }} purchase line{{ '' if (expense_totals.count or 0) == 1 else 's' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="expenses-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h3>
+      <form method="get" action="{{ url_for('it_support_accounts_expenses') }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period mode</label>
+          <select id="expenses-filter-mode" name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+            <option value="single_day" {% if f.mode == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if f.mode == 'period' %}selected{% endif %}>Date range</option>
+            <option value="month" {% if f.mode == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if f.mode == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div id="expenses-filter-single-day" {% if f.mode != 'single_day' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Day</label>
+          <input type="date" name="single_day" value="{{ f.single_day or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="expenses-filter-period" {% if f.mode != 'period' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">From</label>
+          <input type="date" name="start_date" value="{{ f.start_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="expenses-filter-period-end" {% if f.mode != 'period' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">To</label>
+          <input type="date" name="end_date" value="{{ f.end_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="expenses-filter-month" {% if f.mode != 'month' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Month</label>
+          <input type="month" name="month" value="{{ f.month or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div id="expenses-filter-year" {% if f.mode != 'year' %}class="hidden"{% endif %}>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Year</label>
+          <input type="number" name="year" min="2000" max="2100" value="{{ f.year or '' }}" class="min-h-[2.55rem] w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop</label>
+          <select name="shop_id" class="min-h-[2.55rem] min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="">All shops &amp; company</option>
+            {% for s in shops or [] %}
+              <option value="{{ s.id }}" {% if shop_filter_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Supplier</label>
+          <input type="search" name="supplier_q" value="{{ supplier_q or '' }}" placeholder="Name or phone" class="min-h-[2.55rem] min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Apply</button>
+          <a href="{{ url_for('it_support_accounts_expenses') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Reset</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="expenses-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      {% if rows %}
+        <div class="expenses-table-wrap overflow-x-auto">
+          <table class="expenses-table min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-4 py-3">When</th>
+                <th class="px-4 py-3">Source</th>
+                <th class="px-4 py-3">Shop</th>
+                <th class="px-4 py-3">Item</th>
+                <th class="px-4 py-3 text-right">Qty</th>
+                <th class="px-4 py-3 text-right">Unit price</th>
+                <th class="px-4 py-3 text-right">Total cost</th>
+                <th class="px-4 py-3 text-right">Amount paid</th>
+                <th class="px-4 py-3 text-right">Balance</th>
+                <th class="px-4 py-3">Supplier</th>
+                <th class="px-4 py-3">Staff</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in rows %}
+                <tr class="transition hover:bg-[rgb(var(--rc-surface-2))]/40">
+                  <td class="whitespace-nowrap px-4 py-3 tabular-nums text-[rgb(var(--rc-muted))]">{{ row.created_at_iso or row.created_at or '—' }}</td>
+                  <td class="px-4 py-3">
+                    {% if row.tx_scope == 'company' %}
+                      <span class="inline-flex rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 ring-1 ring-violet-400/25 dark:text-violet-300">Company</span>
+                    {% else %}
+                      <span class="inline-flex rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-400/25 dark:text-amber-300">Shop</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-4 py-3 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.shop_name or '—' }}</td>
+                  <td class="px-4 py-3 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.item_name or '—' }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.qty or 0 }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.buying_price or 0) }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.total_cost or 0) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.amount_paid or 0) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.balance or 0) }}</td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">
+                    <div>{{ row.seller_name or '—' }}</div>
+                    {% if row.seller_phone and row.seller_phone != '-' %}<div class="text-xs">{{ row.seller_phone }}</div>{% endif %}
+                  </td>
+                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ row.moved_by or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No stock purchases found for this period.</p>
+      {% endif %}
+    </div>
+  </div>
+  <script>
+    (function () {
+      var mode = document.getElementById("expenses-filter-mode");
+      var day = document.getElementById("expenses-filter-single-day");
+      var period = document.getElementById("expenses-filter-period");
+      var periodEnd = document.getElementById("expenses-filter-period-end");
+      var month = document.getElementById("expenses-filter-month");
+      var year = document.getElementById("expenses-filter-year");
+      if (!mode || !day || !period || !periodEnd || !month || !year) return;
+      function sync() {
+        var m = mode.value || "single_day";
+        day.classList.toggle("hidden", m !== "single_day");
+        period.classList.toggle("hidden", m !== "period");
+        periodEnd.classList.toggle("hidden", m !== "period");
+        month.classList.toggle("hidden", m !== "month");
+        year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{# Credit note summary for WhatsApp share (read by credit-note-whatsapp.js) #}
+<script type="application/json" id="credit-note-whatsapp-data">
+{{ {
+  'company': (site_settings.company_name if site_settings else 'Point of Sale'),
+  'shopName': shop.shop_name,
+  'shopCode': (shop.shop_code or ''),
+  'companyScope': company_credit_scope|default(false),
+  'customerName': customer_name,
+  'customerPhone': customer_phone,
+  'ref': credit_note_ref,
+  'periodLabel': (f.range_label if f is defined else 'Full account'),
+  'allTime': credit_note_all_time|default(false),
+  'balanceDue': (account_balance_due or 0)|float,
+  'outstanding': (unpaid_balance_total or 0)|float,
+  'paidToDate': (account_paid_total or 0)|float,
+  'unpaidSales': unpaid_sales_count|default(0)|int,
+  'hasUnpaid': (unpaid_sales|length > 0) if unpaid_sales is defined else false,
+  'payLinkBase': (credit_pay_link if credit_pay_link is defined else ''),
+  'suggestedAmount': (account_balance_due or 0)|float
+}|tojson }}
+</script>
+<script src="{{ url_for('static', filename='js/credit-note-whatsapp.js') }}?v=5" defer></script>

@@ -1,0 +1,378 @@
+{% extends "employee_layout.html" %}
+
+{% block title %}Company account — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+
+{% block portal_page_title %}Company account{% endblock %}
+
+{% block sidebar_links %}
+
+  {% set accounts_hub_nav = 'company_account' %}
+
+  {% include "partials/it_support_accounts_hub_sidebar.html" %}
+
+{% endblock %}
+
+{% block employee_content %}
+
+  {% set acct = mpesa_account or {} %}
+
+  {% set bal = mpesa_balance or {} %}
+
+  <div id="company-account-page" class="mx-auto max-w-3xl space-y-6">
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-sky-600/90 dark:text-sky-400/90">Accounts · M-Pesa</p>
+
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Company M-Pesa account</h2>
+
+      <p class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+
+        Your configured Lipa Na M-Pesa paybill or till from
+
+        <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Company settings → Daraja</a>.
+
+      </p>
+
+
+
+      {% if not acct.enabled %}
+
+        <div class="mt-5 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+
+          Daraja M-Pesa is not enabled. Turn it on in Company settings to show your live paybill or till number here.
+
+        </div>
+
+      {% elif not acct.shortcode %}
+
+        <div class="mt-5 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+
+          Business short code is missing. Add your paybill or till number under Daraja settings.
+
+        </div>
+
+      {% else %}
+
+        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+
+          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Account type</div>
+
+            <div class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ acct.account_type or '—' }}</div>
+
+          </div>
+
+          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Paybill / Till number</div>
+
+            <div class="mt-1 font-mono text-2xl font-extrabold tracking-wide text-[rgb(var(--rc-page-fg))]">{{ acct.shortcode }}</div>
+
+          </div>
+
+          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4 sm:col-span-2">
+
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Environment</div>
+
+            <div class="mt-1 text-sm font-medium capitalize text-[rgb(var(--rc-page-fg))]">{{ acct.environment or 'sandbox' }}</div>
+
+          </div>
+
+        </div>
+
+      {% endif %}
+
+    </div>
+
+
+
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
+
+      <div class="flex flex-wrap items-start justify-between gap-4">
+
+        <div>
+
+          <h3 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Current balance</h3>
+
+          <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Live working balance via Safaricom <strong class="font-medium text-[rgb(var(--rc-page-fg))]">AccountBalance</strong> API (requires initiator credentials + reachable HTTPS callback).</p>
+
+          {% if acct.balance_api_url %}
+
+            <p class="mt-2 break-all font-mono text-[11px] text-[rgb(var(--rc-muted))]">{{ acct.balance_api_url }}</p>
+
+          {% endif %}
+
+        </div>
+
+        <button
+
+          type="button"
+
+          id="mpesa-balance-refresh"
+
+          class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+
+          {% if not acct.balance_ready %}disabled{% endif %}
+
+        >
+
+          Refresh balance
+
+        </button>
+
+      </div>
+
+
+
+      <div id="mpesa-balance-display" class="mt-5">
+
+        {% if bal.get('balance') is not none %}
+
+          <div class="relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-5">
+
+            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">
+
+              {{ bal.get('account_label') or 'Working account' }}
+
+            </div>
+
+            <div class="mt-1 text-3xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">
+
+              {{ bal.get('currency') or 'KES' }} {{ "%.2f"|format(bal.get('balance') or 0) }}
+
+            </div>
+
+            {% if bal.get('updated_at') %}
+
+              <div class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Last updated {{ bal.get('updated_at') }}</div>
+
+            {% endif %}
+
+          </div>
+
+        {% else %}
+
+          <p class="text-sm text-[rgb(var(--rc-muted))]">No balance loaded yet.</p>
+
+        {% endif %}
+
+      </div>
+
+
+
+      <p id="mpesa-balance-status" class="mt-3 hidden text-sm font-medium" role="status"></p>
+
+
+
+      {% if acct.enabled and not acct.balance_ready %}
+
+        <div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">
+
+          To fetch live balance, add <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Initiator name</strong> and
+
+          <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Security credential</strong> in
+
+          <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>
+
+          (from your Daraja app / Safaricom certificate). Your hosted HTTPS callback URL must be reachable by Safaricom.
+
+        </div>
+
+      {% endif %}
+
+    </div>
+
+  </div>
+
+
+
+  <script>
+
+    (function () {
+
+      var btn = document.getElementById("mpesa-balance-refresh");
+
+      var statusEl = document.getElementById("mpesa-balance-status");
+
+      var displayEl = document.getElementById("mpesa-balance-display");
+
+      if (!btn || !statusEl || !displayEl) return;
+
+
+
+      function setStatus(msg, kind) {
+
+        statusEl.textContent = msg || "";
+
+        statusEl.classList.remove("hidden", "text-emerald-600", "text-rose-600", "dark:text-emerald-400", "dark:text-rose-400", "text-[rgb(var(--rc-muted))]");
+
+        if (!msg) {
+
+          statusEl.classList.add("hidden");
+
+          return;
+
+        }
+
+        if (kind === "error") {
+
+          statusEl.classList.add("text-rose-600", "dark:text-rose-400");
+
+        } else if (kind === "ok") {
+
+          statusEl.classList.add("text-emerald-600", "dark:text-emerald-400");
+
+        } else {
+
+          statusEl.classList.add("text-[rgb(var(--rc-muted))]");
+
+        }
+
+      }
+
+
+
+      function renderBalance(payload) {
+
+        var currency = payload.currency || "KES";
+
+        var amount = Number(payload.balance || 0);
+
+        var label = payload.account_label || "Working account";
+
+        var now = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+        displayEl.innerHTML =
+
+          '<div class="relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-5">' +
+
+          '<div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">' + label + "</div>" +
+
+          '<div class="mt-1 text-3xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">' +
+
+          currency + " " + amount.toFixed(2) +
+
+          "</div>" +
+
+          '<div class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Last updated ' + now + "</div>" +
+
+          "</div>";
+
+      }
+
+
+
+      function pollStatus(conversationId, originatorId, resultUrl, attempt) {
+        if (attempt > 45) {
+          var hint = "Safaricom did not post the balance back yet. Check that your hosted HTTPS callback URL is reachable";
+          if (resultUrl) {
+            hint += " (" + resultUrl + ")";
+          }
+          hint += ", initiator credentials are correct, and ngrok (if used) is still running.";
+          setStatus(hint, "error");
+          btn.disabled = false;
+          return;
+        }
+
+        var qs =
+          "conversation_id=" + encodeURIComponent(conversationId || "") +
+          "&originator_conversation_id=" + encodeURIComponent(originatorId || "");
+        fetch("{{ url_for('it_support_accounts_company_account_balance_status') }}?" + qs, {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j.pending) {
+              setStatus("Waiting for Safaricom callback… (" + (attempt + 1) + "/45)", "info");
+              setTimeout(function () {
+                pollStatus(conversationId, originatorId, resultUrl, attempt + 1);
+              }, 2000);
+              return;
+            }
+            btn.disabled = false;
+            if (!j.ok) {
+              setStatus(j.error || "Balance lookup failed.", "error");
+              return;
+            }
+            renderBalance(j);
+            setStatus(j.result_desc || "Balance updated.", "ok");
+          })
+          .catch(function () {
+            btn.disabled = false;
+            setStatus("Could not check balance status.", "error");
+          });
+      }
+
+
+
+      btn.addEventListener("click", function () {
+
+        btn.disabled = true;
+
+        setStatus("Requesting balance from Safaricom…", "info");
+
+        fetch("{{ url_for('it_support_accounts_company_account_balance_refresh') }}", {
+
+          method: "POST",
+
+          credentials: "same-origin",
+
+          headers: {
+
+            Accept: "application/json",
+
+            "Content-Type": "application/json",
+
+          },
+
+          body: "{}",
+
+        })
+
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+
+          .then(function (res) {
+
+            if (!res.ok || !res.body.ok) {
+
+              btn.disabled = false;
+
+              setStatus((res.body && res.body.error) || "Could not start balance lookup.", "error");
+
+              return;
+
+            }
+
+            var cid = res.body.conversation_id || "";
+            var orig = res.body.originator_conversation_id || "";
+            if (!cid && !orig) {
+              btn.disabled = false;
+              setStatus("No conversation id returned.", "error");
+              return;
+            }
+            if (res.body.ngrok_warning) {
+              setStatus(res.body.ngrok_warning + " Waiting for callback anyway…", "info");
+            }
+            pollStatus(cid, orig, res.body.result_url || "", 0);
+
+          })
+
+          .catch(function () {
+
+            btn.disabled = false;
+
+            setStatus("Could not reach the server.", "error");
+
+          });
+
+      });
+
+    })();
+
+  </script>
+
+{% endblock %}
+

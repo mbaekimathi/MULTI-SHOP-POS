@@ -1,0 +1,14 @@
+{# Boot + script for credit page M-Pesa STK Push (shop-scoped POS Daraja endpoints). #}
+{% if shop is defined and (daraja_pos_boot is defined) %}
+<script>
+  window.CREDIT_MPESA_STK_BOOT = {
+    shopId: {{ shop.id|int }},
+    daraja: {{ daraja_pos_boot|tojson }},
+    apis: {
+      mpesaStkPush: {{ url_for('shop_pos_mpesa_stk_push', shop_id=shop.id)|tojson }},
+      mpesaStkStatusBase: {{ ('/shops/' ~ shop.id|string ~ '/shop-pos/mpesa-stk-status/')|tojson }}
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/credit-mpesa-stk.js') }}?v=4" defer></script>
+{% endif %}

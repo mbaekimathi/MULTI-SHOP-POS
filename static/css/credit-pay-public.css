@@ -1,0 +1,279 @@
+body {
+  background: rgb(var(--rc-surface-2, 248 250 252));
+  color: rgb(var(--rc-page-fg, 15 23 42));
+}
+
+.credit-pay-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem 1rem 3rem;
+  box-sizing: border-box;
+}
+
+.credit-pay-layout {
+  width: 100%;
+  max-width: 72rem;
+  display: grid;
+  grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.credit-pay-account {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.credit-pay-account .shop-credit-note__doc {
+  margin: 0;
+}
+
+.credit-pay-account .shop-cust-tx-section {
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  border: 1px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface));
+  box-shadow: 0 12px 32px -24px rgba(15, 23, 42, 0.28);
+}
+
+.credit-pay-card {
+  width: 100%;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface));
+  box-shadow: 0 16px 40px -24px rgba(15, 23, 42, 0.35);
+  position: sticky;
+  top: 1rem;
+}
+
+.credit-pay-card__cap {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-card__eyebrow {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-card__title {
+  margin-top: 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: rgb(var(--rc-page-fg));
+}
+
+.credit-pay-card__shop {
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgb(var(--rc-primary));
+}
+
+.credit-pay-card__customer {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-card__error {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: rgb(190, 24, 93);
+  line-height: 1.5;
+}
+
+.credit-pay-card__summary {
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  background: rgba(16, 185, 129, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.credit-pay-card__summary-label {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-card__summary-value {
+  font-size: 1.35rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: rgb(5, 150, 105);
+}
+
+.credit-pay-form {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.credit-pay-field label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-field input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 2px solid rgb(var(--rc-border));
+  background: rgb(var(--rc-surface-2));
+  color: rgb(var(--rc-page-fg));
+  font-size: 1rem;
+  outline: none;
+}
+
+.credit-pay-field input:focus {
+  border-color: rgba(var(--rc-primary), 0.5);
+  box-shadow: 0 0 0 3px rgba(var(--rc-primary), 0.12);
+}
+
+.credit-pay-field__hint {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-submit {
+  width: 100%;
+  min-height: 2.85rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 14px -4px rgba(37, 211, 102, 0.55);
+}
+
+.credit-pay-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.credit-pay-status {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgb(var(--rc-muted));
+  min-height: 1.2em;
+}
+
+.credit-pay-status--ok {
+  color: rgb(5, 150, 105);
+  font-weight: 600;
+}
+
+.credit-pay-status--error {
+  color: rgb(190, 24, 93);
+  font-weight: 600;
+}
+
+.credit-pay-success {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.credit-pay-success.hidden {
+  display: none;
+}
+
+.credit-pay-success__title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(5, 150, 105);
+}
+
+.credit-pay-success__msg {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: rgb(var(--rc-page-fg));
+}
+
+.credit-pay-success__ref {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  font-family: ui-monospace, monospace;
+  color: rgb(var(--rc-muted));
+}
+
+.credit-pay-success__ref.hidden {
+  display: none;
+}
+
+.credit-pay-form.hidden {
+  display: none;
+}
+
+.shop-cn-sale-status {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shop-cn-sale-status--paid {
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(5, 150, 105);
+}
+
+.shop-cn-sale-status--partially_paid {
+  background: rgba(245, 158, 11, 0.14);
+  color: rgb(180, 83, 9);
+}
+
+.shop-cn-sale-status--not_paid {
+  background: rgba(244, 63, 94, 0.1);
+  color: rgb(190, 24, 93);
+}
+
+.shop-cn-sale-balance {
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .credit-pay-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .credit-pay-card {
+    position: static;
+  }
+}

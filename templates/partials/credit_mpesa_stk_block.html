@@ -1,0 +1,56 @@
+{# Optional M-Pesa STK Push on credit payment forms — requires daraja_pos_boot.enabled #}
+{% set stk_prefix = credit_stk_prefix|default('credit-stk') %}
+{% set daraja_ready = (daraja_pos_boot.enabled if daraja_pos_boot is defined else false) %}
+{% set stk_phone_default = (customer_phone or '')|trim %}
+{% if stk_phone_default == '-' %}{% set stk_phone_default = '' %}{% endif %}
+{% if daraja_ready and shop is defined and customer_phone is defined %}
+<div
+  class="credit-mpesa-stk credit-mpesa-stk--full no-print"
+  data-credit-mpesa-stk
+  data-stk-prefix="{{ stk_prefix }}"
+  data-customer-phone="{{ stk_phone_default }}"
+>
+  <p id="{{ stk_prefix }}-setup-note" class="credit-mpesa-stk__setup hidden mb-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-amber-800 dark:text-amber-200">
+    Daraja API is not configured. Add credentials under Company settings to send live STK Push prompts.
+  </p>
+  <div class="credit-mpesa-stk__phone-field">
+    <label for="{{ stk_prefix }}-phone">M-Pesa phone <span class="font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">(edit before sending)</span></label>
+    <input
+      id="{{ stk_prefix }}-phone"
+      type="tel"
+      inputmode="tel"
+      autocomplete="tel"
+      class="credit-mpesa-stk__phone-input"
+      placeholder="e.g. 0712345678"
+      value="{{ stk_phone_default }}"
+      data-lpignore="true"
+      data-form-type="other"
+    />
+  </div>
+  <button
+    type="button"
+    id="{{ stk_prefix }}-send"
+    class="credit-mpesa-stk__send inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold uppercase tracking-wide text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300"
+  >
+    Send STK Push to pay
+    <span class="font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">(optional) · KES <span id="{{ stk_prefix }}-amount">0.00</span></span>
+  </button>
+  <button
+    type="button"
+    id="{{ stk_prefix }}-retry"
+    class="credit-mpesa-stk__retry hidden mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-2.5 text-xs font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300"
+  >
+    Try STK Push again
+  </button>
+  <p id="{{ stk_prefix }}-retry-hint" class="credit-mpesa-stk__retry-hint hidden mt-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">
+    Payment was not completed. Tap <strong>Try STK Push again</strong> to send a new prompt.
+  </p>
+  <p id="{{ stk_prefix }}-status" class="credit-mpesa-stk__status mt-1.5 text-[10px] text-[rgb(var(--rc-muted))] empty:hidden"></p>
+  <div id="{{ stk_prefix }}-paid-card" class="credit-mpesa-stk__paid hidden mt-2 rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-2">
+    <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">M-Pesa payment confirmed</p>
+    <p id="{{ stk_prefix }}-paid-ref-line" class="mt-1 hidden text-[11px] font-semibold text-[rgb(var(--rc-text))]">
+      Reference: <span id="{{ stk_prefix }}-paid-ref" class="font-mono tracking-wide"></span>
+    </p>
+  </div>
+</div>
+{% endif %}
