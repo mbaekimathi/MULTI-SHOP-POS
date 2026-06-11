@@ -29,8 +29,8 @@
       <div>
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Quotations &amp; leads</h2>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> quotes come from POS when <strong class="text-[rgb(var(--rc-page-fg))]">Quotation</strong> is checked.
-          <strong class="text-[rgb(var(--rc-page-fg))]">Online</strong> quotes use the online channel (historical rows may exist from when a public form was available).
+          <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> quotes from POS and <strong class="text-[rgb(var(--rc-page-fg))]">online</strong> website requests.
+          Use WhatsApp below to reply to customers or resend the quote to the shop number.
         </p>
       </div>
       <a href="{{ url_for('shop_pos', shop_id=shop.id) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500">Open POS</a>
@@ -92,6 +92,7 @@
               <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Total</th>
               <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Lines</th>
               <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Staff</th>
+              <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">WhatsApp</th>
               <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"><span class="sr-only">View items</span></th>
             </tr>
           </thead>
@@ -112,6 +113,9 @@
                 <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(q.total_amount or 0) }}</td>
                 <td class="px-4 py-3 text-center tabular-nums text-[rgb(var(--rc-muted))]">{{ q.item_count or 0 }}</td>
                 <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ q.employee_name or "—" }}</td>
+                <td class="px-4 py-3">
+                  {% include "partials/leads_whatsapp_actions.html" %}
+                </td>
                 <td class="px-4 py-3 text-center">
                   <button
                     type="button"

@@ -78,7 +78,7 @@
 
   <div class="wsf-strip mx-auto max-w-6xl px-4 sm:px-6">
     <h1 class="wsf-strip__title" data-wsf-field="featured_section_title">{{ _d.featured_section_title or 'Commonly sold' }}</h1>
-    <p class="wsf-strip__sub" data-wsf-field="featured_section_subtitle">{{ _d.featured_section_subtitle or 'Top picks from real sales — add to cart and request a quotation in seconds.' }}</p>
+    <p class="wsf-strip__sub" data-wsf-field="featured_section_subtitle">{{ _d.featured_section_subtitle or 'Swipe through categories — add to cart and request a quotation via WhatsApp.' }}</p>
   </div>
 
   <section id="wsf-products" class="wsf-section px-4 pb-12 pt-4 sm:px-6 sm:pb-16">
@@ -98,48 +98,53 @@
       </div>
 
       {% if _products %}
-        <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="wsf-product-grid">
-          {% for p in _products %}
-            <article
-              class="wsf-product-card group flex flex-col overflow-hidden rounded-2xl"
-              data-wsf-product-cat="{{ p.category|upper }}"
-              style="--wsf-delay: {{ (loop.index0 * 0.06)|round(2) }}s"
-            >
-              <div class="wsf-product-card__img-wrap relative">
-                {% if p.image_url %}
-                  <img src="{{ p.image_url }}" alt="{{ p.name }}" class="h-full w-full object-cover" loading="lazy" />
-                {% else %}
-                  <div class="flex h-full w-full flex-col items-center justify-center gap-1 text-zinc-400">
-                    <span class="text-4xl font-bold opacity-40">{{ p.name[:1]|upper }}</span>
-                    <span class="text-[10px] font-semibold uppercase tracking-wider">No image</span>
-                  </div>
-                {% endif %}
-                <span class="wsf-product-card__badge absolute left-2 top-2 rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">{{ p.category }}</span>
-                {% if p.on_sale %}
-                  <span class="absolute right-2 top-2 rounded-lg bg-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-lg">Sale</span>
-                {% elif p.qty_sold > 0 %}
-                  <span class="absolute right-2 top-2 rounded-lg bg-zinc-900/80 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur dark:bg-white/90 dark:text-zinc-900">{{ '%.0f'|format(p.qty_sold) }}+ sold</span>
-                {% endif %}
+        <div id="wsf-categories" class="mt-6 space-y-8">
+          {% if _cats %}
+            {% for cat in _cats %}
+              {% set cat_key = cat|upper %}
+              {% set row_ns = namespace(count=0) %}
+              {% for p in _products %}
+                {% if (p.category|upper) == cat_key %}{% set row_ns.count = row_ns.count + 1 %}{% endif %}
+              {% endfor %}
+              {% if row_ns.count > 0 %}
+            <section class="wsf-cat-row" data-wsf-category-row="{{ cat_key }}">
+              <div class="wsf-cat-row__head mb-3 flex items-end justify-between gap-3">
+                <h2 class="text-sm font-bold tracking-tight sm:text-base">{{ cat }}</h2>
+                <span class="wsf-cat-row__count shrink-0 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ row_ns.count }} item{{ '' if row_ns.count == 1 else 's' }}</span>
               </div>
-              <div class="flex flex-1 flex-col p-4">
-                <h3 class="line-clamp-2 text-sm font-semibold leading-snug">{{ p.name }}</h3>
-                {% if p.description %}
-                  <p class="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{{ p.description }}</p>
-                {% endif %}
-                <div class="mt-auto flex items-end justify-between gap-2 pt-4">
-                  <div>
-                    <p class="text-base font-bold tabular-nums mk-brand-text">KES {{ '%.2f'|format(p.price) }}</p>
-                    {% if p.on_sale %}
-                      <p class="text-xs text-zinc-400 line-through tabular-nums">KES {{ '%.2f'|format(p.original_price) }}</p>
+              <div class="wsf-cat-scroll-wrap relative">
+                <div class="wsf-cat-scroll" tabindex="0" role="region" aria-label="{{ cat }} products">
+                  {% set delay = namespace(i=0) %}
+                  {% for p in _products %}
+                    {% if (p.category|upper) == cat_key %}
+                      {% with delay=delay.i %}
+                        {% include "partials/website_ecommerce_product_card.html" %}
+                      {% endwith %}
+                      {% set delay.i = delay.i + 1 %}
                     {% endif %}
-                  </div>
-                  <button type="button" class="wsf-add-btn wsf-btn-primary rounded-full px-4 py-2 text-xs font-bold" data-wsf-add-id="{{ p.id }}">
-                    <span>Add</span>
-                  </button>
+                  {% endfor %}
                 </div>
               </div>
-            </article>
-          {% endfor %}
+            </section>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <section class="wsf-cat-row" data-wsf-category-row="ALL">
+              <div class="wsf-cat-row__head mb-3 flex items-end justify-between gap-3">
+                <h2 class="text-sm font-bold tracking-tight sm:text-base">Products</h2>
+                <span class="wsf-cat-row__count shrink-0 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ _products|length }} item{{ '' if _products|length == 1 else 's' }}</span>
+              </div>
+              <div class="wsf-cat-scroll-wrap relative">
+                <div class="wsf-cat-scroll" tabindex="0" role="region" aria-label="Products">
+                  {% for p in _products %}
+                    {% with delay=loop.index0 %}
+                      {% include "partials/website_ecommerce_product_card.html" %}
+                    {% endwith %}
+                  {% endfor %}
+                </div>
+              </div>
+            </section>
+          {% endif %}
         </div>
       {% else %}
         <div class="wsf-empty-state mt-8 rounded-2xl px-6 py-16 text-center">
@@ -200,8 +205,8 @@
         <span class="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Estimated total</span>
         <span id="wsf-cart-total" class="text-base font-bold tabular-nums mk-brand-text">KES 0.00</span>
       </div>
-      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-btn-primary mt-3 w-full rounded-full py-3 text-sm font-bold">Request quotation</button>
-      <p class="mt-2 text-center text-[10px] text-zinc-500">Creates a lead in Leads &amp; quotations for your team to follow up.</p>
+      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-btn-primary mt-3 w-full rounded-full py-3 text-sm font-bold">Request quotation via WhatsApp</button>
+      <p class="mt-2 text-center text-[10px] text-zinc-500">Saves your request and opens WhatsApp to the shop number from Company settings.</p>
     </div>
   </aside>
 </div>

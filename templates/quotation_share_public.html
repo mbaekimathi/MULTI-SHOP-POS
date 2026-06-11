@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{% if error %}Quotation unavailable{% else %}Quotation — {{ company_name }}{% endif %}{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=1" />
+{% endblock %}
+{% block body %}
+  <section class="qsp-page">
+    {% if error %}
+      <div class="qsp-card qsp-card--error">
+        <p class="qsp-eyebrow">Quotation</p>
+        <h1 class="qsp-title">Link unavailable</h1>
+        <p class="qsp-error">{{ error }}</p>
+      </div>
+    {% else %}
+      <header class="qsp-hero">
+        <p class="qsp-eyebrow">{{ company_name }}</p>
+        <h1 class="qsp-title">Your quotation</h1>
+        <p class="qsp-sub">Review the items below. Prices are indicative — contact us to confirm availability.</p>
+      </header>
+
+      <div class="qsp-grid">
+        {% for item in items %}
+          <article class="qsp-item">
+            <div class="qsp-item__media">
+              {% if item.image_url %}
+                <img src="{{ item.image_url }}" alt="{{ item.name }}" class="qsp-item__img" loading="lazy" />
+              {% else %}
+                <div class="qsp-item__ph" aria-hidden="true">{{ item.name[:1]|upper }}</div>
+              {% endif %}
+            </div>
+            <div class="qsp-item__body">
+              <p class="qsp-item__cat">{{ item.category }}</p>
+              <h2 class="qsp-item__name">{{ item.name }}</h2>
+              {% if item.description %}
+                <p class="qsp-item__desc">{{ item.description }}</p>
+              {% endif %}
+              <p class="qsp-item__price">KES {{ "%.2f"|format(item.price) }}</p>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+
+      {% if items|length > 1 %}
+        <footer class="qsp-total">
+          <span>Estimated total</span>
+          <strong>KES {{ "%.2f"|format(total_amount) }}</strong>
+        </footer>
+      {% endif %}
+    {% endif %}
+  </section>
+{% endblock %}

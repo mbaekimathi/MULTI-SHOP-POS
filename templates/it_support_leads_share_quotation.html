@@ -1,0 +1,168 @@
+{% extends "employee_layout.html" %}
+{% block title %}Share quotation — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Share quotation{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_leads_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-quotation-share.css') }}?v=2" />
+{% endblock %}
+{% block employee_content %}
+  <div id="quotation-share-page" data-quotation-share-root>
+    <header class="qs-hero">
+      <div class="qs-hero__inner">
+        <p class="qs-hero__eyebrow">Leads &amp; quotations</p>
+        <h2 class="qs-hero__title">Share a quotation with your client</h2>
+        <p class="qs-hero__desc">
+          Pick products from your catalog and send a polished quotation page — with
+          <strong class="text-[rgb(var(--rc-page-fg))]">images</strong>,
+          <strong class="text-[rgb(var(--rc-page-fg))]">descriptions</strong>, and
+          <strong class="text-[rgb(var(--rc-page-fg))]">prices</strong> — via link or WhatsApp.
+        </p>
+        <div class="qs-steps" aria-label="How to share">
+          <span class="qs-step"><span class="qs-step__num">1</span> Select items</span>
+          <span class="qs-step"><span class="qs-step__num">2</span> Enter WhatsApp</span>
+          <span class="qs-step"><span class="qs-step__num">3</span> Share link</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="qs-layout">
+      <section class="qs-catalog">
+        <div class="qs-catalog__toolbar">
+          <div>
+            <p class="qs-catalog__title">Product catalog</p>
+            <p class="qs-catalog__meta"><span data-qs-item-total>{{ picker_items|length }}</span> active items · click a card to select</p>
+          </div>
+          <div class="qs-catalog__actions">
+            <div class="qs-search-wrap">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input type="search" id="qs-search" placeholder="Search by name or category…" data-qs-search autocomplete="off" />
+            </div>
+            <button type="button" class="qs-btn-ghost" data-qs-select-all>Select all</button>
+            <button type="button" class="qs-btn-ghost" data-qs-clear>Clear</button>
+          </div>
+        </div>
+
+        {% if picker_items and picker_items|length > 0 %}
+          <div class="qs-catalog__body">
+            <ul class="qs-catalog__grid" data-qs-catalog>
+              {% for item in picker_items %}
+                <li
+                  class="qs-item-card"
+                  data-qs-item
+                  data-qs-id="{{ item.id }}"
+                  data-qs-name="{{ item.name|e }}"
+                  data-qs-category="{{ item.category|e }}"
+                >
+                  <div class="qs-item-card__check" aria-hidden="true">
+                    <input type="checkbox" value="{{ item.id }}" data-qs-checkbox aria-label="Select {{ item.name }}" />
+                    <svg class="qs-item-card__check-mark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div class="qs-item-card__media">
+                    {% if item.image_url %}
+                      <img src="{{ item.image_url }}" alt="" class="qs-item-card__img" loading="lazy" decoding="async" />
+                    {% else %}
+                      <div class="qs-item-card__ph">{{ item.name[:1]|upper }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="qs-item-card__body">
+                    <p class="qs-item-card__cat">{{ item.category }}</p>
+                    <p class="qs-item-card__name">{{ item.name }}</p>
+                    {% if item.description %}
+                      <p class="qs-item-card__desc">{{ item.description }}</p>
+                    {% endif %}
+                    <p class="qs-item-card__price">KES {{ "%.2f"|format(item.price) }}</p>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+            <p class="qs-catalog__empty-search hidden" data-qs-empty>No items match your search.</p>
+          </div>
+        {% else %}
+          <div class="qs-empty">
+            No active catalog items yet.
+            <a href="{{ url_for('it_support_register_item') }}" class="font-semibold text-brand-600 hover:underline dark:text-brand-400">Register items</a>
+            to start sharing quotations.
+          </div>
+        {% endif %}
+      </section>
+
+      <aside class="qs-share-panel">
+        <div class="qs-panel">
+          <div class="qs-panel__head">
+            <p class="qs-panel__label">Your selection</p>
+          </div>
+          <div class="qs-panel__body">
+            <div class="qs-stat-row">
+              <p class="qs-stat-row__count"><span data-qs-selected-count>0</span> <span>items</span></p>
+              <div class="qs-stat-row__total">
+                Estimated total
+                <strong data-qs-selected-total>KES 0.00</strong>
+              </div>
+            </div>
+            <ul class="qs-preview-list" data-qs-preview-list>
+              <li class="qs-preview-empty">Select items from the catalog to preview your quotation.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="qs-panel">
+          <div class="qs-panel__head">
+            <p class="qs-panel__label">Share with client</p>
+          </div>
+          <div class="qs-panel__body">
+            <div class="qs-field">
+              <label for="qs-whatsapp-phone">Client WhatsApp number</label>
+              <input
+                type="tel"
+                id="qs-whatsapp-phone"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="e.g. 0712345678"
+                data-qs-phone
+              />
+              <p class="qs-field__hint">Kenya format: 07… or 254… — opens a chat with this client.</p>
+            </div>
+
+            <button type="button" class="qs-btn-primary" data-qs-generate disabled>
+              Generate share link
+            </button>
+
+            <div class="qs-share-result hidden" data-qs-share-result>
+              <div class="qs-field">
+                <label>Quotation page link</label>
+                <div class="qs-link-row">
+                  <input type="url" readonly data-qs-share-url aria-label="Shareable quotation link" />
+                  <button type="button" class="qs-btn-ghost" data-qs-copy>Copy</button>
+                </div>
+                <p class="qs-copied hidden" data-qs-copied>Link copied to clipboard.</p>
+              </div>
+              <div class="qs-share-actions">
+                <a href="#" target="_blank" rel="noopener" class="qs-btn-wa qs-btn-wa--disabled" data-qs-wa-link aria-disabled="true">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 00.918.918l4.458-1.495A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.714 9.714 0 01-4.915-1.332l-.352-.209-2.642.886.886-2.578-.23-.375A9.736 9.736 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+                  Share on WhatsApp
+                </a>
+                <p class="qs-field__hint hidden" data-qs-wa-hint>Enter a valid WhatsApp number to message this client.</p>
+                <a href="#" target="_blank" rel="noopener" class="qs-btn-outline" data-qs-open-link>Open quotation page</a>
+              </div>
+            </div>
+            <p class="qs-error hidden" data-qs-error></p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    window.__QUOTATION_SHARE_ITEMS__ = {{ picker_items|tojson }};
+    window.__QUOTATION_SHARE_API__ = {{ url_for('api_it_support_quotation_share_link')|tojson }};
+    window.__QUOTATION_SHARE_COMPANY__ = {{ company_name|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/it-support-quotation-share.js') }}?v=3" defer></script>
+{% endblock %}

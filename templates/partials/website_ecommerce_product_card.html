@@ -1,0 +1,55 @@
+{# Immersive product card — full-bleed image with floating details on hover. #}
+<article
+  class="wsf-product-card wsf-product-card--immersive group{% if p.on_sale %} wsf-product-card--offer{% endif %}"
+  data-wsf-product-cat="{{ p.category|upper }}"
+  style="--wsf-delay: {{ (delay|default(0) * 0.05)|round(2) }}s"
+>
+  <div class="wsf-product-card__bg" aria-hidden="true">
+    {% if p.image_url %}
+      <img src="{{ p.image_url }}" alt="" class="wsf-product-card__bg-img" loading="lazy" />
+    {% else %}
+      <div class="wsf-product-card__bg-ph">
+        <span>{{ p.name[:1]|upper }}</span>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="wsf-product-card__veil" aria-hidden="true"></div>
+
+  {% if p.on_sale %}
+    <span class="wsf-product-card__tag wsf-offer-badge">
+      {% if p.discount_percent %}−{{ p.discount_percent }}%{% else %}Offer{% endif %}
+    </span>
+  {% elif p.qty_sold > 0 %}
+    <span class="wsf-product-card__tag wsf-product-card__tag--sold">{{ '%.0f'|format(p.qty_sold) }}+ sold</span>
+  {% endif %}
+
+  <div class="wsf-product-card__float">
+    <div class="wsf-product-card__float-inner">
+      <p class="wsf-product-card__cat">{{ p.category }}</p>
+      <h3 class="wsf-product-card__name">{{ p.name }}</h3>
+      {% if p.description %}
+        <p class="wsf-product-card__desc">{{ p.description }}</p>
+      {% endif %}
+      <div class="wsf-product-card__foot">
+        <div class="wsf-product-card__price">
+          {% if p.on_sale %}
+            <span class="wsf-product-card__price-label">Offer</span>
+            <span class="wsf-product-card__price-was">KES {{ '%.0f'|format(p.original_price) }}</span>
+            <span class="wsf-product-card__price-now">KES {{ '%.0f'|format(p.price) }}</span>
+          {% else %}
+            <span class="wsf-product-card__price-now">KES {{ '%.0f'|format(p.price) }}</span>
+          {% endif %}
+        </div>
+        <button
+          type="button"
+          class="wsf-add-btn wsf-add-btn--compact wsf-btn-primary"
+          data-wsf-add-id="{{ p.id }}"
+          aria-label="Add {{ p.name }}"
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>

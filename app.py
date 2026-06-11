@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
@@ -1791,6 +1791,7 @@ def _default_website_settings() -> dict:
         "font_family": "Plus Jakarta Sans",
         "default_theme": "light",
         "design": _default_website_design(),
+        "featured_item_ids": [],
     }
 
 
@@ -1918,39 +1919,97 @@ def _ok_hex_color(s: str) -> bool:
     return len(s) in (3, 6) and all(c in "0123456789abcdefABCDEF" for c in s)
 
 
-def _website_featured_products(limit: int = 12) -> list[dict]:
-    """Serialize featured storefront products with public image URLs."""
+def _normalize_featured_item_ids(raw) -> list[int]:
+    """Unique positive item ids, max 48, preserving order."""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return []
+        try:
+            parsed = json.loads(s)
+        except (TypeError, ValueError):
+            parsed = [p.strip() for p in s.split(",") if p.strip()]
+        raw = parsed
+    if not isinstance(raw, (list, tuple)):
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in raw:
+        try:
+            iid = int(item)
+        except (TypeError, ValueError):
+            continue
+        if iid <= 0 or iid in seen:
+            continue
+        seen.add(iid)
+        out.append(iid)
+        if len(out) >= 48:
+            break
+    return out
+
+
+def _website_featured_product_rows(limit: int = 48) -> list[dict]:
+    """Raw catalog rows for the public storefront (curated order or best-sellers)."""
+    lim = max(1, min(int(limit), 48))
     try:
+        ws = _load_website_settings()
+        ids = _normalize_featured_item_ids(ws.get("featured_item_ids"))
+    except Exception:
+        ids = []
+    try:
+        if ids:
+            from database import list_website_products_by_ids
+
+            return list_website_products_by_ids(ids)[:lim]
         from database import list_website_featured_products
 
-        rows = list_website_featured_products(limit=limit)
+        return list_website_featured_products(limit=lim)
     except Exception:
-        rows = []
+        return []
+
+
+def _serialize_website_product_row(r: dict) -> dict:
+    iid = int(r.get("id") or 0)
+    img_rel = _normalize_static_relative_path(r.get("image_path"))
+    if img_rel.startswith("http://") or img_rel.startswith("https://"):
+        image_url = img_rel
+    elif img_rel:
+        image_url = url_for("static", filename=img_rel)
+    else:
+        image_url = ""
+    sell = float(r.get("price") or 0)
+    orig = float(r.get("original_price") or sell)
+    if orig <= 0:
+        orig = sell
+    lowest = min(sell, orig)
+    was = max(sell, orig)
+    on_sale = was > lowest + 0.009
+    discount_pct = int(round((1 - lowest / was) * 100)) if on_sale and was > 0 else 0
+    return {
+        "id": iid,
+        "category": (r.get("category") or "").strip() or "General",
+        "name": (r.get("name") or "").strip() or "Product",
+        "description": (r.get("description") or "").strip(),
+        "price": round(lowest, 2),
+        "original_price": round(was, 2),
+        "image_url": image_url,
+        "qty_sold": float(r.get("qty_sold") or 0),
+        "on_sale": on_sale,
+        "discount_percent": discount_pct,
+        "discount_amount": round(was - lowest, 2) if on_sale else 0,
+    }
+
+
+def _website_featured_products(limit: int = 12) -> list[dict]:
+    """Serialize featured storefront products with public image URLs."""
     products: list[dict] = []
-    for r in rows or []:
+    for r in _website_featured_product_rows(limit=limit):
         iid = int(r.get("id") or 0)
         if iid <= 0:
             continue
-        img_rel = _normalize_static_relative_path(r.get("image_path"))
-        if img_rel.startswith("http://") or img_rel.startswith("https://"):
-            image_url = img_rel
-        elif img_rel:
-            image_url = url_for("static", filename=img_rel)
-        else:
-            image_url = ""
-        products.append(
-            {
-                "id": iid,
-                "category": (r.get("category") or "").strip() or "General",
-                "name": (r.get("name") or "").strip() or "Product",
-                "description": (r.get("description") or "").strip(),
-                "price": float(r.get("price") or 0),
-                "original_price": float(r.get("original_price") or 0),
-                "image_url": image_url,
-                "qty_sold": float(r.get("qty_sold") or 0),
-                "on_sale": float(r.get("original_price") or 0) > float(r.get("price") or 0) + 0.009,
-            }
-        )
+        products.append(_serialize_website_product_row(r))
     return products
 
 
@@ -1971,6 +2030,384 @@ def _normalize_storefront_phone(raw: str) -> str:
     return re.sub(r"\D+", "", (raw or "").strip())
 
 
+def _normalize_whatsapp_phone(raw: str) -> str:
+    """E.164-style digits for api.whatsapp.com (Kenya 254…)."""
+    d = _normalize_storefront_phone(raw)
+    if not d or d == "-":
+        return ""
+    if d.startswith("254") and len(d) >= 12:
+        return d[:12]
+    if d.startswith("0") and len(d) >= 10:
+        return "254" + d[1:11]
+    if len(d) == 9:
+        return "254" + d
+    return d
+
+
+def _whatsapp_send_url(phone_raw: str, text: str) -> str:
+    phone = _normalize_whatsapp_phone(phone_raw)
+    encoded = quote((text or "").strip())
+    if phone and len(phone) >= 12:
+        return f"https://api.whatsapp.com/send?phone={phone}&text={encoded}"
+    return f"https://api.whatsapp.com/send?text={encoded}"
+
+
+def _company_whatsapp_phone() -> str:
+    try:
+        return _normalize_whatsapp_phone(_load_company_identity_settings().get("company_phone") or "")
+    except Exception:
+        return ""
+
+
+def _format_quotation_whatsapp_message(
+    *,
+    quote_id: int,
+    customer_name: str,
+    customer_phone: str,
+    customer_notes: str,
+    lines: list,
+    total: float,
+    channel: str = "online",
+) -> str:
+    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    channel_label = "Website" if (channel or "").strip().lower() == "online" else "Walk-in"
+    parts = [
+        f"*New {channel_label} quotation — {company}*",
+        f"Quote #{quote_id}",
+        "",
+        f"Customer: {customer_name or '—'}",
+        f"Phone: {customer_phone or '—'}",
+    ]
+    if customer_notes:
+        parts.extend(["", f"Message: {customer_notes}"])
+    parts.extend(["", "*Items:*"])
+    for ln in lines or []:
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "Item").strip()
+        try:
+            qty = int(ln.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        try:
+            pr = float(ln.get("price") or 0)
+        except (TypeError, ValueError):
+            pr = 0.0
+        try:
+            tot = float(ln.get("total") if ln.get("total") is not None else pr * qty)
+        except (TypeError, ValueError):
+            tot = pr * qty
+        parts.append(f"• {nm} ×{qty} @ KES {pr:,.2f} = KES {tot:,.2f}")
+    parts.extend(["", f"*Estimated total: KES {float(total):,.2f}*"])
+    return "\n".join(parts)
+
+
+def _quotation_whatsapp_links_for_row(q: dict, company_wa: str = "") -> dict:
+    company_wa = company_wa or _company_whatsapp_phone()
+    qid = int(q.get("id") or 0)
+    name = (q.get("customer_name") or "").strip()
+    channel = (q.get("quote_channel") or "walkin").strip().lower()
+    company = (_load_company_identity_settings().get("company_name") or "us").strip()
+    msg = _format_quotation_whatsapp_message(
+        quote_id=qid,
+        customer_name=name,
+        customer_phone=(q.get("customer_phone") or "").strip(),
+        customer_notes=(q.get("customer_notes") or "").strip(),
+        lines=q.get("lines") or [],
+        total=float(q.get("total_amount") or 0),
+        channel=channel,
+    )
+    customer_reply = f"Hello {name or 'there'}, regarding your quotation #{qid} from {company}…"
+    return {
+        "company_url": _whatsapp_send_url(company_wa, msg) if company_wa else "",
+        "customer_url": _whatsapp_send_url(q.get("customer_phone") or "", customer_reply)
+        if (q.get("customer_phone") or "").strip()
+        else "",
+    }
+
+
+def _quotation_whatsapp_by_id(quotes: list) -> dict:
+    company_wa = _company_whatsapp_phone()
+    out: dict = {}
+    for q in quotes or []:
+        qid = str(q.get("id") or "")
+        if not qid:
+            continue
+        out[qid] = _quotation_whatsapp_links_for_row(q, company_wa)
+    return out
+
+
+_QUOTATION_SHARE_TOKEN_SALT = "quotation-share-v1"
+_QUOTATION_SHARE_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 3600
+_QUOTATION_SHARE_MAX_ITEMS = 50
+
+
+def _quotation_share_token_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt=_QUOTATION_SHARE_TOKEN_SALT)
+
+
+def _normalize_quotation_share_item_ids(raw_ids) -> list[int]:
+    out: list[int] = []
+    seen: set[int] = set()
+    for raw in raw_ids or []:
+        try:
+            iid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if iid <= 0 or iid in seen:
+            continue
+        seen.add(iid)
+        out.append(iid)
+        if len(out) >= _QUOTATION_SHARE_MAX_ITEMS:
+            break
+    return out
+
+
+def _make_quotation_share_token(item_ids: list[int]) -> str:
+    ids = _normalize_quotation_share_item_ids(item_ids)
+    if not ids:
+        raise ValueError("Select at least one item to share.")
+    return _quotation_share_token_serializer().dumps({"i": ids})
+
+
+def _parse_quotation_share_token(token: str) -> list[int]:
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        raise ValueError("This quotation link is missing.")
+    try:
+        raw = _quotation_share_token_serializer().loads(
+            raw_token, max_age=_QUOTATION_SHARE_TOKEN_MAX_AGE_SECONDS
+        )
+    except SignatureExpired as exc:
+        raise ValueError("This quotation link has expired. Ask for a new one.") from exc
+    except BadSignature as exc:
+        raise ValueError("This quotation link is invalid.") from exc
+    if not isinstance(raw, dict):
+        raise ValueError("This quotation link is invalid.")
+    ids = _normalize_quotation_share_item_ids(raw.get("i"))
+    if not ids:
+        raise ValueError("This quotation link has no items.")
+    return ids
+
+
+def _quotation_share_public_url(token: str) -> str:
+    path = url_for("quotation_share_public", token=token, _external=False)
+    public_base = _public_share_base_url()
+    if public_base:
+        link = public_base.rstrip("/") + path
+        if link.lower().startswith("http://") and "ngrok" not in link.lower():
+            link = "https://" + link[7:]
+        return link
+    return url_for("quotation_share_public", token=token, _external=True)
+
+
+def _quotation_share_items_for_public(item_ids: list[int]) -> list[dict]:
+    try:
+        from database import list_website_products_by_ids
+
+        rows = list_website_products_by_ids(item_ids) or []
+    except Exception:
+        rows = []
+    out: list[dict] = []
+    for r in rows:
+        ip = (r.get("image_path") or "").strip()
+        img_url = ""
+        if ip:
+            rel = _normalize_static_relative_path(ip)
+            if rel.startswith("http://") or rel.startswith("https://"):
+                img_url = rel
+            elif rel:
+                img_url = url_for("static", filename=rel, _external=True)
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "category": (r.get("category") or "").strip() or "General",
+                "name": (r.get("name") or "").strip() or "Product",
+                "description": (r.get("description") or "").strip(),
+                "price": float(r.get("price") or 0),
+                "image_url": img_url,
+            }
+        )
+    return out
+
+
+def _format_quotation_share_whatsapp_message(items: list[dict], share_url: str) -> str:
+    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    parts = [f"*Quotation from {company}*", ""]
+    total = 0.0
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        nm = (item.get("name") or "Item").strip()
+        desc = (item.get("description") or "").strip()
+        try:
+            pr = float(item.get("price") or 0)
+        except (TypeError, ValueError):
+            pr = 0.0
+        total += pr
+        parts.append(f"*{nm}*")
+        if desc:
+            parts.append(desc)
+        parts.append(f"KES {pr:,.2f}")
+        parts.append("")
+    if len(items or []) > 1:
+        parts.append(f"*Estimated total: KES {total:,.2f}*")
+        parts.append("")
+    if share_url:
+        parts.append(f"View full quotation: {share_url}")
+    return "\n".join(parts).strip()
+
+
+def _quotation_lines_catalog_lookup(item_ids: list[int]) -> dict[int, dict]:
+    ids = _normalize_quotation_share_item_ids(item_ids)
+    if not ids:
+        return {}
+    try:
+        from database import list_website_products_by_ids
+
+        rows = list_website_products_by_ids(ids) or []
+    except Exception:
+        return {}
+    return {int(r.get("id") or 0): r for r in rows if int(r.get("id") or 0) > 0}
+
+
+def _enrich_quotation_lines_for_display(
+    lines: list, catalog: Optional[dict[int, dict]] = None
+) -> list[dict]:
+    """Attach catalog image, description, and category to stored quote line rows."""
+    raw_lines = [ln for ln in (lines or []) if isinstance(ln, dict)]
+    if catalog is None:
+        item_ids: list[int] = []
+        seen: set[int] = set()
+        for ln in raw_lines:
+            try:
+                iid = int(ln.get("id") or 0)
+            except (TypeError, ValueError):
+                iid = 0
+            if iid > 0 and iid not in seen:
+                seen.add(iid)
+                item_ids.append(iid)
+        catalog = _quotation_lines_catalog_lookup(item_ids)
+    out: list[dict] = []
+    for ln in raw_lines:
+        row = dict(ln)
+        try:
+            iid = int(row.get("id") or 0)
+        except (TypeError, ValueError):
+            iid = 0
+        cat = catalog.get(iid) if iid > 0 else None
+        if cat:
+            row["category"] = (cat.get("category") or "").strip() or "General"
+            row["description"] = (cat.get("description") or "").strip()
+            ip = (cat.get("image_path") or "").strip()
+            rel = _normalize_static_relative_path(ip)
+            if rel.startswith("http://") or rel.startswith("https://"):
+                row["image_url"] = rel
+            elif rel:
+                row["image_url"] = url_for("static", filename=rel, _external=True)
+            else:
+                row["image_url"] = ""
+        else:
+            row.setdefault("category", "")
+            row.setdefault("description", "")
+            row.setdefault("image_url", "")
+        out.append(row)
+    return out
+
+
+def _quotation_share_url_for_line_ids(item_ids: list[int]) -> str:
+    ids = _normalize_quotation_share_item_ids(item_ids)
+    if not ids:
+        return ""
+    try:
+        token = _make_quotation_share_token(ids)
+    except ValueError:
+        return ""
+    return _quotation_share_public_url(token)
+
+
+def _format_customer_quotation_whatsapp_message(
+    q: dict, enriched_lines: list[dict], share_url: str = ""
+) -> str:
+    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    qid = int(q.get("id") or 0)
+    name = (q.get("customer_name") or "").strip()
+    parts = [f"*Your quotation from {company}*"]
+    if qid:
+        parts.append(f"Quote #{qid}")
+    if name:
+        parts.extend(["", f"Hello {name},"])
+    parts.extend(["", "*Items:*"])
+    total = 0.0
+    for ln in enriched_lines or []:
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "Item").strip()
+        desc = (ln.get("description") or "").strip()
+        try:
+            qty = int(ln.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            qty = 1
+        try:
+            pr = float(ln.get("price") or 0)
+        except (TypeError, ValueError):
+            pr = 0.0
+        try:
+            tot = float(ln.get("total") if ln.get("total") is not None else pr * qty)
+        except (TypeError, ValueError):
+            tot = pr * qty
+        total += tot
+        parts.append(f"• *{nm}* ×{qty} @ KES {pr:,.2f} = KES {tot:,.2f}")
+        if desc:
+            parts.append(f"  {desc}")
+    parts.extend(["", f"*Estimated total: KES {total:,.2f}*"])
+    if (q.get("customer_notes") or "").strip():
+        parts.extend(["", f"Note: {(q.get('customer_notes') or '').strip()}"])
+    if share_url:
+        parts.extend(["", f"View full quotation: {share_url}"])
+    return "\n".join(parts).strip()
+
+
+def _quotation_leads_detail_context(quotes: list) -> tuple[dict, dict]:
+    """Enriched line rows and customer WhatsApp share links keyed by quote id."""
+    lines_by_id: dict = {}
+    share_by_id: dict = {}
+    all_item_ids: list[int] = []
+    seen_ids: set[int] = set()
+    for q in quotes or []:
+        for ln in q.get("lines") or []:
+            if not isinstance(ln, dict):
+                continue
+            try:
+                iid = int(ln.get("id") or 0)
+            except (TypeError, ValueError):
+                iid = 0
+            if iid > 0 and iid not in seen_ids:
+                seen_ids.add(iid)
+                all_item_ids.append(iid)
+    catalog = _quotation_lines_catalog_lookup(all_item_ids)
+    for q in quotes or []:
+        qid = str(q.get("id") or "")
+        if not qid:
+            continue
+        enriched = _enrich_quotation_lines_for_display(q.get("lines") or [], catalog)
+        lines_by_id[qid] = enriched
+        phone = (q.get("customer_phone") or "").strip()
+        item_ids = [int(ln.get("id") or 0) for ln in enriched if int(ln.get("id") or 0) > 0]
+        share_url = _quotation_share_url_for_line_ids(item_ids)
+        wa_text = _format_customer_quotation_whatsapp_message(q, enriched, share_url)
+        share_by_id[qid] = {
+            "customer_phone": phone,
+            "share_url": share_url,
+            "whatsapp_text": wa_text,
+            "whatsapp_url": _whatsapp_send_url(phone, wa_text) if phone else "",
+            "has_phone": bool(phone),
+        }
+    return lines_by_id, share_by_id
+
+
 def _build_storefront_quotation_lines(cart_lines: list) -> tuple[list[dict], float, int, Optional[str]]:
     """Validate cart lines against active catalog; return lines, total, item_count, error."""
     if not cart_lines:
@@ -1978,7 +2415,7 @@ def _build_storefront_quotation_lines(cart_lines: list) -> tuple[list[dict], flo
     try:
         from database import list_website_featured_products
 
-        catalog = {int(p["id"]): p for p in list_website_featured_products(limit=48) if int(p.get("id") or 0) > 0}
+        catalog = {int(p["id"]): p for p in _website_featured_product_rows(limit=48) if int(p.get("id") or 0) > 0}
     except Exception:
         catalog = {}
     if not catalog:
@@ -2060,11 +2497,32 @@ def storefront_request_quotation():
         qid, qerr = None, None
     if not qid:
         return jsonify({"ok": False, "error": qerr or "Could not submit your request. Try again."}), 500
+
+    company_wa = _company_whatsapp_phone()
+    wa_message = _format_quotation_whatsapp_message(
+        quote_id=int(qid),
+        customer_name=name,
+        customer_phone=phone,
+        customer_notes=notes,
+        lines=lines,
+        total=total,
+        channel="online",
+    )
+    wa_url = _whatsapp_send_url(company_wa, wa_message) if company_wa else ""
+
+    success_message = "Thank you! Your quotation request was received."
+    if wa_url:
+        success_message += " WhatsApp will open — tap Send to notify the shop."
+    elif not company_wa:
+        success_message += " We will contact you shortly."
+
     return jsonify(
         {
             "ok": True,
             "quote_id": int(qid),
-            "message": "Thank you! Your quotation request was received. We will contact you shortly.",
+            "message": success_message,
+            "whatsapp_url": wa_url,
+            "whatsapp_configured": bool(company_wa),
         }
     )
 
@@ -2103,6 +2561,9 @@ def _load_website_settings() -> dict:
     for color_key in ("primary_color", "accent_color"):
         if not _ok_hex_color(str(merged.get(color_key) or "")):
             merged[color_key] = defaults[color_key]
+    merged["featured_item_ids"] = _normalize_featured_item_ids(
+        parsed.get("featured_item_ids") if "featured_item_ids" in parsed else merged.get("featured_item_ids")
+    )
     return merged
 
 
@@ -10235,6 +10696,8 @@ def shop_leads(shop_id: int):
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         quotes=quotes,
         quote_lines_by_id=quote_lines_by_id,
+        quote_whatsapp_by_id=_quotation_whatsapp_by_id(quotes),
+        company_whatsapp_phone=_company_whatsapp_phone(),
         leads_filter=filt,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -10255,12 +10718,107 @@ def it_support_leads():
         quotes = list_all_pos_quotations_for_it(limit=2000, date_from=df, date_to=dt)
     except Exception:
         quotes = []
-    quote_lines_by_id = {str(q["id"]): (q.get("lines") or []) for q in quotes}
+    quote_lines_enriched_by_id, quote_customer_share_by_id = _quotation_leads_detail_context(quotes)
     return render_template(
         "it_support_leads.html",
         quotes=quotes,
-        quote_lines_by_id=quote_lines_by_id,
+        quote_lines_enriched_by_id=quote_lines_enriched_by_id,
+        quote_customer_share_by_id=quote_customer_share_by_id,
+        quote_whatsapp_by_id=_quotation_whatsapp_by_id(quotes),
+        company_whatsapp_phone=_company_whatsapp_phone(),
         leads_filter=filt,
+        leads_nav_active="list",
+    )
+
+
+@app.route("/it_support/leads/share-quotation")
+@login_required
+def it_support_leads_share_quotation():
+    _it_support_or_super_admin_only()
+    try:
+        from database import list_website_catalog_items
+
+        catalog = list_website_catalog_items(limit=500) or []
+    except Exception:
+        catalog = []
+    picker_items = []
+    for row in catalog:
+        ip = (row.get("image_path") or "").strip()
+        picker_items.append(
+            {
+                "id": int(row.get("id") or 0),
+                "category": (row.get("category") or "").strip() or "General",
+                "name": (row.get("name") or "").strip() or "Product",
+                "description": (row.get("description") or "").strip(),
+                "price": float(row.get("price") or 0),
+                "image_url": static_upload_url(ip) if ip else "",
+            }
+        )
+    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    return render_template(
+        "it_support_leads_share_quotation.html",
+        picker_items=picker_items,
+        company_name=company,
+        leads_nav_active="share",
+    )
+
+
+@app.route("/api/it-support/quotation-share-link", methods=["POST"])
+@login_required
+def api_it_support_quotation_share_link():
+    _it_support_or_super_admin_only()
+    data = request.get_json(force=True, silent=True) or {}
+    item_ids = _normalize_quotation_share_item_ids(data.get("item_ids"))
+    if not item_ids:
+        return jsonify({"ok": False, "error": "Select at least one item."}), 400
+    try:
+        token = _make_quotation_share_token(item_ids)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    items = _quotation_share_items_for_public(item_ids)
+    if not items:
+        return jsonify({"ok": False, "error": "No active items found for this selection."}), 400
+    share_url = _quotation_share_public_url(token)
+    wa_text = _format_quotation_share_whatsapp_message(items, share_url)
+    phone_raw = (data.get("customer_phone") or data.get("whatsapp_phone") or "").strip()
+    phone = _normalize_whatsapp_phone(phone_raw) if phone_raw else ""
+    if phone_raw and len(phone) < 12:
+        return jsonify(
+            {"ok": False, "error": "Enter a valid WhatsApp number (e.g. 0712345678)."}
+        ), 400
+    return jsonify(
+        {
+            "ok": True,
+            "url": share_url,
+            "whatsapp_text": wa_text,
+            "whatsapp_url": _whatsapp_send_url(phone, wa_text),
+            "item_count": len(items),
+            "customer_phone": phone_raw,
+        }
+    )
+
+
+@app.route("/quotation/share/<token>")
+def quotation_share_public(token: str):
+    """Public quotation page — image, name, description, and price for shared items."""
+    try:
+        item_ids = _parse_quotation_share_token(token)
+    except ValueError as exc:
+        return render_template("quotation_share_public.html", error=str(exc)), 400
+    items = _quotation_share_items_for_public(item_ids)
+    if not items:
+        return render_template(
+            "quotation_share_public.html",
+            error="These items are no longer available.",
+        ), 404
+    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    total = round(sum(float(i.get("price") or 0) for i in items), 2)
+    return render_template(
+        "quotation_share_public.html",
+        items=items,
+        company_name=company,
+        total_amount=total,
+        share_url=_quotation_share_public_url(token),
     )
 
 
@@ -16997,7 +17555,17 @@ def it_support_employee_delete(emp_id: int):
 @login_required
 def it_support_website_management():
     _it_support_only()
-    return render_template("it_support_website_management.html")
+    ws = _load_website_settings()
+    design_defaults = _default_website_design()
+    products = _website_featured_products(limit=12)
+    return render_template(
+        "it_support_website_management.html",
+        website_ws=ws,
+        website_design=ws.get("design") or design_defaults,
+        website_featured_products=products,
+        website_product_categories=_website_product_categories(products),
+        preview_url=_public_storefront_url(),
+    )
 
 
 @app.route("/it_support/website-management/settings", methods=["GET", "POST"])
@@ -17053,19 +17621,49 @@ def it_support_website_settings():
     )
 
 
-@app.route("/it_support/website-management/designs", methods=["GET"])
+@app.route("/it_support/website-management/designs", methods=["GET", "POST"])
 @login_required
 def it_support_website_designs():
     _it_support_only()
     ws = _load_website_settings()
     design_defaults = _default_website_design()
-    products = _website_featured_products(limit=12)
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "save").strip().lower()
+        if action == "reset_auto":
+            ids: list[int] = []
+        else:
+            ids = _normalize_featured_item_ids(request.form.get("featured_item_ids") or "[]")
+        updated = {**ws, "featured_item_ids": ids}
+        ok = _save_website_settings(updated)
+        if ok:
+            if action == "reset_auto":
+                flash("Website products reset to automatic best-sellers from POS.", "success")
+            else:
+                flash(f"Website products saved ({len(ids)} item{'s' if len(ids) != 1 else ''} on site).", "success")
+        else:
+            flash("Could not save website products. Try again.", "error")
+        return redirect(url_for("it_support_website_designs"))
+
+    products = _website_featured_products(limit=48)
+    try:
+        from database import list_website_catalog_items
+
+        catalog_rows = list_website_catalog_items(limit=300)
+    except Exception:
+        catalog_rows = []
+    catalog_products = [_serialize_website_product_row(r) for r in catalog_rows if int(r.get("id") or 0) > 0]
+    selected_ids = ws.get("featured_item_ids") or []
+    using_auto = not selected_ids
     return render_template(
         "it_support_website_designs.html",
         website_ws=ws,
         website_design=ws.get("design") or design_defaults,
         website_featured_products=products,
+        website_catalog_products=catalog_products,
         website_product_categories=_website_product_categories(products),
+        website_selected_ids=selected_ids,
+        website_using_auto_products=using_auto,
         preview_url=_public_storefront_url(),
     )
 

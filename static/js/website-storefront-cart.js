@@ -299,8 +299,15 @@
             successEl.textContent = res.body.message || "Quotation request received.";
             successEl.classList.remove("hidden");
           }
+          if (res.body.whatsapp_url) {
+            window.open(res.body.whatsapp_url, "_blank", "noopener,noreferrer");
+          }
           if (typeof window.wsfShowToast === "function") {
-            window.wsfShowToast("Quotation sent — we'll be in touch!");
+            window.wsfShowToast(
+              res.body.whatsapp_url
+                ? "Opening WhatsApp — tap Send to notify the shop"
+                : "Quotation saved — we'll be in touch!"
+            );
           }
         })
         .catch(function (err) {
@@ -312,7 +319,7 @@
         .finally(function () {
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.textContent = "Request quotation";
+            submitBtn.textContent = "Request quotation via WhatsApp";
           }
         });
     });

@@ -1759,13 +1759,37 @@ def list_active_catalog_items_for_it_analytics(
     return rows
 
 
-def list_website_featured_products(limit: int = 12) -> list:
-    """Catalog items for the public storefront, ranked by all-time POS qty sold."""
-    lim = max(1, min(int(limit), 48))
-    if not table_exists("items"):
-        return []
-    sales_join = ""
-    qty_col = "0"
+def _website_item_row_from_db(r: dict) -> dict:
+    """Normalize a DB item row for website/catalog use."""
+    try:
+        price = float(r.get("selling_price") if r.get("selling_price") is not None else r.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    try:
+        orig = float(r.get("price") or 0)
+    except (TypeError, ValueError):
+        orig = 0.0
+    try:
+        qty_sold = float(r.get("qty_sold") or 0)
+    except (TypeError, ValueError):
+        qty_sold = 0.0
+    ip = r.get("image_path")
+    if isinstance(ip, bytes):
+        ip = ip.decode("utf-8", errors="replace")
+    ip = (str(ip).strip() if ip is not None else "") or ""
+    return {
+        "id": int(r.get("id") or 0),
+        "category": (r.get("category") or "").strip() or "General",
+        "name": (r.get("name") or "").strip() or "Product",
+        "description": (r.get("description") or "").strip(),
+        "price": round(price, 2),
+        "original_price": round(orig, 2),
+        "image_path": ip,
+        "qty_sold": qty_sold,
+    }
+
+
+def _website_sales_join_sql() -> tuple[str, str]:
     if table_exists("shop_pos_sale_items") and table_exists("shop_pos_sales"):
         sales_join = """
     LEFT JOIN (
@@ -1776,6 +1800,16 @@ def list_website_featured_products(limit: int = 12) -> list:
         GROUP BY si.item_id
     ) sales ON sales.item_id = i.id"""
         qty_col = "COALESCE(sales.qty_sold, 0)"
+        return sales_join, qty_col
+    return "", "0"
+
+
+def list_website_featured_products(limit: int = 12) -> list:
+    """Catalog items for the public storefront, ranked by all-time POS qty sold."""
+    lim = max(1, min(int(limit), 48))
+    if not table_exists("items"):
+        return []
+    sales_join, qty_col = _website_sales_join_sql()
     sql = f"""
     SELECT
         i.id,
@@ -1798,33 +1832,80 @@ def list_website_featured_products(limit: int = 12) -> list:
             rows = cur.fetchall() or []
     except Exception:
         rows = []
-    out = []
-    for r in rows:
+    return [_website_item_row_from_db(dict(r)) for r in rows]
+
+
+def list_website_catalog_items(limit: int = 300) -> list:
+    """All active catalog items for the website product picker."""
+    lim = max(1, min(int(limit), 500))
+    if not table_exists("items"):
+        return []
+    sales_join, qty_col = _website_sales_join_sql()
+    sql = f"""
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        i.description,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        {qty_col} AS qty_sold
+    FROM items i
+    {sales_join}
+    WHERE i.status = 'active'
+    ORDER BY i.category ASC, i.name ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (lim,))
+            rows = cur.fetchall() or []
+    except Exception:
+        rows = []
+    return [_website_item_row_from_db(dict(r)) for r in rows if int(dict(r).get("id") or 0) > 0]
+
+
+def list_website_products_by_ids(item_ids: list) -> list:
+    """Active website products in the exact order of ``item_ids``."""
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in item_ids or []:
         try:
-            price = float(r.get("selling_price") if r.get("selling_price") is not None else r.get("price") or 0)
+            iid = int(raw)
         except (TypeError, ValueError):
-            price = 0.0
-        try:
-            orig = float(r.get("price") or 0)
-        except (TypeError, ValueError):
-            orig = 0.0
-        try:
-            qty_sold = float(r.get("qty_sold") or 0)
-        except (TypeError, ValueError):
-            qty_sold = 0.0
-        out.append(
-            {
-                "id": int(r.get("id") or 0),
-                "category": (r.get("category") or "").strip() or "General",
-                "name": (r.get("name") or "").strip() or "Product",
-                "description": (r.get("description") or "").strip(),
-                "price": round(price, 2),
-                "original_price": round(orig, 2),
-                "image_path": (r.get("image_path") or "").strip(),
-                "qty_sold": qty_sold,
-            }
-        )
-    return out
+            continue
+        if iid <= 0 or iid in seen:
+            continue
+        seen.add(iid)
+        ids.append(iid)
+    if not ids or not table_exists("items"):
+        return []
+    sales_join, qty_col = _website_sales_join_sql()
+    placeholders = ",".join(["%s"] * len(ids))
+    field_order = ",".join(str(i) for i in ids)
+    sql = f"""
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        i.description,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        {qty_col} AS qty_sold
+    FROM items i
+    {sales_join}
+    WHERE i.status = 'active' AND i.id IN ({placeholders})
+    ORDER BY FIELD(i.id, {field_order})
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(ids))
+            rows = cur.fetchall() or []
+    except Exception:
+        return []
+    return [_website_item_row_from_db(dict(r)) for r in rows if int(dict(r).get("id") or 0) > 0]
 
 
 def search_seller_names(prefix: str, limit: int = 8):
@@ -7009,7 +7090,7 @@ def list_shop_pos_quotations(
         params.append(str(date_to)[:10])
     where_sql = " AND ".join(clauses)
     sql = f"""
-    SELECT id, shop_id, quote_basis, quote_channel, customer_name, customer_phone, total_amount, item_count,
+    SELECT id, shop_id, quote_basis, quote_channel, customer_name, customer_phone, customer_notes, total_amount, item_count,
            lines_json, employee_id, employee_code, employee_name, created_at
     FROM shop_pos_quotations
     WHERE {where_sql}
@@ -7053,8 +7134,8 @@ def list_all_pos_quotations_for_it(
         params.append(str(date_to)[:10])
     where_sql = " AND ".join(clauses)
     sql = f"""
-    SELECT q.id, q.shop_id, q.quote_basis, q.quote_channel, q.customer_name, q.customer_phone, q.total_amount, q.item_count,
-           q.lines_json, q.employee_id, q.employee_code, q.employee_name, q.created_at,
+    SELECT q.id, q.shop_id, q.quote_basis, q.quote_channel, q.customer_name, q.customer_phone, q.customer_notes,
+           q.total_amount, q.item_count, q.lines_json, q.employee_id, q.employee_code, q.employee_name, q.created_at,
            s.shop_name, s.shop_code
     FROM shop_pos_quotations q
     LEFT JOIN shops s ON s.id = q.shop_id

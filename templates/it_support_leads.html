@@ -1,13 +1,22 @@
 {% extends "employee_layout.html" %}
 {% block title %}Leads &amp; quotations (all shops) — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Leads &amp; quotations{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_leads_sidebar_nav.html" %}
+{% endblock %}
 {% block employee_content %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">All quotations</h2>
     <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
       <strong class="text-[rgb(var(--rc-page-fg))]">Walk-in</strong> branch quotes and <strong class="text-[rgb(var(--rc-page-fg))]">online</strong> channel quotations.
-      Online rows show <strong class="text-[rgb(var(--rc-page-fg))]">Website</strong> as the shop.
+      Online requests open WhatsApp to the company phone in
+      <a href="{{ url_for('it_support_system_settings') }}?tab=company" class="font-medium text-brand-600 hover:underline dark:text-brand-400">Company settings</a>.
     </p>
+    {% if not company_whatsapp_phone %}
+      <p class="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+        Set <strong>Phone (WhatsApp)</strong> under System settings → Company so website quotations can notify your shop on WhatsApp.
+      </p>
+    {% endif %}
   </div>
 
   <form method="get" action="{{ url_for('it_support_leads') }}" id="leads-filter-form-it" class="mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
@@ -66,6 +75,7 @@
               <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Total</th>
               <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">Lines</th>
               <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Staff</th>
+              <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider">WhatsApp</th>
               <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"><span class="sr-only">View items</span></th>
             </tr>
           </thead>
@@ -95,6 +105,9 @@
                 <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(q.total_amount or 0) }}</td>
                 <td class="px-4 py-3 text-center tabular-nums text-[rgb(var(--rc-muted))]">{{ q.item_count or 0 }}</td>
                 <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ q.employee_name or "—" }}</td>
+                <td class="px-4 py-3">
+                  {% include "partials/leads_whatsapp_actions.html" %}
+                </td>
                 <td class="px-4 py-3 text-center">
                   <button
                     type="button"
@@ -119,16 +132,37 @@
     {% endif %}
   </div>
 
-  <dialog id="quote-lines-dialog-it" class="w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0 text-[rgb(var(--rc-page-fg))] shadow-2xl backdrop:bg-slate-950/50">
+  <dialog id="quote-lines-dialog-it" class="w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0 text-[rgb(var(--rc-page-fg))] shadow-2xl backdrop:bg-slate-950/50">
     <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4">
-      <h3 class="text-lg font-bold">Quoted items</h3>
-      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]" id="quote-lines-dialog-sub-it"></p>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h3 class="text-lg font-bold">Quoted items</h3>
+          <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]" id="quote-lines-dialog-sub-it"></p>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <a
+            href="#"
+            id="quote-lines-dialog-wa-it"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold uppercase tracking-wide text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-200"
+            title="Share quotation to customer on WhatsApp"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 00.918.918l4.458-1.495A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.714 9.714 0 01-4.915-1.332l-.352-.209-2.642.886.886-2.578-.23-.375A9.736 9.736 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+            Share to customer
+          </a>
+          <p class="hidden text-[10px] text-[rgb(var(--rc-muted))]" id="quote-lines-dialog-wa-hint-it">No customer phone on this quotation.</p>
+        </div>
+      </div>
     </div>
-    <div class="max-h-[min(60vh,24rem)] overflow-y-auto px-5 py-4">
-      <ul id="quote-lines-dialog-list-it" class="space-y-2 text-sm"></ul>
+    <div class="max-h-[min(65vh,28rem)] overflow-y-auto px-5 py-4">
+      <ul id="quote-lines-dialog-list-it" class="space-y-3 text-sm"></ul>
     </div>
-    <div class="border-t border-[rgb(var(--rc-border))] px-5 py-3 text-right">
-      <button type="button" id="quote-lines-dialog-close-it" class="rounded-xl bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:opacity-90">Close</button>
+    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[rgb(var(--rc-border))] px-5 py-3">
+      <p class="text-sm font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]" id="quote-lines-dialog-total-it"></p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="quote-lines-dialog-close-it" class="rounded-xl bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:opacity-90">Close</button>
+      </div>
     </div>
   </dialog>
 
@@ -146,11 +180,20 @@
     if (rangeEl) rangeEl.addEventListener("change", syncIt);
     syncIt();
 
-    var QUOTE_LINES = {{ quote_lines_by_id|tojson }};
+    var QUOTE_LINES = {{ quote_lines_enriched_by_id|tojson }};
+    var QUOTE_META = {{ quotes|tojson }};
+    var QUOTE_CUSTOMER_SHARE = {{ quote_customer_share_by_id|tojson }};
     var dlg = document.getElementById("quote-lines-dialog-it");
     var listEl = document.getElementById("quote-lines-dialog-list-it");
     var subEl = document.getElementById("quote-lines-dialog-sub-it");
+    var totalEl = document.getElementById("quote-lines-dialog-total-it");
+    var waBtn = document.getElementById("quote-lines-dialog-wa-it");
+    var waHint = document.getElementById("quote-lines-dialog-wa-hint-it");
     var closeBtn = document.getElementById("quote-lines-dialog-close-it");
+
+    function esc(s) {
+      return String(s || "").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+    }
 
     function fmt(n) {
       var x = parseFloat(n);
@@ -160,27 +203,71 @@
 
     function openQuoteLines(id) {
       var lines = QUOTE_LINES[String(id)] || [];
+      var meta = null;
+      for (var i = 0; i < (QUOTE_META || []).length; i++) {
+        if (String(QUOTE_META[i].id) === String(id)) { meta = QUOTE_META[i]; break; }
+      }
+      var share = QUOTE_CUSTOMER_SHARE[String(id)] || {};
+      var runningTotal = 0;
       if (listEl) {
         if (!lines.length) {
           listEl.innerHTML = '<li class="text-[rgb(var(--rc-muted))]">No line detail stored.</li>';
         } else {
           listEl.innerHTML = lines.map(function (ln) {
             var nm = (ln && ln.name) ? String(ln.name) : "Item";
+            var cat = (ln && ln.category) ? String(ln.category) : "";
+            var desc = (ln && ln.description) ? String(ln.description) : "";
+            var img = (ln && ln.image_url) ? String(ln.image_url) : "";
             var qty = parseInt((ln && ln.qty) || 0, 10) || 0;
-            var pr = fmt((ln && ln.price) || 0);
-            var tot = fmt((ln && ln.total) != null ? ln.total : (parseFloat(ln && ln.price) || 0) * qty);
+            var pr = parseFloat((ln && ln.price) || 0) || 0;
+            var tot = (ln && ln.total) != null ? parseFloat(ln.total) : pr * qty;
+            if (isNaN(tot)) tot = 0;
+            runningTotal += tot;
+            var media = img
+              ? '<img src="' + esc(img) + '" alt="" class="h-16 w-16 shrink-0 rounded-xl border border-[rgb(var(--rc-border))] object-cover" loading="lazy" />'
+              : '<span class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-lg font-bold text-[rgb(var(--rc-muted))]">' + esc(nm.charAt(0).toUpperCase()) + "</span>";
             return (
-              '<li class="flex flex-wrap items-baseline justify-between gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">' +
-              '<span class="min-w-0 flex-1 font-medium">' + nm.replace(/</g, "&lt;") + "</span>" +
-              '<span class="shrink-0 tabular-nums text-[rgb(var(--rc-muted))]">×' + qty + "</span>" +
-              '<span class="shrink-0 tabular-nums font-semibold">' + tot + "</span>" +
-              '<span class="w-full text-xs text-[rgb(var(--rc-muted))]">@ ' + pr + " each</span>" +
-              "</li>"
+              '<li class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3">' +
+              '<div class="flex gap-3">' + media +
+              '<div class="min-w-0 flex-1">' +
+              (cat ? '<p class="text-[10px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">' + esc(cat) + "</p>" : "") +
+              '<p class="font-semibold text-[rgb(var(--rc-page-fg))]">' + esc(nm) + "</p>" +
+              (desc ? '<p class="mt-1 text-xs leading-snug text-[rgb(var(--rc-muted))]">' + esc(desc) + "</p>" : "") +
+              '<div class="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs tabular-nums">' +
+              '<span class="text-[rgb(var(--rc-muted))]">Qty ×' + qty + "</span>" +
+              '<span class="text-[rgb(var(--rc-muted))]">@ KES ' + fmt(pr) + "</span>" +
+              '<span class="font-semibold text-[rgb(var(--rc-page-fg))]">KES ' + fmt(tot) + "</span>" +
+              "</div></div></div></li>"
             );
           }).join("");
         }
       }
-      if (subEl) subEl.textContent = lines.length ? lines.length + " line(s)" : "";
+      if (subEl) {
+        var bits = [];
+        if (meta && meta.customer_name) bits.push(meta.customer_name);
+        if (meta && meta.customer_phone) bits.push(meta.customer_phone);
+        if (lines.length) bits.push(lines.length + " item(s)");
+        if (meta && meta.customer_notes) bits.push("Note: " + meta.customer_notes);
+        subEl.textContent = bits.join(" · ");
+      }
+      if (totalEl) {
+        totalEl.textContent = lines.length ? "Total: KES " + fmt(meta && meta.total_amount != null ? meta.total_amount : runningTotal) : "";
+      }
+      if (waBtn) {
+        if (share.whatsapp_url) {
+          waBtn.href = share.whatsapp_url;
+          waBtn.classList.remove("pointer-events-none", "opacity-50");
+          waBtn.title = share.customer_phone
+            ? "Share quotation to " + share.customer_phone + " on WhatsApp"
+            : "Share quotation to customer on WhatsApp";
+          if (waHint) waHint.classList.add("hidden");
+        } else {
+          waBtn.href = "#";
+          waBtn.classList.add("pointer-events-none", "opacity-50");
+          waBtn.title = "No customer phone on this quotation";
+          if (waHint) waHint.classList.remove("hidden");
+        }
+      }
       if (dlg && typeof dlg.showModal === "function") dlg.showModal();
     }
 

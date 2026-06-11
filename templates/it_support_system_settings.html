@@ -883,8 +883,9 @@
           <input name="company_email" type="email" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_email if site_settings else '' }}" />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Phone</label>
-          <input name="company_phone" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_phone if site_settings else '' }}" />
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Phone (WhatsApp)</label>
+          <input name="company_phone" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_phone if site_settings else '' }}" placeholder="e.g. 0712 345 678" />
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Used for website quotation requests (customers send quotes to this WhatsApp) and contact details on receipts.</p>
         </div>
         <div class="md:col-span-2">
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">App icon</label>

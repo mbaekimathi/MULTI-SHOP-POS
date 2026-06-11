@@ -4,35 +4,55 @@
 {% block sidebar_links %}
   {% include "partials/it_support_website_sidebar_nav.html" %}
 {% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #website-management-page {
+      max-width: none;
+    }
+    #website-management-page .wsf-design-shell {
+      min-height: 38rem;
+      border-radius: 1rem;
+      overflow: hidden;
+      border: 1px solid rgb(var(--rc-border));
+      box-shadow: 0 24px 48px -32px rgba(15, 23, 42, 0.45);
+    }
+    #website-management-page .wsf-design-shell .wsf-root {
+      border-radius: inherit;
+    }
+  </style>
+{% endblock %}
 {% block employee_content %}
-  <div class="mx-auto max-w-4xl space-y-6">
+  {% set d = website_design %}
+  <div id="website-management-page" class="space-y-5">
     {% include "partials/website_share_link.html" %}
 
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
-      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-violet-600/90 dark:text-violet-400/90">Public site</p>
-      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Website management</h2>
-      <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-        Configure your public website domain, theme, colors, and fonts. When hosted, your domain automatically serves the generated shop page with products from POS.
-      </p>
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div class="min-w-0">
+        <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-violet-600/90 dark:text-violet-400/90">Public site</p>
+        <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Website preview</h2>
+        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+          This is how your shop appears to customers — immersive product cards, category rows, cart, and WhatsApp quotations.
+          <span class="text-[rgb(var(--rc-muted))]">{{ website_featured_products|length }} products from POS.</span>
+        </p>
+      </div>
+      <div class="flex shrink-0 flex-wrap gap-2">
+        <a href="{{ url_for('it_support_website_settings') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Website settings</a>
+        <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Open live link</a>
+      </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2">
-      <a
-        href="{{ url_for('it_support_website_settings') }}"
-        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
-      >
-        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Configuration</p>
-        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Website settings</h3>
-        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Domain, theme style, brand colors, display mode, and typography.</p>
-      </a>
-      <a
-        href="{{ url_for('it_support_website_designs') }}"
-        class="group rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm transition hover:border-brand-400/40 hover:bg-[rgb(var(--rc-surface-2))]"
-      >
-        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Content</p>
-        <h3 class="mt-1 text-lg font-semibold text-[rgb(var(--rc-page-fg))] group-hover:text-brand-700 dark:group-hover:text-brand-300">Website designs</h3>
-        <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Live storefront preview — same page customers see on your hosted domain.</p>
-      </a>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-2.5 text-xs text-[rgb(var(--rc-muted))]">
+      <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Tip:</span>
+      Theme, colors, and fonts come from
+      <a href="{{ url_for('it_support_website_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Website settings</a>.
+      Products update automatically from your POS best-sellers.
+    </div>
+
+    <div class="wsf-design-shell">
+      {% with website_design=d, storefront_design_mode=false %}
+        {% include "partials/website_ecommerce_storefront.html" %}
+      {% endwith %}
     </div>
   </div>
 {% endblock %}
