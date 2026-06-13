@@ -1,4 +1,117 @@
 <script>
+  window.shopStockWorkspaceSettings = {{ (stock_workspace_settings or {})|tojson }};
+  window.shopStockWsRequired = function (key) {
+    var s = window.shopStockWorkspaceSettings || {};
+    return !!s[key];
+  };
+</script>
+<script>
+  window.ShopStockSubmitConfirm = (function () {
+    var modal, titleEl, subtitleEl, metaEl, headEl, bodyEl, okBtn, pendingForm = null;
+
+    function esc(text) {
+      var el = document.createElement("div");
+      el.textContent = text == null ? "" : String(text);
+      return el.innerHTML;
+    }
+
+    function close() {
+      if (!modal) return;
+      modal.classList.add("hidden");
+      pendingForm = null;
+    }
+
+    function confirmSubmit() {
+      if (!pendingForm) return;
+      pendingForm.setAttribute("data-stock-confirmed", "1");
+      if (typeof pendingForm.requestSubmit === "function") pendingForm.requestSubmit();
+      else pendingForm.submit();
+      close();
+    }
+
+    function show(opts) {
+      if (!modal) return;
+      titleEl.textContent = opts.title || "Confirm submission";
+      subtitleEl.textContent = opts.subtitle || "Review the lines below before updating stock.";
+      metaEl.textContent = String((opts.rows || []).length) + " line(s)";
+
+      var cols = opts.columns || [];
+      var headHtml = "<tr>";
+      cols.forEach(function (col) {
+        var align = col.align === "right" ? " text-right" : " text-left";
+        headHtml += '<th class="' + align.trim() + '">' + esc(col.label || col) + "</th>";
+      });
+      headHtml += "</tr>";
+      headEl.innerHTML = headHtml;
+
+      var bodyHtml = "";
+      (opts.rows || []).forEach(function (row) {
+        bodyHtml += "<tr>";
+        row.forEach(function (cell, idx) {
+          var align = cols[idx] && cols[idx].align === "right" ? " text-right tabular-nums" : "";
+          var cls = idx === (row.length - 2) && cols[idx] && cols[idx].key === "qty" ? " text-right tabular-nums font-semibold" : align;
+          if (cols[idx] && cols[idx].key === "item") cls = " font-semibold";
+          if (cols[idx] && cols[idx].key === "type") cls = " text-[rgb(var(--rc-muted))]";
+          bodyHtml += '<td class="' + cls.trim() + '">' + esc(cell) + "</td>";
+        });
+        bodyHtml += "</tr>";
+      });
+      bodyEl.innerHTML = bodyHtml;
+
+      okBtn.textContent = opts.confirmLabel || "Confirm & submit";
+      okBtn.className = "btn-rc px-4 py-2 text-sm " + (opts.confirmClass || "btn-rc-primary");
+      pendingForm = opts.form || null;
+      modal.classList.remove("hidden");
+      try { okBtn.focus(); } catch (_e) {}
+    }
+
+    function init() {
+      modal = document.getElementById("js-stock-submit-confirm-modal");
+      if (!modal) return;
+      titleEl = document.getElementById("js-stock-submit-confirm-title");
+      subtitleEl = document.getElementById("js-stock-submit-confirm-subtitle");
+      metaEl = document.getElementById("js-stock-submit-confirm-meta");
+      headEl = document.getElementById("js-stock-submit-confirm-head");
+      bodyEl = document.getElementById("js-stock-submit-confirm-body");
+      okBtn = document.getElementById("js-stock-submit-confirm-ok");
+      var cancelBtn = document.getElementById("js-stock-submit-confirm-cancel");
+      var closeBtn = document.getElementById("js-stock-submit-confirm-close");
+
+      okBtn.addEventListener("click", confirmSubmit);
+      if (cancelBtn) cancelBtn.addEventListener("click", close);
+      if (closeBtn) closeBtn.addEventListener("click", close);
+      modal.querySelectorAll("[data-stock-confirm-dismiss]").forEach(function (el) {
+        el.addEventListener("click", close);
+      });
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape" && modal && !modal.classList.contains("hidden")) close();
+      });
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+
+    return { show: show, close: close };
+  })();
+
+  window.shopStockFormConfirmed = function (form) {
+    return form && form.getAttribute("data-stock-confirmed") === "1";
+  };
+
+  window.shopStockClearConfirmed = function (form) {
+    if (form) form.removeAttribute("data-stock-confirmed");
+  };
+
+  window.shopStockShowSubmitConfirm = function (form, opts) {
+    if (!form || !window.ShopStockSubmitConfirm) return;
+    window.ShopStockSubmitConfirm.show(Object.assign({ form: form }, opts));
+  };
+</script>
+
+<script>
   (function () {
     function wireStoreStockSearch(searchInput, countEl, formEl) {
       if (!searchInput || !formEl) return;
@@ -223,7 +336,10 @@
   (function () {
     var input = document.getElementById("js-stock-item-search");
     var countEl = document.getElementById("js-stock-visible-count");
-    var rows = Array.prototype.slice.call(document.querySelectorAll(".js-stock-row"));
+    var scope = document.getElementById("stk-workspace");
+    var rows = scope
+      ? Array.prototype.slice.call(scope.querySelectorAll(".js-stock-row"))
+      : Array.prototype.slice.call(document.querySelectorAll(".js-stock-row"));
     if (!input || !countEl || !rows.length) return;
 
     function sync() {
@@ -240,7 +356,41 @@
           if (catKey) visibleByCat[catKey] = true;
         }
       });
-      document.querySelectorAll(".js-stock-cat-row").forEach(function (catRow) {
+      (scope || document).querySelectorAll(".js-stock-cat-row").forEach(function (catRow) {
+        var catKey = String(catRow.getAttribute("data-cat") || "");
+        catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
+      });
+      countEl.textContent = String(n);
+    }
+
+    input.addEventListener("input", sync);
+    sync();
+  })();
+</script>
+
+<script>
+  (function () {
+    var input = document.getElementById("js-manual-out-search");
+    var countEl = document.getElementById("js-manual-out-visible-count");
+    var scope = document.getElementById("stk-workspace-out");
+    if (!input || !countEl || !scope) return;
+    var rows = Array.prototype.slice.call(scope.querySelectorAll(".js-manual-stock-out-row"));
+
+    function sync() {
+      var q = (input.value || "").trim().toLowerCase();
+      var n = 0;
+      var visibleByCat = {};
+      rows.forEach(function (row) {
+        var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
+        var show = !q || hay.indexOf(q) !== -1;
+        row.style.display = show ? "" : "none";
+        if (show) {
+          n += 1;
+          var catKey = String(row.getAttribute("data-stock-category") || "");
+          if (catKey) visibleByCat[catKey] = true;
+        }
+      });
+      scope.querySelectorAll(".js-manual-out-cat-row").forEach(function (catRow) {
         var catKey = String(catRow.getAttribute("data-cat") || "");
         catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
       });
@@ -259,32 +409,125 @@
     if (!form) return;
     var sourceSel = document.getElementById("batch-request-source");
     var heading = document.getElementById("js-source-stock-heading");
+    var sessionHeading = document.getElementById("js-session-shop-stock-heading");
     var hint = document.getElementById("js-source-stock-hint");
+    var sourceStockUrl = String(form.getAttribute("data-source-stock-url") || "");
     var sourceCells = Array.prototype.slice.call(form.querySelectorAll(".js-source-stock-cell"));
+    var sessionShopLabel = sessionHeading ? String(sessionHeading.textContent || "Shop").trim() : "Shop";
+    var showNotesToggle = document.getElementById("js-request-stock-show-notes");
+    var sharedNoteWrap = form.querySelector(".js-request-stock-shared-note-wrap");
+    var sharedNoteInput = document.getElementById("js-request-stock-batch-note");
+
+    function notesRequiredBySettings() {
+      return window.shopStockWsRequired("require_request_stock_notes");
+    }
+
+    function notesEnabled() {
+      if (notesRequiredBySettings()) return true;
+      return !!(showNotesToggle && showNotesToggle.checked);
+    }
+
+    function setOptColVisible(el, show) {
+      if (!el) return;
+      el.classList.toggle("hidden", !show);
+    }
+
+    function syncRequestCatColspan() {
+      var n = notesEnabled() ? 5 : 4;
+      form.querySelectorAll(".js-request-stock-cat-row td").forEach(function (td) {
+        td.colSpan = n;
+      });
+    }
+
+    function syncNotesVisible(on) {
+      form.querySelectorAll(".js-request-stock-note-head, .js-request-stock-note-cell").forEach(function (el) {
+        setOptColVisible(el, on);
+      });
+      if (sharedNoteWrap) sharedNoteWrap.classList.toggle("hidden", !on);
+      if (!on) {
+        form.querySelectorAll('input[name^="note_"]').forEach(function (el) { el.value = ""; });
+        if (sharedNoteInput) sharedNoteInput.value = "";
+      }
+      syncRequestCatColspan();
+    }
+
+    if (showNotesToggle) {
+      showNotesToggle.addEventListener("change", function () {
+        if (notesRequiredBySettings()) return;
+        syncNotesVisible(showNotesToggle.checked);
+      });
+      if (notesRequiredBySettings()) {
+        showNotesToggle.checked = true;
+        syncNotesVisible(true);
+      } else {
+        syncNotesVisible(false);
+      }
+    } else if (notesRequiredBySettings()) {
+      syncNotesVisible(true);
+    }
 
     function currentSourceLabel() {
+      if (heading && heading.textContent) return String(heading.textContent).trim();
       if (!sourceSel) return "Source";
-      var v = String(sourceSel.value || "");
-      if (v === "company") return "Company";
-      if (v.indexOf("shop:") === 0) return "Shop";
-      return "Source";
+      var opt = sourceSel.options[sourceSel.selectedIndex];
+      return opt ? String(opt.textContent || "Source").trim() : "Source";
+    }
+
+    function selectedSourceValue() {
+      return sourceSel ? String(sourceSel.value || "company") : "company";
+    }
+
+    function applySourceLabel(label) {
+      var text = String(label || "Source").trim() || "Source";
+      if (heading) heading.textContent = text;
+      if (hint) {
+        hint.textContent = "Requests are limited by stock at " + text + " (first stock column). "
+          + sessionShopLabel + " shows this shop's current shelf stock.";
+      }
+      sourceCells.forEach(function (cell) {
+        cell.setAttribute("title", text + " stock");
+      });
+    }
+
+    function refreshSourceStock() {
+      if (!sourceStockUrl) return;
+      var src = selectedSourceValue();
+      fetch(sourceStockUrl + "?batch_request_source=" + encodeURIComponent(src), { credentials: "same-origin" })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          if (data.label) applySourceLabel(data.label);
+          var map = data.stock_by_item_id || {};
+          sourceCells.forEach(function (cell) {
+            var iid = String(cell.getAttribute("data-item-id") || "");
+            if (Object.prototype.hasOwnProperty.call(map, iid)) {
+              cell.textContent = map[iid];
+            }
+          });
+        })
+        .catch(function () {});
     }
 
     function syncSourceUi() {
-      var label = currentSourceLabel();
-      if (heading) heading.textContent = label;
-      if (hint) hint.textContent = "Requests are limited by the " + label.toLowerCase() + " stock shown per row.";
-      sourceCells.forEach(function (cell) {
-        cell.setAttribute("title", label + " stock");
-      });
+      if (sourceSel) {
+        var opt = sourceSel.options[sourceSel.selectedIndex];
+        applySourceLabel(opt ? String(opt.textContent || "").trim() : "Source");
+      }
+      refreshSourceStock();
     }
 
     if (sourceSel) sourceSel.addEventListener("change", syncSourceUi);
     syncSourceUi();
 
     form.addEventListener("submit", function (ev) {
+      if (shopStockFormConfirmed(form)) {
+        shopStockClearConfirmed(form);
+        return;
+      }
       var issues = [];
-      var hasQty = false;
+      var rows = [];
+      var sourceLabel = currentSourceLabel();
+      var sharedNoteVal = String((sharedNoteInput && sharedNoteInput.value) || "").trim();
       form.querySelectorAll(".js-stock-row").forEach(function (row) {
         var qtyInput = row.querySelector(".js-request-stock-qty");
         if (!qtyInput) return;
@@ -295,13 +538,44 @@
           issues.push("Enter valid positive quantity for " + (row.querySelector("td") || row).textContent.trim() + ".");
           return;
         }
-        hasQty = true;
+        var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
+        if (notesEnabled()) {
+          var noteInput = row.querySelector('input[name^="note_"]');
+          var noteVal = String((noteInput && noteInput.value) || "").trim();
+          if (notesRequiredBySettings() && !noteVal && !sharedNoteVal) {
+            issues.push("Note required for " + itemName + " (line note or shared note).");
+            return;
+          }
+        }
+        var rowData = ["In", sourceLabel, itemName, raw];
+        if (notesEnabled()) {
+          var noteInput2 = row.querySelector('input[name^="note_"]');
+          rowData.push(String((noteInput2 && noteInput2.value) || "").trim() || sharedNoteVal || "—");
+        }
+        rows.push(rowData);
       });
-      if (!hasQty) issues.push("Enter quantity on at least one line before submitting.");
+      if (!rows.length && !issues.length) issues.push("Enter quantity on at least one line before submitting.");
       if (issues.length) {
         ev.preventDefault();
         window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
+        return;
       }
+      ev.preventDefault();
+      var confirmColumns = [
+        { label: "Type", key: "type" },
+        { label: "Source", key: "source" },
+        { label: "Item", key: "item" },
+        { label: "Qty", key: "qty", align: "right" }
+      ];
+      if (notesEnabled()) confirmColumns.push({ label: "Note", key: "note" });
+      shopStockShowSubmitConfirm(form, {
+        title: "Confirm stock requests",
+        subtitle: "These requests will be sent for approval.",
+        columns: confirmColumns,
+        rows: rows,
+        confirmLabel: "Submit requests",
+        confirmClass: "btn-rc-primary"
+      });
     });
   })();
 </script>
@@ -309,17 +583,110 @@
 
 <script>
   (function () {
-    var form = document.querySelector('form[action*="view=manual"]');
+    var form = document.getElementById("stk-workspace");
     if (!form) return;
 
     var applyPhone = document.getElementById("js-apply-all-phone");
     var applyName = document.getElementById("js-apply-all-name");
     var applyPayment = document.getElementById("js-apply-all-payment");
     var applyNote = document.getElementById("js-apply-all-note");
+    var showSupplierToggle = document.getElementById("js-manual-in-show-supplier");
+    var showNotesToggle = document.getElementById("js-manual-in-show-notes");
+    var bulkSupplierWrap = document.getElementById("js-manual-in-bulk-supplier-wrap");
+    var bulkNoteWrap = document.getElementById("js-manual-in-bulk-note-wrap");
     var copyBtn = document.getElementById("js-apply-all-copy-rows");
     var feedback = document.getElementById("js-apply-all-copy-feedback");
     var applyHint = document.getElementById("js-apply-all-hint");
     var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+
+    function supplierRequiredBySettings() {
+      return window.shopStockWsRequired("require_manual_in_supplier");
+    }
+
+    function notesRequiredBySettingsIn() {
+      return window.shopStockWsRequired("require_manual_in_notes");
+    }
+
+    function supplierEnabled() {
+      if (supplierRequiredBySettings()) return true;
+      return !!(showSupplierToggle && showSupplierToggle.checked);
+    }
+
+    function notesEnabledIn() {
+      if (notesRequiredBySettingsIn()) return true;
+      return !!(showNotesToggle && showNotesToggle.checked);
+    }
+
+    function setInOptColVisible(el, show) {
+      if (!el) return;
+      el.classList.toggle("hidden", !show);
+    }
+
+    function syncManualInCatColspan() {
+      var n = 5;
+      if (supplierEnabled()) n += 2;
+      if (notesEnabledIn()) n += 1;
+      form.querySelectorAll(".js-manual-in-cat-row td").forEach(function (td) {
+        td.colSpan = n;
+      });
+    }
+
+    function syncSupplierVisible(on) {
+      form.querySelectorAll(".js-manual-in-phone-head, .js-manual-in-phone-cell, .js-manual-in-seller-head, .js-manual-in-seller-cell").forEach(function (el) {
+        setInOptColVisible(el, on);
+      });
+      if (bulkSupplierWrap) bulkSupplierWrap.classList.toggle("hidden", !on);
+      if (!on) {
+        form.querySelectorAll('input[name^="seller_phone_"], input[name^="seller_name_"]').forEach(function (el) { el.value = ""; });
+        form.querySelectorAll(".js-seller-hint").forEach(function (el) { el.textContent = ""; });
+        if (applyPhone) applyPhone.value = "";
+        if (applyName) applyName.value = "";
+        if (applyHint) applyHint.textContent = "";
+      }
+      syncManualInCatColspan();
+    }
+
+    function syncManualInNotesVisible(on) {
+      form.querySelectorAll(".js-manual-in-note-head, .js-manual-in-note-cell").forEach(function (el) {
+        setInOptColVisible(el, on);
+      });
+      if (bulkNoteWrap) bulkNoteWrap.classList.toggle("hidden", !on);
+      if (!on) {
+        form.querySelectorAll('input[name^="note_"]').forEach(function (el) { el.value = ""; });
+        if (applyNote) applyNote.value = "";
+      }
+      syncManualInCatColspan();
+    }
+
+    if (showSupplierToggle) {
+      showSupplierToggle.addEventListener("change", function () {
+        if (supplierRequiredBySettings()) return;
+        syncSupplierVisible(showSupplierToggle.checked);
+      });
+      if (supplierRequiredBySettings()) {
+        showSupplierToggle.checked = true;
+        syncSupplierVisible(true);
+      } else {
+        syncSupplierVisible(false);
+      }
+    } else if (supplierRequiredBySettings()) {
+      syncSupplierVisible(true);
+    }
+
+    if (showNotesToggle) {
+      showNotesToggle.addEventListener("change", function () {
+        if (notesRequiredBySettingsIn()) return;
+        syncManualInNotesVisible(showNotesToggle.checked);
+      });
+      if (notesRequiredBySettingsIn()) {
+        showNotesToggle.checked = true;
+        syncManualInNotesVisible(true);
+      } else {
+        syncManualInNotesVisible(false);
+      }
+    } else if (notesRequiredBySettingsIn()) {
+      syncManualInNotesVisible(true);
+    }
 
     function normalizePhoneValue(raw) {
       var val = String(raw || "").trim();
@@ -381,11 +748,13 @@
 
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
-        var pv = normalizePhoneValue(applyPhone && applyPhone.value);
-        var nv = String((applyName && applyName.value) || "").trim().toUpperCase();
+        var supplierOn = supplierEnabled();
+        var notesOn = notesEnabledIn();
+        var pv = supplierOn ? normalizePhoneValue(applyPhone && applyPhone.value) : "";
+        var nv = supplierOn ? String((applyName && applyName.value) || "").trim().toUpperCase() : "";
         var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
         var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
-        var noteVal = String((applyNote && applyNote.value) || "").trim().toUpperCase();
+        var noteVal = notesOn ? String((applyNote && applyNote.value) || "").trim().toUpperCase() : "";
         var copied = 0;
 
         form.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
@@ -400,10 +769,10 @@
           var payEl = row.querySelector('select[name="payment_status_' + id + '"]');
           var noteEl = row.querySelector('input[name="note_' + id + '"]');
           var hintEl = row.querySelector('[data-seller-hint="' + id + '"]');
-          if (pEl) pEl.value = pv;
-          if (nEl) nEl.value = nv;
+          if (supplierOn && pEl) pEl.value = pv;
+          if (supplierOn && nEl) nEl.value = nv;
           if (payEl && payOk) payEl.value = payRaw;
-          if (noteEl && noteVal) noteEl.value = noteVal;
+          if (notesOn && noteEl && noteVal) noteEl.value = noteVal;
           if (hintEl) hintEl.textContent = "";
         });
 
@@ -411,17 +780,28 @@
         if (!copied) {
           feedback.textContent = "No rows updated - enter quantity on target lines, then copy again.";
         } else if (!payOk) {
-          feedback.textContent = "Copied phone/name/note to " + copied + " row(s). Pick payment and copy again to apply it.";
+          feedback.textContent = "Copied fields to " + copied + " row(s). Pick payment and copy again to apply it.";
         } else {
-          feedback.textContent = "Copied seller fields to " + copied + " row(s) with quantity.";
+          feedback.textContent = "Copied bulk fields to " + copied + " row(s) with quantity.";
         }
       });
     }
 
+    function paymentLabel(raw) {
+      if (raw === "partially_paid") return "Partial";
+      if (raw === "paid") return "Paid";
+      return "Not paid";
+    }
+
     form.addEventListener("submit", function (ev) {
+      if (shopStockFormConfirmed(form)) {
+        shopStockClearConfirmed(form);
+        return;
+      }
       var payAllowed = { pending_payment: 1, partially_paid: 1, paid: 1 };
       var issues = [];
       var firstBad = null;
+      var rows = [];
       form.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
         var id = row.getAttribute("data-item-id");
         if (!id) return;
@@ -438,16 +818,32 @@
           qtyState = isFinite(qty) && qty > 0 ? qty : false;
         }
         var priceRaw = String((priceEl && priceEl.value) || "").trim();
-        var nameRaw = String((nameEl && nameEl.value) || "").trim();
-        var phoneRaw = String((phoneEl && phoneEl.value) || "").trim();
+        var nameRaw = supplierEnabled() ? String((nameEl && nameEl.value) || "").trim() : "";
+        var phoneRaw = supplierEnabled() ? String((phoneEl && phoneEl.value) || "").trim() : "";
         var payRaw = String((payEl && payEl.value) || "").trim().toLowerCase();
         var payOk = !!payAllowed[payRaw];
-        var touched = !!(priceRaw || nameRaw || phoneRaw || payOk);
+        var noteRaw = notesEnabledIn() ? String((row.querySelector('input[name="note_' + id + '"]') || {}).value || "").trim() : "";
+        var bulkPhone = supplierEnabled() ? String((applyPhone && applyPhone.value) || "").trim() : "";
+        var bulkName = supplierEnabled() ? String((applyName && applyName.value) || "").trim() : "";
+        var touched = !!(priceRaw || payOk || (supplierEnabled() && (nameRaw || phoneRaw || bulkPhone || bulkName)) || (notesEnabledIn() && noteRaw));
 
         if (typeof qtyState === "number") {
           if (!priceRaw) { issues.push("Item #" + id + ": buying price required with quantity."); firstBad = firstBad || row; }
-          if (!nameRaw) { issues.push("Item #" + id + ": seller name required with quantity."); firstBad = firstBad || row; }
-          if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
+          else if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
+          else if (!supplierEnabled()) { issues.push("Enable Supplier details and enter seller for lines with quantity."); firstBad = firstBad || row; }
+          else if (!nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
+          else if (notesRequiredBySettingsIn() && !noteRaw && !(applyNote && String(applyNote.value || "").trim())) {
+            issues.push("Item #" + id + ": note required with quantity (or use bulk note).");
+            firstBad = firstBad || row;
+          }
+          else {
+            var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
+            var confirmRow = ["In", itemName, qtyRaw, priceRaw];
+            confirmRow.push(nameRaw || bulkName, phoneRaw || bulkPhone || "—");
+            confirmRow.push(paymentLabel(payRaw));
+            if (notesEnabledIn()) confirmRow.push(noteRaw || "—");
+            rows.push(confirmRow);
+          }
         } else if (qtyState === false) {
           issues.push("Item #" + id + ": quantity must be a positive number or blank.");
           firstBad = firstBad || row;
@@ -457,15 +853,343 @@
         }
       });
 
-      if (!issues.length) return;
-      ev.preventDefault();
-      window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
-      if (firstBad) {
-        try {
-          firstBad.classList.remove("hidden");
-          firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
-        } catch (_e) {}
+      if (issues.length) {
+        ev.preventDefault();
+        window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
+        if (firstBad) {
+          try {
+            firstBad.classList.remove("hidden");
+            firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+          } catch (_e) {}
+        }
+        return;
       }
+      if (!rows.length) {
+        ev.preventDefault();
+        window.alert("Enter quantity on at least one line before submitting.");
+        return;
+      }
+      ev.preventDefault();
+      var confirmColumns = [
+        { label: "Type", key: "type" },
+        { label: "Item", key: "item" },
+        { label: "Qty", key: "qty", align: "right" },
+        { label: "Buy", align: "right" }
+      ];
+      if (supplierEnabled()) {
+        confirmColumns.push({ label: "Seller" });
+        confirmColumns.push({ label: "Phone" });
+      }
+      confirmColumns.push({ label: "Payment" });
+      if (notesEnabledIn()) confirmColumns.push({ label: "Note" });
+      shopStockShowSubmitConfirm(form, {
+        title: "Confirm manual stock in",
+        subtitle: "Shop stock will increase for the lines below.",
+        columns: confirmColumns,
+        rows: rows,
+        confirmLabel: "Submit stock in",
+        confirmClass: "btn-rc-success"
+      });
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    var form = document.getElementById("stk-workspace-out");
+    if (!form) return;
+
+    var applyReason = document.getElementById("js-manual-out-apply-reason");
+    var applyRefunded = document.getElementById("js-manual-out-apply-refunded");
+    var applyNote = document.getElementById("js-manual-out-apply-note");
+    var showRefundToggle = document.getElementById("js-manual-out-show-refund");
+    var showNotesToggle = document.getElementById("js-manual-out-show-notes");
+    var bulkRefundWrap = document.getElementById("js-manual-out-bulk-refund-wrap");
+    var bulkNoteWrap = document.getElementById("js-manual-out-bulk-note-wrap");
+    var copyBtn = document.getElementById("js-manual-out-copy-rows");
+    var feedback = document.getElementById("js-manual-out-copy-feedback");
+    var allowedReason = { return: 1, waste: 1, display: 1 };
+
+    function refundsRequiredBySettings() {
+      return window.shopStockWsRequired("require_manual_out_refund");
+    }
+
+    function notesRequiredBySettingsOut() {
+      return window.shopStockWsRequired("require_manual_out_notes");
+    }
+
+    function refundsEnabled() {
+      if (refundsRequiredBySettings()) return true;
+      return !!(showRefundToggle && showRefundToggle.checked);
+    }
+
+    function notesEnabled() {
+      if (notesRequiredBySettingsOut()) return true;
+      return !!(showNotesToggle && showNotesToggle.checked);
+    }
+
+    function setOptColVisible(el, show) {
+      if (!el) return;
+      el.classList.toggle("hidden", !show);
+    }
+
+    function syncCatColspan() {
+      var n = 4;
+      if (refundsEnabled()) {
+        n += 1;
+        var anyAmt = false;
+        form.querySelectorAll(".js-manual-out-refunded").forEach(function (sel) {
+          if (sel.value === "yes") anyAmt = true;
+        });
+        if (anyAmt) n += 1;
+      }
+      if (notesEnabled()) n += 1;
+      form.querySelectorAll(".js-manual-out-cat-row td").forEach(function (td) {
+        td.colSpan = n;
+      });
+    }
+
+    function syncRefundHeader() {
+      var head = form.querySelector(".js-manual-out-amt-head");
+      if (!refundsEnabled()) {
+        setOptColVisible(head, false);
+        form.querySelectorAll(".js-manual-out-amt-cell").forEach(function (cell) {
+          setOptColVisible(cell, false);
+        });
+        syncCatColspan();
+        return;
+      }
+      var any = false;
+      form.querySelectorAll(".js-manual-out-refunded").forEach(function (sel) {
+        if (sel.value === "yes") any = true;
+      });
+      setOptColVisible(head, any);
+      syncCatColspan();
+    }
+
+    function syncRefundRow(itemId) {
+      var sel = form.querySelector('[name="out_refunded_' + itemId + '"]');
+      var amt = form.querySelector('[name="out_refund_amount_' + itemId + '"]');
+      var refundCell = sel ? sel.closest(".js-manual-out-refund-cell") : null;
+      var amtCell = amt ? amt.closest(".js-manual-out-amt-cell") : null;
+      if (!sel) return;
+      var refundsOn = refundsEnabled();
+      setOptColVisible(refundCell, refundsOn);
+      var yes = refundsOn && sel.value === "yes";
+      setOptColVisible(amtCell, yes);
+      if (amt && !yes) amt.value = "";
+      syncRefundHeader();
+    }
+
+    function syncAllRefundRows() {
+      form.querySelectorAll(".js-manual-out-refunded").forEach(function (sel) {
+        var id = sel.getAttribute("data-item-id");
+        if (id) syncRefundRow(id);
+      });
+      setOptColVisible(form.querySelector(".js-manual-out-refund-head"), refundsEnabled());
+      syncCatColspan();
+    }
+
+    function syncRefundVisible(on) {
+      if (bulkRefundWrap) bulkRefundWrap.classList.toggle("hidden", !on);
+      if (!on) {
+        form.querySelectorAll(".js-manual-out-refunded").forEach(function (sel) { sel.value = "no"; });
+        form.querySelectorAll('input[name^="out_refund_amount_"]').forEach(function (el) { el.value = ""; });
+        if (applyRefunded) applyRefunded.value = "no";
+      }
+      syncAllRefundRows();
+    }
+
+    function syncNotesVisible(on) {
+      form.querySelectorAll(".js-manual-out-note-head, .js-manual-out-note-cell").forEach(function (el) {
+        setOptColVisible(el, on);
+      });
+      if (bulkNoteWrap) bulkNoteWrap.classList.toggle("hidden", !on);
+      if (!on) {
+        form.querySelectorAll('input[name^="out_note_"]').forEach(function (el) { el.value = ""; });
+        if (applyNote) applyNote.value = "";
+      }
+      syncCatColspan();
+    }
+
+    if (showRefundToggle) {
+      showRefundToggle.addEventListener("change", function () {
+        if (refundsRequiredBySettings()) return;
+        syncRefundVisible(showRefundToggle.checked);
+      });
+      if (refundsRequiredBySettings()) {
+        showRefundToggle.checked = true;
+        syncRefundVisible(true);
+      } else {
+        syncRefundVisible(false);
+      }
+    } else if (refundsRequiredBySettings()) {
+      syncRefundVisible(true);
+    }
+
+    if (showNotesToggle) {
+      showNotesToggle.addEventListener("change", function () {
+        if (notesRequiredBySettingsOut()) return;
+        syncNotesVisible(showNotesToggle.checked);
+      });
+      if (notesRequiredBySettingsOut()) {
+        showNotesToggle.checked = true;
+        syncNotesVisible(true);
+      } else {
+        syncNotesVisible(false);
+      }
+    } else if (notesRequiredBySettingsOut()) {
+      syncNotesVisible(true);
+    }
+
+    form.querySelectorAll(".js-manual-out-refunded").forEach(function (sel) {
+      var id = sel.getAttribute("data-item-id");
+      if (id) syncRefundRow(id);
+      sel.addEventListener("change", function () {
+        var rowId = sel.getAttribute("data-item-id");
+        if (rowId) syncRefundRow(rowId);
+      });
+    });
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        var reason = String((applyReason && applyReason.value) || "").trim().toLowerCase();
+        var refunded = refundsEnabled()
+          ? String((applyRefunded && applyRefunded.value) || "no").trim().toLowerCase()
+          : "no";
+        var notesOn = notesEnabled();
+        var noteVal = notesOn ? String((applyNote && applyNote.value) || "").trim().toUpperCase() : "";
+        if (!allowedReason[reason]) {
+          if (feedback) feedback.textContent = "Choose Reason first (Return, Waste, or Display).";
+          return;
+        }
+        if (refunded === "yes" && showRefundToggle && !showRefundToggle.checked) {
+          showRefundToggle.checked = true;
+          syncRefundVisible(true);
+        }
+
+        var copied = 0;
+        form.querySelectorAll(".js-manual-stock-out-row").forEach(function (row) {
+          var id = row.getAttribute("data-item-id");
+          if (!id) return;
+          var qtyEl = row.querySelector('input[name="out_qty_' + id + '"]');
+          var qty = parseFloat(String((qtyEl && qtyEl.value) || "").replace(",", "."));
+          if (!isFinite(qty) || !(qty > 0)) return;
+          copied += 1;
+          var reasonEl = row.querySelector('select[name="out_reason_' + id + '"]');
+          var refundedEl = row.querySelector('select[name="out_refunded_' + id + '"]');
+          var noteEl = row.querySelector('input[name="out_note_' + id + '"]');
+          if (reasonEl) reasonEl.value = reason;
+          if (refundedEl && refundsEnabled()) refundedEl.value = refunded === "yes" ? "yes" : "no";
+          if (noteEl && noteVal) noteEl.value = noteVal;
+          syncRefundRow(id);
+        });
+
+        if (!feedback) return;
+        feedback.textContent = copied
+          ? "Copied reason" + (refundsEnabled() ? "/refund" : "") + (notesOn && noteVal ? "/note" : "") + " to " + copied + " row(s) with quantity."
+          : "No rows updated - enter qty out on target lines, then copy again.";
+      });
+    }
+
+    function reasonLabel(raw) {
+      if (raw === "return") return "Return";
+      if (raw === "waste") return "Waste";
+      if (raw === "display") return "Display";
+      return raw || "—";
+    }
+
+    form.addEventListener("submit", function (ev) {
+      if (shopStockFormConfirmed(form)) {
+        shopStockClearConfirmed(form);
+        return;
+      }
+      var issues = [];
+      var firstBad = null;
+      var rows = [];
+      form.querySelectorAll(".js-manual-stock-out-row").forEach(function (row) {
+        var id = row.getAttribute("data-item-id");
+        if (!id) return;
+        var qtyEl = row.querySelector('input[name="out_qty_' + id + '"]');
+        var reasonEl = row.querySelector('select[name="out_reason_' + id + '"]');
+        var refundedEl = row.querySelector('select[name="out_refunded_' + id + '"]');
+        var refundAmtEl = row.querySelector('input[name="out_refund_amount_' + id + '"]');
+        var noteEl = row.querySelector('input[name="out_note_' + id + '"]');
+
+        var qtyRaw = String((qtyEl && qtyEl.value) || "").trim();
+        var qtyState = null;
+        if (qtyRaw) {
+          var qty = parseFloat(qtyRaw.replace(",", "."));
+          qtyState = isFinite(qty) && qty > 0 ? qty : false;
+        }
+        var reason = String((reasonEl && reasonEl.value) || "").trim().toLowerCase();
+        var refunded = refundsEnabled()
+          ? String((refundedEl && refundedEl.value) || "no").trim().toLowerCase()
+          : "no";
+        var refundAmtRaw = refundsEnabled() ? String((refundAmtEl && refundAmtEl.value) || "").trim() : "";
+        var noteRaw = notesEnabled() ? String((noteEl && noteEl.value) || "").trim() : "";
+        var touched = !!(reason || noteRaw || refundAmtRaw || (refundsEnabled() && refunded === "yes"));
+
+        if (typeof qtyState === "number") {
+          if (!allowedReason[reason]) {
+            issues.push("Item #" + id + ": choose a reason (Return, Waste, or Display).");
+            firstBad = firstBad || row;
+          } else if (refundsEnabled() && refunded === "yes" && !refundAmtRaw) {
+            issues.push("Item #" + id + ": refund amount required when Refund is Yes.");
+            firstBad = firstBad || row;
+          } else if (notesRequiredBySettingsOut() && !noteRaw && !(applyNote && String(applyNote.value || "").trim())) {
+            issues.push("Item #" + id + ": note required with quantity (or use bulk note).");
+            firstBad = firstBad || row;
+          } else {
+            var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
+            var confirmRow = ["Out", itemName, qtyRaw, reasonLabel(reason)];
+            if (refundsEnabled()) {
+              confirmRow.push(refunded === "yes" ? "Yes (" + refundAmtRaw + ")" : "No");
+            }
+            if (notesEnabled()) confirmRow.push(noteRaw || "—");
+            rows.push(confirmRow);
+          }
+        } else if (qtyState === false) {
+          issues.push("Item #" + id + ": quantity must be a positive number or blank.");
+          firstBad = firstBad || row;
+        } else if (touched) {
+          issues.push("Item #" + id + ": add quantity or clear reason/refund/note fields.");
+          firstBad = firstBad || row;
+        }
+      });
+
+      if (issues.length) {
+        ev.preventDefault();
+        window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
+        if (firstBad) {
+          try {
+            firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+          } catch (_e) {}
+        }
+        return;
+      }
+      if (!rows.length) {
+        ev.preventDefault();
+        window.alert("Enter quantity on at least one line before submitting.");
+        return;
+      }
+      ev.preventDefault();
+      var confirmColumns = [
+        { label: "Type", key: "type" },
+        { label: "Item", key: "item" },
+        { label: "Qty", key: "qty", align: "right" },
+        { label: "Reason" }
+      ];
+      if (refundsEnabled()) confirmColumns.push({ label: "Refund" });
+      if (notesEnabled()) confirmColumns.push({ label: "Note" });
+      shopStockShowSubmitConfirm(form, {
+        title: "Confirm manual stock out",
+        subtitle: "Shop stock will decrease for the lines below.",
+        columns: confirmColumns,
+        rows: rows,
+        confirmLabel: "Submit stock out",
+        confirmClass: "btn-rc-danger"
+      });
     });
   })();
 </script>

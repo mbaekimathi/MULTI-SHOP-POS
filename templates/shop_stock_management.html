@@ -30,7 +30,7 @@
 
   <div class="sa-stock-analytics shop-stock-mgmt-page">
 
-    <div class="sa-stock-workspace shop-stock-mgmt-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    <div class="sa-stock-workspace shop-stock-mgmt-workspace mt-2 flex flex-col gap-2 sm:mt-3 sm:gap-3">
 
       {% include "partials/shop_stock_mgmt_shell_hero.html" %}
 
@@ -56,35 +56,13 @@
 
           {% include "partials/shop_stock_requests_panel.html" %}
 
-          {% if view != 'manual' %}
-
-            {% include "partials/shop_stock_transactions_panel.html" %}
-
-          {% endif %}
-
         </div>
 
       {% else %}
 
-        <div class="grid gap-2 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]">
+        <div class="min-w-0">
 
-          <div class="min-w-0">
-
-            {% include "partials/shop_stock_catalogue_workspace.html" %}
-
-          </div>
-
-          <aside class="flex min-w-0 flex-col gap-2 sm:gap-4">
-
-            {% include "partials/shop_stock_requests_panel.html" %}
-
-            {% if view != 'manual' %}
-
-              {% include "partials/shop_stock_transactions_panel.html" %}
-
-            {% endif %}
-
-          </aside>
+          {% include "partials/shop_stock_catalogue_workspace.html" %}
 
         </div>
 
@@ -93,6 +71,8 @@
     </div>
 
   </div>
+
+  {% include "partials/shop_stock_submit_confirm_modal.html" %}
 
 {% endblock %}
 

@@ -2,7 +2,7 @@
 
 
 
-<section id="stk-transactions" class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+<section id="stk-transactions" class="sa-stock-panel shop-stock-tx-list overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
 
   <div class="sa-stock-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 pb-3">
 
@@ -18,75 +18,49 @@
 
   {% else %}
 
-    <div class="shop-mgmt-table-wrap mt-3 overflow-x-auto">
+    <ul class="shop-stock-tx-list__items mt-3 divide-y divide-[rgb(var(--rc-border))]/80">
 
-      <table class="sa-stock-data-table min-w-[36rem] w-full text-sm">
+      {% for tx in tx_list %}
 
-        <thead>
+        {% set tx_dir = (tx.direction or '')|lower %}
+        {% set tx_src = (tx.source or '')|upper %}
+        {% set tx_place = tx.place_brought_from or '' %}
 
-          <tr>
+        <li class="shop-stock-tx-list__row flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm sm:gap-x-4">
 
-            <th class="text-left">Item</th>
+          <span class="min-w-0 flex-1 basis-full font-semibold text-[rgb(var(--rc-page-fg))] sm:basis-[min(100%,14rem)] sm:max-w-[min(100%,20rem)]">{{ tx.item_name or '—' }}</span>
 
-            <th class="text-left">Dir</th>
+          <span class="inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider {% if tx_dir == 'in' %}bg-emerald-500/15 text-emerald-400{% else %}bg-rose-500/15 text-rose-400{% endif %}">{{ (tx.direction or '')|upper }}</span>
 
-            <th class="text-left">Source</th>
+          <span class="shrink-0 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ tx_src or '—' }}</span>
 
-            <th class="hidden text-left lg:table-cell">Place</th>
+          {% if tx_place %}
+          <span class="hidden shrink-0 text-xs text-[rgb(var(--rc-muted))] md:inline">{{ tx_place }}</span>
+          {% endif %}
 
-            <th class="text-right">Qty</th>
+          <span class="shrink-0 tabular-nums text-[rgb(var(--rc-page-fg))]"><span class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Qty</span> {{ tx.qty }}</span>
 
-            <th class="hidden text-right md:table-cell">Before</th>
+          <span class="hidden shrink-0 tabular-nums text-xs text-[rgb(var(--rc-muted))] lg:inline">{{ tx.shop_stock_before }} → {{ tx.shop_stock_after }}</span>
 
-            <th class="hidden text-right md:table-cell">After</th>
+          {% if tx_dir == 'in' %}
+          <span class="hidden shrink-0 text-xs text-[rgb(var(--rc-muted))] sm:inline">{% if tx.payment_status == 'partially_paid' %}Partial{% elif tx.payment_status == 'paid' %}Paid{% else %}Pending{% endif %}</span>
+          {% endif %}
 
-            <th class="hidden text-left sm:table-cell">Pay</th>
+          <span class="shrink-0">
+            {% if tx_dir == 'in' %}
+            <a href="{{ url_for('shop_stock_in_receipt', shop_id=shop.id, tx_id=tx.id) }}" class="sa-stock-action-link sa-stock-action-link--print text-xs">Print</a>
+            {% else %}
+            <span class="text-xs text-[rgb(var(--rc-muted))]">—</span>
+            {% endif %}
+          </span>
 
-            <th class="text-left">Receipt</th>
+          <span class="w-full shrink-0 text-xs text-[rgb(var(--rc-muted))] sm:ml-auto sm:w-auto sm:text-right">{{ tx.created_at }}</span>
 
-            <th class="hidden text-left sm:table-cell">Time</th>
+        </li>
 
-          </tr>
+      {% endfor %}
 
-        </thead>
-
-        <tbody>
-
-          {% for tx in tx_list %}
-
-            <tr>
-
-              <td class="font-semibold">{{ tx.item_name or '—' }}</td>
-
-              <td class="{% if (tx.direction or '')|lower == 'in' %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ (tx.direction or '')|upper }}</td>
-
-              <td class="text-[rgb(var(--rc-muted))]">{{ (tx.source or '').upper() }}</td>
-
-              <td class="hidden text-[rgb(var(--rc-muted))] lg:table-cell">{{ tx.place_brought_from or '—' }}</td>
-
-              <td class="text-right font-semibold tabular-nums">{{ tx.qty }}</td>
-
-              <td class="hidden text-right tabular-nums text-[rgb(var(--rc-muted))] md:table-cell">{{ tx.shop_stock_before }}</td>
-
-              <td class="hidden text-right tabular-nums text-[rgb(var(--rc-muted))] md:table-cell">{{ tx.shop_stock_after }}</td>
-
-              <td class="hidden text-[rgb(var(--rc-muted))] sm:table-cell">{% if tx.payment_status == 'partially_paid' %}Partial{% elif tx.payment_status == 'paid' %}Paid{% else %}Pending{% endif %}</td>
-
-              <td>{% if (tx.direction or '')|lower == 'in' %}<a href="{{ url_for('shop_stock_in_receipt', shop_id=shop.id, tx_id=tx.id) }}" class="sa-stock-action-link sa-stock-action-link--print">Print</a>{% else %}—{% endif %}</td>
-
-              <td class="hidden whitespace-nowrap text-[rgb(var(--rc-muted))] sm:table-cell">{{ tx.created_at }}</td>
-
-            </tr>
-
-          {% endfor %}
-
-        </tbody>
-
-      </table>
-
-    </div>
-
-    <p class="sa-stock-mgmt-table-scroll-hint shop-mgmt-scroll-hint" aria-hidden="true">Swipe sideways to see all columns</p>
+    </ul>
 
   {% endif %}
 

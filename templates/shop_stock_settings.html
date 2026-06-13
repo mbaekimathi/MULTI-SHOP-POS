@@ -6,25 +6,271 @@
   {% include "partials/shop_stock_workspace_sidebar.html" %}
 {% endblock %}
 {% block shop_content %}
+  {% set sws = stock_workspace_settings or {} %}
   {% include "partials/shop_stock_workspace_assets.html" %}
-  <div class="sa-stock-analytics">
-  <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+  {% include "partials/shop_settings_switch_styles.html" %}
+  <style>
+    .shop-stock-settings-page .sa-stock-hero-top {
+      padding: 0.625rem 0.75rem;
+    }
+    @media (min-width: 640px) {
+      .shop-stock-settings-page .sa-stock-hero-top {
+        padding: 0.75rem 1.25rem;
+      }
+    }
+    .shop-stock-settings-page .shop-stock-settings-branch::before {
+      content: "·";
+      margin-right: 0.35rem;
+      opacity: 0.55;
+    }
+    .shop-stock-settings-page .shop-stock-settings-intro {
+      margin-top: 0.75rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid rgba(var(--rc-border), 0.65);
+    }
+    .shop-stock-settings-page .shop-stock-settings-groups {
+      display: grid;
+      gap: 0.55rem;
+      margin-top: 0.65rem;
+    }
+    @media (min-width: 768px) {
+      .shop-stock-settings-page .shop-stock-settings-groups {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.65rem;
+      }
+    }
+    .shop-stock-settings-page .shop-stock-settings-group {
+      min-width: 0;
+      border-radius: 0.7rem;
+      border: 1px solid rgba(var(--rc-border), 0.85);
+      background: rgba(var(--rc-surface-2), 0.35);
+      overflow: hidden;
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--request {
+      border-color: rgba(14, 165, 233, 0.24);
+      background: rgba(14, 165, 233, 0.04);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--in {
+      border-color: rgba(16, 185, 129, 0.24);
+      background: rgba(16, 185, 129, 0.04);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--out {
+      border-color: rgba(244, 63, 94, 0.24);
+      background: rgba(244, 63, 94, 0.04);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group-label {
+      padding: 0.45rem 0.65rem 0.35rem;
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--request .shop-stock-settings-group-label { color: rgb(14 165 233); }
+    .shop-stock-settings-page .shop-stock-settings-group--in .shop-stock-settings-group-label { color: rgb(5 150 105); }
+    .shop-stock-settings-page .shop-stock-settings-group--out .shop-stock-settings-group-label { color: rgb(225 29 72); }
+    .shop-stock-settings-page .shop-stock-settings-group-body {
+      border-top: 1px solid rgba(var(--rc-border), 0.45);
+    }
+    .shop-stock-settings-page .shop-stock-settings-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      column-gap: 0.55rem;
+      row-gap: 0.1rem;
+      align-items: center;
+      padding: 0.45rem 0.65rem;
+      cursor: pointer;
+    }
+    .shop-stock-settings-page .shop-stock-settings-row + .shop-stock-settings-row {
+      border-top: 1px solid rgba(var(--rc-border), 0.4);
+    }
+    .shop-stock-settings-page .shop-stock-settings-row-title {
+      grid-column: 1;
+      grid-row: 1;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.25;
+      color: rgb(var(--rc-page-fg));
+    }
+    .shop-stock-settings-page .shop-stock-settings-row-desc {
+      grid-column: 1;
+      grid-row: 2;
+      font-size: 0.6875rem;
+      line-height: 1.35;
+      color: rgb(var(--rc-muted));
+    }
+    .shop-stock-settings-page .shop-stock-settings-row .rc-receipt-switch {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      align-self: center;
+      min-height: 0 !important;
+      width: 2.5rem;
+      height: 1.4rem;
+      flex-shrink: 0;
+    }
+    .shop-stock-settings-page .shop-stock-settings-row .rc-receipt-switch::after {
+      width: 1.05rem;
+      height: 1.05rem;
+      top: 2px;
+      left: 2px;
+    }
+    .shop-stock-settings-page .shop-stock-settings-row .rc-receipt-switch:checked::after {
+      transform: translateX(1.1rem);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--request .rc-receipt-switch:checked {
+      background: rgb(14 165 233);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--in .rc-receipt-switch:checked {
+      background: rgb(5 150 105);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--out .rc-receipt-switch:checked {
+      background: rgb(225 29 72);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: auto;
+      border-radius: 9999px;
+      border: 1px solid rgba(var(--rc-border), 0.9);
+      background: rgba(var(--rc-surface-2), 0.65);
+      padding: 0.3rem 0.65rem;
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--saving {
+      border-color: rgba(14, 165, 233, 0.45);
+      background: rgba(14, 165, 233, 0.1);
+      color: rgb(14 165 233);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--saved {
+      border-color: rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.12);
+      color: rgb(5 150 105);
+      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--error {
+      border-color: rgba(244, 63, 94, 0.45);
+      background: rgba(244, 63, 94, 0.1);
+      color: rgb(225 29 72);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill__dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 9999px;
+      background: currentColor;
+      opacity: 0.55;
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--saved .shop-stock-settings-save-pill__dot {
+      opacity: 1;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill__spinner {
+      width: 0.75rem;
+      height: 0.75rem;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 9999px;
+      animation: shop-stock-settings-spin 0.65s linear infinite;
+    }
+    @keyframes shop-stock-settings-spin {
+      to { transform: rotate(360deg); }
+    }
+    .shop-stock-settings-page .js-shop-stock-settings-item-row--saved td {
+      animation: shop-stock-settings-row-flash 1.1s ease;
+    }
+    @keyframes shop-stock-settings-row-flash {
+      0%, 100% { background: transparent; }
+      25% { background: rgba(16, 185, 129, 0.12); }
+    }
+  </style>
+  <div class="sa-stock-analytics shop-stock-settings-page">
+  <div class="sa-stock-workspace mt-2 flex flex-col gap-2 sm:mt-3 sm:gap-3">
     <section class="sa-stock-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
-      <div class="sa-stock-hero-top px-4 py-4 sm:px-6 sm:py-5">
-        <p class="sa-stock-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock workspace</p>
-        <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Stock settings</h2>
-        <p class="sa-stock-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-          Per-shop low-stock and reorder overrides for {{ shop.shop_name }}. Leave at 0 to use company defaults.
+      <div class="sa-stock-hero-top">
+        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h2 class="sa-stock-hero-title text-base font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-lg">Stock settings</h2>
+          <span class="shop-stock-settings-branch truncate text-xs font-medium text-[rgb(var(--rc-muted))]">{{ shop.shop_name }}</span>
+          <div id="js-shop-stock-settings-save-status" class="shop-stock-settings-save-pill" aria-live="polite">
+            <span class="shop-stock-settings-save-pill__dot" aria-hidden="true"></span>
+            <span class="shop-stock-settings-save-pill__text">Auto-save on</span>
+          </div>
+        </div>
+        <p class="sa-stock-hero-desc mt-0.5 text-xs text-[rgb(var(--rc-muted))]">
+          Low-stock and reorder overrides. Leave at 0 to use company defaults. Edits save automatically.
         </p>
       </div>
     </section>
 
-    <section class="sa-stock-section sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
-      {% if not items %}
-        <p class="text-sm text-[rgb(var(--rc-muted))]">No items available.</p>
-      {% else %}
-        <form method="post" action="{{ url_for('shop_stock_settings', shop_id=shop.id) }}" class="space-y-4">
-          <div class="overflow-x-auto">
+    <form id="js-shop-stock-settings-form" method="post" action="{{ url_for('shop_stock_settings', shop_id=shop.id) }}" class="flex flex-col gap-2 sm:gap-3">
+      <section class="sa-stock-section sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-3 shadow-sm sm:p-4">
+        <div class="shop-stock-settings-intro">
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock update form fields</h3>
+          <p class="mt-0.5 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+            <strong class="text-[rgb(var(--rc-page-fg))]">On</strong> — always shown and required with quantity.
+            <strong class="text-[rgb(var(--rc-page-fg))]">Off</strong> — optional on the update form.
+          </p>
+        </div>
+
+        <div class="shop-stock-settings-groups">
+          <div class="shop-stock-settings-group shop-stock-settings-group--request">
+            <p class="shop-stock-settings-group-label">Request stock</p>
+            <div class="shop-stock-settings-group-body">
+              <label class="shop-stock-settings-row">
+                <span class="shop-stock-settings-row-title">Notes</span>
+                <span class="shop-stock-settings-row-desc">Shared note and per-line notes.</span>
+                <input type="checkbox" name="require_request_stock_notes" value="1" class="rc-receipt-switch" {% if sws.require_request_stock_notes %}checked{% endif %} />
+              </label>
+            </div>
+          </div>
+
+          <div class="shop-stock-settings-group shop-stock-settings-group--in">
+            <p class="shop-stock-settings-group-label">Manual stock in</p>
+            <div class="shop-stock-settings-group-body">
+              <label class="shop-stock-settings-row">
+                <span class="shop-stock-settings-row-title">Supplier details</span>
+                <span class="shop-stock-settings-row-desc">Phone and seller columns.</span>
+                <input type="checkbox" name="require_manual_in_supplier" value="1" class="rc-receipt-switch" {% if sws.require_manual_in_supplier %}checked{% endif %} />
+              </label>
+              <label class="shop-stock-settings-row">
+                <span class="shop-stock-settings-row-title">Notes</span>
+                <span class="shop-stock-settings-row-desc">Per-line and bulk notes.</span>
+                <input type="checkbox" name="require_manual_in_notes" value="1" class="rc-receipt-switch" {% if sws.require_manual_in_notes %}checked{% endif %} />
+              </label>
+            </div>
+          </div>
+
+          <div class="shop-stock-settings-group shop-stock-settings-group--out">
+            <p class="shop-stock-settings-group-label">Manual stock out</p>
+            <div class="shop-stock-settings-group-body">
+              <label class="shop-stock-settings-row">
+                <span class="shop-stock-settings-row-title">Refund</span>
+                <span class="shop-stock-settings-row-desc">Refund? and amount columns.</span>
+                <input type="checkbox" name="require_manual_out_refund" value="1" class="rc-receipt-switch" {% if sws.require_manual_out_refund %}checked{% endif %} />
+              </label>
+              <label class="shop-stock-settings-row">
+                <span class="shop-stock-settings-row-title">Notes</span>
+                <span class="shop-stock-settings-row-desc">Per-line and bulk notes.</span>
+                <input type="checkbox" name="require_manual_out_notes" value="1" class="rc-receipt-switch" {% if sws.require_manual_out_notes %}checked{% endif %} />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sa-stock-section sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-3 shadow-sm sm:p-4">
+        {% if not items %}
+          <p class="text-sm text-[rgb(var(--rc-muted))]">No items available.</p>
+        {% else %}
+          <div class="border-b border-[rgb(var(--rc-border))]/80 pb-2">
+            <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Low stock &amp; reorder</h3>
+            <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Leave at 0 to use company defaults.</p>
+          </div>
+          <div class="mt-3 overflow-x-auto">
             <table class="sa-stock-data-table min-w-[24rem] w-full text-sm">
               <thead>
                 <tr>
@@ -35,7 +281,7 @@
               </thead>
               <tbody>
                 {% for it in items %}
-                <tr>
+                <tr class="js-shop-stock-settings-item-row" data-item-id="{{ it.id }}">
                   <td>
                     <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</div>
                     <div class="text-xs text-[rgb(var(--rc-muted))]">{{ it.category or "—" }}</div>
@@ -52,12 +298,199 @@
               </tbody>
             </table>
           </div>
-          <div class="flex justify-end">
-            <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider">Save shop stock settings</button>
-          </div>
-        </form>
-      {% endif %}
-    </section>
+        {% endif %}
+      </section>
+    </form>
   </div>
   </div>
+  <div id="js-shop-stock-settings-toast" class="pointer-events-none fixed bottom-6 right-6 z-50 hidden max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg transition-opacity duration-300" role="status" aria-live="polite"></div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var form = document.getElementById("js-shop-stock-settings-form");
+      var statusEl = document.getElementById("js-shop-stock-settings-save-status");
+      var toastEl = document.getElementById("js-shop-stock-settings-toast");
+      if (!form) return;
+
+      var actionUrl = form.getAttribute("action") || window.location.pathname;
+      var inFlight = false;
+      var pending = null;
+      var itemTimers = {};
+      var debounceMs = 700;
+      var idleTimer = null;
+      var toastTimer = null;
+      var lastItemId = null;
+
+      function setStatus(mode, text) {
+        if (!statusEl) return;
+        var textEl = statusEl.querySelector(".shop-stock-settings-save-pill__text");
+        var iconWrap = statusEl.querySelector(".shop-stock-settings-save-pill__dot, .shop-stock-settings-save-pill__spinner");
+        statusEl.classList.remove(
+          "shop-stock-settings-save-pill--saving",
+          "shop-stock-settings-save-pill--saved",
+          "shop-stock-settings-save-pill--error"
+        );
+        if (mode === "saving") statusEl.classList.add("shop-stock-settings-save-pill--saving");
+        else if (mode === "saved") statusEl.classList.add("shop-stock-settings-save-pill--saved");
+        else if (mode === "error") statusEl.classList.add("shop-stock-settings-save-pill--error");
+
+        if (iconWrap) iconWrap.remove();
+        var icon = document.createElement("span");
+        icon.setAttribute("aria-hidden", "true");
+        if (mode === "saving") {
+          icon.className = "shop-stock-settings-save-pill__spinner";
+        } else {
+          icon.className = "shop-stock-settings-save-pill__dot";
+        }
+        statusEl.insertBefore(icon, textEl || null);
+        if (textEl) textEl.textContent = text || "Auto-save on";
+      }
+
+      function showToast(msg, isError) {
+        if (!toastEl || !msg) return;
+        clearTimeout(toastTimer);
+        toastEl.textContent = msg;
+        toastEl.classList.remove("hidden", "opacity-0");
+        toastEl.className = "pointer-events-none fixed bottom-6 right-6 z-50 max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg transition-opacity duration-300 " +
+          (isError
+            ? "border-red-500/30 bg-red-950/90 text-red-100"
+            : "border-emerald-500/30 bg-emerald-950/90 text-emerald-100");
+        toastTimer = setTimeout(function () {
+          toastEl.classList.add("opacity-0");
+          setTimeout(function () { toastEl.classList.add("hidden"); }, 300);
+        }, 2600);
+      }
+
+      function flashItemRow(itemId) {
+        if (!itemId) return;
+        var row = form.querySelector('.js-shop-stock-settings-item-row[data-item-id="' + itemId + '"]');
+        if (!row) return;
+        row.classList.remove("js-shop-stock-settings-item-row--saved");
+        void row.offsetWidth;
+        row.classList.add("js-shop-stock-settings-item-row--saved");
+        setTimeout(function () { row.classList.remove("js-shop-stock-settings-item-row--saved"); }, 1200);
+      }
+
+      function markSaved(scope, itemId) {
+        if (idleTimer) clearTimeout(idleTimer);
+        setStatus("saved", "Auto-updated");
+        if (scope === "item" && itemId) {
+          flashItemRow(itemId);
+          showToast("Item levels auto-saved.", false);
+        } else {
+          showToast("Settings auto-saved.", false);
+        }
+        idleTimer = setTimeout(function () {
+          setStatus("idle", "Auto-save on");
+        }, 2800);
+      }
+
+      function workspaceFormData() {
+        var fd = new FormData();
+        fd.append("save_scope", "workspace");
+        form.querySelectorAll('input[name^="require_"]').forEach(function (el) {
+          if (el.name) fd.append(el.name, el.checked ? "1" : "0");
+        });
+        return fd;
+      }
+
+      function itemFormData(itemId) {
+        var fd = new FormData();
+        fd.append("save_scope", "item");
+        fd.append("item_id", String(itemId));
+        var lo = form.querySelector('[name="shop_low_stock_threshold_' + itemId + '"]');
+        var rl = form.querySelector('[name="shop_reorder_level_' + itemId + '"]');
+        fd.append("shop_low_stock_threshold_" + itemId, lo ? lo.value : "0");
+        fd.append("shop_reorder_level_" + itemId, rl ? rl.value : "0");
+        return fd;
+      }
+
+      function postSave(fd, quiet) {
+        if (inFlight) {
+          pending = fd;
+          return;
+        }
+        inFlight = true;
+        var scope = fd.get("save_scope") || "";
+        lastItemId = fd.get("item_id") || null;
+        if (!quiet) setStatus("saving", "Saving…");
+        fetch(actionUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          body: fd,
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+          }
+        })
+          .then(function (res) {
+            return res.json().then(function (j) {
+              return { okHttp: res.ok, j: j || {} };
+            }).catch(function () {
+              return { okHttp: res.ok, j: {} };
+            });
+          })
+          .then(function (x) {
+            if (!x.okHttp || !x.j.ok) {
+              if (idleTimer) clearTimeout(idleTimer);
+              setStatus("error", "Save failed");
+              showToast((x.j.error && String(x.j.error)) || "Could not save.", true);
+              idleTimer = setTimeout(function () { setStatus("idle", "Auto-save on"); }, 4000);
+              return;
+            }
+            markSaved(String(scope || x.j.scope || ""), lastItemId);
+          })
+          .catch(function () {
+            if (idleTimer) clearTimeout(idleTimer);
+            setStatus("error", "Offline");
+            showToast("Could not reach server.", true);
+            idleTimer = setTimeout(function () { setStatus("idle", "Auto-save on"); }, 4000);
+          })
+          .finally(function () {
+            inFlight = false;
+            if (pending) {
+              var next = pending;
+              pending = null;
+              postSave(next, false);
+            }
+          });
+      }
+
+      function saveWorkspace() {
+        postSave(workspaceFormData(), false);
+      }
+
+      function scheduleItemSave(itemId) {
+        if (itemTimers[itemId]) clearTimeout(itemTimers[itemId]);
+        itemTimers[itemId] = setTimeout(function () {
+          itemTimers[itemId] = null;
+          postSave(itemFormData(itemId), false);
+        }, debounceMs);
+      }
+
+      form.querySelectorAll('input[name^="require_"]').forEach(function (el) {
+        el.addEventListener("change", saveWorkspace);
+      });
+
+      form.querySelectorAll(".js-shop-stock-settings-item-row").forEach(function (row) {
+        var itemId = row.getAttribute("data-item-id");
+        if (!itemId) return;
+        row.querySelectorAll('input[name^="shop_low_stock_threshold_"], input[name^="shop_reorder_level_"]').forEach(function (input) {
+          input.addEventListener("input", function () {
+            scheduleItemSave(itemId);
+          });
+          input.addEventListener("change", function () {
+            if (itemTimers[itemId]) {
+              clearTimeout(itemTimers[itemId]);
+              itemTimers[itemId] = null;
+            }
+            postSave(itemFormData(itemId), false);
+          });
+        });
+      });
+    })();
+  </script>
 {% endblock %}

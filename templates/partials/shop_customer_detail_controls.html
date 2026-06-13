@@ -1,96 +1,105 @@
-{# Shop customer detail — period/scope toolbar + credit note / analytics views #}
-{% set _mode = f.mode or 'single_day' %}
-<div class="rev-toolbar">
-  <form
-    method="get"
-    action="{{ request.path }}"
-    class="rev-toolbar__inner"
-    id="it-analytics-filter-form"
-    data-analytics-key="customer_detail"
-  >
-    <input type="hidden" name="customer_name" value="{{ customer_name }}" />
-    <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
-    <input type="hidden" name="analytics_scope" id="it-analytics-scope-input" value="{{ analytics_scope or 'general' }}" />
-
-    <div class="rev-toolbar__row rev-toolbar__row--split">
-      {% if show_analytics_toggle|default(true) %}
-      <div class="rev-toolbar__cluster">
-        <span class="rev-toolbar__group-label">View</span>
-        <div
-          id="it-support-analytics-toolbar"
-          class="rev-tabs rev-tabs--view"
-          data-it-analytics-view="note"
-          role="group"
-          aria-label="Display mode"
-        >
-          <button type="button" id="it-analytics-btn-note" class="rev-tabs__btn it-analytics-view-btn it-analytics-active" aria-pressed="true" title="Credit note">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span class="rev-tabs__text">Credit note</span>
-          </button>
-          <button type="button" id="it-analytics-btn-raw" class="rev-tabs__btn it-analytics-view-btn" aria-pressed="false" title="Tables">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h8" />
-            </svg>
-            <span class="rev-tabs__text">Analytics</span>
-          </button>
-          <button type="button" id="it-analytics-btn-visual" class="rev-tabs__btn it-analytics-view-btn" aria-pressed="false" title="Charts">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path stroke-linecap="round" d="M4 20V10M12 20V4M20 20v-8" />
-            </svg>
-            <span class="rev-tabs__text">Charts</span>
-          </button>
-        </div>
-      </div>
-      {% endif %}
-
-      <div class="rev-toolbar__cluster">
-        <span class="rev-toolbar__group-label">Scope</span>
-        <div class="rev-tabs rev-tabs--scope" role="group" aria-label="Data scope">
-          <button type="button" data-it-scope="general" class="rev-tabs__btn it-scope-btn {% if analytics_scope != 'actual' %}is-active{% endif %}">General</button>
-          <button type="button" data-it-scope="actual" class="rev-tabs__btn it-scope-btn {% if analytics_scope == 'actual' %}is-active{% endif %}">Actual</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="rev-toolbar__row rev-toolbar__row--filters">
-      <div class="rev-filters-box">
-        <div class="rev-filters rev-filters--period">
-          <p class="rev-filters-heading">Report period</p>
-          <div class="rev-field">
-            <label for="analytics-filter-mode" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period type</label>
-            <select id="analytics-filter-mode" name="mode" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30">
-              <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Single day</option>
-              <option value="period" {% if _mode == 'period' %}selected{% endif %}>Date range</option>
-              <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>
-              <option value="year" {% if _mode == 'year' %}selected{% endif %}>Year</option>
-            </select>
-          </div>
-          <div id="filter-single-day" class="rev-field {% if _mode != 'single_day' %}hidden{% endif %}">
-            <label for="analytics-single-day" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Date</label>
-            <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
-          </div>
-          <div id="filter-period" class="rev-filter-group {% if _mode != 'period' %}hidden{% endif %}">
-            <div class="rev-field">
-              <label for="analytics-start-date" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">From</label>
-              <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
-            </div>
-            <div class="rev-field">
-              <label for="analytics-end-date" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">To</label>
-              <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
-            </div>
-          </div>
-          <div id="filter-month" class="rev-field {% if _mode != 'month' %}hidden{% endif %}">
-            <label for="analytics-month" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
-            <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
-          </div>
-          <div id="filter-year" class="rev-field {% if _mode != 'year' %}hidden{% endif %}">
-            <label for="analytics-year" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
-            <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
-          </div>
-        </div>
-      </div>
-    </div>
-  </form>
-</div>
+{# Shop customer detail — period/scope toolbar + credit note / analytics views #}
+{% set _mode = f.mode or 'single_day' %}
+<div class="rev-toolbar">
+  <form
+    method="get"
+    action="{{ request.path }}"
+    class="rev-toolbar__inner"
+    id="it-analytics-filter-form"
+    data-analytics-key="customer_detail"
+  >
+    <input type="hidden" name="customer_name" value="{{ customer_name }}" />
+    <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
+    <input type="hidden" name="analytics_scope" id="it-analytics-scope-input" value="{{ analytics_scope or 'general' }}" />
+
+    <div class="rev-toolbar__row rev-toolbar__row--split">
+      {% if show_analytics_toggle|default(true) %}
+      <div class="rev-toolbar__cluster">
+        <span class="rev-toolbar__group-label">View</span>
+        <div
+          id="it-support-analytics-toolbar"
+          class="rev-tabs rev-tabs--view"
+          data-it-analytics-view="note"
+          role="group"
+          aria-label="Display mode"
+        >
+          <button type="button" id="it-analytics-btn-note" class="rev-tabs__btn it-analytics-view-btn it-analytics-view-btn--note it-analytics-active" aria-pressed="true" title="Credit note">
+            <span class="rev-tabs__icon rev-tabs__icon--note" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </span>
+            <span class="rev-tabs__text">Credit note</span>
+          </button>
+          <button type="button" id="it-analytics-btn-raw" class="rev-tabs__btn it-analytics-view-btn it-analytics-view-btn--raw" aria-pressed="false" title="Tables">
+            <span class="rev-tabs__icon rev-tabs__icon--table" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h8" />
+              </svg>
+            </span>
+            <span class="rev-tabs__text">Analytics</span>
+          </button>
+          <button type="button" id="it-analytics-btn-visual" class="rev-tabs__btn it-analytics-view-btn it-analytics-view-btn--visual" aria-pressed="false" title="Charts">
+            <span class="rev-tabs__icon rev-tabs__icon--chart" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" d="M4 20V10M12 20V4M20 20v-8" />
+              </svg>
+            </span>
+            <span class="rev-tabs__text">Charts</span>
+          </button>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="rev-toolbar__cluster rev-toolbar__cluster--scope" data-active-scope="{% if analytics_scope == 'actual' %}actual{% else %}general{% endif %}">
+        <span class="rev-toolbar__group-label rev-toolbar__group-label--scope">Scope</span>
+        <div class="rev-tabs rev-tabs--scope" role="group" aria-label="Data scope" data-active-scope="{% if analytics_scope == 'actual' %}actual{% else %}general{% endif %}">
+          <button type="button" data-it-scope="general" class="rev-tabs__btn it-scope-btn rev-tabs__btn--general {% if analytics_scope != 'actual' %}is-active{% endif %}" aria-pressed="{% if analytics_scope != 'actual' %}true{% else %}false{% endif %}" title="All receipt marks"><span class="rev-scope-dot rev-scope-dot--general" aria-hidden="true"></span>General</button>
+          <button type="button" data-it-scope="actual" class="rev-tabs__btn it-scope-btn rev-tabs__btn--actual {% if analytics_scope == 'actual' %}is-active{% endif %}" aria-pressed="{% if analytics_scope == 'actual' %}true{% else %}false{% endif %}" title="Confirmed receipts only — live data">
+            <span class="rev-scope-dot rev-scope-dot--actual" aria-hidden="true"></span>
+            Actual
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rev-toolbar__row rev-toolbar__row--filters">
+      <div class="rev-filters-box">
+        <div class="rev-filters rev-filters--period">
+          <p class="rev-filters-heading">Report period</p>
+          <div class="rev-field">
+            <label for="analytics-filter-mode" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period type</label>
+            <select id="analytics-filter-mode" name="mode" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30">
+              <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Single day</option>
+              <option value="period" {% if _mode == 'period' %}selected{% endif %}>Date range</option>
+              <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>
+              <option value="year" {% if _mode == 'year' %}selected{% endif %}>Year</option>
+            </select>
+          </div>
+          <div id="filter-single-day" class="rev-field {% if _mode != 'single_day' %}hidden{% endif %}">
+            <label for="analytics-single-day" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Date</label>
+            <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+          </div>
+          <div id="filter-period" class="rev-filter-group {% if _mode != 'period' %}hidden{% endif %}">
+            <div class="rev-field">
+              <label for="analytics-start-date" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">From</label>
+              <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+            </div>
+            <div class="rev-field">
+              <label for="analytics-end-date" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">To</label>
+              <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+            </div>
+          </div>
+          <div id="filter-month" class="rev-field {% if _mode != 'month' %}hidden{% endif %}">
+            <label for="analytics-month" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+          </div>
+          <div id="filter-year" class="rev-field {% if _mode != 'year' %}hidden{% endif %}">
+            <label for="analytics-year" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="block w-full min-h-10 min-w-[9rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>

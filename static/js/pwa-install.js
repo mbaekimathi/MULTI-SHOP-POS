@@ -2,11 +2,12 @@
  * PWA install controller — in-page experience.
  *
  * Goals:
- *  - Make the install request unmistakable IN THE PAGE (not the omnibox).
- *  - Surface a persistent FAB users can tap any time + an auto card on first visit.
+ *  - Only surface install UI when the app is not already installed.
+ *  - Auto card on first visit + floating pill as a secondary affordance.
  *  - Gracefully handle: Chromium (beforeinstallprompt), iOS Safari (manual steps),
  *    other browsers / unmet criteria (helpful fallback instructions).
- *  - Session-scoped dismissal (the FAB stays even after the user closes the card).
+ *  - Session-scoped dismissal: closing the card or pill hides all install UI until
+ *    the user signs out and signs in again (login pages clear the dismiss flag).
  *  - Hide everything once installed.
  *
  * Public API:
@@ -21,7 +22,6 @@
   const SESSION_KEY = "pwa-install-dismissed-session";
   const LEGACY_KEY = "pwa-install-dismiss-until";
   const AUTO_SHOW_DELAY = 900;
-  const FAB_REVEAL_DELAY = 1800;
 
   try {
     localStorage.removeItem(LEGACY_KEY);
@@ -75,6 +75,27 @@
       sessionStorage.setItem(SESSION_KEY, "1");
     } catch (e) {
       /* ignore */
+    }
+  }
+
+  function shouldOfferInstallUi() {
+    return !isStandalone() && !isInPosPage() && !dismissedThisSession();
+  }
+
+  function dismissInstallUi() {
+    rememberSessionDismiss();
+    hideCard(false);
+    destroyFab();
+    refreshInstallButtons();
+  }
+
+  async function isInstalledRelatedApp() {
+    if (!navigator.getInstalledRelatedApps) return false;
+    try {
+      const apps = await navigator.getInstalledRelatedApps();
+      return !!(apps && apps.length);
+    } catch (e) {
+      return false;
     }
   }
 
@@ -217,14 +238,14 @@
       if (t.matches("[data-pwa-confirm]")) {
         triggerNativePrompt();
       } else if (t.matches("[data-pwa-later]") || t.matches("[data-pwa-dismiss]")) {
-        hideCard(true);
+        dismissInstallUi();
       }
     });
     return card;
   }
 
   function showCard(mode) {
-    if (isStandalone()) return;
+    if (!shouldOfferInstallUi()) return;
     const el = ensureCard(mode);
     el.hidden = false;
     requestAnimationFrame(() => el.classList.add("pwa-install--show"));
@@ -243,8 +264,12 @@
       }, 250);
     }
     document.documentElement.classList.remove("pwa-install-open");
-    if (remember) rememberSessionDismiss();
-    if (!isStandalone()) revealFab();
+    if (remember) {
+      rememberSessionDismiss();
+      destroyFab();
+    } else if (shouldOfferInstallUi()) {
+      revealFab();
+    }
   }
 
   async function triggerNativePrompt() {
@@ -256,7 +281,7 @@
           hideCard(false);
           destroyFab();
         } else {
-          hideCard(true);
+          dismissInstallUi();
         }
       } catch (e) {
         showCard("manual");
@@ -273,27 +298,43 @@
 
   function buildFab() {
     if (fab) return fab;
-    fab = document.createElement("button");
-    fab.type = "button";
+    fab = document.createElement("div");
     fab.className = "pwa-install-fab";
+    fab.setAttribute("role", "group");
     fab.setAttribute("aria-label", "Install app");
     fab.innerHTML = `
-      <span class="pwa-install-fab__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
+      <button type="button" class="pwa-install-fab__main" data-pwa-fab-open aria-label="Install app">
+        <span class="pwa-install-fab__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/>
+          </svg>
+        </span>
+        <span class="pwa-install-fab__label">Install app</span>
+        <span class="pwa-install-fab__pulse" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="pwa-install-fab__close" data-pwa-fab-dismiss aria-label="Dismiss install prompt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12" />
         </svg>
-      </span>
-      <span class="pwa-install-fab__label">Install app</span>
-      <span class="pwa-install-fab__pulse" aria-hidden="true"></span>
+      </button>
     `;
-    fab.addEventListener("click", () => api.show());
+    fab.addEventListener("click", (e) => {
+      if (e.target.closest("[data-pwa-fab-dismiss]")) {
+        e.preventDefault();
+        dismissInstallUi();
+        return;
+      }
+      if (e.target.closest("[data-pwa-fab-open]")) {
+        e.preventDefault();
+        api.show();
+      }
+    });
     document.body.appendChild(fab);
     return fab;
   }
 
   function revealFab() {
-    if (isStandalone()) return;
-    if (isInPosPage()) return;
+    if (!shouldOfferInstallUi()) return;
     const el = buildFab();
     el.hidden = false;
     requestAnimationFrame(() => el.classList.add("pwa-install-fab--show"));
@@ -319,7 +360,7 @@
   function refreshInstallButtons() {
     const buttons = Array.from(document.querySelectorAll("[data-pwa-install]"));
     buttons.forEach((btn) => {
-      btn.hidden = isStandalone();
+      btn.hidden = isStandalone() || dismissedThisSession();
       if (!btn.dataset.pwaBound) {
         btn.dataset.pwaBound = "1";
         btn.addEventListener("click", (e) => {
@@ -359,15 +400,13 @@
     e.preventDefault();
     deferredPrompt = e;
     refreshInstallButtons();
-    if (isStandalone() || isInPosPage()) return;
-    if (!cardOpen && !dismissedThisSession()) {
+    if (!shouldOfferInstallUi()) return;
+    if (!cardOpen) {
       setTimeout(() => {
-        if (deferredPrompt && !isStandalone() && !cardOpen && !dismissedThisSession()) {
+        if (deferredPrompt && shouldOfferInstallUi() && !cardOpen) {
           showCard("prompt");
         }
       }, AUTO_SHOW_DELAY);
-    } else {
-      revealFab();
     }
   });
 
@@ -383,33 +422,30 @@
     refreshInstallButtons();
   });
 
-  function bootstrap() {
+  async function bootstrap() {
     refreshInstallButtons();
     if (isStandalone()) return;
-    if (isInPosPage()) return;
-
-    if (dismissedThisSession()) {
-      setTimeout(revealFab, FAB_REVEAL_DELAY);
+    if (await isInstalledRelatedApp()) {
+      destroyFab();
       return;
     }
+    if (!shouldOfferInstallUi()) return;
 
     if (isIos()) {
       setTimeout(() => {
-        if (!isStandalone() && !dismissedThisSession() && !cardOpen) showCard("manual");
+        if (shouldOfferInstallUi() && !cardOpen) showCard("manual");
       }, AUTO_SHOW_DELAY);
       return;
     }
 
     setTimeout(() => {
-      if (isStandalone() || dismissedThisSession() || cardOpen) return;
+      if (!shouldOfferInstallUi() || cardOpen) return;
       if (deferredPrompt) {
         showCard("prompt");
       } else {
         revealFab();
       }
     }, AUTO_SHOW_DELAY + 800);
-
-    setTimeout(revealFab, FAB_REVEAL_DELAY);
   }
 
   if (document.readyState === "loading") {

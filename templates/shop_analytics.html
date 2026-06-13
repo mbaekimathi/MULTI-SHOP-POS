@@ -25,8 +25,8 @@
 {% endblock %}
 
 {% block shop_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
-  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=3"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=23" />
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
 
   {% set f = analytics_filter or {} %}
   {% set svd = shop_view_data or {} %}
@@ -69,11 +69,6 @@
       max-height: min(48dvh, 15rem) !important;
       height: min(48dvh, 15rem) !important;
     }
-    .it-analytics-view-btn.it-analytics-active {
-      background: rgba(249, 115, 22, 0.14);
-      color: rgb(var(--rc-page-fg));
-      box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.38);
-    }
   </style>
 
   <div class="it-analytics-page it-analytics-page--modern it-analytics-page--revenue">
@@ -97,7 +92,7 @@
       </script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
       <script src="{{ url_for('static', filename='js/it-support-analytics-charts.js') }}"></script>
-      <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=1" defer></script>
+      <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=5" defer></script>
 
       <script>
         (function () {

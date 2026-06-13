@@ -4,8 +4,8 @@
 {% block head %}
   {% set analytics_live = analytics_key in ['revenue', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
   {% if analytics_live %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
-  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=3"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=23" />
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
   <script>
     window.IT_SUPPORT_ANALYTICS = {
       key: {{ analytics_key|tojson }},
@@ -17,7 +17,7 @@
     window.IT_REVENUE_ANALYTICS = { dataUrl: window.IT_SUPPORT_ANALYTICS.dataUrl, txPageSize: 120 };
     {% endif %}
   </script>
-  <script src="{{ url_for('static', filename='js/it-support-revenue-analytics-live.js') }}?v=4" defer></script>
+  <script src="{{ url_for('static', filename='js/it-support-revenue-analytics-live.js') }}?v=8" defer></script>
   {% if analytics_key == 'shop' %}
   <script src="{{ url_for('static', filename='js/it-support-shop-credit-modal.js') }}?v=1" defer></script>
   {% endif %}
@@ -230,15 +230,6 @@
       }
       [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row:nth-child(3) {
         animation-delay: 0.4s;
-      }
-      .it-analytics-view-btn.it-analytics-active {
-        background: rgba(249, 115, 22, 0.14);
-        color: rgb(var(--rc-page-fg));
-        box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.38);
-      }
-      html[data-theme="dark"] .it-analytics-view-btn.it-analytics-active {
-        background: rgba(251, 146, 60, 0.12);
-        box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.35);
       }
       .it-analytics-toolbar {
         background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 38%);

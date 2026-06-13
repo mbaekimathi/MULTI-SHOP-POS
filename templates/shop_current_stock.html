@@ -1,0 +1,146 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop current stock — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop current stock{% endblock %}
+{% block shop_sidebar_links %}
+  {% set selected_view = '' %}
+  {% include "partials/shop_stock_workspace_sidebar.html" %}
+{% endblock %}
+{% block shop_content %}
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <style>
+    .shop-current-stock-page .shop-current-stock-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .shop-current-stock-page .shop-current-stock-legend__item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+    }
+    .shop-current-stock-page .shop-current-stock-legend__swatch {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 9999px;
+    }
+    .shop-current-stock-page .shop-current-stock-qty {
+      display: inline-flex;
+      min-width: 2.5rem;
+      justify-content: flex-end;
+      border-radius: 0.45rem;
+      padding: 0.15rem 0.45rem;
+      font-weight: 800;
+    }
+    .shop-current-stock-page .shop-current-stock-qty--enough {
+      color: rgb(5 150 105);
+      background: rgba(16, 185, 129, 0.12);
+    }
+    .shop-current-stock-page .shop-current-stock-qty--attention {
+      color: rgb(180 83 9);
+      background: rgba(245, 158, 11, 0.16);
+    }
+    .shop-current-stock-page .shop-current-stock-qty--below {
+      color: rgb(190 18 60);
+      background: rgba(244, 63, 94, 0.14);
+    }
+    .shop-current-stock-page .js-current-stock-row--attention {
+      background: rgba(245, 158, 11, 0.05);
+    }
+    .shop-current-stock-page .js-current-stock-row--below {
+      background: rgba(244, 63, 94, 0.06);
+    }
+  </style>
+  <div class="sa-stock-analytics shop-current-stock-page">
+  <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
+    <section class="sa-stock-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+      <div class="sa-stock-hero-top px-4 py-4 sm:px-6 sm:py-5">
+        <p class="sa-stock-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock workspace</p>
+        <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Shop current stock</h2>
+        <p class="sa-stock-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+          Item name and current shelf quantity for {{ shop.shop_name }}. Colours follow your low-stock levels from stock settings.
+        </p>
+        <div class="shop-current-stock-legend">
+          <span class="shop-current-stock-legend__item"><span class="shop-current-stock-legend__swatch bg-emerald-500"></span>Enough</span>
+          <span class="shop-current-stock-legend__item"><span class="shop-current-stock-legend__swatch bg-amber-500"></span>Needs attention</span>
+          <span class="shop-current-stock-legend__item"><span class="shop-current-stock-legend__swatch bg-rose-500"></span>Below</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="sa-stock-section sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      {% if not items %}
+        <p class="text-sm text-[rgb(var(--rc-muted))]">No items registered for this shop yet.</p>
+      {% else %}
+        <div class="flex flex-wrap items-center gap-2">
+          <input type="search" id="js-current-stock-search" autocomplete="off" placeholder="Filter items…" class="min-w-0 flex-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]" />
+          <span class="text-xs font-semibold tabular-nums text-[rgb(var(--rc-muted))]"><span id="js-current-stock-visible-count">{{ item_count }}</span> / {{ item_count }}</span>
+        </div>
+        <div class="shop-mgmt-table-wrap mt-3 overflow-x-auto">
+          <table class="sa-stock-data-table sa-stock-mgmt-table min-w-[24rem] w-full text-sm">
+            <thead>
+              <tr>
+                <th class="text-left">Item</th>
+                <th class="text-right">Current stock</th>
+                <th class="text-right">Avg used<span class="block text-[10px] font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]">per day · last {{ movement_lookback_days or 30 }}d</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in items %}
+                {% set qty = it.shop_stock_qty or 0 %}
+                {% set shop_lo = (it.shop_low_stock_threshold or 0)|int %}
+                {% set company_lo = (it.low_stock_threshold or 0)|int %}
+                {% set lo = shop_lo if shop_lo > 0 else company_lo %}
+                {% if qty <= 0 %}
+                  {% set stock_level = 'below' %}
+                {% elif lo > 0 and (qty|float) <= lo %}
+                  {% set stock_level = 'attention' %}
+                {% else %}
+                  {% set stock_level = 'enough' %}
+                {% endif %}
+                <tr class="js-current-stock-row js-current-stock-row--{{ stock_level }}" data-stock-search="{{ (it.name or '')|lower }}">
+                  <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ it.name }}</td>
+                  <td class="text-right tabular-nums">
+                    <span class="shop-current-stock-qty shop-current-stock-qty--{{ stock_level }}">{{ qty }}</span>
+                  </td>
+                  <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ it.avg_used_per_day or 0 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var input = document.getElementById("js-current-stock-search");
+      var countEl = document.getElementById("js-current-stock-visible-count");
+      if (!input) return;
+      var rows = Array.prototype.slice.call(document.querySelectorAll(".js-current-stock-row"));
+      function sync() {
+        var q = String(input.value || "").trim().toLowerCase();
+        var n = 0;
+        rows.forEach(function (row) {
+          var hay = String(row.getAttribute("data-stock-search") || "");
+          var show = !q || hay.indexOf(q) !== -1;
+          row.style.display = show ? "" : "none";
+          if (show) n += 1;
+        });
+        if (countEl) countEl.textContent = String(n);
+      }
+      input.addEventListener("input", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

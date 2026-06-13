@@ -3,7 +3,7 @@
  *
  * Two pieces of UI:
  *   .pwa-install       → bottom-anchored install card (auto + manual)
- *   .pwa-install-fab   → persistent floating "Install app" pill
+ *   .pwa-install-fab   → floating "Install app" pill (dismissible)
  *
  * Themed via CSS variables (--rc-primary, --rc-accent, --rc-surface, ...) from base.html.
  */
@@ -211,7 +211,7 @@
 }
 
 /* ====================================================================
-   Floating "Install app" pill — always-visible affordance
+   Floating "Install app" pill
    ==================================================================== */
 
 .pwa-install-fab {
@@ -219,6 +219,16 @@
   z-index: 9998;
   right: max(0.85rem, env(safe-area-inset-right));
   bottom: max(0.85rem, env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  opacity: 0;
+  transform: translateY(140%) scale(0.92);
+  pointer-events: none;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out;
+  overflow: visible;
+}
+.pwa-install-fab__main {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -233,19 +243,17 @@
   box-shadow:
     0 18px 38px -14px rgba(var(--rc-primary) / 0.65),
     0 8px 18px -10px rgba(0, 0, 0, 0.35);
-  opacity: 0;
-  transform: translateY(140%) scale(0.92);
-  pointer-events: none;
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
   overflow: visible;
+  position: relative;
 }
-.pwa-install-fab:hover {
+.pwa-install-fab:hover .pwa-install-fab__main {
   box-shadow:
     0 22px 44px -14px rgba(var(--rc-primary) / 0.75),
     0 10px 20px -10px rgba(0, 0, 0, 0.4);
 }
-.pwa-install-fab:active {
-  transform: translateY(0) scale(0.98);
+.pwa-install-fab__main:active {
+  transform: scale(0.98);
 }
 .pwa-install-fab--show {
   opacity: 1;
@@ -280,6 +288,32 @@
   filter: blur(8px);
   animation: pwa-fab-pulse 2.6s ease-out infinite;
 }
+
+.pwa-install-fab__close {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.pwa-install-fab__close:hover {
+  transform: scale(1.05);
+  background: rgba(15, 23, 42, 0.95);
+}
+.pwa-install-fab__close svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
 @keyframes pwa-fab-pulse {
   0%   { opacity: 0;   transform: scale(0.96); }
   35%  { opacity: 0.55; }
@@ -288,7 +322,7 @@
 
 @media (max-width: 480px) {
   .pwa-install-fab__label { display: none; }
-  .pwa-install-fab {
+  .pwa-install-fab__main {
     padding: 0.8rem;
     width: 3.2rem;
     height: 3.2rem;

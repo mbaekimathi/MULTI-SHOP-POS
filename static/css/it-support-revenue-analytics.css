@@ -279,9 +279,8 @@ html[data-theme="dark"] .rev-toolbar::before {
   opacity: 1;
 }
 
-.rev-tabs__btn.is-active,
-.rev-tabs__btn.it-analytics-active,
-.rev-tabs__btn[aria-pressed="true"] {
+.rev-tabs--view .rev-tabs__btn.it-analytics-active,
+.rev-tabs--view .rev-tabs__btn[aria-pressed="true"] {
   color: #fff;
   background: linear-gradient(
     135deg,
@@ -291,18 +290,186 @@ html[data-theme="dark"] .rev-toolbar::before {
   box-shadow: 0 2px 8px rgba(var(--rc-primary), 0.35);
 }
 
-.rev-tabs__btn.is-active svg,
-.rev-tabs__btn.it-analytics-active svg,
-.rev-tabs__btn[aria-pressed="true"] svg {
+.rev-tabs--view .rev-tabs__btn.it-analytics-active svg,
+.rev-tabs--view .rev-tabs__btn[aria-pressed="true"] svg {
   opacity: 1;
 }
 
-.rev-tabs--scope .rev-tabs__btn.is-active,
-.rev-tabs--scope .rev-tabs__btn.it-analytics-active {
-  color: rgb(var(--rc-page-fg));
-  background: var(--rev-accent-soft);
-  box-shadow: var(--rev-shadow-sm);
-  border: 2px solid rgba(var(--rc-primary), 0.5);
+/* View tabs — colored icons by mode */
+.rev-tabs__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.rev-tabs--view .rev-tabs__icon--table {
+  color: rgb(14 165 233);
+}
+.rev-tabs--view .rev-tabs__icon--chart {
+  color: rgb(124 58 237);
+}
+.rev-tabs--view .rev-tabs__icon--note {
+  color: rgb(217 119 6);
+}
+.rev-tabs--view .rev-tabs__btn .rev-tabs__icon svg {
+  opacity: 0.72;
+}
+.rev-tabs--view .rev-tabs__btn:hover .rev-tabs__icon svg,
+.rev-tabs--view .rev-tabs__btn.is-active .rev-tabs__icon svg,
+.rev-tabs--view .rev-tabs__btn.it-analytics-active .rev-tabs__icon svg,
+.rev-tabs--view .rev-tabs__btn[aria-pressed="true"] .rev-tabs__icon svg {
+  opacity: 1;
+}
+.rev-tabs--view .it-analytics-view-btn--raw.is-active,
+.rev-tabs--view .it-analytics-view-btn--raw[aria-pressed="true"] {
+  color: rgb(3 105 161);
+  background: rgba(14, 165, 233, 0.14);
+  border-color: rgba(14, 165, 233, 0.38);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.14);
+}
+.rev-tabs--view .it-analytics-view-btn--visual.is-active,
+.rev-tabs--view .it-analytics-view-btn--visual[aria-pressed="true"] {
+  color: rgb(91 33 182);
+  background: rgba(124, 58, 237, 0.14);
+  border-color: rgba(124, 58, 237, 0.38);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.14);
+}
+.rev-tabs--view .it-analytics-view-btn--note.is-active,
+.rev-tabs--view .it-analytics-view-btn--note[aria-pressed="true"] {
+  color: rgb(180 83 9);
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.38);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.14);
+}
+
+/* Scope — blue (General) / green (Actual) theme follows active scope */
+@keyframes rev-scope-pulse-general {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.5);
+  }
+  50% {
+    opacity: 0.92;
+    box-shadow: 0 0 0 5px rgba(14, 165, 233, 0);
+  }
+}
+
+@keyframes rev-scope-pulse-actual {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  50% {
+    opacity: 0.88;
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
+  }
+}
+
+.rev-toolbar__cluster--scope[data-active-scope="general"] .rev-toolbar__group-label--scope,
+.rev-toolbar__cluster--scope:has(.rev-tabs--scope[data-active-scope="general"]) .rev-toolbar__group-label--scope {
+  color: rgb(3 105 161);
+}
+
+.rev-toolbar__cluster--scope[data-active-scope="actual"] .rev-toolbar__group-label--scope,
+.rev-toolbar__cluster--scope:has(.rev-tabs--scope[data-active-scope="actual"]) .rev-toolbar__group-label--scope {
+  color: rgb(6 95 70);
+}
+
+.rev-tabs--scope {
+  transition:
+    border-color 0.22s ease,
+    background-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.rev-scope-dot,
+.rev-live-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 9999px;
+  opacity: 0;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.rev-scope-dot--general {
+  background: rgb(14 165 233);
+}
+
+.rev-scope-dot--actual {
+  background: rgb(34 197 94);
+}
+
+.rev-tabs--scope .rev-tabs__btn {
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.rev-tabs--scope .rev-tabs__btn--general.is-active .rev-scope-dot--general {
+  opacity: 1;
+  animation: rev-scope-pulse-general 2.4s ease-in-out infinite;
+}
+
+.rev-tabs--scope .rev-tabs__btn--actual.is-active .rev-scope-dot--actual {
+  opacity: 1;
+  animation: rev-scope-pulse-actual 2s ease-in-out infinite;
+}
+
+.rev-tabs--scope .rev-tabs__btn--general.is-active {
+  color: rgb(3 105 161);
+  background: rgba(14, 165, 233, 0.2);
+  border-color: rgba(14, 165, 233, 0.48);
+  box-shadow: 0 2px 10px rgba(14, 165, 233, 0.22);
+}
+
+.rev-tabs--scope .rev-tabs__btn--actual.is-active {
+  color: rgb(4 78 59);
+  background: rgba(16, 185, 129, 0.24);
+  border-color: rgba(16, 185, 129, 0.52);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.24);
+}
+
+.rev-tabs--scope[data-active-scope="general"] {
+  border-color: rgba(14, 165, 233, 0.44);
+  background: rgba(14, 165, 233, 0.09);
+  box-shadow:
+    inset 0 1px 2px rgba(14, 165, 233, 0.08),
+    0 0 0 1px rgba(14, 165, 233, 0.1);
+}
+
+.rev-tabs--scope[data-active-scope="actual"] {
+  border-color: rgba(16, 185, 129, 0.48);
+  background: rgba(16, 185, 129, 0.1);
+  box-shadow:
+    inset 0 1px 2px rgba(16, 185, 129, 0.08),
+    0 0 0 1px rgba(16, 185, 129, 0.1);
+}
+
+.rev-tabs--scope[data-active-scope="general"] .rev-tabs__btn--actual:not(.is-active) {
+  color: rgb(71 85 105);
+}
+
+.rev-tabs--scope[data-active-scope="general"] .rev-tabs__btn--actual:not(.is-active):hover {
+  color: rgb(6 95 70);
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+.rev-tabs--scope[data-active-scope="actual"] .rev-tabs__btn--general:not(.is-active) {
+  color: rgb(71 85 105);
+}
+
+.rev-tabs--scope[data-active-scope="actual"] .rev-tabs__btn--general:not(.is-active):hover {
+  color: rgb(3 105 161);
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.28);
 }
 
 /* Filters */

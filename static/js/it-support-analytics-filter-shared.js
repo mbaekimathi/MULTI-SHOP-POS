@@ -28,9 +28,28 @@
     return out;
   }
 
+  function normalizeScope(raw) {
+    return String(raw || "general").trim().toLowerCase() === "actual" ? "actual" : "general";
+  }
+
+  /** Set or remove analytics_scope on query params (general omits the param — server default). */
+  function applyScopeToParams(params, scope) {
+    var next = normalizeScope(scope);
+    if (!params || typeof params.set !== "function") return next;
+    if (next === "actual") params.set("analytics_scope", "actual");
+    else params.delete("analytics_scope");
+    return next;
+  }
+
   function toSearchString(obj) {
     var p = new URLSearchParams();
     KEYS.forEach(function (key) {
+      if (key === "analytics_scope") {
+        if (normalizeScope(obj.analytics_scope) === "actual") {
+          p.set("analytics_scope", "actual");
+        }
+        return;
+      }
       if (obj[key] != null && String(obj[key]).trim() !== "") {
         p.set(key, String(obj[key]));
       }
@@ -53,6 +72,7 @@
       return;
     }
     if (!obj.mode && !obj.all_time) return;
+    obj.analytics_scope = normalizeScope(obj.analytics_scope);
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
     } catch (e) {}
@@ -111,6 +131,14 @@
         existing.delete("all_time");
         FILTER_KEYS.forEach(function (key) {
           if (creditHub && key === "analytics_scope") return;
+          if (key === "analytics_scope") {
+            if (normalizeScope(q.analytics_scope) === "actual") {
+              existing.set("analytics_scope", "actual");
+            } else {
+              existing.delete("analytics_scope");
+            }
+            return;
+          }
           if (q[key] != null && String(q[key]).trim() !== "") {
             existing.set(key, String(q[key]));
           }
@@ -119,8 +147,6 @@
 
       if (creditHub) {
         existing.delete("analytics_scope");
-      } else if (q.analytics_scope) {
-        existing.set("analytics_scope", String(q.analytics_scope));
       }
 
       if (isShopAnalyticsHref(base)) {
@@ -183,6 +209,8 @@
     patchNavLinks: patchNavLinks,
     restoreUrlFromStorage: restoreUrlFromStorage,
     initNavLinks: initNavLinks,
+    normalizeScope: normalizeScope,
+    applyScopeToParams: applyScopeToParams,
   };
 
   if (document.readyState === "loading") {

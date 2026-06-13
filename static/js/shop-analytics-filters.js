@@ -11,8 +11,27 @@
   var filterMonth = document.getElementById("filter-month");
   var filterYear = document.getElementById("filter-year");
   var scopeInput = document.getElementById("it-analytics-scope-input");
-  var scopeBtns = form.querySelectorAll(".it-scope-btn");
+  var scopeNav = form.querySelector(".rev-tabs--scope");
+  var scopeCluster = form.querySelector(".rev-toolbar__cluster--scope");
   var debounceTimer = null;
+  var filterApi = window.itSupportAnalyticsFilter || {};
+
+  function normalizeScope(raw) {
+    if (typeof filterApi.normalizeScope === "function") return filterApi.normalizeScope(raw);
+    return String(raw || "general").trim().toLowerCase() === "actual" ? "actual" : "general";
+  }
+
+  function applyScopeToParams(params, scope) {
+    if (typeof filterApi.applyScopeToParams === "function") return filterApi.applyScopeToParams(params, scope);
+    var next = normalizeScope(scope);
+    if (next === "actual") params.set("analytics_scope", "actual");
+    else params.delete("analytics_scope");
+    return next;
+  }
+
+  function scopeButtons() {
+    return form.querySelectorAll(".it-scope-btn");
+  }
 
   function syncModeFields() {
     if (!modeEl) return;
@@ -23,39 +42,83 @@
     if (filterYear) filterYear.classList.toggle("hidden", m !== "year");
   }
 
-  function persistAndSubmit() {
-    if (window.itSupportAnalyticsFilter && typeof window.itSupportAnalyticsFilter.save === "function") {
-      window.itSupportAnalyticsFilter.save(new URLSearchParams(new FormData(form)));
-    }
-    form.submit();
+  function setScopeUi(scope) {
+    var next = normalizeScope(scope);
+    if (scopeInput) scopeInput.value = next;
+    scopeButtons().forEach(function (btn) {
+      var sc = btn.getAttribute("data-it-scope") || "general";
+      var on = normalizeScope(sc) === next;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (scopeNav) scopeNav.setAttribute("data-active-scope", next);
+    if (scopeCluster) scopeCluster.setAttribute("data-active-scope", next);
   }
 
-  function scheduleSubmit() {
+  function buildNavigateParams(scopeOverride) {
+    var params = new URLSearchParams(new FormData(form));
+    var next = applyScopeToParams(
+      params,
+      scopeOverride != null ? scopeOverride : scopeInput ? scopeInput.value : "general"
+    );
+    if (scopeInput) scopeInput.value = next;
+    return params;
+  }
+
+  function persistAndNavigate(scopeOverride) {
+    var params = buildNavigateParams(scopeOverride);
+    if (typeof filterApi.save === "function") {
+      filterApi.save(params);
+    }
+    var qs = params.toString();
+    var action = form.getAttribute("action") || window.location.pathname;
+    window.location.assign(qs ? action + "?" + qs : action);
+  }
+
+  function scheduleNavigate() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(persistAndSubmit, 280);
+    debounceTimer = setTimeout(persistAndNavigate, 280);
   }
 
   if (modeEl) {
     modeEl.addEventListener("change", function () {
       syncModeFields();
-      scheduleSubmit();
+      scheduleNavigate();
     });
   }
 
   form.querySelectorAll("input[type='date'], input[type='month'], input[type='number']").forEach(function (el) {
-    el.addEventListener("change", scheduleSubmit);
+    el.addEventListener("change", scheduleNavigate);
   });
 
-  scopeBtns.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var scope = btn.getAttribute("data-it-scope") || "general";
-      if (scopeInput) scopeInput.value = scope;
-      scopeBtns.forEach(function (b) {
-        b.classList.toggle("is-active", b === btn);
-      });
-      persistAndSubmit();
+  function onScopeClick(btn) {
+    var scope = btn.getAttribute("data-it-scope") || "general";
+    var next = normalizeScope(scope);
+    if (scopeInput && normalizeScope(scopeInput.value) === next && btn.classList.contains("is-active")) {
+      return;
+    }
+    setScopeUi(next);
+    persistAndNavigate(next);
+  }
+
+  if (scopeNav) {
+    scopeNav.addEventListener("click", function (e) {
+      var btn = e.target.closest(".it-scope-btn");
+      if (!btn || !scopeNav.contains(btn)) return;
+      e.preventDefault();
+      onScopeClick(btn);
     });
-  });
+  } else {
+    scopeButtons().forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        onScopeClick(btn);
+      });
+    });
+  }
 
   syncModeFields();
+  if (scopeInput) {
+    setScopeUi(scopeInput.value || "general");
+  }
 })();

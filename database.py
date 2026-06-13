@@ -2399,6 +2399,10 @@ def init_shops_table():
                 cur.execute(
                     "ALTER TABLE shops ADD COLUMN company_settings_json LONGTEXT NULL AFTER appearance_settings_json"
                 )
+            if not column_exists("shops", "stock_workspace_settings_json"):
+                cur.execute(
+                    "ALTER TABLE shops ADD COLUMN stock_workspace_settings_json LONGTEXT NULL AFTER company_settings_json"
+                )
         logger.info("Table shops is ready.")
         return True
     except pymysql.Error as e:
@@ -2443,7 +2447,8 @@ def shop_code_available(shop_code: str) -> bool:
 def list_shops(limit: int = 500):
     sql = """
     SELECT id, shop_name, shop_code, shop_location, status, default_theme, font_family, primary_color, accent_color, shop_logo,
-           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json, created_at
+           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,
+           stock_workspace_settings_json, created_at
     FROM shops
     ORDER BY created_at DESC
     LIMIT %s
@@ -2456,7 +2461,8 @@ def list_shops(limit: int = 500):
 def get_shop_by_id(shop_id: int):
     sql = """
     SELECT id, shop_name, shop_code, shop_password_hash, shop_location, status, default_theme, font_family, primary_color, accent_color, shop_logo,
-           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json, created_at
+           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,
+           stock_workspace_settings_json, created_at
     FROM shops
     WHERE id=%s
     LIMIT 1
@@ -2469,7 +2475,8 @@ def get_shop_by_id(shop_id: int):
 def get_shop_by_code(shop_code: str):
     sql = """
     SELECT id, shop_name, shop_code, shop_password_hash, shop_location, status, default_theme, font_family, primary_color, accent_color, shop_logo,
-           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json, created_at
+           printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,
+           stock_workspace_settings_json, created_at
     FROM shops
     WHERE shop_code=%s
     LIMIT 1
@@ -2526,6 +2533,22 @@ def update_shop_settings(
             ),
         )
         # MySQL reports 0 affected rows when values are unchanged; still a successful save.
+        if cur.rowcount > 0:
+            return True
+        cur.execute("SELECT 1 FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
+        return cur.fetchone() is not None
+
+
+def update_shop_stock_workspace_settings_json(shop_id: int, settings_json: Optional[str]) -> bool:
+    """Persist shop stock workspace form-field rules (required vs optional optional columns)."""
+    if not column_exists("shops", "stock_workspace_settings_json"):
+        return False
+    payload = (settings_json or "").strip() or "{}"
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE shops SET stock_workspace_settings_json=%s WHERE id=%s",
+            (payload, int(shop_id)),
+        )
         if cur.rowcount > 0:
             return True
         cur.execute("SELECT 1 FROM shops WHERE id=%s LIMIT 1", (int(shop_id),))
@@ -12034,6 +12057,24 @@ def list_shop_stock_audit_rows(
         return []
 
 
+def _format_shop_stock_out_reason_label(raw: Optional[str]) -> Optional[str]:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    key = s.lower().replace(" ", "_")
+    labels = {
+        "pos": "POS sale",
+        "pos_hold": "POS hold",
+        "pos_hold_ret": "POS hold return",
+        "return": "Return",
+        "waste": "Waste",
+        "display": "Display",
+    }
+    if key in labels:
+        return labels[key]
+    return s.replace("_", " ").title()
+
+
 def get_shop_stock_analytics(shop_id: int, analytics_filter: dict):
     """Return stock movement analytics for a specific shop and date filter."""
     range_where, range_params = _analytics_where_clause(analytics_filter, "sst")
@@ -12052,28 +12093,49 @@ def get_shop_stock_analytics(shop_id: int, analytics_filter: dict):
     top_in_sql = f"""
     SELECT
         sst.item_id,
-        i.category,
         i.name,
-        COALESCE(SUM(sst.qty), 0) AS qty
+        COALESCE(SUM(sst.qty), 0) AS qty,
+        SUM(CASE WHEN sst.buying_price IS NOT NULL THEN sst.qty * sst.buying_price ELSE 0 END)
+            / NULLIF(SUM(CASE WHEN sst.buying_price IS NOT NULL THEN sst.qty ELSE 0 END), 0) AS avg_buying_price
     FROM shop_stock_transactions sst
     JOIN items i ON i.id = sst.item_id
     WHERE {where_sql} AND sst.direction='in'
-    GROUP BY sst.item_id, i.category, i.name
+    GROUP BY sst.item_id, i.name
     ORDER BY qty DESC, i.name ASC
-    LIMIT 10
+    """
+    top_in_supplier_sql = f"""
+    SELECT
+        sst.item_id,
+        TRIM(sst.place_brought_from) AS supplier,
+        SUM(sst.qty) AS s_qty,
+        SUM(sst.qty * sst.buying_price) / NULLIF(SUM(sst.qty), 0) AS w_avg
+    FROM shop_stock_transactions sst
+    WHERE {where_sql} AND sst.direction='in'
+      AND sst.buying_price IS NOT NULL
+      AND TRIM(COALESCE(sst.place_brought_from, '')) != ''
+    GROUP BY sst.item_id, TRIM(sst.place_brought_from)
     """
     top_out_sql = f"""
     SELECT
         sst.item_id,
-        i.category,
         i.name,
         COALESCE(SUM(sst.qty), 0) AS qty
     FROM shop_stock_transactions sst
     JOIN items i ON i.id = sst.item_id
     WHERE {where_sql} AND sst.direction='out'
-    GROUP BY sst.item_id, i.category, i.name
+    GROUP BY sst.item_id, i.name
     ORDER BY qty DESC, i.name ASC
-    LIMIT 10
+    """
+    top_out_reason_sql = f"""
+    SELECT
+        sst.item_id,
+        TRIM(COALESCE(sst.reason, '')) AS reason,
+        SUM(sst.qty) AS r_qty,
+        COUNT(*) AS r_tx
+    FROM shop_stock_transactions sst
+    WHERE {where_sql} AND sst.direction='out'
+      AND TRIM(COALESCE(sst.reason, '')) != ''
+    GROUP BY sst.item_id, TRIM(COALESCE(sst.reason, ''))
     """
     by_day_sql = f"""
     SELECT
@@ -12120,27 +12182,112 @@ def get_shop_stock_analytics(shop_id: int, analytics_filter: dict):
             out["net_qty"] = out["qty_in"] - out["qty_out"]
             out["distinct_items"] = int(t.get("distinct_items") or 0)
 
+            best_supplier_by_item: Dict[int, str] = {}
+            cur.execute(top_in_supplier_sql, tuple(params))
+            by_item_suppliers: Dict[int, list] = {}
+            for sr in cur.fetchall() or []:
+                try:
+                    iid = int(sr.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid <= 0:
+                    continue
+                by_item_suppliers.setdefault(iid, []).append(sr)
+            for iid, rows in by_item_suppliers.items():
+                best_sup = None
+                best_avg = None
+                best_qty = -1
+                for sr in rows:
+                    try:
+                        wa = float(sr.get("w_avg") or 0)
+                        sq = int(sr.get("s_qty") or 0)
+                    except Exception:
+                        continue
+                    name = (sr.get("supplier") or "").strip() or "—"
+                    if (
+                        best_sup is None
+                        or wa < (best_avg or 0) - 1e-9
+                        or (abs(wa - (best_avg or 0)) < 1e-9 and sq > best_qty)
+                    ):
+                        best_sup = name
+                        best_avg = wa
+                        best_qty = sq
+                if best_sup:
+                    best_supplier_by_item[iid] = best_sup
+
             cur.execute(top_in_sql, tuple(params))
-            out["top_in_items"] = [
-                {
-                    "item_id": r.get("item_id"),
-                    "category": r.get("category") or "",
-                    "name": r.get("name") or "Item",
-                    "qty": int(r.get("qty") or 0),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            top_in_rows = []
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    iid = 0
+                avg_raw = r.get("avg_buying_price")
+                avg_buy = None
+                if avg_raw is not None:
+                    try:
+                        avg_buy = round(float(avg_raw), 2)
+                    except Exception:
+                        avg_buy = None
+                top_in_rows.append(
+                    {
+                        "item_id": r.get("item_id"),
+                        "name": r.get("name") or "Item",
+                        "qty": int(r.get("qty") or 0),
+                        "avg_buying_price": avg_buy,
+                        "best_supplier": best_supplier_by_item.get(iid),
+                    }
+                )
+            out["top_in_items"] = top_in_rows
+
+            main_reason_by_item: Dict[int, str] = {}
+            cur.execute(top_out_reason_sql, tuple(params))
+            by_item_reasons: Dict[int, list] = {}
+            for rr in cur.fetchall() or []:
+                try:
+                    iid = int(rr.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid <= 0:
+                    continue
+                by_item_reasons.setdefault(iid, []).append(rr)
+            for iid, rows in by_item_reasons.items():
+                main_reason = None
+                main_qty = -1
+                main_tx = -1
+                for rr in rows:
+                    try:
+                        rq = int(rr.get("r_qty") or 0)
+                        rtx = int(rr.get("r_tx") or 0)
+                    except Exception:
+                        continue
+                    raw_reason = (rr.get("reason") or "").strip()
+                    label = _format_shop_stock_out_reason_label(raw_reason)
+                    if not label:
+                        continue
+                    if main_reason is None or rq > main_qty or (rq == main_qty and rtx > main_tx):
+                        main_reason = label
+                        main_qty = rq
+                        main_tx = rtx
+                if main_reason:
+                    main_reason_by_item[iid] = main_reason
 
             cur.execute(top_out_sql, tuple(params))
-            out["top_out_items"] = [
-                {
-                    "item_id": r.get("item_id"),
-                    "category": r.get("category") or "",
-                    "name": r.get("name") or "Item",
-                    "qty": int(r.get("qty") or 0),
-                }
-                for r in (cur.fetchall() or [])
-            ]
+            top_out_rows = []
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    iid = 0
+                top_out_rows.append(
+                    {
+                        "item_id": r.get("item_id"),
+                        "name": r.get("name") or "Item",
+                        "qty": int(r.get("qty") or 0),
+                        "main_out_reason": main_reason_by_item.get(iid),
+                    }
+                )
+            out["top_out_items"] = top_out_rows
 
             cur.execute(by_day_sql, tuple(params))
             out["daily"] = [
@@ -12166,6 +12313,7 @@ def get_shop_stock_analytics(shop_id: int, analytics_filter: dict):
             ]
     except pymysql.Error:
         return out
+    return out
 
 
 def get_company_stock_analytics(analytics_filter: dict):

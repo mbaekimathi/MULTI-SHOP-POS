@@ -26,13 +26,33 @@
   var filterPeriod = document.getElementById("filter-period");
   var filterMonth = document.getElementById("filter-month");
   var filterYear = document.getElementById("filter-year");
-  var scopeBtns = form.querySelectorAll(".it-scope-btn, .rev-scope-btn");
+  var scopeNav = form.querySelector(".rev-tabs--scope");
+  var scopeCluster = form.querySelector(".rev-toolbar__cluster--scope");
+  var filterApi = window.itSupportAnalyticsFilter || {};
   var loadMoreBtn = document.getElementById("rev-tx-load-more");
   var debounceTimer = null;
   var fetchSeq = 0;
   var inFlight = null;
   var txInFlight = null;
   var lastSummary = null;
+
+  function normalizeScope(raw) {
+    if (typeof filterApi.normalizeScope === "function") return filterApi.normalizeScope(raw);
+    return String(raw || "general").trim().toLowerCase() === "actual" ? "actual" : "general";
+  }
+
+  function applyScopeToParams(params, scope) {
+    if (typeof filterApi.applyScopeToParams === "function") return filterApi.applyScopeToParams(params, scope);
+    var next = normalizeScope(scope);
+    if (next === "actual") params.set("analytics_scope", "actual");
+    else params.delete("analytics_scope");
+    return next;
+  }
+
+  function scopeButtons() {
+    return form.querySelectorAll(".it-scope-btn, .rev-scope-btn");
+  }
+
   function esc(s) {
     return String(s == null ? "" : s)
       .replace(/&/g, "&amp;")
@@ -54,8 +74,7 @@
   }
   function buildQueryParams() {
     var params = new URLSearchParams();
-    var scope = scopeInput ? scopeInput.value : "general";
-    params.set("analytics_scope", scope || "general");
+    applyScopeToParams(params, scopeInput ? scopeInput.value : "general");
     if (modeEl) params.set("mode", modeEl.value || "single_day");
     var mode = modeEl ? modeEl.value : "single_day";
     var sd = document.getElementById("analytics-single-day");
@@ -77,9 +96,6 @@
       root.classList.toggle("rev-live-loading", loading);
       root.setAttribute("aria-busy", loading ? "true" : "false");
     }
-    scopeBtns.forEach(function (btn) {
-      btn.disabled = loading;
-    });
     form.querySelectorAll("select, input:not([type='hidden'])").forEach(function (el) {
       el.disabled = loading;
     });
@@ -95,14 +111,17 @@
     }
   }
   function updateScopeUi(scope) {
-    var isActual = scope === "actual";
-    if (scopeInput) scopeInput.value = isActual ? "actual" : "general";
-    if (scopeChip) scopeChip.textContent = isActual ? "Actual" : "General";
-    scopeBtns.forEach(function (btn) {
+    var next = normalizeScope(scope);
+    if (scopeInput) scopeInput.value = next;
+    if (scopeChip) scopeChip.textContent = next === "actual" ? "Actual" : "General";
+    scopeButtons().forEach(function (btn) {
       var sc = btn.getAttribute("data-it-scope") || btn.getAttribute("data-rev-scope") || "general";
-      var active = sc === (isActual ? "actual" : "general");
+      var active = normalizeScope(sc) === next;
       btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
     });
+    if (scopeNav) scopeNav.setAttribute("data-active-scope", next);
+    if (scopeCluster) scopeCluster.setAttribute("data-active-scope", next);
   }
   function updateKpis(rd) {
     var el;
@@ -301,7 +320,8 @@
     var rd = body.revenue || {};
     lastSummary = rd;
     if (periodLabel && body.period_label) periodLabel.textContent = body.period_label;
-    updateScopeUi(body.analytics_scope || "general");
+    var clientScope = scopeInput ? normalizeScope(scopeInput.value) : normalizeScope(body.analytics_scope);
+    updateScopeUi(clientScope);
     updateKpis(rd);
     updateShopsPanel(rd);
     var chartRd = Object.assign({}, rd, { transactions: [] });
@@ -413,14 +433,32 @@
       });
     }
   );
-  scopeBtns.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var scope = btn.getAttribute("data-it-scope") || btn.getAttribute("data-rev-scope") || "general";
-      updateScopeUi(scope);
-      clearTimeout(debounceTimer);
-      fetchLive();
+  function onScopeClick(btn) {
+    var scope = btn.getAttribute("data-it-scope") || btn.getAttribute("data-rev-scope") || "general";
+    var next = normalizeScope(scope);
+    if (scopeInput && normalizeScope(scopeInput.value) === next && btn.classList.contains("is-active")) {
+      return;
+    }
+    updateScopeUi(next);
+    clearTimeout(debounceTimer);
+    fetchLive();
+  }
+
+  if (scopeNav) {
+    scopeNav.addEventListener("click", function (e) {
+      var btn = e.target.closest(".it-scope-btn, .rev-scope-btn");
+      if (!btn || !scopeNav.contains(btn)) return;
+      e.preventDefault();
+      onScopeClick(btn);
     });
-  });
+  } else {
+    scopeButtons().forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        onScopeClick(btn);
+      });
+    });
+  }
   if (loadMoreBtn) {
     loadMoreBtn.addEventListener("click", loadMoreTransactions);
   }
@@ -435,6 +473,9 @@
   }
 
   syncModeFields();
+  if (scopeInput) {
+    updateScopeUi(scopeInput.value || "general");
+  }
 })();
 
 /**
@@ -458,7 +499,9 @@
   var filterPeriod = document.getElementById("filter-period");
   var filterMonth = document.getElementById("filter-month");
   var filterYear = document.getElementById("filter-year");
-  var scopeBtns = form.querySelectorAll(".it-scope-btn");
+  var scopeNav = form.querySelector(".rev-tabs--scope");
+  var scopeCluster = form.querySelector(".rev-toolbar__cluster--scope");
+  var filterApi = window.itSupportAnalyticsFilter || {};
   var jsonEl = document.getElementById("it-support-analytics-json");
   var debounceTimer = null;
   var fetchSeq = 0;
@@ -468,6 +511,23 @@
 
   function liveRoot() {
     return document.getElementById("it-analytics-live-root");
+  }
+
+  function normalizeScope(raw) {
+    if (typeof filterApi.normalizeScope === "function") return filterApi.normalizeScope(raw);
+    return String(raw || "general").trim().toLowerCase() === "actual" ? "actual" : "general";
+  }
+
+  function applyScopeToParams(params, scope) {
+    if (typeof filterApi.applyScopeToParams === "function") return filterApi.applyScopeToParams(params, scope);
+    var next = normalizeScope(scope);
+    if (next === "actual") params.set("analytics_scope", "actual");
+    else params.delete("analytics_scope");
+    return next;
+  }
+
+  function scopeButtons() {
+    return form.querySelectorAll(".it-scope-btn");
   }
 
   function esc(s) {
@@ -494,8 +554,7 @@
 
   function buildQueryParams() {
     var params = new URLSearchParams();
-    var scope = scopeInput ? scopeInput.value : "general";
-    params.set("analytics_scope", scope || "general");
+    applyScopeToParams(params, scopeInput ? scopeInput.value : "general");
     if (modeEl) params.set("mode", modeEl.value || "single_day");
     var mode = modeEl ? modeEl.value : "single_day";
     var sd = document.getElementById("analytics-single-day");
@@ -526,9 +585,6 @@
       root.classList.toggle("rev-live-loading", loading);
       root.setAttribute("aria-busy", loading ? "true" : "false");
     }
-    scopeBtns.forEach(function (btn) {
-      btn.disabled = loading;
-    });
     form.querySelectorAll("select, input:not([type='hidden'])").forEach(function (el) {
       el.disabled = loading;
     });
@@ -540,12 +596,16 @@
   }
 
   function updateScopeUi(scope) {
-    var isActual = scope === "actual";
-    if (scopeInput) scopeInput.value = isActual ? "actual" : "general";
-    scopeBtns.forEach(function (btn) {
+    var next = normalizeScope(scope);
+    if (scopeInput) scopeInput.value = next;
+    scopeButtons().forEach(function (btn) {
       var sc = btn.getAttribute("data-it-scope") || "general";
-      btn.classList.toggle("is-active", sc === (isActual ? "actual" : "general"));
+      var active = normalizeScope(sc) === next;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
     });
+    if (scopeNav) scopeNav.setAttribute("data-active-scope", next);
+    if (scopeCluster) scopeCluster.setAttribute("data-active-scope", next);
   }
 
   function syncUrl(params) {
@@ -642,6 +702,12 @@
             } catch (e) {}
           }
         }
+        var requestedScope = params.get("analytics_scope")
+          ? normalizeScope(params.get("analytics_scope"))
+          : scopeInput
+            ? normalizeScope(scopeInput.value)
+            : "general";
+        updateScopeUi(requestedScope);
       });
   }
 
@@ -895,13 +961,32 @@
     }
   );
 
-  scopeBtns.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      updateScopeUi(btn.getAttribute("data-it-scope") || "general");
-      clearTimeout(debounceTimer);
-      fetchLive();
+  function onScopeClick(btn) {
+    var scope = btn.getAttribute("data-it-scope") || "general";
+    var next = normalizeScope(scope);
+    if (scopeInput && normalizeScope(scopeInput.value) === next && btn.classList.contains("is-active")) {
+      return;
+    }
+    updateScopeUi(next);
+    clearTimeout(debounceTimer);
+    fetchLive();
+  }
+
+  if (scopeNav) {
+    scopeNav.addEventListener("click", function (e) {
+      var btn = e.target.closest(".it-scope-btn");
+      if (!btn || !scopeNav.contains(btn)) return;
+      e.preventDefault();
+      onScopeClick(btn);
     });
-  });
+  } else {
+    scopeButtons().forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        onScopeClick(btn);
+      });
+    });
+  }
 
   var shopSelect = document.getElementById("shop-analytics-select");
   if (pageKey === "shop" && shopSelect) {
@@ -921,4 +1006,7 @@
 
   bindBulkLoadMore();
   syncModeFields();
+  if (scopeInput) {
+    updateScopeUi(scopeInput.value || "general");
+  }
 })();

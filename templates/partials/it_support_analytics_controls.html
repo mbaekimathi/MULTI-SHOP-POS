@@ -12,7 +12,7 @@
       data-customer-tx-url="{{ url_for('it_support_customer_transactions') }}"
       {% endif %}
     >
-      <input type="hidden" name="analytics_scope" id="it-analytics-scope-input" value="{{ analytics_scope }}" />
+      <input type="hidden" name="analytics_scope" id="it-analytics-scope-input" value="{{ analytics_scope or 'general' }}" />
       <input type="hidden" name="shop_view" id="shop-analytics-view-input" value="{{ sv if analytics_key == 'shop' else (request.args.get('shop_view') or 'revenue') }}" />
 
       {% if analytics_key == 'shop' and not (shop_analytics_portal|default(false)) %}
@@ -54,37 +54,52 @@
             role="group"
             aria-label="Display mode"
           >
-            <button type="button" id="it-analytics-btn-raw" class="rev-tabs__btn it-analytics-view-btn" aria-pressed="true" title="Tables">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h8" />
-              </svg>
+            <button type="button" id="it-analytics-btn-raw" class="rev-tabs__btn it-analytics-view-btn it-analytics-view-btn--raw" aria-pressed="true" title="Tables">
+              <span class="rev-tabs__icon rev-tabs__icon--table" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h8" />
+                </svg>
+              </span>
               <span class="rev-tabs__text">Tables</span>
             </button>
-            <button type="button" id="it-analytics-btn-visual" class="rev-tabs__btn it-analytics-view-btn" aria-pressed="false" title="Charts">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" d="M4 20V10M12 20V4M20 20v-8" />
-              </svg>
+            <button type="button" id="it-analytics-btn-visual" class="rev-tabs__btn it-analytics-view-btn it-analytics-view-btn--visual" aria-pressed="false" title="Charts">
+              <span class="rev-tabs__icon rev-tabs__icon--chart" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" d="M4 20V10M12 20V4M20 20v-8" />
+                </svg>
+              </span>
               <span class="rev-tabs__text">Charts</span>
             </button>
           </div>
         </div>
         {% endif %}
 
-        <div class="rev-toolbar__cluster">
-          <span class="rev-toolbar__group-label">Scope</span>
-          <div class="rev-tabs rev-tabs--scope" role="group" aria-label="Data scope">
+        <div class="rev-toolbar__cluster rev-toolbar__cluster--scope" data-active-scope="{% if analytics_scope == 'actual' %}actual{% else %}general{% endif %}">
+          <span class="rev-toolbar__group-label rev-toolbar__group-label--scope">Scope</span>
+          <div
+            class="rev-tabs rev-tabs--scope"
+            role="group"
+            aria-label="Data scope"
+            data-active-scope="{% if analytics_scope == 'actual' %}actual{% else %}general{% endif %}"
+          >
             <button
               type="button"
               data-it-scope="general"
-              class="rev-tabs__btn it-scope-btn {% if analytics_scope != 'actual' %}is-active{% endif %}"
+              class="rev-tabs__btn it-scope-btn rev-tabs__btn--general {% if analytics_scope != 'actual' %}is-active{% endif %}"
+              aria-pressed="{% if analytics_scope != 'actual' %}true{% else %}false{% endif %}"
+              title="All receipt marks"
             >
+              <span class="rev-scope-dot rev-scope-dot--general" aria-hidden="true"></span>
               General
             </button>
             <button
               type="button"
               data-it-scope="actual"
-              class="rev-tabs__btn it-scope-btn {% if analytics_scope == 'actual' %}is-active{% endif %}"
+              class="rev-tabs__btn it-scope-btn rev-tabs__btn--actual {% if analytics_scope == 'actual' %}is-active{% endif %}"
+              aria-pressed="{% if analytics_scope == 'actual' %}true{% else %}false{% endif %}"
+              title="Confirmed receipts only — live data"
             >
+              <span class="rev-scope-dot rev-scope-dot--actual" aria-hidden="true"></span>
               Actual
             </button>
           </div>
