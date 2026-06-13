@@ -13752,20 +13752,30 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         fail_note += 1
                         fail_count += 1
                         continue
-                    resolved_name, resolved_phone = resolve_seller_name_and_phone(
-                        seller_phone=sp,
-                        seller_name=sn,
-                    )
-                    if not resolved_name or not resolved_phone:
-                        fail_seller += 1
-                        fail_count += 1
-                        continue
-                    # Same value as legacy single-field flow: place on the receipt matches registered seller name.
-                    place_final = (resolved_name or "").strip()
-                    if not place_final:
-                        fail_seller += 1
-                        fail_count += 1
-                        continue
+                    require_supplier = bool(ws.get("require_manual_in_supplier"))
+                    has_seller_input = bool(sp or sn)
+                    if require_supplier or has_seller_input:
+                        if require_supplier and not has_seller_input:
+                            fail_seller += 1
+                            fail_count += 1
+                            continue
+                        resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                            seller_phone=sp,
+                            seller_name=sn,
+                        )
+                        if not resolved_name or not resolved_phone:
+                            fail_seller += 1
+                            fail_count += 1
+                            continue
+                        # Same value as legacy single-field flow: place on the receipt matches registered seller name.
+                        place_final = (resolved_name or "").strip()
+                        if not place_final:
+                            fail_seller += 1
+                            fail_count += 1
+                            continue
+                    else:
+                        place_final = None
+                        resolved_phone = None
                     ok = shop_manual_stock_in(
                         shop_id=shop_id,
                         item_id=iid,

@@ -14049,8 +14049,8 @@ def shop_manual_stock_in(
     item_id: int,
     qty,
     buying_price: float,
-    place_brought_from: str,
-    seller_phone: str,
+    place_brought_from: Optional[str] = None,
+    seller_phone: Optional[str] = None,
     payment_status: str = "pending_payment",
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
@@ -14082,12 +14082,18 @@ def shop_manual_stock_in(
             return False
     if buying_price < 0:
         return False
-    place_brought_from = (place_brought_from or "").strip()
-    if not place_brought_from:
-        return False
-    seller_phone = _normalize_phone(seller_phone)
-    if len(re.sub(r"\D", "", seller_phone)) < 7:
-        return False
+    place_clean = (place_brought_from or "").strip() or None
+    phone_raw = (seller_phone or "").strip()
+    if place_clean or phone_raw:
+        if not place_clean:
+            return False
+        seller_phone_norm = _normalize_phone(seller_phone)
+        if len(re.sub(r"\D", "", seller_phone_norm)) < 7:
+            return False
+        place_clean = place_clean.upper()
+    else:
+        place_clean = None
+        seller_phone_norm = None
     payment_status = (payment_status or "pending_payment").strip().lower()
     if payment_status not in {"pending_payment", "partially_paid", "paid"}:
         payment_status = "pending_payment"
@@ -14121,8 +14127,8 @@ def shop_manual_stock_in(
                 shop_before,
                 shop_after,
                 buying_price,
-                place_brought_from.strip().upper(),
-                seller_phone,
+                place_clean,
+                seller_phone_norm,
                 payment_status,
                 note or None,
                 created_by_employee_id,

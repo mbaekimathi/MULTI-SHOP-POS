@@ -825,13 +825,12 @@
         var noteRaw = notesEnabledIn() ? String((row.querySelector('input[name="note_' + id + '"]') || {}).value || "").trim() : "";
         var bulkPhone = supplierEnabled() ? String((applyPhone && applyPhone.value) || "").trim() : "";
         var bulkName = supplierEnabled() ? String((applyName && applyName.value) || "").trim() : "";
-        var touched = !!(priceRaw || payOk || (supplierEnabled() && (nameRaw || phoneRaw || bulkPhone || bulkName)) || (notesEnabledIn() && noteRaw));
+        var touched = !!(supplierEnabled() && (nameRaw || phoneRaw || bulkPhone || bulkName)) || !!(notesEnabledIn() && noteRaw);
 
         if (typeof qtyState === "number") {
           if (!priceRaw) { issues.push("Item #" + id + ": buying price required with quantity."); firstBad = firstBad || row; }
           else if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
-          else if (!supplierEnabled()) { issues.push("Enable Supplier details and enter seller for lines with quantity."); firstBad = firstBad || row; }
-          else if (!nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
+          else if (supplierEnabled() && !nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
           else if (notesRequiredBySettingsIn() && !noteRaw && !(applyNote && String(applyNote.value || "").trim())) {
             issues.push("Item #" + id + ": note required with quantity (or use bulk note).");
             firstBad = firstBad || row;
@@ -839,7 +838,9 @@
           else {
             var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
             var confirmRow = ["In", itemName, qtyRaw, priceRaw];
-            confirmRow.push(nameRaw || bulkName, phoneRaw || bulkPhone || "—");
+            if (supplierEnabled()) {
+              confirmRow.push(nameRaw || bulkName, phoneRaw || bulkPhone || "—");
+            }
             confirmRow.push(paymentLabel(payRaw));
             if (notesEnabledIn()) confirmRow.push(noteRaw || "—");
             rows.push(confirmRow);
@@ -848,7 +849,7 @@
           issues.push("Item #" + id + ": quantity must be a positive number or blank.");
           firstBad = firstBad || row;
         } else if (touched) {
-          issues.push("Item #" + id + ": add quantity or clear seller/price/payment fields.");
+          issues.push("Item #" + id + ": add quantity or clear optional supplier/note fields.");
           firstBad = firstBad || row;
         }
       });
