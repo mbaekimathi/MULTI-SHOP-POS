@@ -312,11 +312,11 @@ def build_credit_note_pdf(
         pdf.ln(16)
     else:
         if company_scope:
-            headers = ["Shop", "Item", "Qty", "Amount"]
-            col_w = [34.0, 78.0, 24.0, 50.0]
+            headers = ["Shop", "Date picked", "Item", "Qty", "Amount"]
+            col_w = [28.0, 26.0, 62.0, 20.0, 42.0]
         else:
-            headers = ["Item", "Qty", "Amount"]
-            col_w = [108.0, 28.0, 50.0]
+            headers = ["Date picked", "Item", "Qty", "Amount"]
+            col_w = [30.0, 88.0, 24.0, 44.0]
         pdf._table_header(headers, col_w)
         for idx, row in enumerate(unpaid_items):
             if pdf.get_y() > 268:
@@ -324,21 +324,24 @@ def build_credit_note_pdf(
                 pdf._table_header(headers, col_w)
             qty = row.get("qty")
             qty_text = "—" if qty is None else str(int(qty))
+            picked = str(row.get("picked_at") or "—")
             if company_scope:
                 values = [
                     str(row.get("shop_name") or "—"),
+                    picked,
+                    str(row.get("item_name") or "Item"),
+                    qty_text,
+                    f"{float(row.get('amount') or 0):,.2f}",
+                ]
+                align_from = 3
+            else:
+                values = [
+                    picked,
                     str(row.get("item_name") or "Item"),
                     qty_text,
                     f"{float(row.get('amount') or 0):,.2f}",
                 ]
                 align_from = 2
-            else:
-                values = [
-                    str(row.get("item_name") or "Item"),
-                    qty_text,
-                    f"{float(row.get('amount') or 0):,.2f}",
-                ]
-                align_from = 1
             pdf._table_row(values, col_w, zebra=idx % 2 == 1, align_right_from=align_from)
 
     pdf.ln(4)

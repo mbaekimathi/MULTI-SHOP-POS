@@ -1,0 +1,32 @@
+{# Compact M-Pesa pay link — button only (full URL in data attrs for JS). #}
+{% set pay_base = credit_pay_link_full if credit_pay_link_full is defined and credit_pay_link_full else (credit_pay_link if credit_pay_link is defined else '') %}
+{% set pay_balance = (account_balance_due or 0)|float %}
+{% if pay_base and pay_balance > 0.009 %}
+<section class="cr-sale-pay-card no-print" aria-labelledby="credit-mpesa-pay-heading" data-credit-mpesa-pay-card>
+  <div class="cr-sale-pay-card__accent"></div>
+  <div class="cr-sale-pay-card__body">
+    <div class="min-w-0 flex-1">
+      <h2 id="credit-mpesa-pay-heading" class="cr-sale-pay-card__title">M-Pesa payment link</h2>
+      <p class="cr-sale-pay-card__desc">Share with the customer or open on their phone. Balance due: <strong class="tabular-nums">{{ "%.2f"|format(pay_balance) }}</strong></p>
+    </div>
+    <div class="cr-sale-pay-card__actions" data-pay-link-base="{{ pay_base }}" data-pay-balance="{{ pay_balance }}">
+      <a
+        href="#"
+        class="rev-btn rev-btn--whatsapp cr-sale-pay-card__btn"
+        data-credit-mpesa-pay-open
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a7.96 7.96 0 01-4.082-1.125l-.293-.172-2.868.86.86-2.868-.172-.293A7.96 7.96 0 014 12c0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8z"/>
+          <path d="M16.5 13.5c-.25-.125-1.474-.727-1.702-.81-.228-.083-.394-.125-.56.125-.166.25-.642.81-.786.978-.144.166-.289.187-.538.062-.25-.125-1.042-.384-1.985-1.218-.734-.653-1.23-1.46-1.373-1.706-.144-.25-.015-.384.108-.508.111-.111.25-.289.375-.433.125-.144.166-.25.25-.416.083-.166.042-.312-.021-.437-.062-.125-.56-1.347-.767-1.847-.2-.478-.403-.413-.56-.42-.144-.007-.312-.008-.48-.008-.166 0-.437.062-.666.312-.228.25-.872.853-.872 2.078 0 1.225.893 2.408 1.018 2.574.125.166 1.758 2.756 4.263 3.764.596.257 1.06.41 1.424.525.604.193 1.155.166 1.59.101.485-.072 1.474-.602 1.682-1.184.208-.582.208-1.082.146-1.184-.062-.103-.228-.166-.478-.291z"/>
+        </svg>
+        Pay with M-Pesa
+      </a>
+      <button type="button" class="rev-btn rev-btn--ghost cr-sale-pay-card__btn cr-sale-pay-card__btn--copy" data-credit-mpesa-pay-copy title="Copy payment link">
+        Copy link
+      </button>
+    </div>
+  </div>
+</section>
+{% endif %}

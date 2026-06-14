@@ -58,6 +58,42 @@
   box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.12);
 }
 
+.credit-note-wa-share-block__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.credit-note-wa-share-block__hint {
+  flex: 1 1 100%;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.credit-note-wa-share--pay {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 4px 14px -4px rgba(5, 150, 105, 0.55);
+}
+
+.credit-note-wa-share--pay:hover {
+  box-shadow: 0 6px 18px -4px rgba(5, 150, 105, 0.65);
+}
+
+.credit-note-wa-share--pay:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.credit-note-wa-share--pdf:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
+
 .rev-btn--whatsapp,
 .credit-note-wa-share {
   display: inline-flex;
@@ -88,6 +124,12 @@
 
 .credit-note-wa-share__icon {
   flex-shrink: 0;
+}
+
+.credit-note-wa-share-block__status {
+  margin: 0.35rem 0 0;
+  line-height: 1.45;
+  max-width: 28rem;
 }
 
 .shop-credit-note__actions {
@@ -1438,6 +1480,30 @@ html[data-theme="dark"] .cr-sale-kpi--account .cr-sale-kpi__value {
   align-items: center;
   gap: 0.5rem;
   min-width: min(100%, 28rem);
+}
+
+.cr-sale-pay-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.cr-sale-pay-card__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cr-sale-pay-card__btn--copy {
+  min-height: 2.5rem;
 }
 
 .cr-sale-pay-card__link {

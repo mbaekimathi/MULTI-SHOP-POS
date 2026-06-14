@@ -64,6 +64,9 @@
     </div>
 
     {% macro credit_note_unpaid_list(show_doc_footer=true) %}
+    {% macro fmt_pick_date(d) -%}
+      {%- if not d -%}—{%- elif d.strftime is defined -%}{{ d.strftime('%d %b %Y') }}{%- else -%}{{ (d|string)[:10] }}{%- endif -%}
+    {%- endmacro %}
     <div class="shop-credit-note__body">
       <div class="shop-cn-outstanding__head">
         <div class="shop-cn-outstanding__head-text">
@@ -85,6 +88,7 @@
           <thead>
             <tr>
               {% if company_credit_scope|default(false) %}<th scope="col">Shop</th>{% endif %}
+              <th scope="col">Date picked</th>
               <th scope="col">Item</th>
               <th scope="col" class="num">Qty</th>
               <th scope="col" class="num">Amount</th>
@@ -93,10 +97,12 @@
           <tbody>
             {% for tx in unpaid_sales %}
             {% set sale_items = note_items_map.get(tx.id, []) %}
+            {% set sale_picked = fmt_pick_date(tx.created_at) %}
             {% for it in sale_items %}
             {% set ns.has_rows = true %}
             <tr>
               {% if company_credit_scope|default(false) %}<td class="text-xs text-[rgb(var(--rc-muted))]">{{ it.shop_name or tx.shop_name or '—' }}</td>{% endif %}
+              <td class="whitespace-nowrap text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ it.picked_at or sale_picked }}</td>
               <td>{{ it.item_name }}</td>
               <td class="num tabular-nums">{{ it.qty }}</td>
               <td class="num tabular-nums">{{ "%.2f"|format(it.amount) }}</td>
@@ -108,6 +114,7 @@
             {% set acct = credit_acct_by_id.get(tx.id) if credit_acct_by_id is defined else none %}
             <tr>
               {% if company_credit_scope|default(false) %}<td class="text-xs text-[rgb(var(--rc-muted))]">{{ tx.shop_name or '—' }}</td>{% endif %}
+              <td class="whitespace-nowrap text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ fmt_pick_date(tx.created_at) }}</td>
               <td>Credit sale #{{ tx.id }}</td>
               <td class="num">—</td>
               <td class="num tabular-nums">{% if acct %}{{ "%.2f"|format(acct.remaining_amount or tx.total_amount or 0) }}{% else %}{{ "%.2f"|format(tx.total_amount or 0) }}{% endif %}</td>

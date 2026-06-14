@@ -3143,7 +3143,7 @@ def _parse_credit_pay_token(token: str) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("This payment link is invalid.")
     shop_id = int(raw.get("s") or 0)
-    if shop_id <= 0:
+    if shop_id < 0:
         raise ValueError("This payment link is invalid.")
     return {
         "shop_id": shop_id,
@@ -3207,11 +3207,9 @@ def _credit_pay_public_link(
             return ""
     except Exception:
         return ""
-    if int(shop_id or 0) <= 0:
-        return ""
     if float(max_amount or 0) < 0.01:
         return ""
-    tok = _make_credit_pay_token(shop_id, customer_name, customer_phone, max_amount)
+    tok = _make_credit_pay_token(int(shop_id or 0), customer_name, customer_phone, max_amount)
     path = url_for("credit_pay_public", token=tok, _external=False)
     public_base = _public_share_base_url()
     if public_base:
@@ -3220,6 +3218,102 @@ def _credit_pay_public_link(
             link = "https://" + link[7:]
         return link
     return url_for("credit_pay_public", token=tok, _external=True)
+
+
+def _credit_pay_public_link_full(
+    shop_id: int,
+    customer_name: str,
+    customer_phone: str,
+    max_amount: float,
+) -> str:
+    """Public STK pay page URL with amount and phone pre-filled for WhatsApp share."""
+    base = _credit_pay_public_link(shop_id, customer_name, customer_phone, max_amount)
+    if not base:
+        return ""
+    from urllib.parse import urlencode
+
+    params: dict[str, str] = {}
+    amt = float(max_amount or 0)
+    if amt >= 0.01:
+        params["amount"] = f"{amt:.2f}"
+    phone = (customer_phone or "").strip()
+    if phone and phone != "-":
+        params["phone"] = phone
+    if not params:
+        return base
+    sep = "&" if "?" in base else "?"
+    return base + sep + urlencode(params)
+
+
+_CREDIT_NOTE_SHARE_TOKEN_SALT = "credit-note-share-v1"
+_CREDIT_NOTE_SHARE_TOKEN_MAX_AGE_SECONDS = 14 * 24 * 3600
+
+
+def _credit_note_share_token_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt=_CREDIT_NOTE_SHARE_TOKEN_SALT)
+
+
+def _make_credit_note_share_token(
+    shop_id: int,
+    customer_name: str,
+    customer_phone: str,
+    *,
+    company_scope: bool = False,
+) -> str:
+    payload = {
+        "s": int(shop_id or 0),
+        "n": (customer_name or "WALK IN").strip()[:120],
+        "p": (customer_phone or "-").strip()[:32],
+        "c": 1 if company_scope else 0,
+    }
+    return _credit_note_share_token_serializer().dumps(payload)
+
+
+def _parse_credit_note_share_token(token: str) -> dict:
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        raise ValueError("Credit note link is missing.")
+    try:
+        raw = _credit_note_share_token_serializer().loads(
+            raw_token, max_age=_CREDIT_NOTE_SHARE_TOKEN_MAX_AGE_SECONDS
+        )
+    except SignatureExpired as exc:
+        raise ValueError("This credit note link has expired. Ask for a new one.") from exc
+    except BadSignature as exc:
+        raise ValueError("This credit note link is invalid.") from exc
+    if not isinstance(raw, dict):
+        raise ValueError("This credit note link is invalid.")
+    shop_id = int(raw.get("s") or 0)
+    if shop_id < 0:
+        raise ValueError("This credit note link is invalid.")
+    return {
+        "shop_id": shop_id,
+        "customer_name": str(raw.get("n") or "WALK IN").strip() or "WALK IN",
+        "customer_phone": str(raw.get("p") or "-").strip() or "-",
+        "company_scope": bool(int(raw.get("c") or 0)),
+        "token": raw_token,
+    }
+
+
+def _credit_note_public_share_url(
+    shop_id: int,
+    customer_name: str,
+    customer_phone: str,
+    *,
+    company_scope: bool = False,
+) -> str:
+    """Public HTTPS link to the customer credit note PDF (for WhatsApp share text)."""
+    tok = _make_credit_note_share_token(
+        shop_id, customer_name, customer_phone, company_scope=company_scope
+    )
+    path = url_for("credit_note_public_share_pdf", token=tok, _external=False)
+    public_base = _public_share_base_url()
+    if public_base:
+        link = public_base.rstrip("/") + path
+        if link.lower().startswith("http://") and "ngrok" not in link.lower():
+            link = "https://" + link[7:]
+        return link
+    return url_for("credit_note_public_share_pdf", token=tok, _external=True)
 
 
 _MPESA_STK_STATUS: Dict[str, dict] = {}
@@ -7862,6 +7956,7 @@ def it_support_customer_transactions():
                     "item_name": row.get("item_name") or "Item",
                     "qty": int(row.get("qty") or 0),
                     "amount": float(row.get("amount") or 0),
+                    "picked_at": _credit_item_pick_date(row.get("created_at")),
                 }
             )
     except Exception:
@@ -7985,21 +8080,32 @@ def it_support_credit_payments():
     if request.args and not should_print and not _credit_payments_args_match(canonical_q):
         return redirect(url_for("it_support_credit_payments", **canonical_q))
 
-    sales = []
+    credit_customers = []
     shops = []
     try:
-        from database import list_all_shops_credit_sales, list_shops
+        from database import list_company_credit_customers, list_shops
 
         shops = list_shops(limit=500) or []
-        sales = list_all_shops_credit_sales(
+        rows = list_company_credit_customers(
             limit=5000,
             analytics_filter=None if all_time else analytics_filter,
-            analytics_scope="general",
             shop_id=filter_shop_id,
             customer_q=customer_q or None,
         )
+        credit_customers = [
+            {
+                "customer_name": r.get("customer_name") or "WALK IN",
+                "customer_phone": r.get("customer_phone") or "-",
+                "tx_count": int(r.get("tx_count") or 0),
+                "credit_total": float(r.get("total_amount") or 0),
+                "paid_total": float(r.get("paid_amount") or 0),
+                "balance": float(r.get("remaining_amount") or 0),
+                "last_credit_at": r.get("created_at"),
+            }
+            for r in (rows or [])
+        ]
     except Exception:
-        sales, shops = [], []
+        credit_customers, shops = [], []
     analytics_nav = _build_credit_payments_query_dict(
         all_time=all_time,
         analytics_filter=analytics_filter,
@@ -8011,7 +8117,7 @@ def it_support_credit_payments():
     print_q["print"] = "1"
     return render_template(
         "it_support_credit_payments.html",
-        credit_sales=sales,
+        credit_customers=credit_customers,
         shops=shops,
         analytics_filter=analytics_filter,
         analytics_nav=analytics_nav,
@@ -8148,24 +8254,46 @@ def it_support_credit_payments_upcoming_due():
 @login_required
 def it_support_credit_payments_customer():
     _it_support_or_super_admin_only()
-    shop_id = request.args.get("shop_id", type=int)
-    if not shop_id:
-        flash("Select a shop customer to view credit payments.", "error")
-        return redirect(url_for("it_support_credit_payments"))
-    shop = _get_shop_or_404(shop_id)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
-    note_ctx = _shop_customer_credit_note_context(
-        shop_id, customer_name, customer_phone, analytics_filter=None
-    )
+    shop_id = request.args.get("shop_id", type=int)
+    if shop_id:
+        shop = _get_shop_or_404(shop_id)
+        note_ctx = _shop_customer_credit_note_context(
+            shop_id, customer_name, customer_phone, analytics_filter=None
+        )
+        return render_template(
+            "it_support_credit_payments_customer.html",
+            shop=shop,
+            shop_id=shop_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            company_credit_scope=False,
+            embed_record_payment=True,
+            credit_payment_return_to="customer",
+            credit_note_pdf_url=url_for(
+                "it_support_credit_payments_customer_pdf",
+                shop_id=shop_id,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+            ),
+            **note_ctx,
+        )
+    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    shop_stub = {"shop_name": "All shops", "shop_code": "", "id": 0}
     return render_template(
         "it_support_credit_payments_customer.html",
-        shop=shop,
-        shop_id=shop_id,
+        shop=shop_stub,
+        shop_id=None,
         customer_name=customer_name,
         customer_phone=customer_phone,
         embed_record_payment=True,
         credit_payment_return_to="customer",
+        credit_note_pdf_url=url_for(
+            "it_support_credit_payments_customer_pdf",
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+        ),
         **note_ctx,
     )
 
@@ -8174,15 +8302,9 @@ def it_support_credit_payments_customer():
 @login_required
 def it_support_credit_payments_customer_pdf():
     _it_support_or_super_admin_only()
-    shop_id = request.args.get("shop_id", type=int)
-    if not shop_id:
-        abort(404)
-    shop = _get_shop_or_404(shop_id)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
-    note_ctx = _shop_customer_credit_note_context(
-        shop_id, customer_name, customer_phone, analytics_filter=None
-    )
+    shop_id = request.args.get("shop_id", type=int)
     company_name = ""
     primary_color = ""
     try:
@@ -8196,12 +8318,28 @@ def it_support_credit_payments_customer_pdf():
     slug = secure_filename(
         f"credit-note-{(customer_name or 'customer').replace(' ', '-').lower()}"
     )
+    if shop_id:
+        shop = _get_shop_or_404(shop_id)
+        note_ctx = _shop_customer_credit_note_context(
+            shop_id, customer_name, customer_phone, analytics_filter=None
+        )
+        return _credit_note_pdf_response(
+            shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+            company_name=company_name or "Company",
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            note_ctx=note_ctx,
+            primary_color=primary_color or None,
+            filename_slug=slug or "credit-note",
+        )
+    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
     return _credit_note_pdf_response(
-        shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+        shop_name="All shops",
         company_name=company_name or "Company",
         customer_name=customer_name,
         customer_phone=customer_phone,
         note_ctx=note_ctx,
+        company_scope=True,
         primary_color=primary_color or None,
         filename_slug=slug or "credit-note",
     )
@@ -8350,38 +8488,51 @@ def it_support_credit_payments_pay():
     sale_id = request.form.get("sale_id", type=int)
     amount_raw = (request.form.get("amount") or "").strip()
     note = (request.form.get("note") or "").strip() or None
+    payment_method = (request.form.get("payment_method") or "").strip().lower()
+    company_scope = shop_id <= 0
 
     def _it_support_credit_pay_redirect():
-        if return_to == "sale" and sale_id and shop_id:
-            return url_for(
-                "it_support_credit_sale_detail",
-                shop_id=shop_id,
-                sale_id=sale_id,
-            )
-        return url_for(
-            "it_support_credit_payments_customer",
-            shop_id=shop_id,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-        )
+        kwargs = {
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+        }
+        if not company_scope:
+            kwargs["shop_id"] = shop_id
+        return url_for("it_support_credit_payments_customer", **kwargs)
 
     try:
         amount = float(amount_raw)
     except Exception:
         flash("Enter a valid amount.", "error")
         return redirect(_it_support_credit_pay_redirect())
-    try:
-        from database import apply_shop_credit_payment_fifo
+    if company_scope:
+        if payment_method not in ("cash", "mpesa", "bank", "other"):
+            flash("Select a valid payment method.", "error")
+            return redirect(_it_support_credit_pay_redirect())
+        try:
+            from database import apply_company_credit_payment_fifo
 
-        res = apply_shop_credit_payment_fifo(
-            shop_id=shop_id,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            amount=amount,
-            note=note,
-        )
-    except Exception:
-        res = {"ok": False, "error": "Could not apply payment."}
+            res = apply_company_credit_payment_fifo(
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                amount=amount,
+                payment_method=payment_method,
+            )
+        except Exception:
+            res = {"ok": False, "error": "Could not apply payment."}
+    else:
+        try:
+            from database import apply_shop_credit_payment_fifo
+
+            res = apply_shop_credit_payment_fifo(
+                shop_id=shop_id,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                amount=amount,
+                note=note,
+            )
+        except Exception:
+            res = {"ok": False, "error": "Could not apply payment."}
     if not res.get("ok"):
         flash(res.get("error") or "Could not apply payment.", "error")
     else:
@@ -8396,12 +8547,12 @@ def it_support_credit_payments_pay():
 @app.route("/it_support/credit-payments/sale")
 @login_required
 def it_support_credit_sale_detail():
+    """Legacy sale URL — redirect to combined customer account (phone reference)."""
     _it_support_or_super_admin_only()
     shop_id = request.args.get("shop_id", type=int)
     sale_id = request.args.get("sale_id", type=int)
     if not shop_id or not sale_id:
         abort(404)
-    shop = _get_shop_or_404(shop_id)
     try:
         from database import get_shop_credit_sale_detail
 
@@ -8413,22 +8564,12 @@ def it_support_credit_sale_detail():
     sale = d["sale"]
     customer_name = (sale.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = (sale.get("customer_phone") or "").strip() or "-"
-    note_ctx = _shop_customer_credit_note_context(
-        shop_id, customer_name, customer_phone, analytics_filter=None
-    )
-    return render_template(
-        "it_support_credit_sale_detail.html",
-        shop=shop,
-        shop_id=shop_id,
-        sale=sale,
-        items=d.get("items") or [],
-        customer_name=customer_name,
-        customer_phone=customer_phone,
-        embed_record_payment=True,
-        credit_payment_return_to="sale",
-        focus_sale_id=sale_id,
-        report_generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
-        **note_ctx,
+    return redirect(
+        url_for(
+            "it_support_credit_payments_customer",
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+        )
     )
 
 
@@ -9944,12 +10085,16 @@ def credit_pay_public(token: str):
         ctx = _parse_credit_pay_token(token)
     except ValueError as exc:
         return render_template("credit_pay_public.html", error=str(exc)), 400
-    shop = _get_shop_or_404(ctx["shop_id"])
-    if not _shop_pos_allow_credit_sale(shop):
-        return render_template(
-            "credit_pay_public.html",
-            error="Credit payments are not enabled for this shop.",
-        ), 403
+    company_pay = int(ctx["shop_id"] or 0) == 0
+    if company_pay:
+        shop = {"id": 0, "shop_name": "All shops", "shop_code": ""}
+    else:
+        shop = _get_shop_or_404(ctx["shop_id"])
+        if not _shop_pos_allow_credit_sale(shop):
+            return render_template(
+                "credit_pay_public.html",
+                error="Credit payments are not enabled for this shop.",
+            ), 403
     settings = _load_daraja_settings()
     from daraja_api import daraja_settings_ready
 
@@ -9978,10 +10123,14 @@ def credit_pay_public(token: str):
         )
     except Exception:
         pass
-    credit_ctx = _shop_customer_credit_note_context(
-        ctx["shop_id"],
-        ctx["customer_name"],
-        ctx["customer_phone"],
+    credit_ctx = (
+        _company_customer_credit_note_context(ctx["customer_name"], ctx["customer_phone"])
+        if company_pay
+        else _shop_customer_credit_note_context(
+            ctx["shop_id"],
+            ctx["customer_name"],
+            ctx["customer_phone"],
+        )
     )
     balance_due = float(credit_ctx.get("account_balance_due") or 0)
     payment_max = round(min(suggested, balance_due) if balance_due > 0 else suggested, 2)
@@ -10005,6 +10154,57 @@ def credit_pay_public(token: str):
     )
 
 
+@app.route("/share/credit-note/<token>.pdf")
+def credit_note_public_share_pdf(token: str):
+    """Public credit note PDF (signed link for WhatsApp share — no login)."""
+    try:
+        ctx = _parse_credit_note_share_token(token)
+    except ValueError as exc:
+        abort(400, description=str(exc))
+    company_scope = bool(ctx.get("company_scope"))
+    shop_id = int(ctx.get("shop_id") or 0)
+    customer_name = ctx["customer_name"]
+    customer_phone = ctx["customer_phone"]
+    company_name = "Company"
+    primary_color = ""
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(["company_name", "primary_color"]) or {}
+        company_name = (stored.get("company_name") or "").strip() or company_name
+        primary_color = (stored.get("primary_color") or "").strip()
+    except Exception:
+        pass
+    slug = secure_filename(
+        f"credit-note-{(customer_name or 'customer').replace(' ', '-').lower()}"
+    )
+    if company_scope:
+        note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+        return _credit_note_pdf_response(
+            shop_name="All shops",
+            company_name=company_name,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            note_ctx=note_ctx,
+            company_scope=True,
+            primary_color=primary_color or None,
+            filename_slug=slug or "credit-note",
+        )
+    shop = _get_shop_or_404(shop_id)
+    note_ctx = _shop_customer_credit_note_context(
+        shop_id, customer_name, customer_phone, analytics_filter=None
+    )
+    return _credit_note_pdf_response(
+        shop_name=shop.get("shop_name") or f"Shop {shop_id}",
+        company_name=company_name,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        note_ctx=note_ctx,
+        primary_color=primary_color or (shop.get("primary_color") or "").strip() or None,
+        filename_slug=slug or "credit-note",
+    )
+
+
 @app.route("/api/pay/credit/<token>/stk-push", methods=["POST"])
 def credit_pay_public_stk_push(token: str):
     """Initiate STK Push from a signed credit payment link."""
@@ -10012,9 +10212,13 @@ def credit_pay_public_stk_push(token: str):
         ctx = _parse_credit_pay_token(token)
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
-    shop = _get_shop_or_404(ctx["shop_id"])
-    if not _shop_pos_allow_credit_sale(shop):
-        return jsonify({"ok": False, "error": "Credit payments are disabled."}), 403
+    company_pay = int(ctx["shop_id"] or 0) == 0
+    if company_pay:
+        shop = {"id": 0, "shop_name": "All shops", "shop_code": ""}
+    else:
+        shop = _get_shop_or_404(ctx["shop_id"])
+        if not _shop_pos_allow_credit_sale(shop):
+            return jsonify({"ok": False, "error": "Credit payments are disabled."}), 403
 
     data = request.get_json(force=True, silent=True) or {}
     phone = (data.get("phone") or "").strip()
@@ -10046,6 +10250,11 @@ def credit_pay_public_stk_push(token: str):
     account_ref = str(account_ref or "CREDIT").strip()[:12]
     callback_url = _daraja_external_callback_hint()
     shop_id = int(ctx["shop_id"])
+    txn_desc = (
+        "Credit"
+        if company_pay
+        else f"{shop.get('shop_name') or 'Credit'}"[:13]
+    )
     try:
         result = initiate_stk_push(
             settings,
@@ -10053,7 +10262,7 @@ def credit_pay_public_stk_push(token: str):
             amount=amount,
             callback_url=callback_url,
             account_reference=account_ref,
-            transaction_desc=f"{shop.get('shop_name') or 'Credit'}"[:13],
+            transaction_desc=txn_desc,
         )
     except DarajaApiError as exc:
         logger.warning("Credit pay STK rejected shop %s: %s", shop_id, exc)
@@ -10182,15 +10391,23 @@ def credit_pay_public_record(token: str):
     note = f"M-Pesa Ref: {receipt_no}" if receipt_no else "M-Pesa STK (pay link)"
 
     try:
-        from database import apply_shop_credit_payment_fifo
+        from database import apply_company_credit_payment_fifo, apply_shop_credit_payment_fifo
 
-        res = apply_shop_credit_payment_fifo(
-            shop_id=int(ctx["shop_id"]),
-            customer_name=ctx["customer_name"],
-            customer_phone=ctx["customer_phone"],
-            amount=amount,
-            note=note,
-        )
+        if int(ctx["shop_id"] or 0) == 0:
+            res = apply_company_credit_payment_fifo(
+                customer_name=ctx["customer_name"],
+                customer_phone=ctx["customer_phone"],
+                amount=amount,
+                payment_method="mpesa",
+            )
+        else:
+            res = apply_shop_credit_payment_fifo(
+                shop_id=int(ctx["shop_id"]),
+                customer_name=ctx["customer_name"],
+                customer_phone=ctx["customer_phone"],
+                amount=amount,
+                note=note,
+            )
     except Exception:
         logger.exception("Credit pay record failed for %s", checkout_id)
         return jsonify({"ok": False, "error": "Could not record payment."}), 500
@@ -12485,6 +12702,23 @@ def _credit_sale_is_unpaid(sale_id: int, credit_acct_by_id: dict) -> bool:
     return float(acct.get("remaining_amount") or 0) > 0.0001
 
 
+def _credit_item_pick_date(val) -> str:
+    """Format credit sale date for unpaid item rows."""
+    if val is None:
+        return ""
+    if isinstance(val, datetime):
+        return val.strftime("%d %b %Y")
+    s = str(val).strip()
+    if not s:
+        return ""
+    if len(s) >= 10 and s[4:5] == "-":
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%d %b %Y")
+        except ValueError:
+            pass
+    return s[:16] if len(s) > 16 else s
+
+
 def _credit_note_unpaid_lists(
     credit_sales_period: list,
     credit_acct_by_id: dict,
@@ -12598,6 +12832,7 @@ def _shop_customer_credit_note_context(
                     "item_name": row.get("item_name") or "Item",
                     "qty": int(row.get("qty") or 0),
                     "amount": float(row.get("amount") or 0),
+                    "picked_at": _credit_item_pick_date(row.get("created_at")),
                 }
             )
     except Exception:
@@ -12637,6 +12872,12 @@ def _shop_customer_credit_note_context(
         "credit_pay_link": _credit_pay_public_link(
             shop_id, customer_name, customer_phone, account_balance_due
         ),
+        "credit_pay_link_full": _credit_pay_public_link_full(
+            shop_id, customer_name, customer_phone, account_balance_due
+        ),
+        "credit_note_public_url": _credit_note_public_share_url(
+            shop_id, customer_name, customer_phone, company_scope=False
+        ),
     }
 
 
@@ -12651,11 +12892,13 @@ def _credit_note_unpaid_item_rows(note_ctx: dict, *, company_scope: bool = False
         except Exception:
             sale_id = 0
         sale_items = note_items.get(sale_id) or []
+        pick_date = _credit_item_pick_date(tx.get("created_at"))
         if sale_items:
             for it in sale_items:
                 rows.append(
                     {
                         "shop_name": (it.get("shop_name") or tx.get("shop_name") or "").strip(),
+                        "picked_at": (it.get("picked_at") or pick_date or "").strip(),
                         "item_name": (it.get("item_name") or "Item").strip(),
                         "qty": int(it.get("qty") or 0),
                         "amount": float(it.get("amount") or 0),
@@ -12666,6 +12909,7 @@ def _credit_note_unpaid_item_rows(note_ctx: dict, *, company_scope: bool = False
         rows.append(
             {
                 "shop_name": (tx.get("shop_name") or "").strip(),
+                "picked_at": pick_date,
                 "item_name": f"Credit sale #{sale_id}" if sale_id else "Credit sale",
                 "qty": None,
                 "amount": float(acct.get("remaining_amount") or tx.get("total_amount") or 0),
@@ -12715,7 +12959,11 @@ def _credit_note_pdf_response(
                 note_ctx, company_scope=company_scope
             ),
             company_scope=company_scope,
-            pay_link=str(note_ctx.get("credit_pay_link") or ""),
+            pay_link=str(
+                note_ctx.get("credit_pay_link_full")
+                or note_ctx.get("credit_pay_link")
+                or ""
+            ),
             focus_sale=focus_sale,
             generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
             primary_color=primary_color,
@@ -12787,6 +13035,7 @@ def _company_customer_credit_note_context(customer_name: str, customer_phone: st
                     "qty": int(row.get("qty") or 0),
                     "amount": float(row.get("line_total") or 0),
                     "shop_name": row.get("shop_name") or "",
+                    "picked_at": _credit_item_pick_date(row.get("created_at")),
                 }
             )
     except Exception:
@@ -12834,6 +13083,15 @@ def _company_customer_credit_note_context(customer_name: str, customer_phone: st
         "unpaid_sales_count": unpaid_sales_count,
         "credit_note_ref": f"CN-CO-{datetime.utcnow().strftime('%Y%m%d')}",
         "credit_note_all_time": True,
+        "credit_pay_link": _credit_pay_public_link(
+            0, customer_name, customer_phone, account_balance_due
+        ),
+        "credit_pay_link_full": _credit_pay_public_link_full(
+            0, customer_name, customer_phone, account_balance_due
+        ),
+        "credit_note_public_url": _credit_note_public_share_url(
+            0, customer_name, customer_phone, company_scope=True
+        ),
     }
 
 
@@ -15442,6 +15700,7 @@ def shop_customer_analytics_detail(shop_id: int):
                     "item_name": row.get("item_name") or "Item",
                     "qty": int(row.get("qty") or 0),
                     "amount": float(row.get("amount") or 0),
+                    "picked_at": _credit_item_pick_date(row.get("created_at")),
                 }
             )
     except Exception:

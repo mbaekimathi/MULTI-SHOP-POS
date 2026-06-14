@@ -37,7 +37,7 @@
             <div><p class="it-credit-metric__label">Paid</p><p class="it-credit-metric__value it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</p></div>
           </div>
           <div class="mt-3 flex justify-end">
-            <a href="{{ url_for('it_support_credit_sale_detail', shop_id=s.shop_id, sale_id=s.id) }}" class="btn-rc btn-rc-ghost it-credit-btn w-full sm:w-auto">View sale</a>
+            <a href="{{ url_for('it_support_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}" class="btn-rc btn-rc-ghost it-credit-btn w-full sm:w-auto">View account</a>
           </div>
         </article>
       {% endfor %}
@@ -91,7 +91,7 @@
                   <td class="it-credit-amount--paid">{{ "%.2f"|format(s.paid_amount) }}</td>
                   <td class="it-credit-amount--balance">{{ "%.2f"|format(s.remaining_amount) }}</td>
                   <td>
-                    <a href="{{ url_for('it_support_credit_sale_detail', shop_id=s.shop_id, sale_id=s.id) }}" class="it-credit-action-btn" aria-label="Sale detail">
+                    <a href="{{ url_for('it_support_credit_payments_customer', customer_name=s.customer_name, customer_phone=s.customer_phone) }}" class="it-credit-action-btn" aria-label="Customer account">
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />

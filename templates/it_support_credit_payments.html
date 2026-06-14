@@ -13,8 +13,8 @@
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   {% set shop_list = shops or [] %}
-  {% set credit_shell_title = 'Company credit sales' %}
-  {% set credit_shell_desc = 'Track credit sales, due dates, and balances across every shop. Use live filters below — results refresh instantly.' %}
+  {% set credit_shell_title = 'Company credit customers' %}
+  {% set credit_shell_desc = 'Credit balances combined per customer (by phone). Open a customer to see all sales and payments across every shop.' %}
   {% set _anav = analytics_nav or {} %}
   {% set filter_clear_url = url_for('it_support_credit_payments') %}
   {% set show_print = true %}

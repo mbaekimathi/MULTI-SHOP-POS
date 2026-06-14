@@ -1,19 +1,19 @@
-{# Company credit sales — analytics-style KPIs + table. Expects: credit_sales #}
+{# Company credit customers — aggregated by phone (not per receipt). Expects: credit_customers #}
 {% set ns = namespace(count=0, credit=0.0, paid=0.0, balance=0.0) %}
-{% for s in credit_sales %}
+{% for c in credit_customers %}
   {% set ns.count = ns.count + 1 %}
-  {% set ns.credit = ns.credit + (s.total_amount|float) %}
-  {% set ns.paid = ns.paid + (s.paid_amount|float) %}
-  {% set ns.balance = ns.balance + (s.remaining_amount|float) %}
+  {% set ns.credit = ns.credit + (c.credit_total|float) %}
+  {% set ns.paid = ns.paid + (c.paid_total|float) %}
+  {% set ns.balance = ns.balance + (c.balance|float) %}
 {% endfor %}
 
 <div class="rev-content" id="credit-sales-print-area">
   <div class="rev-kpi rev-kpi--4" role="list" aria-label="Credit summary">
     <article class="rev-kpi__card rev-kpi__card--tx" role="listitem">
       <div class="rev-kpi__icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
       </div>
-      <div class="rev-kpi__label" title="Credit sales"><span class="rev-kpi__label-short">Sales</span><span class="rev-kpi__label-full">Credit sales</span></div>
+      <div class="rev-kpi__label" title="Credit customers"><span class="rev-kpi__label-short">Customers</span><span class="rev-kpi__label-full">Credit customers</span></div>
       <div class="rev-kpi__value">{{ ns.count }}</div>
     </article>
     <article class="rev-kpi__card rev-kpi__card--credit" role="listitem">
@@ -39,48 +39,51 @@
     </article>
   </div>
 
-  <section class="rev-panel" aria-labelledby="credit-sales-table-heading">
+  <section class="rev-panel" aria-labelledby="credit-customers-table-heading">
     <div class="rev-panel__head">
       <div class="min-w-0">
-        <h3 class="rev-panel__title" id="credit-sales-table-heading">Credit sales</h3>
-        <p class="rev-panel__desc">Customer, sale reference, due date, and balance — open a row with the view icon.</p>
+        <h3 class="rev-panel__title" id="credit-customers-table-heading">Credit customers</h3>
+        <p class="rev-panel__desc">All credit sales combined per customer (matched by name and phone). Open a row to view the full account across shops.</p>
       </div>
-      <span class="rev-panel__count">{{ ns.count }} sale{% if ns.count != 1 %}s{% endif %}</span>
+      <span class="rev-panel__count">{{ ns.count }} customer{% if ns.count != 1 %}s{% endif %}</span>
     </div>
 
-    {% if not credit_sales %}
-      <p class="rev-empty">No credit sales match your filters. Widen the date range, clear filters, or try another customer search.</p>
+    {% if not credit_customers %}
+      <p class="rev-empty">No credit customers match your filters. Widen the date range, clear filters, or try another phone or name search.</p>
     {% else %}
       <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
         <table class="rev-data rev-data--wide rev-data--tx min-w-[40rem]">
           <thead>
             <tr>
               <th scope="col">Customer</th>
-              <th scope="col">Credit sale</th>
-              <th scope="col">Due date</th>
+              <th scope="col">Phone</th>
+              <th scope="col" class="num">Sales</th>
+              <th scope="col" class="num">Credit</th>
+              <th scope="col" class="num">Paid</th>
               <th scope="col" class="num">Balance</th>
               <th scope="col" class="rev-col-action"><span class="sr-only">View</span></th>
             </tr>
           </thead>
           <tbody>
-            {% for s in credit_sales %}
+            {% for c in credit_customers %}
               <tr>
                 <td class="min-w-[10rem]">
-                  <span class="cell-strong">{{ s.customer_name }}</span>
-                  <span class="block text-xs text-[rgb(var(--rc-muted))]">{{ s.customer_phone }}</span>
+                  <span class="cell-strong">{{ c.customer_name }}</span>
+                  {% if c.last_credit_at %}
+                  <span class="block text-xs text-[rgb(var(--rc-muted))]">Last credit · {{ c.last_credit_at }}</span>
+                  {% endif %}
                 </td>
-                <td class="min-w-[9rem]">
-                  <span class="cell-strong font-mono">#{{ s.id }}</span>
-                  <span class="block text-xs text-[rgb(var(--rc-muted))]">{{ s.shop_name }} · {{ s.created_at }}</span>
-                </td>
-                <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-page-fg))]">{{ s.credit_due_date or '—' }}</td>
-                <td class="num cell-credit">{{ "%.2f"|format(s.remaining_amount) }}</td>
+                <td class="whitespace-nowrap font-mono text-sm text-[rgb(var(--rc-page-fg))]">{{ c.customer_phone }}</td>
+                <td class="num tabular-nums">{{ c.tx_count }}</td>
+                <td class="num cell-credit">{{ "%.2f"|format(c.credit_total) }}</td>
+                <td class="num cell-muted">{{ "%.2f"|format(c.paid_total) }}</td>
+                <td class="num cell-credit">{{ "%.2f"|format(c.balance) }}</td>
                 <td class="rev-col-action">
                   <a
-                    href="{{ url_for('it_support_credit_sale_detail', shop_id=s.shop_id, sale_id=s.id) }}"
+                    href="{{ url_for('it_support_credit_payments_customer', customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
                     class="rev-tx-view-btn"
-                    title="View credit sale #{{ s.id }}"
-                    aria-label="View credit sale #{{ s.id }}"
+                    title="View account for {{ c.customer_phone }}"
+                    aria-label="View account for {{ c.customer_name }}"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>

@@ -99,21 +99,7 @@
     </section>
     {% endif %}
 
-    {% if credit_pay_link and sale_balance > 0.009 %}
-    <section class="cr-sale-pay-card no-print" aria-labelledby="cr-sale-pay-heading">
-      <div class="cr-sale-pay-card__accent"></div>
-      <div class="cr-sale-pay-card__body">
-        <div>
-          <h2 id="cr-sale-pay-heading" class="cr-sale-pay-card__title">M-Pesa payment link</h2>
-          <p class="cr-sale-pay-card__desc">This link is included in the WhatsApp message when you share the PDF.</p>
-        </div>
-        <div class="cr-sale-pay-card__link-wrap">
-          <code id="cr-sale-pay-link" class="cr-sale-pay-card__link" data-pay-link-base="{{ credit_pay_link }}">{{ credit_pay_link }}</code>
-          <button type="button" class="rev-btn rev-btn--ghost cr-sale-pay-card__copy" data-copy-pay-link>Copy link</button>
-        </div>
-      </div>
-    </section>
-    {% endif %}
+    {% include "partials/credit_mpesa_pay_link_card.html" %}
 
     {% with compact_only=true %}
       {% include "partials/shop_customer_credit_note.html" %}
@@ -128,30 +114,6 @@
 
   <script>
     (function () {
-      var copyBtn = document.querySelector("[data-copy-pay-link]");
-      var linkEl = document.getElementById("cr-sale-pay-link");
-      if (copyBtn && linkEl) {
-        copyBtn.addEventListener("click", function () {
-          var base = linkEl.getAttribute("data-pay-link-base") || linkEl.textContent || "";
-          var phoneInput = document.querySelector("[data-credit-note-wa-phone]");
-          var phone = phoneInput ? String(phoneInput.value || "").trim() : "";
-          var url = base;
-          if (phone && phone !== "-") {
-            url += (url.indexOf("?") >= 0 ? "&" : "?") + "phone=" + encodeURIComponent(phone);
-          }
-          var amount = {{ sale_balance|tojson }};
-          if (amount > 0.009) {
-            url += (url.indexOf("?") >= 0 ? "&" : "?") + "amount=" + encodeURIComponent(amount.toFixed(2));
-          }
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(url).then(function () {
-              copyBtn.textContent = "Copied";
-              setTimeout(function () { copyBtn.textContent = "Copy link"; }, 2000);
-            });
-          }
-        });
-      }
-
       if (window.location.hash !== "#shop-credit-payments") return;
       var el = document.getElementById("shop-credit-payments");
       if (el) requestAnimationFrame(function () { el.scrollIntoView({ behavior: "smooth", block: "start" }); });

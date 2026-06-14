@@ -1,5 +1,5 @@
 {% extends "employee_layout.html" %}
-{% block title %}Customer credit — {{ customer_name }} — {{ shop.shop_name }}{% endblock %}
+{% block title %}Customer credit — {{ customer_phone }} — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Customer credit{% endblock %}
 
 {% block sidebar_links %}
@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block employee_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=16" />
 
   <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
     <div class="shop-cust-credit-page__toolbar no-print">
@@ -20,8 +20,16 @@
       {% include "partials/shop_customer_credit_note.html" %}
     {% endwith %}
 
+    {% include "partials/credit_mpesa_pay_link_card.html" %}
+
     {% if embed_record_payment %}
-      {% include "partials/it_support_customer_record_payment.html" %}
+      {% if company_credit_scope|default(false) %}
+        {% with credit_pay_action=url_for('it_support_credit_payments_pay') %}
+          {% include "partials/company_customer_record_payment.html" %}
+        {% endwith %}
+      {% else %}
+        {% include "partials/it_support_customer_record_payment.html" %}
+      {% endif %}
     {% endif %}
 
     {% include "partials/shop_customer_credit_transactions.html" %}

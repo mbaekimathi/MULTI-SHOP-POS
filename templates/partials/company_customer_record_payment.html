@@ -18,7 +18,7 @@
       </div>
     </div>
 
-    <form method="post" action="{{ url_for('company_credit_payments_pay') }}" class="shop-cust-pay-card__form">
+    <form method="post" action="{{ credit_pay_action or url_for('company_credit_payments_pay') }}" class="shop-cust-pay-card__form">
       <input type="hidden" name="customer_name" value="{{ customer_name }}" />
       <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
       <input type="hidden" name="back_shop_id" value="{{ back_shop_id or '' }}" />

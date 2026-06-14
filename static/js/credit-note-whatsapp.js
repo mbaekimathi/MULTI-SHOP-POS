@@ -1,8 +1,10 @@
 /**
- * Share customer credit note as PDF on WhatsApp with pay link in the message text.
+ * WhatsApp share — credit note PDF and M-Pesa pay link as separate actions.
  */
 (function () {
   "use strict";
+
+  var pdfCache = { key: "", blob: null, promise: null };
 
   function readBoot() {
     var el = document.getElementById("credit-note-whatsapp-data");
@@ -97,8 +99,31 @@
     return Number(data.balanceDue) || 0;
   }
 
+  function applyPhoneToPayUrl(fullUrl, sharePhone) {
+    var url = normalizeShareUrl(fullUrl);
+    if (!url) return "";
+    var phone = String(sharePhone || "").trim();
+    if (!phone || phone === "-") return url;
+    try {
+      var u = new URL(url);
+      u.searchParams.set("phone", phone);
+      return u.toString();
+    } catch (e) {
+      return url;
+    }
+  }
+
   function buildPayLink(data, sharePhone) {
-    var base = normalizeShareUrl((data && data.payLinkBase) || "");
+    if (!data) return "";
+    var full = normalizeShareUrl(data.payLinkFull || "");
+    if (full) return applyPhoneToPayUrl(full, sharePhone);
+
+    if (window.CreditMpesaPayLink && typeof window.CreditMpesaPayLink.resolvePayLink === "function") {
+      var resolved = window.CreditMpesaPayLink.resolvePayLink();
+      if (resolved) return resolved;
+    }
+
+    var base = normalizeShareUrl(data.payLinkBase || "");
     if (!base) return "";
     var params = [];
     var amt = payAmount(data);
@@ -112,36 +137,30 @@
     return params.length ? base + "?" + params.join("&") : base;
   }
 
-  function buildShareMessage(data, sharePhone) {
-    var lines = [];
-    var company = String(data.company || "").trim();
-    var shop = String(data.shopName || "").trim();
-    var customer = String(data.customerName || "").trim() || "Customer";
-    var greetingName = firstName(customer);
-    var balanceDue = Number(data.balanceDue) || 0;
-    var saleId = parseInt(data.focusSaleId, 10);
-    var saleBalance = Number(data.focusSaleBalance) || 0;
-    var today = fmtDate();
-    var payLink = buildPayLink(data, sharePhone);
+  function publicPdfLink(data) {
+    return normalizeShareUrl((data && data.publicPdfUrl) || "");
+  }
 
-    if (greetingName) {
-      lines.push("Hello " + greetingName + ",");
+  function greetingLines(data) {
+    var lines = [];
+    var name = firstName(data.customerName || "");
+    if (name) {
+      lines.push("Hello " + name + ",");
     } else {
       lines.push("Hello,");
     }
     lines.push("");
+    return lines;
+  }
 
-    if (!data.hasUnpaid && balanceDue <= 0.009 && saleBalance <= 0.009) {
-      lines.push("Good news — your account is fully paid.");
-      if (shop) lines.push("Shop: " + shop);
-      if (company && company !== shop) lines.push(company);
-      lines.push("");
-      lines.push("Thank you for your business.");
-      if (data.ref) lines.push("Ref: " + data.ref);
-      lines.push("");
-      lines.push("Your credit note is attached as a PDF.");
-      return lines.join("\n");
-    }
+  /** WhatsApp message for credit note PDF only (no payment link). */
+  function buildPdfMessage(data, sharePhone, usePublicLink) {
+    var lines = greetingLines(data);
+    var company = String(data.company || "").trim();
+    var shop = String(data.shopName || "").trim();
+    var balanceDue = Number(data.balanceDue) || 0;
+    var today = fmtDate();
+    var pdfLink = publicPdfLink(data);
 
     lines.push("*Credit note*");
     if (shop) lines.push("Shop: " + shop);
@@ -149,35 +168,41 @@
     if (today) lines.push("Date: " + today);
     if (data.ref) lines.push("Ref: " + data.ref);
     lines.push("");
-
-    if (saleId > 0) {
-      lines.push("*Sale #" + saleId + "*");
-      lines.push("Balance on this sale: " + fmtMoney(saleBalance));
-      lines.push("");
-    }
-
-    lines.push("*Account balance due*");
-    lines.push(fmtMoney(balanceDue));
+    lines.push("*Balance due:* " + fmtMoney(balanceDue));
     lines.push("");
 
-    var paidToDate = Number(data.paidToDate) || 0;
-    if (paidToDate > 0.009) {
-      lines.push("Already paid: " + fmtMoney(paidToDate));
-    }
-
-    lines.push("");
-    lines.push("Please find the full credit note attached as a PDF.");
-    lines.push("");
-
-    if (payLink) {
-      lines.push("*Pay with M-Pesa:*");
-      lines.push(payLink);
-      lines.push("");
-      lines.push("Tap the link above to pay, then send this message with the PDF attached.");
+    if (usePublicLink && pdfLink) {
+      lines.push("📎 Open your credit note PDF:");
+      lines.push(pdfLink);
     } else {
-      lines.push("Please pay at the shop or contact us to clear your balance.");
+      lines.push("📎 Your credit note PDF is attached to this message.");
     }
 
+    lines.push("");
+    lines.push("Thank you.");
+    return lines.join("\n");
+  }
+
+  /** WhatsApp message for M-Pesa payment link only (no PDF). */
+  function buildPayLinkMessage(data, sharePhone, payLink) {
+    var lines = greetingLines(data);
+    var link = payLink || buildPayLink(data, sharePhone);
+    var payAmt = payAmount(data);
+    var balanceDue = Number(data.balanceDue) || 0;
+
+    if (!link) {
+      lines.push("Please contact us to arrange payment.");
+      lines.push("");
+      lines.push("Thank you.");
+      return lines.join("\n");
+    }
+
+    lines.push("*Pay your credit balance*");
+    lines.push("Amount due: " + fmtMoney(balanceDue > 0.009 ? payAmt : balanceDue));
+    lines.push("");
+    lines.push("💳 *Pay with M-Pesa (STK Push)*");
+    lines.push("Tap this link on your phone to pay:");
+    lines.push(link);
     lines.push("");
     lines.push("Thank you.");
     return lines.join("\n");
@@ -203,32 +228,39 @@
     return "https://api.whatsapp.com/send?text=" + encoded;
   }
 
-  function setButtonBusy(btn, busy) {
-    if (!btn) return;
-    if (busy) {
-      if (!btn.dataset.cnWaHtml) btn.dataset.cnWaHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.setAttribute("aria-busy", "true");
-      btn.innerHTML = "Preparing PDF…";
-    } else {
-      btn.disabled = false;
-      btn.removeAttribute("aria-busy");
-      if (btn.dataset.cnWaHtml) btn.innerHTML = btn.dataset.cnWaHtml;
+  function setShareStatus(block, message) {
+    if (!block) return;
+    var el = block.querySelector("[data-credit-note-wa-status]");
+    if (!el) return;
+    if (!message) {
+      el.textContent = "";
+      el.classList.add("hidden");
+      return;
     }
+    el.textContent = message;
+    el.classList.remove("hidden");
   }
 
-  function downloadBlob(blob, filename) {
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-      a.remove();
-    }, 1500);
+  function setPdfButtonReady(ready) {
+    document.querySelectorAll("[data-credit-note-wa-pdf]").forEach(function (btn) {
+      btn.disabled = !ready;
+      btn.setAttribute("aria-busy", ready ? "false" : "true");
+      if (!btn.dataset.cnPdfLabel) {
+        btn.dataset.cnPdfLabel = btn.innerHTML;
+      }
+      btn.innerHTML = ready
+        ? btn.dataset.cnPdfLabel
+        : '<span class="credit-note-wa-share__icon" aria-hidden="true">…</span> Preparing PDF…';
+    });
+  }
+
+  function syncPayButton(data) {
+    var payLink = buildPayLink(data, readSharePhone(null));
+    var hasPay = !!payLink;
+    document.querySelectorAll("[data-credit-note-wa-pay]").forEach(function (btn) {
+      btn.disabled = !hasPay;
+      btn.title = hasPay ? "" : "M-Pesa payment link is not configured";
+    });
   }
 
   function generatePdfBlob(data) {
@@ -241,7 +273,7 @@
         if (!res.ok) {
           return res.text().then(function (body) {
             var msg = (body || "").replace(/<[^>]+>/g, " ").trim();
-            throw new Error(msg || ("Could not download PDF (HTTP " + res.status + ")."));
+            throw new Error(msg || ("Could not load PDF (HTTP " + res.status + ")."));
           });
         }
         return res.blob();
@@ -250,6 +282,37 @@
         if (!blob || blob.size < 32) throw new Error("PDF file was empty.");
         return blob;
       });
+  }
+
+  function prefetchPdf(data) {
+    if (!data) return Promise.reject(new Error("No credit note data."));
+    var key = getPdfFetchUrl(data);
+    if (pdfCache.key === key && pdfCache.blob) {
+      return Promise.resolve(pdfCache.blob);
+    }
+    if (pdfCache.key === key && pdfCache.promise) {
+      return pdfCache.promise;
+    }
+    pdfCache.key = key;
+    pdfCache.blob = null;
+    pdfCache.promise = generatePdfBlob(data)
+      .then(function (blob) {
+        pdfCache.blob = blob;
+        return blob;
+      })
+      .catch(function (err) {
+        pdfCache.promise = null;
+        throw err;
+      });
+    return pdfCache.promise;
+  }
+
+  function getCachedPdfBlob(data) {
+    if (!data) return null;
+    if (pdfCache.key === getPdfFetchUrl(data) && pdfCache.blob) {
+      return pdfCache.blob;
+    }
+    return null;
   }
 
   function openWhatsApp(text, sharePhone) {
@@ -261,81 +324,173 @@
     }
   }
 
-  function sharePdfBlob(data, blob, block) {
+  function makePdfFile(blob, filename) {
+    try {
+      return new File([blob], filename, { type: "application/pdf" });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function canNativeSharePdf(file, message) {
+    if (!file || !navigator.share || !navigator.canShare) return false;
+    try {
+      return navigator.canShare({ title: "Credit note", text: message, files: [file] });
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function nativeSharePdfOnly(data, blob, block) {
     var filename = pdfFileName(data);
     var sharePhone = readSharePhone(block);
-    var message = buildShareMessage(data, sharePhone);
-    var file;
+    var message = buildPdfMessage(data, sharePhone, false);
+    var file = makePdfFile(blob, filename);
 
-    try {
-      file = new File([blob], filename, { type: "application/pdf" });
-    } catch (e) {
-      file = null;
+    if (!canNativeSharePdf(file, message)) {
+      return Promise.resolve(false);
     }
 
-    if (file && navigator.share && navigator.canShare) {
-      var payload = { title: "Credit note", text: message, files: [file] };
-      if (navigator.canShare(payload)) {
-        return navigator.share(payload).catch(function (err) {
-          if (err && err.name === "AbortError") return;
-          throw err;
-        });
-      }
-    }
+    return navigator
+      .share({ title: "Credit note", text: message, files: [file] })
+      .then(function () {
+        setShareStatus(block, "Credit note PDF sent. Use “Send payment link” for M-Pesa.");
+        return true;
+      })
+      .catch(function (err) {
+        if (err && err.name === "AbortError") return true;
+        return false;
+      });
+  }
 
-    downloadBlob(blob, filename);
-    openWhatsApp(
-      message +
-        "\n\n(PDF saved as \"" + filename + "\" — please attach it in WhatsApp before sending.)",
-      sharePhone
+  function whatsAppPdfLink(data, block) {
+    var sharePhone = readSharePhone(block);
+    var message = buildPdfMessage(data, sharePhone, true);
+    openWhatsApp(message, sharePhone);
+    setShareStatus(
+      block,
+      "WhatsApp opened with credit note PDF link. Send it, then use “Send payment link”."
     );
   }
 
-  function shareCreditNote(block, btn) {
+  function sharePdfOnly(block, btn) {
     var data = readBoot();
     if (!data) {
       window.alert("Credit note data is not available on this page.");
-      return Promise.resolve();
+      return;
+    }
+
+    var blob = getCachedPdfBlob(data);
+    var wasReady = !!blob;
+
+    function deliver(b) {
+      if (wasReady) {
+        nativeSharePdfOnly(data, b, block).then(function (shared) {
+          if (!shared) {
+            whatsAppPdfLink(data, block);
+          }
+        });
+        return;
+      }
+      whatsAppPdfLink(data, block);
+    }
+
+    if (blob) {
+      deliver(blob);
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Preparing…";
+    }
+
+    prefetchPdf(data)
+      .then(deliver)
+      .catch(function (err) {
+        window.alert(
+          (err && err.message ? err.message : "Could not prepare the credit note PDF.") +
+            "\n\nCheck you are logged in and try again."
+        );
+      })
+      .finally(function () {
+        setPdfButtonReady(!!getCachedPdfBlob(readBoot()));
+      });
+  }
+
+  function sharePayLinkOnly(block) {
+    var data = readBoot();
+    if (!data) {
+      window.alert("Credit note data is not available on this page.");
+      return;
     }
 
     var sharePhone = readSharePhone(block);
     var payLink = buildPayLink(data, sharePhone);
-    if (payLink && /localhost|127\.0\.0\.1/i.test(payLink)) {
-      var proceed = window.confirm(
-        "The M-Pesa link uses localhost and will not work on the customer's phone.\n\n" +
-          "Set PUBLIC_APP_URL in .env or use ngrok, then refresh.\n\nShare anyway?"
+
+    if (!payLink) {
+      window.alert(
+        "M-Pesa payment link is not available. Check Daraja settings and PUBLIC_APP_URL."
       );
-      if (!proceed) return Promise.resolve();
+      return;
     }
 
-    setButtonBusy(btn, true);
-    return generatePdfBlob(data)
-      .then(function (blob) {
-        return sharePdfBlob(data, blob, block);
+    if (/localhost|127\.0\.0\.1/i.test(payLink)) {
+      if (
+        !window.confirm(
+          "The M-Pesa link uses localhost and will not work on the customer's phone.\n\n" +
+            "Set PUBLIC_APP_URL in .env or use ngrok, then refresh.\n\nSend anyway?"
+        )
+      ) {
+        return;
+      }
+    }
+
+    openWhatsApp(buildPayLinkMessage(data, sharePhone, payLink), sharePhone);
+    setShareStatus(block, "WhatsApp opened with M-Pesa payment link only.");
+  }
+
+  function warmPdfCache() {
+    var data = readBoot();
+    syncPayButton(data);
+    if (!data) {
+      setPdfButtonReady(false);
+      return;
+    }
+    prefetchPdf(data)
+      .then(function () {
+        setPdfButtonReady(true);
       })
-      .catch(function (err) {
-        if (
-          window.confirm(
-            (err && err.message
-              ? err.message + "\n\n"
-              : "Could not create a PDF for this credit note.\n\n") +
-              "Send the WhatsApp text message only (without PDF)?"
-          )
-        ) {
-          openWhatsApp(buildShareMessage(data, sharePhone), sharePhone);
-        }
-      })
-      .finally(function () {
-        setButtonBusy(btn, false);
+      .catch(function () {
+        setPdfButtonReady(false);
+        document.querySelectorAll("[data-credit-note-wa-block]").forEach(function (block) {
+          setShareStatus(block, "Could not prepare PDF. Refresh the page and try again.");
+        });
       });
   }
 
   function bind() {
-    document.querySelectorAll("[data-credit-note-whatsapp-share]").forEach(function (btn) {
+    warmPdfCache();
+
+    document.querySelectorAll("[data-credit-note-wa-phone]").forEach(function (input) {
+      input.addEventListener("input", function () {
+        syncPayButton(readBoot());
+      });
+    });
+
+    document.querySelectorAll("[data-credit-note-wa-pdf]").forEach(function (btn) {
+      btn.addEventListener("mouseenter", warmPdfCache);
+      btn.addEventListener("focus", warmPdfCache);
       btn.addEventListener("click", function (e) {
         e.preventDefault();
-        var block = this.closest("[data-credit-note-wa-block]");
-        shareCreditNote(block, btn);
+        sharePdfOnly(this.closest("[data-credit-note-wa-block]"), btn);
+      });
+    });
+
+    document.querySelectorAll("[data-credit-note-wa-pay]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        sharePayLinkOnly(this.closest("[data-credit-note-wa-block]"));
       });
     });
   }
