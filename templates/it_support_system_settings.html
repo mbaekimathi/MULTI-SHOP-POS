@@ -915,6 +915,10 @@
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Instagram</label>
           <input name="company_instagram" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_instagram if site_settings else '' }}" />
         </div>
+        {% set location_name = site_settings.company_location_name if site_settings else '' %}
+        {% set location_lat = site_settings.company_latitude if site_settings else '' %}
+        {% set location_lng = site_settings.company_longitude if site_settings else '' %}
+        {% include "partials/company_location_picker.html" %}
       </div>
 
       <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
@@ -2551,5 +2555,11 @@
       form.addEventListener("change", scheduleSave, true);
     })();
   </script>
+  <script src="{{ url_for('static', filename='js/company-location-picker.js') }}"></script>
+  {% if google_maps_api_key %}
+  <script>
+    initCompanyLocationPickers({{ google_maps_api_key|tojson }});
+  </script>
+  {% endif %}
 {% endblock %}
 

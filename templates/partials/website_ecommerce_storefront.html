@@ -14,6 +14,11 @@
   class="wsf-root relative overflow-hidden bg-transparent text-zinc-900 dark:text-zinc-100"
   style="--mk-primary: {{ _primary }}; --mk-accent: {{ _accent }};"
   data-quote-url="{{ url_for('storefront_request_quotation') }}"
+  data-customer-lookup-url="{{ url_for('storefront_customer_lookup') }}"
+  data-google-maps-key="{{ google_maps_api_key|default('', true) }}"
+  data-shop-lat="{{ site_settings.company_latitude if site_settings and site_settings.company_latitude else '' }}"
+  data-shop-lng="{{ site_settings.company_longitude if site_settings and site_settings.company_longitude else '' }}"
+  data-shop-location="{{ site_settings.company_location_name if site_settings and site_settings.company_location_name else '' }}"
   {% if _design_mode %}data-wsf-design-preview="1"{% endif %}
 >
   <script type="application/json" id="wsf-products-json">{{ _products|tojson }}</script>
@@ -30,75 +35,110 @@
 
   {% set _include_chrome = storefront_include_chrome|default(true) %}
   {% if _include_chrome %}
-  <div class="wsf-promo relative z-[2] px-4 py-2.5 text-center text-xs font-semibold sm:text-sm" data-wsf-field="promo_banner_text">
-    {{ _d.promo_banner_text or 'Free pickup on all orders · Same prices as in store' }}
-  </div>
-
-  <header class="wsf-header px-4 py-3 sm:px-6 sm:py-4">
-    <div class="relative z-[1] mx-auto flex max-w-6xl flex-wrap items-center gap-3 sm:gap-4">
-      <div class="flex min-w-0 items-center gap-2.5">
-        <span class="wsf-logo flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl wsf-btn-primary text-sm font-bold text-white">
+  <header class="wsf-header px-4 py-2.5 sm:px-6 sm:py-3">
+    <div class="relative z-[1] mx-auto flex max-w-7xl items-center gap-3 sm:gap-4">
+      <a href="#wsf-root" class="flex min-w-0 shrink-0 items-center gap-2.5">
+        <span class="wsf-logo flex h-10 w-10 shrink-0 items-center justify-center rounded-xl wsf-btn-primary text-sm font-bold text-white sm:h-11 sm:w-11 sm:rounded-2xl">
           {% if site_settings and site_settings.app_icon %}
-            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full rounded-2xl object-cover" />
+            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full rounded-xl object-cover sm:rounded-2xl" />
           {% else %}
             {{ _company[:1]|upper }}
           {% endif %}
         </span>
-        <div class="min-w-0">
-          <p class="truncate text-sm font-bold tracking-tight">{{ _company }}</p>
-          <p class="truncate text-[11px] text-zinc-500 dark:text-zinc-400" data-wsf-field="store_tagline">{{ _d.store_tagline or 'Quality products, trusted every day' }}</p>
-        </div>
-      </div>
+        <span class="truncate text-sm font-bold tracking-tight sm:text-base">{{ _company }}</span>
+      </a>
 
-      <div class="wsf-search order-3 flex min-w-0 flex-1 basis-full items-center gap-2 rounded-full px-4 py-2.5 sm:order-none sm:basis-auto sm:min-w-[14rem] lg:min-w-[20rem]">
+      <div class="wsf-search ml-auto flex min-w-0 max-w-md flex-1 items-center gap-2 rounded-full px-3.5 py-2 sm:px-4 sm:py-2.5">
         <svg class="h-4 w-4 shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
           type="search"
           class="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400"
-          placeholder="{{ _d.search_placeholder or 'Search products, categories…' }}"
+          placeholder="{{ _d.search_placeholder or 'Search…' }}"
           aria-label="Search products"
         />
       </div>
 
-      <div class="ml-auto flex items-center gap-2 sm:gap-3">
-        <button type="button" class="wsf-cart-btn relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white/80 text-zinc-700 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-200" aria-label="Open cart" data-wsf-open-cart>
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-          <span class="wsf-cart-count absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white wsf-btn-primary hidden" data-wsf-cart-count>0</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        class="wsf-theme-toggle shrink-0"
+        data-wsf-theme-toggle
+        aria-label="Toggle dark mode"
+        aria-pressed="false"
+      >
+        <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+        <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+      </button>
+
     </div>
   </header>
-  {% else %}
-  <div class="wsf-promo relative z-[2] px-4 py-2.5 text-center text-xs font-semibold sm:text-sm" data-wsf-field="promo_banner_text">
-    {{ _d.promo_banner_text or 'Free pickup on all orders · Same prices as in store' }}
-  </div>
   {% endif %}
 
-  <div class="wsf-strip mx-auto max-w-6xl px-4 sm:px-6">
-    <h1 class="wsf-strip__title" data-wsf-field="featured_section_title">{{ _d.featured_section_title or 'Commonly sold' }}</h1>
-    <p class="wsf-strip__sub" data-wsf-field="featured_section_subtitle">{{ _d.featured_section_subtitle or 'Swipe through categories — add to cart and request a quotation via WhatsApp.' }}</p>
-  </div>
+  {% if _products %}
+  {% set deals_ns = namespace(count=0) %}
+  {% for p in _products %}
+    {% if p.on_sale %}{% set deals_ns.count = deals_ns.count + 1 %}{% endif %}
+  {% endfor %}
+  {% if deals_ns.count > 0 %}
+  <section class="wsf-deals" aria-label="Special offers">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      <div class="wsf-deals__head">
+        <h2 class="wsf-deals__title">Offers</h2>
+      </div>
+      <div class="wsf-deals__scroll" tabindex="0">
+        {% for p in _products %}
+          {% if p.on_sale %}
+          <article class="wsf-deal-card group">
+            <a href="#wsf-product-{{ p.id }}" class="wsf-deal-card__link">
+              <div class="wsf-deal-card__media">
+                {% if p.image_url %}
+                  <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-deal-card__img" loading="lazy" />
+                {% else %}
+                  <span class="wsf-deal-card__ph">{{ p.name[:1]|upper }}</span>
+                {% endif %}
+                <span class="wsf-deal-card__badge">−{{ p.discount_percent }}%</span>
+              </div>
+              <p class="wsf-deal-card__name">{{ p.name }}</p>
+              <p class="wsf-deal-card__price">
+                <span class="wsf-deal-card__was">KES {{ '%.0f'|format(p.original_price) }}</span>
+                <span class="wsf-deal-card__now">KES {{ '%.0f'|format(p.price) }}</span>
+              </p>
+            </a>
+            <button type="button" class="wsf-deal-card__add wsf-btn-primary" data-wsf-add-id="{{ p.id }}" aria-label="Add {{ p.name }}">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            </button>
+          </article>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
 
-  <section id="wsf-products" class="wsf-section px-4 pb-12 pt-4 sm:px-6 sm:pb-16">
-    <div class="mx-auto max-w-6xl">
-      <div class="wsf-section-head flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        {% if _cats %}
-          <div class="flex flex-wrap gap-2" role="tablist" aria-label="Categories">
-            <button type="button" class="wsf-cat-pill is-active rounded-full px-4 py-2 text-xs font-semibold" data-wsf-cat="all">All</button>
-            {% for cat in _cats %}
-              <button type="button" class="wsf-cat-pill rounded-full px-4 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300" data-wsf-cat="{{ cat|upper }}">{{ cat }}</button>
-            {% endfor %}
-          </div>
-        {% else %}
-          <span></span>
-        {% endif %}
-        <p class="text-xs font-medium text-zinc-500"><span id="wsf-visible-count">{{ _products|length }}</span> product{{ '' if _products|length == 1 else 's' }}</p>
+  <section id="wsf-products" class="wsf-section px-4 pb-12 pt-6 sm:px-6 sm:pb-16">
+    <div class="mx-auto max-w-7xl">
+      <div class="wsf-section-head flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <h2 class="wsf-strip__title wsf-strip__title--compact" data-wsf-field="featured_section_title">{{ _d.featured_section_title or 'Shop' }}</h2>
+        <p class="wsf-strip__count"><span id="wsf-visible-count">{{ _products|length }}</span></p>
       </div>
 
+      {% if _cats %}
+        <div class="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Categories">
+          <button type="button" class="wsf-cat-pill is-active rounded-full px-3.5 py-1.5 text-xs font-semibold" data-wsf-cat="all">All</button>
+          {% for cat in _cats %}
+            <button type="button" class="wsf-cat-pill rounded-full px-3.5 py-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300" data-wsf-cat="{{ cat|upper }}">{{ cat|title if cat.isupper() and cat|length > 3 else cat }}</button>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       {% if _products %}
-        <div id="wsf-categories" class="mt-6 space-y-8">
+        <div id="wsf-categories" class="mt-5 space-y-10">
           {% if _cats %}
             {% for cat in _cats %}
               {% set cat_key = cat|upper %}
@@ -108,9 +148,9 @@
               {% endfor %}
               {% if row_ns.count > 0 %}
             <section class="wsf-cat-row" data-wsf-category-row="{{ cat_key }}">
-              <div class="wsf-cat-row__head mb-3 flex items-end justify-between gap-3">
-                <h2 class="text-sm font-bold tracking-tight sm:text-base">{{ cat }}</h2>
-                <span class="wsf-cat-row__count shrink-0 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ row_ns.count }} item{{ '' if row_ns.count == 1 else 's' }}</span>
+              <div class="wsf-cat-row__head mb-4 flex items-center justify-between gap-3">
+                <h3 class="wsf-cat-row__title">{{ cat|title if cat.isupper() and cat|length > 3 else cat }}</h3>
+                <span class="wsf-cat-row__count">{{ row_ns.count }}</span>
               </div>
               <div class="wsf-cat-scroll-wrap relative">
                 <div class="wsf-cat-scroll" tabindex="0" role="region" aria-label="{{ cat }} products">
@@ -130,10 +170,6 @@
             {% endfor %}
           {% else %}
             <section class="wsf-cat-row" data-wsf-category-row="ALL">
-              <div class="wsf-cat-row__head mb-3 flex items-end justify-between gap-3">
-                <h2 class="text-sm font-bold tracking-tight sm:text-base">Products</h2>
-                <span class="wsf-cat-row__count shrink-0 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ _products|length }} item{{ '' if _products|length == 1 else 's' }}</span>
-              </div>
               <div class="wsf-cat-scroll-wrap relative">
                 <div class="wsf-cat-scroll" tabindex="0" role="region" aria-label="Products">
                   {% for p in _products %}
@@ -148,68 +184,99 @@
         </div>
       {% else %}
         <div class="wsf-empty-state mt-8 rounded-2xl px-6 py-16 text-center">
-          <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">No active products yet</p>
-          <p class="mt-2 text-sm text-zinc-500">Register items in Item management and complete sales in POS — commonly sold products will appear here automatically.</p>
+          <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">No products yet</p>
+          <p class="mt-2 text-xs text-zinc-500">Best sellers from POS will appear here.</p>
         </div>
       {% endif %}
     </div>
   </section>
 
-  <footer class="wsf-footer px-4 py-10 text-center sm:px-6">
-    <p class="text-sm font-semibold">{{ _company }}</p>
-    <p class="mt-1 text-xs text-zinc-500">In-store prices · Request a quotation online — we follow up from Leads &amp; quotations</p>
-    {% if site_settings and site_settings.company_phone %}
-      <a href="tel:{{ site_settings.company_phone }}" class="mt-3 inline-block text-sm font-semibold mk-brand-text transition hover:opacity-80">{{ site_settings.company_phone }}</a>
-    {% endif %}
+  <footer class="wsf-footer px-4 py-8 sm:px-6">
+    <div class="mx-auto flex max-w-7xl flex-col items-center gap-4 sm:flex-row sm:justify-between">
+      <div class="flex items-center gap-2.5">
+        <span class="wsf-footer__logo flex h-9 w-9 items-center justify-center rounded-xl wsf-btn-primary text-xs font-bold text-white">
+          {% if site_settings and site_settings.app_icon %}
+            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full rounded-xl object-cover" />
+          {% else %}
+            {{ _company[:1]|upper }}
+          {% endif %}
+        </span>
+        <span class="text-sm font-bold">{{ _company }}</span>
+      </div>
+      {% if site_settings and site_settings.company_phone %}
+        <a href="tel:{{ site_settings.company_phone }}" class="wsf-footer__phone flex items-center gap-2 text-sm font-semibold mk-brand-text transition hover:opacity-80">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+          {{ site_settings.company_phone }}
+        </a>
+      {% endif %}
+    </div>
   </footer>
 
-  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-btn-primary is-hidden" data-wsf-open-cart aria-label="View cart">
-    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-    Cart · <span data-wsf-fab-count>0</span>
+  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-btn-primary" data-wsf-open-cart aria-label="Open cart">
+    <svg class="wsf-fab__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+    <span class="wsf-fab__count hidden" data-wsf-cart-count>0</span>
   </button>
 
   <div id="wsf-toast" class="wsf-toast" role="status" aria-live="polite"></div>
 
   <div id="wsf-cart-backdrop" class="wsf-cart-backdrop" aria-hidden="true"></div>
   <aside id="wsf-cart-drawer" class="wsf-cart-drawer" aria-label="Shopping cart" aria-hidden="true">
+    <div class="wsf-cart-drawer__handle" aria-hidden="true"></div>
     <div class="wsf-cart-drawer__head">
-      <div>
-        <p class="text-sm font-bold">Your cart</p>
-        <p class="text-xs text-zinc-500">Submit to request a quotation</p>
+      <div class="wsf-cart-drawer__title-wrap">
+        <span class="wsf-cart-drawer__icon" aria-hidden="true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        </span>
+        <div>
+          <p class="wsf-cart-drawer__title">Your bag</p>
+          <p class="wsf-cart-drawer__subtitle"><span id="wsf-cart-head-count">0</span> items</p>
+        </div>
       </div>
-      <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200/80 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" data-wsf-close-cart aria-label="Close cart">&times;</button>
+      <button type="button" class="wsf-cart-drawer__close" data-wsf-close-cart aria-label="Close cart">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
-    <div class="wsf-cart-drawer__body">
-      <div id="wsf-cart-lines"></div>
-      <div id="wsf-quote-form-wrap" class="mt-4 hidden">
-        <form id="wsf-quote-form" class="space-y-3">
-          <div>
-            <label class="wsf-quote-label" for="wsf-customer-name">Your name</label>
-            <input class="wsf-quote-field" id="wsf-customer-name" name="customer_name" required autocomplete="name" placeholder="Full name" />
-          </div>
-          <div>
-            <label class="wsf-quote-label" for="wsf-customer-phone">Phone</label>
-            <input class="wsf-quote-field" id="wsf-customer-phone" name="customer_phone" required autocomplete="tel" placeholder="e.g. 0712 345 678" />
-          </div>
-          <div>
-            <label class="wsf-quote-label" for="wsf-customer-notes">Message (optional)</label>
-            <textarea class="wsf-quote-field" id="wsf-customer-notes" name="customer_notes" rows="2" placeholder="Delivery address, preferred branch, etc."></textarea>
-          </div>
-          <div id="wsf-quote-error" class="wsf-quote-msg wsf-quote-msg--error hidden" role="alert"></div>
-          <div id="wsf-quote-success" class="wsf-quote-msg wsf-quote-msg--success hidden" role="status"></div>
-        </form>
-      </div>
+
+    <div class="wsf-cart-drawer__items">
+      <div id="wsf-cart-lines" class="wsf-cart-lines"></div>
     </div>
+
+    <div id="wsf-quote-form-wrap" class="wsf-cart-drawer__contact hidden">
+      <form id="wsf-quote-form" class="wsf-cart-form wsf-cart-form--compact">
+        <div class="wsf-cart-form__grid">
+          <input class="wsf-quote-field" id="wsf-customer-phone" name="customer_phone" required autocomplete="tel" inputmode="tel" placeholder="Phone" aria-label="Phone" />
+          <input class="wsf-quote-field" id="wsf-customer-name" name="customer_name" required autocomplete="name" placeholder="Your name" aria-label="Name" />
+        </div>
+        <p id="wsf-customer-phone-hint" class="wsf-form-hint" aria-live="polite"></p>
+        <label class="wsf-cart-form__check" for="wsf-add-location">
+          <input type="checkbox" id="wsf-add-location" name="add_location" value="1" />
+          <span>Add location</span>
+        </label>
+        <div id="wsf-location-field-wrap" class="wsf-location-field-wrap">
+          <input class="wsf-quote-field" id="wsf-customer-location" name="customer_location" autocomplete="off" placeholder="Search address…" aria-label="Location" />
+          <input type="hidden" id="wsf-customer-location-km" name="customer_location_distance_km" value="" />
+          <p id="wsf-location-distance" class="wsf-location-distance hidden" aria-live="polite"></p>
+          <p id="wsf-location-hint" class="wsf-form-hint" aria-live="polite"></p>
+        </div>
+        <textarea class="wsf-quote-field wsf-quote-field--notes" id="wsf-customer-notes" name="customer_notes" rows="2" placeholder="Notes — delivery, time, etc. (optional)" aria-label="Notes"></textarea>
+        <div id="wsf-quote-error" class="wsf-quote-msg wsf-quote-msg--error hidden" role="alert"></div>
+        <div id="wsf-quote-success" class="wsf-quote-msg wsf-quote-msg--success hidden" role="status"></div>
+      </form>
+    </div>
+
     <div class="wsf-cart-drawer__foot">
-      <div class="flex items-center justify-between gap-3">
-        <span class="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Estimated total</span>
-        <span id="wsf-cart-total" class="text-base font-bold tabular-nums mk-brand-text">KES 0.00</span>
+      <div class="wsf-cart-total-card">
+        <span class="wsf-cart-total-card__label">Estimated total</span>
+        <span id="wsf-cart-total" class="wsf-cart-total-card__amount">KES 0.00</span>
       </div>
-      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-btn-primary mt-3 w-full rounded-full py-3 text-sm font-bold">Request quotation via WhatsApp</button>
-      <p class="mt-2 text-center text-[10px] text-zinc-500">Saves your request and opens WhatsApp to the shop number from Company settings.</p>
+      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-cart-checkout wsf-btn-primary">
+        <span>Request quote</span>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+      </button>
     </div>
   </aside>
 </div>
 
 <script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/website-storefront-location.js') }}" defer></script>
 <script src="{{ url_for('static', filename='js/website-storefront-cart.js') }}" defer></script>

@@ -19,6 +19,60 @@
 
   window.wsfShowToast = showToast;
 
+  /* Dark / light theme */
+  (function initStorefrontTheme() {
+    var storageKey = "marketing-theme";
+    var docEl = document.documentElement;
+    var isPreview = root.getAttribute("data-wsf-design-preview") === "1";
+
+    function currentTheme() {
+      if (isPreview) {
+        return root.classList.contains("wsf-theme-dark") ? "dark" : "light";
+      }
+      return docEl.getAttribute("data-marketing-theme") === "dark" ? "dark" : "light";
+    }
+
+    function applyTheme(theme) {
+      var dark = theme === "dark";
+      if (isPreview) {
+        root.classList.toggle("wsf-theme-dark", dark);
+        root.classList.toggle("wsf-theme-light", !dark);
+        root.setAttribute("data-wsf-theme", theme);
+      } else {
+        docEl.setAttribute("data-marketing-theme", theme);
+      }
+      root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
+        btn.setAttribute("aria-pressed", dark ? "true" : "false");
+        btn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+      });
+      try {
+        localStorage.setItem(storageKey, theme);
+      } catch (e) {}
+    }
+
+    if (isPreview) {
+      var stored = null;
+      try {
+        stored = localStorage.getItem(storageKey);
+      } catch (e) {}
+      if (stored === "dark" || stored === "light") {
+        applyTheme(stored);
+      }
+    } else {
+      root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
+        btn.setAttribute("aria-pressed", currentTheme() === "dark" ? "true" : "false");
+      });
+    }
+
+    root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
+      if (btn.getAttribute("data-wsf-theme-bound") === "1") return;
+      btn.setAttribute("data-wsf-theme-bound", "1");
+      btn.addEventListener("click", function () {
+        applyTheme(currentTheme() === "dark" ? "light" : "dark");
+      });
+    });
+  })();
+
   if (header) {
     var onScroll = function () {
       header.classList.toggle("is-scrolled", window.scrollY > 8);
@@ -53,15 +107,15 @@
       var countEl = row.querySelector(".wsf-cat-row__count");
       if (!countEl) return;
       var n = row.querySelectorAll(".wsf-product-card:not(.is-hidden-filter)").length;
-      countEl.textContent = n ? n + " item" + (n === 1 ? "" : "s") : "";
+      countEl.textContent = n ? String(n) : "";
     });
   }
 
   function applyFilters() {
-    var activeCat =
-      (root.querySelector(".wsf-cat-pill.is-active") &&
-        root.querySelector(".wsf-cat-pill.is-active").getAttribute("data-wsf-cat")) ||
-      "all";
+    var activeBtn =
+      root.querySelector(".wsf-cat-pill.is-active") ||
+      root.querySelector(".wsf-cat-tile.is-active");
+    var activeCat = (activeBtn && activeBtn.getAttribute("data-wsf-cat")) || "all";
     var searchInput = root.querySelector('.wsf-search input[type="search"]');
     var q = searchInput ? (searchInput.value || "").trim().toLowerCase() : "";
     var visibleTotal = 0;
@@ -89,9 +143,9 @@
     updateRowCounts();
   }
 
-  root.querySelectorAll(".wsf-cat-pill").forEach(function (btn) {
+  function bindCategoryFilter(btn) {
     btn.addEventListener("click", function () {
-      root.querySelectorAll(".wsf-cat-pill").forEach(function (b) {
+      root.querySelectorAll(".wsf-cat-tile, .wsf-cat-pill").forEach(function (b) {
         b.classList.toggle("is-active", b === btn);
       });
       applyFilters();
@@ -101,9 +155,14 @@
         if (row && !row.classList.contains("is-hidden-filter")) {
           row.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
+      } else if (cat === "all") {
+        var products = document.getElementById("wsf-products");
+        if (products) products.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
-  });
+  }
+
+  root.querySelectorAll(".wsf-cat-pill, .wsf-cat-tile").forEach(bindCategoryFilter);
 
   var searchInput = root.querySelector('.wsf-search input[type="search"]');
   if (searchInput) {
@@ -112,9 +171,11 @@
 
   function syncFab(count) {
     if (!fab) return;
-    fab.classList.toggle("is-hidden", count <= 0);
-    var fabCount = fab.querySelector("[data-wsf-fab-count]");
-    if (fabCount) fabCount.textContent = String(count);
+    var fabCount = fab.querySelector("[data-wsf-cart-count]");
+    if (fabCount) {
+      fabCount.textContent = String(count);
+      fabCount.classList.toggle("hidden", count <= 0);
+    }
   }
 
   window.wsfSyncFab = syncFab;
@@ -123,6 +184,8 @@
     var count = (e.detail && e.detail.count) || 0;
     syncFab(count);
   });
+
+  syncFab(0);
 
   applyFilters();
 })();

@@ -1,0 +1,67 @@
+{# Expects: location_name, location_lat, location_lng (optional strings) #}
+<div class="company-location-picker md:col-span-2" data-company-location-picker>
+  <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop location</label>
+  <p class="mb-3 text-sm text-[rgb(var(--rc-muted))]">
+    Search Google Maps to set the address, latitude, and longitude.
+    {% if location_inherited|default(false) %}
+      <span class="mt-1 block">Using company default until you customize company details for this shop.</span>
+    {% endif %}
+  </p>
+
+  {% if not google_maps_api_key %}
+  <div class="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+    Add <code class="rounded bg-black/10 px-1 py-0.5 text-xs">GOOGLE_MAPS_API_KEY</code> to your <code class="rounded bg-black/10 px-1 py-0.5 text-xs">.env</code> file to enable map search.
+  </div>
+  {% else %}
+  <div class="space-y-3">
+    <input
+      type="search"
+      class="company-location-search w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+      placeholder="Search for an address or place…"
+      autocomplete="off"
+      value="{{ location_name or '' }}"
+    />
+    <div class="company-location-map h-56 w-full overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]"></div>
+    <div class="grid gap-3 sm:grid-cols-3">
+      <div class="sm:col-span-3">
+        <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Location name</label>
+        <input
+          type="text"
+          name="company_location_name"
+          class="company-location-name w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          value="{{ location_name or '' }}"
+          placeholder="Address or place name"
+          readonly
+        />
+      </div>
+      <div>
+        <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Latitude</label>
+        <input
+          type="text"
+          name="company_latitude"
+          class="company-location-lat w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          value="{{ location_lat or '' }}"
+          placeholder="—"
+          readonly
+        />
+      </div>
+      <div>
+        <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Longitude</label>
+        <input
+          type="text"
+          name="company_longitude"
+          class="company-location-lng w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          value="{{ location_lng or '' }}"
+          placeholder="—"
+          readonly
+        />
+      </div>
+      <div class="flex items-end">
+        <button type="button" class="company-location-clear w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]">
+          Clear location
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>

@@ -85,7 +85,7 @@
       }, 500);
     }
 
-    var cartBtn = root.querySelector(".wsf-cart-btn");
+    var cartBtn = document.getElementById("wsf-fab-cart");
     if (cartBtn) {
       cartBtn.classList.remove("is-bump");
       void cartBtn.offsetWidth;
@@ -122,6 +122,7 @@
   var backdrop = document.getElementById("wsf-cart-backdrop");
   var linesEl = document.getElementById("wsf-cart-lines");
   var totalEl = document.getElementById("wsf-cart-total");
+  var headCountEl = document.getElementById("wsf-cart-head-count");
   var countEls = root.querySelectorAll("[data-wsf-cart-count]");
   var form = document.getElementById("wsf-quote-form");
   var formWrap = document.getElementById("wsf-quote-form-wrap");
@@ -149,54 +150,80 @@
       el.textContent = String(count);
       el.classList.toggle("hidden", count <= 0);
     });
+    if (headCountEl) headCountEl.textContent = String(count);
 
     if (!linesEl) return;
 
     if (!cart.length) {
       linesEl.innerHTML =
-        '<p class="wsf-cart-empty">Your cart is empty. Add products to request a quotation.</p>';
+        '<div class="wsf-cart-empty">' +
+        '<div class="wsf-cart-empty__icon" aria-hidden="true">' +
+        '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>' +
+        "</div>" +
+        '<p class="wsf-cart-empty__title">Your bag is empty</p>' +
+        '<p class="wsf-cart-empty__sub">Browse products and tap add to build your quote.</p>' +
+        "</div>";
       if (totalEl) totalEl.textContent = fmtMoney(0);
       if (formWrap) formWrap.classList.add("hidden");
+      if (submitBtn) submitBtn.disabled = true;
       notifyCartUpdate();
       return;
     }
 
     if (formWrap) formWrap.classList.remove("hidden");
+    if (submitBtn) submitBtn.disabled = false;
     linesEl.innerHTML = cart
       .map(function (row) {
         var p = productsById[String(row.id)];
         if (!p) return "";
+        var unit = Number(p.price || 0);
+        var lineTotal = unit * Number(row.qty || 0);
         var img = p.image_url
           ? '<img src="' + p.image_url + '" alt="" class="wsf-cart-line__img" />'
           : '<span class="wsf-cart-line__img wsf-cart-line__img--ph">' + (p.name || "?").charAt(0) + "</span>";
         return (
-          '<div class="wsf-cart-line" data-cart-id="' +
+          '<article class="wsf-cart-line" data-cart-id="' +
           p.id +
           '">' +
+          '<div class="wsf-cart-line__media">' +
           img +
-          '<div class="wsf-cart-line__body">' +
+          "</div>" +
+          '<div class="wsf-cart-line__main">' +
+          '<div class="wsf-cart-line__top">' +
           '<p class="wsf-cart-line__name">' +
           (p.name || "Product") +
           "</p>" +
-          '<p class="wsf-cart-line__price">' +
-          fmtMoney(Number(p.price || 0) * Number(row.qty || 0)) +
-          "</p>" +
+          '<button type="button" class="wsf-cart-line__remove" data-remove-id="' +
+          p.id +
+          '" aria-label="Remove item">' +
+          '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
+          "</button>" +
+          "</div>" +
+          '<p class="wsf-cart-line__unit">' +
+          fmtMoney(unit) +
+          " each</p>" +
+          '<div class="wsf-cart-line__foot">' +
           '<div class="wsf-cart-line__qty">' +
           '<button type="button" class="wsf-qty-btn" data-qty-delta="-1" data-id="' +
           p.id +
-          '" aria-label="Decrease quantity">−</button>' +
+          '" aria-label="Decrease quantity">' +
+          '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"/></svg>' +
+          "</button>" +
           '<span class="wsf-qty-val">' +
           row.qty +
           "</span>" +
           '<button type="button" class="wsf-qty-btn" data-qty-delta="1" data-id="' +
           p.id +
-          '" aria-label="Increase quantity">+</button>' +
+          '" aria-label="Increase quantity">' +
+          '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>' +
+          "</button>" +
+          "</div>" +
+          '<p class="wsf-cart-line__price">' +
+          fmtMoney(lineTotal) +
+          "</p>" +
           "</div>" +
           "</div>" +
-          '<button type="button" class="wsf-cart-line__remove" data-remove-id="' +
-          p.id +
-          '" aria-label="Remove item">&times;</button>' +
-          "</div>"
+          "</article>"
         );
       })
       .join("");
@@ -251,6 +278,44 @@
     if (e.key === "Escape") closeDrawer();
   });
 
+  function setLocationFieldOpen(open) {
+    var wrap = document.getElementById("wsf-location-field-wrap");
+    var checkbox = document.getElementById("wsf-add-location");
+    var input = document.getElementById("wsf-customer-location");
+    if (checkbox) checkbox.checked = !!open;
+    if (wrap) wrap.classList.toggle("is-open", !!open);
+    if (open) {
+      document.dispatchEvent(new CustomEvent("wsf-location-opened"));
+      window.requestAnimationFrame(function () {
+        if (typeof window.wsfInitLocationAutocomplete === "function") {
+          window.wsfInitLocationAutocomplete();
+        }
+        if (input) input.focus();
+      });
+    } else if (input) {
+      input.value = "";
+      if (typeof window.wsfClearLocationDistance === "function") window.wsfClearLocationDistance();
+      var hint = document.getElementById("wsf-location-hint");
+      if (hint) hint.textContent = "";
+    }
+  }
+
+  window.wsfResetLocationField = function () {
+    setLocationFieldOpen(false);
+  };
+
+  window.wsfLocationEnabled = function () {
+    var checkbox = document.getElementById("wsf-add-location");
+    return !!(checkbox && checkbox.checked);
+  };
+
+  var locationCheckbox = document.getElementById("wsf-add-location");
+  if (locationCheckbox) {
+    locationCheckbox.addEventListener("change", function () {
+      setLocationFieldOpen(locationCheckbox.checked);
+    });
+  }
+
   if (form && quoteUrl) {
     form.addEventListener("submit", function (e) {
       e.preventDefault();
@@ -265,12 +330,37 @@
       if (successEl) successEl.classList.add("hidden");
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = "Sending…";
+        submitBtn.querySelector("span").textContent = "Sending…";
+      }
+
+      var locationEnabled =
+        typeof window.wsfLocationEnabled === "function" && window.wsfLocationEnabled();
+      var locationValue =
+        locationEnabled && form.customer_location ? (form.customer_location.value || "").trim() : "";
+      if (locationEnabled && locationValue.length < 2) {
+        if (errorEl) {
+          errorEl.textContent = "Select a location from the list or uncheck Add location.";
+          errorEl.classList.remove("hidden");
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.querySelector("span").textContent = "Request quote";
+        }
+        return;
+      }
+
+      var distanceKm = null;
+      var distanceEl = document.getElementById("wsf-customer-location-km");
+      if (locationEnabled && distanceEl && distanceEl.value) {
+        var parsed = parseFloat(distanceEl.value);
+        if (isFinite(parsed) && parsed >= 0) distanceKm = parsed;
       }
 
       var payload = {
-        customer_name: (form.customer_name && form.customer_name.value) || "",
         customer_phone: (form.customer_phone && form.customer_phone.value) || "",
+        customer_name: (form.customer_name && form.customer_name.value) || "",
+        customer_location: locationValue,
+        customer_location_distance_km: distanceKm,
         customer_notes: (form.customer_notes && form.customer_notes.value) || "",
         lines: cart.map(function (row) {
           return { id: row.id, qty: row.qty };
@@ -295,6 +385,10 @@
           saveCart();
           render();
           form.reset();
+          setLocationFieldOpen(false);
+          if (nameEl) nameEl.removeAttribute("data-wsf-autofill");
+          lastLookupPhone = "";
+          setPhoneHint("", "");
           if (successEl) {
             successEl.textContent = res.body.message || "Quotation request received.";
             successEl.classList.remove("hidden");
@@ -319,9 +413,106 @@
         .finally(function () {
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.textContent = "Request quotation via WhatsApp";
+            submitBtn.querySelector("span").textContent = "Request quote";
           }
         });
+    });
+  }
+
+  var lookupUrl = root.getAttribute("data-customer-lookup-url") || "";
+  var phoneEl = document.getElementById("wsf-customer-phone");
+  var nameEl = document.getElementById("wsf-customer-name");
+  var phoneHintEl = document.getElementById("wsf-customer-phone-hint");
+  var lookupTimer = null;
+  var lookupInFlight = false;
+  var lastLookupPhone = "";
+
+  function normalizePhone(v) {
+    return String(v || "").replace(/[^\d+]/g, "").trim();
+  }
+
+  function phoneDigits(v) {
+    return normalizePhone(v).replace(/\D/g, "");
+  }
+
+  function setPhoneHint(message, tone) {
+    if (!phoneHintEl) return;
+    phoneHintEl.textContent = message || "";
+    phoneHintEl.classList.remove("is-found", "is-error");
+    if (tone === "found") phoneHintEl.classList.add("is-found");
+    if (tone === "error") phoneHintEl.classList.add("is-error");
+  }
+
+  function runCustomerLookup() {
+    if (!lookupUrl || !phoneEl) return;
+    var phone = normalizePhone(phoneEl.value || "");
+    phoneEl.value = phone;
+    var digits = phoneDigits(phone);
+    if (digits.length < 7) {
+      lastLookupPhone = "";
+      setPhoneHint(digits.length ? "Enter phone to lookup." : "", "");
+      if (nameEl && nameEl.getAttribute("data-wsf-autofill") === "1") {
+        nameEl.value = "";
+        nameEl.removeAttribute("data-wsf-autofill");
+      }
+      return;
+    }
+    if (lookupInFlight || phone === lastLookupPhone) return;
+    lookupInFlight = true;
+    setPhoneHint("Checking customer…", "");
+    fetch(lookupUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ phone: phone }),
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok || !j.ok) throw new Error((j && j.error) || "Lookup failed");
+          return j;
+        });
+      })
+      .then(function (j) {
+        lastLookupPhone = phone;
+        var customer = j.customer || null;
+        if (customer && customer.customer_name) {
+          nameEl.value = customer.customer_name;
+          nameEl.setAttribute("data-wsf-autofill", "1");
+          if (customer.phone) phoneEl.value = customer.phone;
+          setPhoneHint("Registered customer found and auto-filled.", "found");
+        } else {
+          if (nameEl && nameEl.getAttribute("data-wsf-autofill") === "1") {
+            nameEl.value = "";
+            nameEl.removeAttribute("data-wsf-autofill");
+          }
+          setPhoneHint("Customer not found. Enter your details to continue.", "");
+        }
+      })
+      .catch(function (e) {
+        setPhoneHint((e && e.message) || "Lookup failed.", "error");
+      })
+      .finally(function () {
+        lookupInFlight = false;
+      });
+  }
+
+  function scheduleCustomerLookup() {
+    if (lookupTimer) clearTimeout(lookupTimer);
+    lookupTimer = setTimeout(runCustomerLookup, 420);
+  }
+
+  if (phoneEl) {
+    phoneEl.addEventListener("input", function () {
+      if (phoneDigits(phoneEl.value).length < 7) lastLookupPhone = "";
+      scheduleCustomerLookup();
+    });
+    phoneEl.addEventListener("blur", runCustomerLookup);
+  }
+
+  if (nameEl) {
+    nameEl.addEventListener("input", function () {
+      if (nameEl.getAttribute("data-wsf-autofill") === "1") {
+        nameEl.removeAttribute("data-wsf-autofill");
+      }
     });
   }
 

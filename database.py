@@ -3779,6 +3779,12 @@ def _seller_phone_lookup_keys(phone: str) -> list[str]:
         add(digits)
         add("0" + digits[3:])
         add("+" + digits)
+    elif len(digits) == 9 and digits[0] in ("7", "1"):
+        intl = "254" + digits
+        add(intl)
+        add("0" + digits)
+        add("+" + intl)
+        add(digits)
     add(p)
     return keys
 
@@ -3862,6 +3868,75 @@ def get_public_customer_by_phone(phone: str):
             return None
     except pymysql.Error:
         return None
+
+
+def _meaningful_customer_name(name: str) -> str:
+    n = (name or "").strip()
+    if len(n) < 2:
+        return ""
+    low = re.sub(r"\s+", " ", n.lower().replace("-", " ")).strip()
+    if low in ("", "walk in", "walk in customer", "walkin", "walkin customer"):
+        return ""
+    return n
+
+
+def lookup_storefront_customer_by_phone(phone: str):
+    """Read-only name lookup for public storefront autofill (never registers)."""
+    digits = re.sub(r"\D", "", _normalize_phone(phone or ""))
+    if len(digits) < 7:
+        return None
+
+    def _pack(name: str, phone_val: str | None):
+        clean = _meaningful_customer_name(name)
+        if not clean:
+            return None
+        ph = (phone_val or "").strip() or _canonical_kenya_phone(phone)
+        return {"customer_name": clean, "phone": ph}
+
+    pub = get_public_customer_by_phone(phone)
+    if pub:
+        row = _pack(pub.get("customer_name") or "", pub.get("phone"))
+        if row:
+            return row
+
+    keys = _seller_phone_lookup_keys(phone)
+    if not keys:
+        return None
+    placeholders = ",".join(["%s"] * len(keys))
+    params = tuple(keys * 3)
+    sql = f"""
+    SELECT customer_name, phone, sort_ts FROM (
+        SELECT customer_name, phone, updated_at AS sort_ts
+        FROM shop_customers
+        WHERE phone IN ({placeholders})
+          AND TRIM(customer_name) <> ''
+        UNION ALL
+        SELECT customer_name, customer_phone AS phone, created_at AS sort_ts
+        FROM shop_pos_sales
+        WHERE customer_phone IN ({placeholders})
+          AND TRIM(COALESCE(customer_name, '')) <> ''
+          AND TRIM(COALESCE(customer_phone, '')) NOT IN ('', '-')
+        UNION ALL
+        SELECT customer_name, customer_phone AS phone, created_at AS sort_ts
+        FROM shop_pos_quotations
+        WHERE customer_phone IN ({placeholders})
+          AND TRIM(COALESCE(customer_name, '')) <> ''
+          AND TRIM(COALESCE(customer_phone, '')) <> ''
+    ) AS hits
+    ORDER BY sort_ts DESC
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+            if row:
+                packed = _pack(row.get("customer_name") or "", row.get("phone"))
+                if packed:
+                    return packed
+    except pymysql.Error:
+        pass
+    return None
 
 
 def upsert_public_customer(customer_name: str, phone: str) -> bool:

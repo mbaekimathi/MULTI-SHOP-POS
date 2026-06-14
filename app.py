@@ -715,6 +715,9 @@ def inject_site_settings():
         "company_facebook": "",
         "company_instagram": "",
         "public_app_url": "",
+        "company_location_name": "",
+        "company_latitude": "",
+        "company_longitude": "",
         "app_icon": "",
         "primary_color": "#f97316",
         "accent_color": "#fb923c",
@@ -746,6 +749,7 @@ def inject_site_settings():
         "theme_preset": preset_key,
         "theme_presets_css": THEME_PRESETS,
         "theme_font_google_url": google_fonts_url(portal_font),
+        "google_maps_api_key": _google_maps_api_key(),
     }
 
 
@@ -1717,7 +1721,48 @@ _COMPANY_IDENTITY_KEYS = (
     "company_facebook",
     "company_instagram",
     "public_app_url",
+    "company_location_name",
+    "company_latitude",
+    "company_longitude",
 )
+
+
+def _google_maps_api_key() -> str:
+    return (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
+
+
+def _parse_latitude_from_form(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    try:
+        v = float(s)
+    except (TypeError, ValueError):
+        return ""
+    if v < -90 or v > 90:
+        return ""
+    return f"{v:.7f}".rstrip("0").rstrip(".") or "0"
+
+
+def _parse_longitude_from_form(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    try:
+        v = float(s)
+    except (TypeError, ValueError):
+        return ""
+    if v < -180 or v > 180:
+        return ""
+    return f"{v:.7f}".rstrip("0").rstrip(".") or "0"
+
+
+def _location_settings_from_form() -> dict:
+    return {
+        "company_location_name": (request.form.get("company_location_name") or "").strip(),
+        "company_latitude": _parse_latitude_from_form(request.form.get("company_latitude") or ""),
+        "company_longitude": _parse_longitude_from_form(request.form.get("company_longitude") or ""),
+    }
 
 
 def _normalize_public_app_url(raw: str) -> str:
@@ -1797,28 +1842,22 @@ WEBSITE_THEME_STYLES: dict[str, dict[str, str]] = {
 
 def _default_website_design() -> dict:
     return {
-        "hero_eyebrow": "Best sellers · In stock today",
-        "hero_headline": "Shop what your customers",
-        "hero_headline_accent": "buy most often.",
-        "hero_body": (
-            "Browse commonly sold products from your live POS catalogue — "
-            "the same items ringing up at checkout every day."
-        ),
-        "hero_body_secondary": (
-            "Prices and availability sync from your branches. "
-            "Pick up in store or ask about delivery when you visit."
-        ),
+        "hero_eyebrow": "Best sellers",
+        "hero_headline": "Shop",
+        "hero_headline_accent": "top picks",
+        "hero_body": "",
+        "hero_body_secondary": "",
         "meta_description": (
             "Shop commonly sold products from our catalogue — "
             "quality items trusted by customers across every branch."
         ),
-        "cta_primary_label": "Shop best sellers",
-        "cta_secondary_label": "Request quotation",
+        "cta_primary_label": "Browse",
+        "cta_secondary_label": "Get quote",
         "store_tagline": "Quality products, trusted every day",
-        "featured_section_title": "Commonly sold",
-        "featured_section_subtitle": "Top picks from real sales across your stores.",
-        "promo_banner_text": "Free pickup on all orders · Same prices as in store",
-        "search_placeholder": "Search products, categories…",
+        "featured_section_title": "Shop",
+        "featured_section_subtitle": "",
+        "promo_banner_text": "Free pickup · In-store prices",
+        "search_placeholder": "Search…",
     }
 
 
@@ -1934,7 +1973,7 @@ def _public_storefront_share_info() -> dict:
 
 
 def _render_public_storefront():
-    products = _website_featured_products(limit=12)
+    products = _website_featured_products(limit=18)
     return render_template(
         "marketing/home.html",
         website_featured_products=products,
@@ -2109,6 +2148,8 @@ def _format_quotation_whatsapp_message(
     lines: list,
     total: float,
     channel: str = "online",
+    customer_location: str = "",
+    customer_location_distance_km: float | None = None,
 ) -> str:
     company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
     channel_label = "Website" if (channel or "").strip().lower() == "online" else "Walk-in"
@@ -2119,6 +2160,12 @@ def _format_quotation_whatsapp_message(
         f"Customer: {customer_name or '—'}",
         f"Phone: {customer_phone or '—'}",
     ]
+    loc = (customer_location or "").strip()
+    if loc:
+        loc_line = f"Location: {loc}"
+        if customer_location_distance_km is not None and customer_location_distance_km >= 0:
+            loc_line += f" (approx. {customer_location_distance_km:.1f} km from shop)"
+        parts.append(loc_line)
     if customer_notes:
         parts.extend(["", f"Message: {customer_notes}"])
     parts.extend(["", "*Items:*"])
@@ -2501,18 +2548,63 @@ def _build_storefront_quotation_lines(cart_lines: list) -> tuple[list[dict], flo
     return validated, round(total, 2), count, None
 
 
+@app.route("/api/storefront/customer-lookup", methods=["POST"])
+def storefront_customer_lookup():
+    """Public read-only phone lookup for cart name autofill (no registration)."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = (data.get("phone") or "").strip()
+    if len(re.sub(r"\D", "", phone)) < 7:
+        return jsonify({"ok": False, "error": "Enter a valid phone number."}), 400
+    try:
+        from database import lookup_storefront_customer_by_phone
+
+        row = lookup_storefront_customer_by_phone(phone)
+    except Exception:
+        row = None
+    if not row:
+        return jsonify({"ok": True, "customer": None})
+    return jsonify(
+        {
+            "ok": True,
+            "customer": {
+                "customer_name": row["customer_name"],
+                "phone": row.get("phone") or phone,
+            },
+        }
+    )
+
+
 @app.route("/api/storefront/request-quotation", methods=["POST"])
 def storefront_request_quotation():
     """Public website cart → online quotation (lead) for IT leads & quotations."""
     data = request.get_json(force=True, silent=True) or {}
-    name = (data.get("customer_name") or "").strip()
     phone = _normalize_storefront_phone(data.get("customer_phone") or "")
+    name = (data.get("customer_name") or "").strip()
+    location = (data.get("customer_location") or "").strip()[:200]
     notes = (data.get("customer_notes") or "").strip()[:500]
+    distance_km = None
+    raw_dist = data.get("customer_location_distance_km")
+    if raw_dist is not None and str(raw_dist).strip() != "":
+        try:
+            distance_km = float(raw_dist)
+            if distance_km < 0:
+                distance_km = None
+        except (TypeError, ValueError):
+            distance_km = None
 
-    if len(name) < 2:
-        return jsonify({"ok": False, "error": "Please enter your name."}), 400
     if len(phone) < 9:
         return jsonify({"ok": False, "error": "Please enter a valid phone number."}), 400
+    if len(name) < 2:
+        return jsonify({"ok": False, "error": "Please enter your name."}), 400
+    if location and len(location) < 2:
+        return jsonify({"ok": False, "error": "Please select a valid location or leave it blank."}), 400
+
+    stored_notes = notes or None
+    if location:
+        loc_line = f"Location: {location}"
+        if distance_km is not None:
+            loc_line += f" (approx. {distance_km:.1f} km from shop)"
+        stored_notes = f"{loc_line}\n\n{notes}".strip() if notes else loc_line
 
     cart_lines = data.get("lines") if isinstance(data.get("lines"), list) else []
     lines, total, count, err = _build_storefront_quotation_lines(cart_lines)
@@ -2530,7 +2622,7 @@ def storefront_request_quotation():
             item_count=count,
             customer_name=name,
             customer_phone=phone,
-            customer_notes=notes or None,
+            customer_notes=stored_notes,
             employee_name="Website storefront",
             lines=lines,
         )
@@ -2545,6 +2637,8 @@ def storefront_request_quotation():
         customer_name=name,
         customer_phone=phone,
         customer_notes=notes,
+        customer_location=location,
+        customer_location_distance_km=distance_km,
         lines=lines,
         total=total,
         channel="online",
@@ -2639,6 +2733,9 @@ def _load_company_identity_settings() -> dict:
         "company_facebook": "",
         "company_instagram": "",
         "public_app_url": "",
+        "company_location_name": "",
+        "company_latitude": "",
+        "company_longitude": "",
         "app_icon": "",
     }
     try:
@@ -4173,6 +4270,7 @@ def it_support_system_settings():
         company_phone = (request.form.get("company_phone") or "").strip()
         company_facebook = (request.form.get("company_facebook") or "").strip()
         company_instagram = (request.form.get("company_instagram") or "").strip()
+        location_settings = _location_settings_from_form()
         public_app_url = _normalize_public_app_url((request.form.get("public_app_url") or "").strip())
         primary_color = (request.form.get("primary_color") or "#f97316").strip()
         accent_color = (request.form.get("accent_color") or "#fb923c").strip()
@@ -4224,6 +4322,7 @@ def it_support_system_settings():
                 "company_phone": company_phone,
                 "company_facebook": company_facebook,
                 "company_instagram": company_instagram,
+                **location_settings,
                 "public_app_url": public_app_url,
                 "primary_color": primary_color,
                 "accent_color": accent_color,
@@ -16045,6 +16144,7 @@ def shop_settings_company(shop_id: int):
                     "company_phone": (request.form.get("company_phone") or "").strip(),
                     "company_facebook": (request.form.get("company_facebook") or "").strip(),
                     "company_instagram": (request.form.get("company_instagram") or "").strip(),
+                    **_location_settings_from_form(),
                 },
                 separators=(",", ":"),
             )
