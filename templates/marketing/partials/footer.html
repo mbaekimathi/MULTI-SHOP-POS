@@ -53,23 +53,6 @@
           <li><a class="inline-flex min-h-[2.5rem] items-center text-zinc-300 transition hover:text-white" href="{{ url_for('index') }}">Home</a></li>
         </ul>
       </nav>
-
-      <div class="min-[480px]:col-span-2 lg:col-span-3">
-        <h2 class="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">Sign in</h2>
-        <p class="mt-3 text-xs leading-relaxed text-zinc-500">Use the right login for your role — shop devices use the shop code; staff and IT use the employee portal.</p>
-        <div class="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap md:flex-col lg:flex-col xl:flex-row">
-          <a
-            href="{{ url_for('employee_login') }}"
-            class="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-lg bg-violet-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-violet-500 sm:flex-none md:flex-none lg:w-full xl:flex-1"
-            >Employee login</a
-          >
-          <a
-            href="{{ url_for('public_shop_login') }}"
-            class="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-lg border border-zinc-600 bg-zinc-900/50 px-4 py-2.5 text-center text-sm font-semibold text-zinc-100 transition hover:border-zinc-500 hover:bg-zinc-800 sm:flex-none md:flex-none lg:w-full xl:flex-1"
-            >Shop login</a
-          >
-        </div>
-      </div>
     </div>
   </div>
 

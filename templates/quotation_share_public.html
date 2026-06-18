@@ -1,51 +1,124 @@
 {% extends "base.html" %}
 {% block title %}{% if error %}Quotation unavailable{% else %}Quotation — {{ company_name }}{% endif %}{% endblock %}
 {% block head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=1" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=2" />
 {% endblock %}
 {% block body %}
-  <section class="qsp-page">
+  <div class="qsp-page min-h-screen bg-[rgb(var(--rc-page-bg))] px-4 py-8 sm:px-6 lg:py-12">
     {% if error %}
-      <div class="qsp-card qsp-card--error">
-        <p class="qsp-eyebrow">Quotation</p>
-        <h1 class="qsp-title">Link unavailable</h1>
-        <p class="qsp-error">{{ error }}</p>
+      <div class="mx-auto max-w-lg rounded-2xl border border-red-500/30 bg-[rgb(var(--rc-surface))] p-8 text-center shadow-sm">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-600 dark:text-red-300">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="mt-4 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quotation</p>
+        <h1 class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))]">Link unavailable</h1>
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">{{ error }}</p>
       </div>
     {% else %}
-      <header class="qsp-hero">
-        <p class="qsp-eyebrow">{{ company_name }}</p>
-        <h1 class="qsp-title">Your quotation</h1>
-        <p class="qsp-sub">Review the items below. Prices are indicative — contact us to confirm availability.</p>
-      </header>
-
-      <div class="qsp-grid">
-        {% for item in items %}
-          <article class="qsp-item">
-            <div class="qsp-item__media">
-              {% if item.image_url %}
-                <img src="{{ item.image_url }}" alt="{{ item.name }}" class="qsp-item__img" loading="lazy" />
-              {% else %}
-                <div class="qsp-item__ph" aria-hidden="true">{{ item.name[:1]|upper }}</div>
-              {% endif %}
+      <div class="mx-auto max-w-3xl">
+        <header class="qsp-doc-header overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-5 py-4 sm:px-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">{{ company_name }}</p>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-3xl">Quotation</h1>
+                <p class="mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+                  Prepared for your review. Prices are indicative — contact us to confirm availability and final pricing.
+                </p>
+              </div>
+              <div class="flex shrink-0 flex-col items-end gap-1 text-right">
+                {% if generated_date %}
+                  <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">{{ generated_date }}</span>
+                {% endif %}
+                <span class="text-xs font-semibold text-[rgb(var(--rc-muted))]">{{ items|length }} item{% if items|length != 1 %}s{% endif %}</span>
+              </div>
             </div>
-            <div class="qsp-item__body">
-              <p class="qsp-item__cat">{{ item.category }}</p>
-              <h2 class="qsp-item__name">{{ item.name }}</h2>
-              {% if item.description %}
-                <p class="qsp-item__desc">{{ item.description }}</p>
-              {% endif %}
-              <p class="qsp-item__price">KES {{ "%.2f"|format(item.price) }}</p>
+          </div>
+          <div class="grid grid-cols-2 divide-x divide-[rgb(var(--rc-border))]">
+            <div class="px-5 py-4 sm:px-6">
+              <p class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Line items</p>
+              <p class="mt-0.5 text-2xl font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ items|length }}</p>
             </div>
-          </article>
-        {% endfor %}
-      </div>
+            <div class="px-5 py-4 text-right sm:px-6">
+              <p class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Estimated total</p>
+              <p class="mt-0.5 text-2xl font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">KES {{ "%.2f"|format(total_amount) }}</p>
+            </div>
+          </div>
+        </header>
 
-      {% if items|length > 1 %}
-        <footer class="qsp-total">
-          <span>Estimated total</span>
-          <strong>KES {{ "%.2f"|format(total_amount) }}</strong>
+        <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Product</th>
+                  <th class="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-wider sm:table-cell">Category</th>
+                  <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Price (KES)</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for item in items %}
+                  <tr class="align-middle">
+                    <td class="px-4 py-3">
+                      <div class="flex min-w-0 items-center gap-3">
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
+                          {% if item.image_url %}
+                            <img src="{{ item.image_url }}" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async" />
+                          {% else %}
+                            <span class="text-sm font-bold text-[rgb(var(--rc-muted))]">{{ item.name[:1]|upper }}</span>
+                          {% endif %}
+                        </div>
+                        <div class="min-w-0">
+                          <p class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ item.name }}</p>
+                          {% if item.description %}
+                            <p class="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">{{ item.description }}</p>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </td>
+                    <td class="hidden px-4 py-3 sm:table-cell">
+                      <span class="inline-block rounded-lg bg-slate-500/10 px-2 py-0.5 text-xs font-semibold text-[rgb(var(--rc-muted))]">{{ item.category }}</span>
+                    </td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              {% if items|length > 1 %}
+                <tfoot class="bg-[rgb(var(--rc-surface-2))]">
+                  <tr>
+                    <td colspan="2" class="hidden px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))] sm:table-cell">Estimated total</td>
+                    <td class="px-4 py-3 text-right sm:hidden">
+                      <span class="text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Total</span>
+                    </td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right text-base font-bold tabular-nums text-brand-600 dark:text-brand-400">KES {{ "%.2f"|format(total_amount) }}</td>
+                  </tr>
+                </tfoot>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+
+        <footer class="qsp-doc-footer mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 text-center shadow-sm sm:p-6">
+          <p class="text-sm text-[rgb(var(--rc-muted))]">
+            Thank you for your interest in <strong class="text-[rgb(var(--rc-page-fg))]">{{ company_name }}</strong>.
+            Reply on WhatsApp or contact us to confirm this quotation.
+          </p>
+          {% if whatsapp_contact_url %}
+            <a
+              href="{{ whatsapp_contact_url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-500"
+            >
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 00.918.918l4.458-1.495A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.714 9.714 0 01-4.915-1.332l-.352-.209-2.642.886.886-2.578-.23-.375A9.736 9.736 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+              Chat on WhatsApp
+            </a>
+          {% endif %}
+          <p class="mt-4 text-xs text-[rgb(var(--rc-muted))]">This quotation was shared digitally and may not reflect real-time stock levels.</p>
         </footer>
-      {% endif %}
+      </div>
     {% endif %}
-  </section>
+  </div>
 {% endblock %}

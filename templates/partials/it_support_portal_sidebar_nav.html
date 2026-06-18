@@ -102,8 +102,8 @@
 
   <a
     href="{{ url_for('it_support_website_management') }}"
-    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint in ('it_support_website_management', 'it_support_website_settings', 'it_support_website_designs') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
-    {% if request.endpoint in ('it_support_website_management', 'it_support_website_settings', 'it_support_website_designs') %}aria-current="page"{% endif %}
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint in ('it_support_website_management', 'it_support_website_designs') %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+    {% if request.endpoint in ('it_support_website_management', 'it_support_website_designs') %}aria-current="page"{% endif %}
   >
     <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5-2.5 4-5.5 4-9s-1.5-6.5-4-9c-2.5 2.5-4 5.5-4 9s1.5 6.5 4 9zm-8-9h16" />

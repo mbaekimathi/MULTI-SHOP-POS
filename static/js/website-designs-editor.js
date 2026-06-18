@@ -25,7 +25,7 @@
   var countEl = document.getElementById("wsd-selected-count");
   var modeEl = document.getElementById("wsd-mode-label");
   var form = document.getElementById("wsd-form");
-  var maxItems = 48;
+  var maxItems = boot.maxFeatured || 6;
 
   function fmtMoney(n) {
     return "KES " + Math.round(Number(n) || 0).toLocaleString("en-KE");
@@ -155,7 +155,7 @@
     var p = catalogById[sid];
     if (!p || !selectedList) return;
     if (selectedIds().length >= maxItems) {
-      window.alert("Maximum " + maxItems + " products on the website.");
+      window.alert("Maximum " + maxItems + " featured products on the homepage.");
       return;
     }
     if (selectedIds().indexOf(parseInt(sid, 10)) >= 0) return;
@@ -249,4 +249,34 @@
 
   renderCatalog("");
   syncHidden();
+
+  var previewFrame = document.getElementById("wsd-preview-frame");
+  var previewPlaceholder = document.getElementById("wsd-preview-placeholder");
+  var previewHideBtn = document.getElementById("wsd-preview-hide-btn");
+
+  function showPreview() {
+    if (!previewFrame || !previewPlaceholder) return;
+    if (!previewFrame.getAttribute("data-loaded")) {
+      previewFrame.src = previewFrame.getAttribute("data-preview-src") || "/site";
+      previewFrame.setAttribute("data-loaded", "1");
+    }
+    previewPlaceholder.hidden = true;
+    previewFrame.hidden = false;
+    if (previewHideBtn) previewHideBtn.hidden = false;
+    previewFrame.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function hidePreview() {
+    if (!previewFrame || !previewPlaceholder) return;
+    previewFrame.hidden = true;
+    previewPlaceholder.hidden = false;
+    if (previewHideBtn) previewHideBtn.hidden = true;
+  }
+
+  root.querySelectorAll(".wsd-preview-trigger, #wsd-preview-btn").forEach(function (btn) {
+    btn.addEventListener("click", showPreview);
+  });
+  if (previewHideBtn) {
+    previewHideBtn.addEventListener("click", hidePreview);
+  }
 })();

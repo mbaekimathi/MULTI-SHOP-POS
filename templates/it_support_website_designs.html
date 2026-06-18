@@ -1,230 +1,416 @@
 {% extends "employee_layout.html" %}
 {% block title %}Website designs — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
-{% block portal_page_title %}Website designs{% endblock %}
+{% block portal_page_title %}Build your website{% endblock %}
 {% block sidebar_links %}
   {% include "partials/it_support_website_sidebar_nav.html" %}
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    #website-designs-page {
-      max-width: none;
-    }
-    #website-designs-page .wsf-design-shell {
-      min-height: 32rem;
-      border-radius: 1rem;
-      overflow: hidden;
-      border: 1px solid rgb(var(--rc-border));
-      box-shadow: 0 20px 40px -28px rgba(15, 23, 42, 0.45);
-    }
-    #website-designs-page .wsd-panel {
-      border: 1px solid rgb(var(--rc-border));
-      border-radius: 1rem;
-      background: rgb(var(--rc-surface));
-      box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.35);
-    }
-    #website-designs-page .wsd-scroll {
-      max-height: min(22rem, 42vh);
-      overflow-y: auto;
-    }
-    #website-designs-page .wsd-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.45rem 0.5rem;
-      border-radius: 0.75rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface-2));
-    }
-    #website-designs-page .wsd-row + .wsd-row,
-    #website-designs-page .wsd-scroll .wsd-row {
-      margin-top: 0.4rem;
-    }
-    #website-designs-page .wsd-row.is-dragging {
-      opacity: 0.55;
-    }
-    #website-designs-page .wsd-row--catalog.is-added {
-      opacity: 0.45;
-      pointer-events: none;
-    }
-    #website-designs-page .wsd-row--catalog.is-added .wsd-row__add {
-      visibility: hidden;
-    }
-    #website-designs-page .wsd-row__drag {
-      cursor: grab;
-      color: rgb(var(--rc-muted));
-      font-size: 0.75rem;
-      line-height: 1;
-      user-select: none;
-    }
-    #website-designs-page .wsd-row__img {
-      width: 2.25rem;
-      height: 2.25rem;
-      border-radius: 0.5rem;
-      object-fit: cover;
-      flex-shrink: 0;
-      background: rgb(var(--rc-surface));
-    }
-    #website-designs-page .wsd-row__img--ph {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      color: rgb(var(--rc-muted));
-    }
-    #website-designs-page .wsd-row__body {
-      min-width: 0;
-      flex: 1;
-    }
-    #website-designs-page .wsd-row__name {
-      font-size: 0.75rem;
-      font-weight: 600;
-      line-height: 1.25;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    #website-designs-page .wsd-row__meta {
-      font-size: 0.625rem;
-      color: rgb(var(--rc-muted));
-    }
-    #website-designs-page .wsd-row__actions {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-    }
-    #website-designs-page .wsd-row__btn {
-      width: 1.35rem;
-      height: 1.35rem;
-      border-radius: 0.375rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface));
-      font-size: 0.65rem;
-      line-height: 1;
-      color: rgb(var(--rc-page-fg));
-    }
-    #website-designs-page .wsd-row__btn--remove {
-      color: #e11d48;
-    }
-    #website-designs-page .wsd-mode {
-      font-size: 0.6875rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: rgb(var(--rc-muted));
-    }
-    #website-designs-page .wsd-mode.is-custom {
-      color: rgb(var(--rc-primary));
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}" />
 {% endblock %}
 {% block employee_content %}
   {% set d = website_design %}
-  <div id="website-designs-page" class="space-y-4">
+  {% set max_feat = website_homepage_featured_max|default(6) %}
+  <div id="website-designs-page" class="space-y-5">
     {% with share_compact=true %}
       {% include "partials/website_share_link.html" %}
     {% endwith %}
 
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Website products</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Choose which items appear on your public shop, remove them, and drag to set the order.
-          Theme from
-          <a href="{{ url_for('it_support_website_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Website settings</a>.
-        </p>
-      </div>
-      <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-sm font-semibold">Open live link</a>
-    </div>
-
-    <div class="grid gap-5 xl:grid-cols-12">
-      <aside class="wsd-panel p-4 xl:col-span-4 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-        <form method="post" action="{{ url_for('it_support_website_designs') }}" id="wsd-form" class="space-y-4">
-          <input type="hidden" name="featured_item_ids" id="wsd-featured-ids" value="{{ website_selected_ids|tojson }}" />
-
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">On your website</h3>
-              <p id="wsd-mode-label" class="wsd-mode mt-0.5 {% if not website_using_auto_products %}is-custom{% endif %}">
-                {% if website_using_auto_products %}Automatic (best-sellers){% else %}Custom selection{% endif %}
-              </p>
-            </div>
-            <span class="rounded-full bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]">
-              <span id="wsd-selected-count">{{ website_featured_products|length }}</span> / 48
-            </span>
-          </div>
-
-          <ul id="wsd-selected-list" class="wsd-scroll list-none p-0">
-            {% if website_using_auto_products %}
-              <li class="wsd-empty rounded-xl border border-dashed border-[rgb(var(--rc-border))] px-3 py-5 text-center text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
-                Using <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">automatic best-sellers</strong> from POS (preview on the right).
-                Add items below to build a custom list, then click Save.
-              </li>
-            {% else %}
-              {% for p in website_featured_products %}
-                <li class="wsd-row wsd-row--selected" draggable="true" data-item-id="{{ p.id }}">
-                  <span class="wsd-row__drag" aria-hidden="true">⋮⋮</span>
-                  {% if p.image_url %}
-                    <img src="{{ p.image_url }}" alt="" class="wsd-row__img" />
-                  {% else %}
-                    <span class="wsd-row__img wsd-row__img--ph">{{ p.name[:1]|upper }}</span>
-                  {% endif %}
-                  <div class="wsd-row__body">
-                    <p class="wsd-row__name">{{ p.name }}</p>
-                    <p class="wsd-row__meta">{{ p.category }} · KES {{ '%.0f'|format(p.price) }}</p>
-                  </div>
-                  <div class="wsd-row__actions">
-                    <button type="button" class="wsd-row__btn" data-move-up aria-label="Move up">↑</button>
-                    <button type="button" class="wsd-row__btn" data-move-down aria-label="Move down">↓</button>
-                    <button type="button" class="wsd-row__btn wsd-row__btn--remove" data-remove aria-label="Remove">×</button>
-                  </div>
-                </li>
-              {% else %}
-                <li class="wsd-empty rounded-xl border border-dashed border-[rgb(var(--rc-border))] px-3 py-6 text-center text-xs text-[rgb(var(--rc-muted))]">
-                  No products selected — save empty to use automatic best-sellers.
-                </li>
-              {% endfor %}
-            {% endif %}
-          </ul>
-
-          <div class="border-t border-[rgb(var(--rc-border))] pt-4">
-            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Add from catalogue</h3>
-            <input
-              type="search"
-              id="wsd-catalog-search"
-              class="mt-2 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
-              placeholder="Search items…"
-              autocomplete="off"
-            />
-            <ul id="wsd-catalog-list" class="wsd-scroll mt-3 list-none p-0"></ul>
-          </div>
-
-          <div class="flex flex-wrap gap-2 border-t border-[rgb(var(--rc-border))] pt-4">
-            <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Save website products</button>
-          </div>
-        </form>
-
-        <form method="post" action="{{ url_for('it_support_website_designs') }}" class="mt-3">
-          <input type="hidden" name="action" value="reset_auto" />
-          <button type="submit" class="btn-rc btn-rc-ghost w-full px-4 py-2 text-sm font-semibold" onclick="return confirm('Reset to automatic best-sellers from POS?');">
-            Reset to automatic best-sellers
-          </button>
-        </form>
-      </aside>
-
-      <div class="xl:col-span-8">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Live preview</p>
-        <div class="wsf-design-shell">
-          {% with website_design=d, storefront_design_mode=false %}
-            {% include "partials/website_ecommerce_storefront.html" %}
-          {% endwith %}
+    <div class="wsd-hero p-5 sm:p-6">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-[rgb(var(--rc-muted))]">Website builder</p>
+          <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Build your homepage</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+            Complete five sections below — identity, homepage hero, SEO, trust policies, and {{ max_feat }} featured products.
+            Theme and hosted domain are in
+            <a href="{{ url_for('it_support_system_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">System settings</a>.
+          </p>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <button type="button" id="wsd-preview-btn" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Preview website</button>
+          <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Open live link</a>
         </div>
       </div>
+      <div class="wsd-steps-rail mt-5">
+        <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">1</span> Identity</span>
+        <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">2</span> Hero</span>
+        <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">3</span> SEO</span>
+        <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">4</span> Policies</span>
+        <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">5</span> Products</span>
+      </div>
     </div>
+
+    <form method="post" action="{{ url_for('it_support_website_designs') }}" id="wsd-form" class="grid gap-5 xl:grid-cols-12">
+      <input type="hidden" name="featured_item_ids" id="wsd-featured-ids" value="{{ website_selected_ids|tojson }}" />
+
+      <div class="space-y-4 xl:col-span-7">
+        <section class="wsd-panel p-5 sm:p-6">
+          <div class="wsd-step">
+            <span class="wsd-step__num">1</span>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Company identity &amp; contact</h3>
+            <p class="mt-1 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+              Your public shop header and footer use these details automatically — no need to re-type them here.
+            </p>
+            <div class="mt-4">
+              {% include "partials/website_company_identity_summary.html" %}
+            </div>
+          </div>
+        </section>
+
+        <section class="wsd-panel p-5 sm:p-6">
+          <div class="wsd-step">
+            <span class="wsd-step__num">2</span>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Homepage hero</h3>
+            <p class="mt-1 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+              The large headline block at the top of your shop — eyebrow, main title, accent line, and intro text.
+            </p>
+            <div class="mt-4 space-y-4">
+              <div>
+                <div class="mb-1 flex items-center justify-between gap-2">
+                  <label for="hero_eyebrow" class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Eyebrow</label>
+                  <span class="wsd-char-count"><span id="wsd-hero-eyebrow-count">0</span>/120</span>
+                </div>
+                <input
+                  type="text"
+                  name="hero_eyebrow"
+                  id="hero_eyebrow"
+                  maxlength="120"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                  value="{{ d.hero_eyebrow or '' }}"
+                  placeholder="e.g. Welcome to {{ site_settings.company_name if site_settings else 'our shop' }}"
+                />
+                <p class="wsd-field-hint mt-1">Small label above the headline. Leave blank to use your company name.</p>
+              </div>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div class="mb-1 flex items-center justify-between gap-2">
+                    <label for="hero_headline" class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Headline</label>
+                    <span class="wsd-char-count"><span id="wsd-hero-headline-count">0</span>/160</span>
+                  </div>
+                  <input
+                    type="text"
+                    name="hero_headline"
+                    id="hero_headline"
+                    maxlength="160"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                    value="{{ d.hero_headline or '' }}"
+                    placeholder="e.g. Shop quality products"
+                  />
+                </div>
+                <div>
+                  <div class="mb-1 flex items-center justify-between gap-2">
+                    <label for="hero_headline_accent" class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Headline accent</label>
+                    <span class="wsd-char-count"><span id="wsd-hero-accent-count">0</span>/160</span>
+                  </div>
+                  <input
+                    type="text"
+                    name="hero_headline_accent"
+                    id="hero_headline_accent"
+                    maxlength="160"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                    value="{{ d.hero_headline_accent or '' }}"
+                    placeholder="e.g. delivered to your door"
+                  />
+                  <p class="wsd-field-hint mt-1">Shown in your theme accent colour on the second line.</p>
+                </div>
+              </div>
+              <div>
+                <div class="mb-1 flex items-center justify-between gap-2">
+                  <label for="hero_body" class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Intro paragraph</label>
+                  <span class="wsd-char-count"><span id="wsd-hero-body-count">0</span>/600</span>
+                </div>
+                <textarea
+                  name="hero_body"
+                  id="hero_body"
+                  rows="3"
+                  maxlength="600"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-brand-500/30"
+                  placeholder="A short welcome message for shoppers — separate from the SEO meta description below."
+                >{{ d.hero_body or '' }}</textarea>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="cta_primary_label" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Primary button</label>
+                  <input
+                    type="text"
+                    name="cta_primary_label"
+                    id="cta_primary_label"
+                    maxlength="48"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                    value="{{ d.cta_primary_label or '' }}"
+                    placeholder="Browse products"
+                  />
+                </div>
+                <div>
+                  <label for="cta_secondary_label" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Secondary button</label>
+                  <input
+                    type="text"
+                    name="cta_secondary_label"
+                    id="cta_secondary_label"
+                    maxlength="48"
+                    class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                    value="{{ d.cta_secondary_label or '' }}"
+                    placeholder="Request quote"
+                  />
+                </div>
+              </div>
+              <details class="wsd-details rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3">
+                <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Banner, search &amp; featured section</summary>
+                <div class="mt-4 space-y-4 pb-1">
+                  <div>
+                    <label for="promo_banner_text" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Top promo banner</label>
+                    <input
+                      type="text"
+                      name="promo_banner_text"
+                      id="promo_banner_text"
+                      maxlength="160"
+                      class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                      value="{{ d.promo_banner_text or '' }}"
+                      placeholder="e.g. Free pickup · Same-day delivery in Nairobi"
+                    />
+                  </div>
+                  <div>
+                    <label for="search_placeholder" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Search placeholder</label>
+                    <input
+                      type="text"
+                      name="search_placeholder"
+                      id="search_placeholder"
+                      maxlength="80"
+                      class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                      value="{{ d.search_placeholder or '' }}"
+                      placeholder="Search products…"
+                    />
+                  </div>
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label for="featured_section_title" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Featured section title</label>
+                      <input
+                        type="text"
+                        name="featured_section_title"
+                        id="featured_section_title"
+                        maxlength="80"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                        value="{{ d.featured_section_title or '' }}"
+                        placeholder="Featured products"
+                      />
+                    </div>
+                    <div>
+                      <label for="featured_section_subtitle" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Featured section subtitle</label>
+                      <input
+                        type="text"
+                        name="featured_section_subtitle"
+                        id="featured_section_subtitle"
+                        maxlength="320"
+                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                        value="{{ d.featured_section_subtitle or '' }}"
+                        placeholder="Hand-picked items from our catalogue"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </section>
+
+        <section class="wsd-panel p-5 sm:p-6">
+          <div class="wsd-step">
+            <span class="wsd-step__num">3</span>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Homepage search engine optimization</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">How your shop appears in Google and when shared on social media.</p>
+            <div class="mt-4 space-y-4">
+              <div>
+                <div class="mb-1 flex items-center justify-between gap-2">
+                  <label for="meta_title" class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Homepage meta title</label>
+                  <span class="wsd-char-count"><span id="wsd-meta-title-count">0</span>/120</span>
+                </div>
+                <input
+                  type="text"
+                  name="meta_title"
+                  id="meta_title"
+                  maxlength="120"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                  value="{{ d.meta_title or '' }}"
+                  placeholder="{{ site_settings.company_name if site_settings else 'Your company' }} — Shop online"
+                />
+                <p class="wsd-field-hint mt-1">Keep under 60 characters when possible. Leave blank to use your company name.</p>
+              </div>
+              <div>
+                <div class="mb-1 flex items-center justify-between gap-2">
+                  <label for="meta_description" class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Homepage meta description</label>
+                  <span class="wsd-char-count"><span id="wsd-meta-desc-count">0</span>/320</span>
+                </div>
+                <textarea
+                  name="meta_description"
+                  id="meta_description"
+                  rows="3"
+                  maxlength="320"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                  placeholder="Brief summary of what customers can buy and why they should trust you…"
+                >{{ d.meta_description or '' }}</textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="wsd-panel p-5 sm:p-6">
+          <div class="wsd-step">
+            <span class="wsd-step__num">4</span>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Trust policies <span class="font-normal text-[rgb(var(--rc-muted))]">(Google E-E-A-T)</span></h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Clear policies help customers trust your shop and improve search quality signals.</p>
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <label for="return_refund_policy" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Return &amp; refund policy</label>
+                <textarea
+                  name="return_refund_policy"
+                  id="return_refund_policy"
+                  rows="6"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-brand-500/30"
+                  placeholder="e.g. Returns accepted within 7 days with receipt. Refunds processed within 5 business days…"
+                >{{ d.return_refund_policy or '' }}</textarea>
+              </div>
+              <div>
+                <label for="shipping_delivery_guidelines" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shipping &amp; delivery guidelines</label>
+                <textarea
+                  name="shipping_delivery_guidelines"
+                  id="shipping_delivery_guidelines"
+                  rows="6"
+                  class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-brand-500/30"
+                  placeholder="e.g. Same-day pickup in-store. Nairobi delivery 1–2 days. Countrywide via courier…"
+                >{{ d.shipping_delivery_guidelines or '' }}</textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="wsd-panel p-5 sm:p-6">
+          <div class="wsd-step">
+            <span class="wsd-step__num">5</span>
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Homepage featured products</h3>
+                <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+                  Pick up to <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ max_feat }} items</strong> for your homepage.
+                  Visitors can
+                  <a href="{{ catalog_preview_url }}" target="_blank" rel="noopener" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">view all items</a>
+                  on the full catalogue page.
+                </p>
+              </div>
+              <span class="rounded-full bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]">
+                <span id="wsd-selected-count">{{ website_featured_products|length }}</span> / {{ max_feat }}
+              </span>
+            </div>
+
+            <p id="wsd-mode-label" class="wsd-mode mt-3 {% if not website_using_auto_products %}is-custom{% endif %}">
+              {% if website_using_auto_products %}Automatic (best-sellers){% else %}Custom selection{% endif %}
+            </p>
+
+            <ul id="wsd-selected-list" class="wsd-scroll mt-3 list-none p-0">
+              {% if website_using_auto_products %}
+                <li class="wsd-empty rounded-xl border border-dashed border-[rgb(var(--rc-border))] px-3 py-5 text-center text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+                  Using <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">automatic best-sellers</strong> from POS.
+                  Add items below to choose your own {{ max_feat }}, then save.
+                </li>
+              {% else %}
+                {% for p in website_featured_products %}
+                  <li class="wsd-row wsd-row--selected" draggable="true" data-item-id="{{ p.id }}">
+                    <span class="wsd-row__drag" aria-hidden="true">⋮⋮</span>
+                    {% if p.image_url %}
+                      <img src="{{ p.image_url }}" alt="" class="wsd-row__img" />
+                    {% else %}
+                      <span class="wsd-row__img wsd-row__img--ph">{{ p.name[:1]|upper }}</span>
+                    {% endif %}
+                    <div class="wsd-row__body">
+                      <p class="wsd-row__name">{{ p.name }}</p>
+                      <p class="wsd-row__meta">{{ p.category }} · KES {{ '%.0f'|format(p.price) }}</p>
+                    </div>
+                    <div class="wsd-row__actions">
+                      <button type="button" class="wsd-row__btn" data-move-up aria-label="Move up">↑</button>
+                      <button type="button" class="wsd-row__btn" data-move-down aria-label="Move down">↓</button>
+                      <button type="button" class="wsd-row__btn wsd-row__btn--remove" data-remove aria-label="Remove">×</button>
+                    </div>
+                  </li>
+                {% else %}
+                  <li class="wsd-empty rounded-xl border border-dashed border-[rgb(var(--rc-border))] px-3 py-6 text-center text-xs text-[rgb(var(--rc-muted))]">
+                    No products selected — save empty to use automatic best-sellers.
+                  </li>
+                {% endfor %}
+              {% endif %}
+            </ul>
+
+            <div class="mt-4 border-t border-[rgb(var(--rc-border))] pt-4">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Add from catalogue</h4>
+                <a href="{{ url_for('it_support_item_management') }}" class="text-xs font-semibold text-[rgb(var(--rc-primary))] hover:underline">Manage all items →</a>
+              </div>
+              <input
+                type="search"
+                id="wsd-catalog-search"
+                class="mt-2 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500/30"
+                placeholder="Search items…"
+                autocomplete="off"
+              />
+              <ul id="wsd-catalog-list" class="wsd-scroll mt-3 list-none p-0"></ul>
+            </div>
+          </div>
+        </section>
+
+        <div class="wsd-save-bar flex flex-wrap gap-2">
+          <button type="submit" class="btn-rc btn-rc-primary px-5 py-2.5 text-sm font-semibold">Save website</button>
+          <button type="submit" name="action" value="reset_auto" class="btn-rc btn-rc-ghost px-4 py-2.5 text-sm font-semibold" onclick="return confirm('Reset homepage products to automatic best-sellers from POS?');">
+            Reset to best-sellers
+          </button>
+        </div>
+      </div>
+
+      <aside class="xl:col-span-5 xl:sticky xl:top-4 xl:self-start">
+        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Preview</p>
+          <button type="button" id="wsd-preview-hide-btn" class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-semibold" hidden>Hide preview</button>
+        </div>
+        <div class="wsf-design-shell">
+          <div id="wsd-preview-placeholder" class="wsd-preview-placeholder">
+            <p class="max-w-sm text-sm font-medium text-[rgb(var(--rc-page-fg))]">Preview your homepage</p>
+            <p class="max-w-sm text-xs leading-relaxed text-[rgb(var(--rc-muted))]">Save first, then preview to see hero, SEO, policies, and featured products.</p>
+            <button type="button" class="wsd-preview-trigger btn-rc btn-rc-primary mt-1 px-4 py-2 text-sm font-semibold">Preview website</button>
+          </div>
+          <iframe
+            id="wsd-preview-frame"
+            class="wsd-preview-frame"
+            title="Website preview"
+            hidden
+            loading="lazy"
+            data-preview-src="{{ url_for('marketing_home') }}"
+          ></iframe>
+        </div>
+      </aside>
+    </form>
   </div>
 
   <script type="application/json" id="wsd-editor-boot">
-    {{ {"catalog": website_catalog_products, "selectedIds": website_selected_ids}|tojson }}
+    {{ {"catalog": website_catalog_products, "selectedIds": website_selected_ids, "maxFeatured": max_feat}|tojson }}
   </script>
   <script src="{{ url_for('static', filename='js/website-designs-editor.js') }}" defer></script>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      function bindCounter(inputId, countId) {
+        var input = document.getElementById(inputId);
+        var count = document.getElementById(countId);
+        if (!input || !count) return;
+        function sync() { count.textContent = String((input.value || "").length); }
+        input.addEventListener("input", sync);
+        sync();
+      }
+      bindCounter("meta_title", "wsd-meta-title-count");
+      bindCounter("meta_description", "wsd-meta-desc-count");
+      bindCounter("hero_eyebrow", "wsd-hero-eyebrow-count");
+      bindCounter("hero_headline", "wsd-hero-headline-count");
+      bindCounter("hero_headline_accent", "wsd-hero-accent-count");
+      bindCounter("hero_body", "wsd-hero-body-count");
+    })();
+  </script>
 {% endblock %}

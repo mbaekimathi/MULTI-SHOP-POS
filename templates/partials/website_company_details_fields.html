@@ -1,0 +1,83 @@
+{# Company identity fields for the public website (saved to site_settings). #}
+<section>
+  {% if not website_company_fields_compact|default(false) %}
+    <h3 class="text-xs font-black uppercase tracking-wider text-[rgb(var(--rc-muted))]">Business details</h3>
+    <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+      Logo, contact info, location, and social links shown on your public shop. These use the same company settings as receipts and POS.
+    </p>
+  {% endif %}
+  <div class="{% if not website_company_fields_compact|default(false) %}mt-4 {% endif %}grid gap-4 md:grid-cols-2">
+    <div class="md:col-span-2">
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Company name</label>
+      <input
+        name="company_name"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+        value="{{ site_settings.company_name if site_settings else 'Point of Sale' }}"
+      />
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Email</label>
+      <input
+        name="company_email"
+        type="email"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+        value="{{ site_settings.company_email if site_settings else '' }}"
+        placeholder="hello@yourcompany.com"
+      />
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Phone (WhatsApp)</label>
+      <input
+        name="company_phone"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+        value="{{ site_settings.company_phone if site_settings else '' }}"
+        placeholder="e.g. 0712 345 678"
+      />
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Shown on the website footer and used for quotation requests via WhatsApp.</p>
+    </div>
+    <div class="md:col-span-2">
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Logo</label>
+      <p class="mb-2 text-sm text-[rgb(var(--rc-muted))]">Appears in the website header, footer, and browser tab icon.</p>
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="h-14 w-14 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
+          {% if site_settings and site_settings.app_icon %}
+            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="Company logo" class="h-full w-full object-cover" />
+          {% else %}
+            <img src="{{ url_for('static', filename='app-icon.svg') }}" alt="Default logo" class="h-full w-full object-cover" />
+          {% endif %}
+        </div>
+        <div class="min-w-[16rem] flex-1">
+          <input name="app_icon" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.ico,.svg" class="block w-full text-sm text-[rgb(var(--rc-muted))]" />
+          <label class="mt-2 inline-flex items-center gap-2 text-sm text-[rgb(var(--rc-muted))]">
+            <input type="checkbox" name="remove_app_icon" value="1" class="h-4 w-4 rounded border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]" />
+            Remove custom logo (use default)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Facebook</label>
+      <input
+        name="company_facebook"
+        type="url"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+        value="{{ site_settings.company_facebook if site_settings else '' }}"
+        placeholder="https://facebook.com/yourpage"
+      />
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Instagram</label>
+      <input
+        name="company_instagram"
+        type="url"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40"
+        value="{{ site_settings.company_instagram if site_settings else '' }}"
+        placeholder="https://instagram.com/yourpage"
+      />
+    </div>
+    {% set location_name = site_settings.company_location_name if site_settings else '' %}
+    {% set location_lat = site_settings.company_latitude if site_settings else '' %}
+    {% set location_lng = site_settings.company_longitude if site_settings else '' %}
+    {% include "partials/company_location_picker.html" %}
+  </div>
+</section>

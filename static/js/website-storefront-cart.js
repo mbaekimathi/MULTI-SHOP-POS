@@ -232,11 +232,24 @@
     notifyCartUpdate();
   }
 
+  function resolveAddAnimEl(el) {
+    if (!el) return null;
+    if (el.classList && el.classList.contains("wsf-product-card")) {
+      return el.querySelector(".wsf-product-card__cart") || el;
+    }
+    return el;
+  }
+
+  function handleAddClick(e, el) {
+    if (!el) return;
+    e.preventDefault();
+    addToCart(el.getAttribute("data-wsf-add-id"), 1, resolveAddAnimEl(el));
+  }
+
   root.addEventListener("click", function (e) {
-    var addBtn = e.target.closest("[data-wsf-add-id]");
-    if (addBtn) {
-      e.preventDefault();
-      addToCart(addBtn.getAttribute("data-wsf-add-id"), 1, addBtn);
+    var addTarget = e.target.closest(".wsf-product-card[data-wsf-add-id], [data-wsf-add-id]");
+    if (addTarget) {
+      handleAddClick(e, addTarget);
       return;
     }
     var openBtn = e.target.closest("[data-wsf-open-cart]");
@@ -276,6 +289,12 @@
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") closeDrawer();
+    if (e.key !== "Enter" && e.key !== " ") return;
+    var card = e.target.closest(".wsf-product-card[data-wsf-add-id]");
+    if (!card || !root.contains(card)) return;
+    if (e.target.closest("a, input, textarea, select")) return;
+    e.preventDefault();
+    addToCart(card.getAttribute("data-wsf-add-id"), 1, resolveAddAnimEl(card));
   });
 
   function setLocationFieldOpen(open) {
@@ -314,6 +333,15 @@
     locationCheckbox.addEventListener("change", function () {
       setLocationFieldOpen(locationCheckbox.checked);
     });
+  }
+
+  function openWhatsappUrl(url) {
+    if (!url) return false;
+    var win = window.open(url, "_blank", "noopener,noreferrer");
+    if (!win) {
+      window.location.href = url;
+    }
+    return true;
   }
 
   if (form && quoteUrl) {
@@ -393,14 +421,18 @@
             successEl.textContent = res.body.message || "Quotation request received.";
             successEl.classList.remove("hidden");
           }
-          if (res.body.whatsapp_url) {
-            window.open(res.body.whatsapp_url, "_blank", "noopener,noreferrer");
+          var companyWa =
+            (res.body && (res.body.company_whatsapp_url || res.body.whatsapp_url)) || "";
+          if (companyWa) {
+            openWhatsappUrl(companyWa);
           }
           if (typeof window.wsfShowToast === "function") {
             window.wsfShowToast(
-              res.body.whatsapp_url
-                ? "Opening WhatsApp — tap Send to notify the shop"
-                : "Quotation saved — we'll be in touch!"
+              res.body.system_saved && companyWa
+                ? "Saved to system — tap Send in WhatsApp for the company phone"
+                : res.body.system_saved
+                  ? "Quotation saved to our system"
+                  : "Quotation request received"
             );
           }
         })

@@ -4,7 +4,7 @@
 
 {% set _d = website_settings.design if website_settings and website_settings.design else {} %}
 
-{% block title %}{{ _c.page_title }}{% endblock %}
+{% block title %}All products — {{ _c.company_name }}{% endblock %}
 
 {% block meta_description %}{{ _c.meta_description }}{% endblock %}
 
@@ -16,7 +16,7 @@
 
 {% block content %}
 
-  {% with website_design=_d, storefront_include_chrome=true, storefront_catalog_mode=false %}
+  {% with website_design=_d, storefront_include_chrome=true, storefront_catalog_mode=true %}
 
     {% include "partials/website_ecommerce_storefront.html" %}
 

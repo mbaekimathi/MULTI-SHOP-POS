@@ -1,19 +1,35 @@
+{% set _sf_font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
 <!DOCTYPE html>
 <html
   lang="en"
   class="scroll-smooth"
-  data-marketing-theme="{{ website_settings.default_theme if website_settings else 'light' }}"
-  style="--mk-primary: {{ website_settings.primary_color if website_settings else '#9333ea' }}; --mk-accent: {{ website_settings.accent_color if website_settings else '#a855f7' }}; --rc-font-family: {{ (website_settings.font_family if website_settings else 'Plus Jakarta Sans')|font_stack }}"
+  data-marketing-theme="{{ site_settings.default_theme if site_settings else 'dark' }}"
+  data-marketing-theme-config="{{ site_settings.theme_config_key if site_settings and site_settings.theme_config_key else '' }}"
+  data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
+  style="--mk-primary: {{ site_settings.primary_color if site_settings else '#f97316' }}; --mk-accent: {{ site_settings.accent_color if site_settings else '#fb923c' }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '249, 115, 22' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '251, 146, 60' }}; --rc-font-family: {{ _sf_font }};"
 >
   <script>
     (function () {
       try {
-        var def = document.documentElement.getAttribute("data-marketing-theme") || "light";
+        var docEl = document.documentElement;
+        var def = docEl.getAttribute("data-marketing-theme") || "dark";
+        function resolveDefault(mode) {
+          if (mode === "system") {
+            try {
+              return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            } catch (e2) {
+              return "dark";
+            }
+          }
+          return mode === "light" || mode === "dark" ? mode : "dark";
+        }
+        var cfg = docEl.getAttribute("data-marketing-theme-config") || "";
+        var storedCfg = localStorage.getItem("marketing-theme-config");
         var t = localStorage.getItem("marketing-theme");
-        if (t === "dark" || t === "light") {
-          document.documentElement.setAttribute("data-marketing-theme", t);
-        } else if (def === "dark" || def === "light") {
-          document.documentElement.setAttribute("data-marketing-theme", def);
+        if (storedCfg && cfg && storedCfg === cfg && (t === "dark" || t === "light")) {
+          docEl.setAttribute("data-marketing-theme", t);
+        } else {
+          docEl.setAttribute("data-marketing-theme", resolveDefault(def));
         }
       } catch (e) {}
     })();
@@ -21,15 +37,15 @@
   <head>
     {% include "partials/system_public_brand.html" %}
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     {% set _icon = site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg' %}
     <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
     <title>{% block title %}{{ pub_brand_name }}{% endblock %} — {{ pub_title_suffix }}</title>
-    <meta name="description" content="{% block meta_description %}{{ website_settings.design.meta_description if website_settings and website_settings.design else 'Run every store with clear sales, stock, and reporting — one view of your retail business, from the shop to head office.' }}{% endblock %}" />
-    {% if website_settings and website_settings.font_google_url %}
+    <meta name="description" content="{% block meta_description %}{{ storefront_homepage_copy.meta_description if storefront_homepage_copy else 'Browse products and request a quote online.' }}{% endblock %}" />
+    {% if site_settings and site_settings.font_google_url %}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-      <link rel="stylesheet" href="{{ website_settings.font_google_url }}" />
+      <link rel="stylesheet" href="{{ site_settings.font_google_url }}" />
     {% else %}
       {% include "partials/theme_font_link.html" %}
     {% endif %}

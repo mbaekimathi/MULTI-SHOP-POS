@@ -1,21 +1,9 @@
-{# Website management sidebar. website_nav_active: '' | 'settings' | 'designs' #}
+{# Website management sidebar. website_nav_active: '' | 'designs' #}
 {% set _wn = website_nav_active|default(
-  'settings' if request.endpoint == 'it_support_website_settings'
-  else ('designs' if request.endpoint == 'it_support_website_designs' else ''),
+  'designs' if request.endpoint == 'it_support_website_designs' else '',
   true
 ) %}
 <p class="mt-2 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Website</p>
-<a
-  href="{{ url_for('it_support_website_settings') }}"
-  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _wn == 'settings' %}bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
-  {% if _wn == 'settings' %}aria-current="page"{% endif %}
->
-  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-  Website settings
-</a>
 <a
   href="{{ url_for('it_support_website_designs') }}"
   class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _wn == 'designs' %}bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -24,5 +12,5 @@
   <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
   </svg>
-  Website designs
+  Website builder
 </a>

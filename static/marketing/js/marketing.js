@@ -30,12 +30,16 @@
 
   function initMarketingThemeToggle() {
     var key = "marketing-theme";
+    var cfgKey = "marketing-theme-config";
     var root = document.documentElement;
+    var cfg = root.getAttribute("data-marketing-theme-config") || "";
+    var storedCfg = null;
     var stored = null;
     try {
+      storedCfg = localStorage.getItem(cfgKey);
       stored = localStorage.getItem(key);
     } catch (e) {}
-    if (stored === "dark" || stored === "light") {
+    if (storedCfg && cfg && storedCfg === cfg && (stored === "dark" || stored === "light")) {
       root.setAttribute("data-marketing-theme", stored);
     }
 
@@ -45,6 +49,7 @@
         root.setAttribute("data-marketing-theme", next);
         try {
           localStorage.setItem(key, next);
+          if (cfg) localStorage.setItem(cfgKey, cfg);
         } catch (e) {}
       });
     });

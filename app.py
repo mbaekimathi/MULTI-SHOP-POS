@@ -697,6 +697,17 @@ def inject_website_settings():
 
 
 @app.context_processor
+def inject_storefront_homepage_copy():
+    """Homepage copy and contact resolved from website builder + company settings."""
+    try:
+        ws = _load_website_settings()
+        co = _load_company_identity_settings()
+        return {"storefront_homepage_copy": _storefront_homepage_copy(ws.get("design"), co)}
+    except Exception:
+        return {"storefront_homepage_copy": _storefront_homepage_copy({}, {})}
+
+
+@app.context_processor
 def inject_site_settings():
     from theme_presets import (
         DEFAULT_THEME_PRESET,
@@ -740,6 +751,18 @@ def inject_site_settings():
     preset_key = merged["theme_preset"]
     portal_font = _effective_portal_font_family()
     site_font = merged["font_family"]
+    primary = (merged.get("primary_color") or defaults["primary_color"]).strip()
+    accent = (merged.get("accent_color") or defaults["accent_color"]).strip()
+    merged["font_google_url"] = google_fonts_url(site_font)
+    merged["theme_config_key"] = "|".join(
+        [
+            str(merged.get("default_theme") or defaults["default_theme"]),
+            primary.lower(),
+            accent.lower(),
+            str(site_font),
+            str(preset_key or defaults["theme_preset"]),
+        ]
+    )
     return {
         "site_settings": merged,
         "theme_default": merged["default_theme"],
@@ -1067,10 +1090,8 @@ def _save_branding_upload(file_storage):
 
 @app.route("/")
 def index():
-    """POS sign-in hub, or public storefront when request host matches website domain."""
-    if _is_public_website_host_request():
-        return _render_public_storefront()
-    return render_template("home.html")
+    """Public customer storefront at root."""
+    return _render_public_storefront()
 
 
 @app.route("/site")
@@ -1079,6 +1100,22 @@ def marketing_home():
     if _is_public_website_host_request():
         return redirect(url_for("index"), code=301)
     return _render_public_storefront()
+
+
+@app.route("/site/catalog")
+def marketing_catalog():
+    """Full product catalog for the public shop."""
+    if _is_public_website_host_request():
+        return redirect(url_for("marketing_catalog_live"), code=301)
+    return _render_public_storefront(catalog_mode=True)
+
+
+@app.route("/catalog")
+def marketing_catalog_live():
+    """Full catalog on the live website domain."""
+    if not _is_public_website_host_request():
+        return redirect(url_for("marketing_catalog"), code=302)
+    return _render_public_storefront(catalog_mode=True)
 
 
 @app.route("/features")
@@ -1765,6 +1802,42 @@ def _location_settings_from_form() -> dict:
     }
 
 
+def _company_identity_values_from_form() -> dict:
+    return {
+        "company_name": (request.form.get("company_name") or "").strip() or "Point of Sale",
+        "company_email": (request.form.get("company_email") or "").strip(),
+        "company_phone": (request.form.get("company_phone") or "").strip(),
+        "company_facebook": (request.form.get("company_facebook") or "").strip(),
+        "company_instagram": (request.form.get("company_instagram") or "").strip(),
+        **_location_settings_from_form(),
+    }
+
+
+def _save_company_identity_from_request() -> tuple[bool, str | None]:
+    """Persist company identity fields from the current request (incl. optional logo upload)."""
+    values = _company_identity_values_from_form()
+    app_icon_file = request.files.get("app_icon")
+    remove_app_icon = (request.form.get("remove_app_icon") or "").strip() == "1"
+    app_icon_path = None
+    if remove_app_icon:
+        app_icon_path = ""
+    elif app_icon_file and getattr(app_icon_file, "filename", ""):
+        app_icon_path = _save_branding_upload(app_icon_file)
+        if app_icon_path is None:
+            return False, "Logo must be PNG, JPG, GIF, WebP, ICO, or SVG."
+    if app_icon_path is not None:
+        values["app_icon"] = app_icon_path
+    try:
+        from database import set_site_settings
+
+        ok = set_site_settings(values)
+    except Exception:
+        ok = False
+    if not ok:
+        return False, "Could not save business details. Try again."
+    return True, None
+
+
 def _normalize_public_app_url(raw: str) -> str:
     """Normalize hosted public base URL (https://domain, no trailing slash)."""
     u = (raw or "").strip().rstrip("/")
@@ -1830,6 +1903,8 @@ def _daraja_external_callback_hint() -> str:
 
 WEBSITE_SETTINGS_JSON_KEY = "website_settings_json"
 
+WEBSITE_HOMEPAGE_FEATURED_MAX = 6
+
 WEBSITE_THEME_STYLES: dict[str, dict[str, str]] = {
     "violet": {"label": "Violet", "tagline": "Modern retail default", "primary": "#9333ea", "accent": "#a855f7"},
     "emerald": {"label": "Emerald", "tagline": "Fresh & trustworthy", "primary": "#059669", "accent": "#10b981"},
@@ -1840,24 +1915,160 @@ WEBSITE_THEME_STYLES: dict[str, dict[str, str]] = {
 }
 
 
+_LEGACY_POS_WEBSITE_COPY_EXACT = frozenset(
+    {
+        "for owners & operations teams",
+        "for owners and operations teams",
+        "run every store with clarity",
+        "lead with numbers you trust",
+        "shop sign-in",
+        "shop sign in",
+        "shop login",
+        "employee sign-in",
+        "employee sign in",
+        "employee login",
+    }
+)
+
+_LEGACY_POS_WEBSITE_COPY_SUBSTRINGS = (
+    "run every store with clear sales",
+    "one view of your retail business",
+    "from the shop to head office",
+)
+
+
+def _normalize_website_copy(s: str) -> str:
+    return " ".join((s or "").strip().lower().rstrip(".").split())
+
+
+def _is_legacy_pos_website_copy(s: str) -> bool:
+    n = _normalize_website_copy(s)
+    if not n:
+        return False
+    if n in _LEGACY_POS_WEBSITE_COPY_EXACT:
+        return True
+    return any(sub in n for sub in _LEGACY_POS_WEBSITE_COPY_SUBSTRINGS)
+
+
+def _website_design_field(design: dict | None, key: str) -> str:
+    val = (design.get(key) if isinstance(design, dict) else None) or ""
+    val = str(val).strip()
+    if _is_legacy_pos_website_copy(val):
+        return ""
+    return val
+
+
+def _strip_legacy_website_design(design: dict | None) -> tuple[dict, bool]:
+    """Remove old POS marketing hero copy from saved website design."""
+    if not isinstance(design, dict):
+        return {}, False
+    out = dict(design)
+    dirty = False
+    for key in (
+        "hero_eyebrow",
+        "hero_headline",
+        "hero_headline_accent",
+        "hero_body",
+        "hero_body_secondary",
+        "meta_title",
+        "meta_description",
+        "store_tagline",
+        "featured_section_subtitle",
+        "cta_primary_label",
+        "cta_secondary_label",
+    ):
+        val = str(out.get(key) or "").strip()
+        if val and _is_legacy_pos_website_copy(val):
+            out[key] = ""
+            dirty = True
+    return out, dirty
+
+
 def _default_website_design() -> dict:
     return {
-        "hero_eyebrow": "Best sellers",
-        "hero_headline": "Shop",
-        "hero_headline_accent": "top picks",
+        "hero_eyebrow": "",
+        "hero_headline": "",
+        "hero_headline_accent": "",
         "hero_body": "",
         "hero_body_secondary": "",
-        "meta_description": (
-            "Shop commonly sold products from our catalogue — "
-            "quality items trusted by customers across every branch."
-        ),
-        "cta_primary_label": "Browse",
-        "cta_secondary_label": "Get quote",
-        "store_tagline": "Quality products, trusted every day",
-        "featured_section_title": "Shop",
+        "meta_title": "",
+        "meta_description": "",
+        "return_refund_policy": "",
+        "shipping_delivery_guidelines": "",
+        "cta_primary_label": "",
+        "cta_secondary_label": "",
+        "store_tagline": "",
+        "featured_section_title": "",
         "featured_section_subtitle": "",
-        "promo_banner_text": "Free pickup · In-store prices",
-        "search_placeholder": "Search…",
+        "promo_banner_text": "",
+        "search_placeholder": "",
+    }
+
+
+def _website_design_from_form(current: dict | None = None) -> dict:
+    """Merge homepage hero, SEO, and trust-policy fields from POST into website design."""
+    base = {**_default_website_design(), **(current or {})}
+    base["hero_eyebrow"] = (request.form.get("hero_eyebrow") or "").strip()[:120]
+    base["hero_headline"] = (request.form.get("hero_headline") or "").strip()[:160]
+    base["hero_headline_accent"] = (request.form.get("hero_headline_accent") or "").strip()[:160]
+    base["hero_body"] = (request.form.get("hero_body") or "").strip()[:600]
+    base["cta_primary_label"] = (request.form.get("cta_primary_label") or "").strip()[:48]
+    base["cta_secondary_label"] = (request.form.get("cta_secondary_label") or "").strip()[:48]
+    base["promo_banner_text"] = (request.form.get("promo_banner_text") or "").strip()[:160]
+    base["featured_section_title"] = (request.form.get("featured_section_title") or "").strip()[:80]
+    base["featured_section_subtitle"] = (request.form.get("featured_section_subtitle") or "").strip()[:320]
+    base["search_placeholder"] = (request.form.get("search_placeholder") or "").strip()[:80]
+    base["meta_title"] = (request.form.get("meta_title") or "").strip()[:120]
+    base["meta_description"] = (request.form.get("meta_description") or "").strip()[:320]
+    base["return_refund_policy"] = (request.form.get("return_refund_policy") or "").strip()[:8000]
+    base["shipping_delivery_guidelines"] = (request.form.get("shipping_delivery_guidelines") or "").strip()[:8000]
+    return base
+
+
+def _storefront_homepage_copy(design: dict | None, company: dict | None) -> dict:
+    """Resolved homepage text + contact from website design and company settings."""
+    d = design if isinstance(design, dict) else {}
+    co = company if isinstance(company, dict) else {}
+    name = (co.get("company_name") or "").strip() or "Our Store"
+    meta_title = _website_design_field(d, "meta_title")
+    meta_desc = _website_design_field(d, "meta_description")
+    store_tagline = _website_design_field(d, "store_tagline")
+    hero_body = _website_design_field(d, "hero_body")
+    hero_eyebrow = _website_design_field(d, "hero_eyebrow")
+    hero_headline = _website_design_field(d, "hero_headline")
+    hero_accent = _website_design_field(d, "hero_headline_accent")
+    location = (co.get("company_location_name") or "").strip()
+    lead = hero_body or meta_desc or store_tagline
+    header_tagline = meta_desc or store_tagline or location
+    if len(header_tagline) > 80:
+        header_tagline = header_tagline[:77].rstrip() + "…"
+    return {
+        "company_name": name,
+        "page_title": meta_title or name,
+        "meta_description": meta_desc or store_tagline or f"Shop {name} — browse products and request a quote online.",
+        "hero_eyebrow": hero_eyebrow,
+        "hero_show_eyebrow": bool(hero_eyebrow),
+        "hero_headline": hero_headline or meta_title or f"Welcome to {name}",
+        "hero_headline_accent": hero_accent,
+        "hero_show_accent": bool(hero_accent),
+        "hero_lead": lead or f"Browse our catalogue and request a quote when you are ready.",
+        "header_tagline": header_tagline,
+        "featured_subtitle": _website_design_field(d, "featured_section_subtitle") or meta_desc or f"Featured products from {name}.",
+        "featured_section_title": _website_design_field(d, "featured_section_title") or "Featured products",
+        "promo_banner_text": _website_design_field(d, "promo_banner_text"),
+        "search_placeholder": _website_design_field(d, "search_placeholder") or "Search products…",
+        "cta_primary_label": _website_design_field(d, "cta_primary_label") or "Browse products",
+        "cta_secondary_label": _website_design_field(d, "cta_secondary_label") or "Request quote",
+        "phone": (co.get("company_phone") or "").strip(),
+        "email": (co.get("company_email") or "").strip(),
+        "location": location,
+        "latitude": (co.get("company_latitude") or "").strip(),
+        "longitude": (co.get("company_longitude") or "").strip(),
+        "facebook": (co.get("company_facebook") or "").strip(),
+        "instagram": (co.get("company_instagram") or "").strip(),
+        "app_icon": (co.get("app_icon") or "").strip(),
+        "return_refund_policy": _website_design_field(d, "return_refund_policy"),
+        "shipping_delivery_guidelines": _website_design_field(d, "shipping_delivery_guidelines"),
     }
 
 
@@ -1972,13 +2183,33 @@ def _public_storefront_share_info() -> dict:
     }
 
 
-def _render_public_storefront():
-    products = _website_featured_products(limit=18)
+def _render_public_storefront(*, catalog_mode: bool = False):
+    ws = _load_website_settings()
+    design = ws.get("design") or _default_website_design()
+    if catalog_mode:
+        try:
+            from database import list_website_catalog_items
+
+            catalog_rows = list_website_catalog_items(limit=500)
+        except Exception:
+            catalog_rows = []
+        products = [_serialize_website_product_row(r) for r in catalog_rows if int(r.get("id") or 0) > 0]
+        return render_template(
+            "marketing/catalog.html",
+            website_design=design,
+            website_featured_products=products,
+            website_product_categories=_website_product_categories(products),
+            is_live_public_website=_is_public_website_host_request(),
+            storefront_catalog_mode=True,
+        )
+    products = _website_featured_products(limit=WEBSITE_HOMEPAGE_FEATURED_MAX)
     return render_template(
         "marketing/home.html",
+        website_design=design,
         website_featured_products=products,
-        website_product_categories=_website_product_categories(products),
+        website_product_categories=_website_catalog_categories(),
         is_live_public_website=_is_public_website_host_request(),
+        storefront_catalog_mode=False,
     )
 
 
@@ -2000,7 +2231,7 @@ def _ok_hex_color(s: str) -> bool:
 
 
 def _normalize_featured_item_ids(raw) -> list[int]:
-    """Unique positive item ids, max 48, preserving order."""
+    """Unique positive item ids for homepage, max WEBSITE_HOMEPAGE_FEATURED_MAX, preserving order."""
     if raw is None:
         return []
     if isinstance(raw, str):
@@ -2025,14 +2256,14 @@ def _normalize_featured_item_ids(raw) -> list[int]:
             continue
         seen.add(iid)
         out.append(iid)
-        if len(out) >= 48:
+        if len(out) >= WEBSITE_HOMEPAGE_FEATURED_MAX:
             break
     return out
 
 
-def _website_featured_product_rows(limit: int = 48) -> list[dict]:
+def _website_featured_product_rows(limit: int | None = None) -> list[dict]:
     """Raw catalog rows for the public storefront (curated order or best-sellers)."""
-    lim = max(1, min(int(limit), 48))
+    lim = max(1, min(int(limit or WEBSITE_HOMEPAGE_FEATURED_MAX), 500))
     try:
         ws = _load_website_settings()
         ids = _normalize_featured_item_ids(ws.get("featured_item_ids"))
@@ -2104,6 +2335,18 @@ def _website_product_categories(products: list[dict]) -> list[str]:
         seen.add(key)
         cats.append(c)
     return cats
+
+
+def _website_catalog_categories() -> list[str]:
+    """All product categories from the full storefront catalogue."""
+    try:
+        from database import list_website_catalog_items
+
+        rows = list_website_catalog_items(limit=500)
+    except Exception:
+        rows = []
+    products = [_serialize_website_product_row(r) for r in rows if int(r.get("id") or 0) > 0]
+    return _website_product_categories(products)
 
 
 def _normalize_storefront_phone(raw: str) -> str:
@@ -2321,28 +2564,42 @@ def _quotation_share_items_for_public(item_ids: list[int]) -> list[dict]:
 
 def _format_quotation_share_whatsapp_message(items: list[dict], share_url: str) -> str:
     company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
-    parts = [f"*Quotation from {company}*", ""]
+    item_list = items or []
+    n = len(item_list)
+    parts = [
+        f"📋 *Quotation from {company}*",
+        f"_{n} item{'s' if n != 1 else ''} · indicative pricing_",
+        "",
+    ]
     total = 0.0
-    for item in items or []:
+    for idx, item in enumerate(item_list, start=1):
         if not isinstance(item, dict):
             continue
         nm = (item.get("name") or "Item").strip()
+        cat = (item.get("category") or "").strip()
         desc = (item.get("description") or "").strip()
         try:
             pr = float(item.get("price") or 0)
         except (TypeError, ValueError):
             pr = 0.0
         total += pr
-        parts.append(f"*{nm}*")
+        parts.append(f"*{idx}. {nm}*")
+        meta = []
+        if cat:
+            meta.append(cat)
+        meta.append(f"KES {pr:,.2f}")
+        parts.append(" · ".join(meta))
         if desc:
             parts.append(desc)
-        parts.append(f"KES {pr:,.2f}")
         parts.append("")
-    if len(items or []) > 1:
+    if n > 1:
         parts.append(f"*Estimated total: KES {total:,.2f}*")
         parts.append("")
     if share_url:
-        parts.append(f"View full quotation: {share_url}")
+        parts.append("View full quotation with images & details:")
+        parts.append(share_url)
+        parts.append("")
+    parts.append("_Reply to confirm availability or place your order._")
     return "\n".join(parts).strip()
 
 
@@ -2574,6 +2831,35 @@ def storefront_customer_lookup():
     )
 
 
+def _notify_online_storefront_quotation(
+    *,
+    quote_id: int,
+    customer_name: str,
+    customer_phone: str,
+    total: float,
+    item_count: int,
+) -> None:
+    """Alert IT/super admins in-app when a website quotation is saved."""
+    try:
+        from database import create_notification
+
+        company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+        create_notification(
+            title="New website quotation",
+            message=(
+                f"Quote #{quote_id} — {customer_name or 'Customer'} "
+                f"({customer_phone or '—'}): {int(item_count)} item(s), "
+                f"KES {float(total):,.2f} ({company})"
+            )[:500],
+            shop_id=None,
+            audience_role="admin_only",
+            link_url=url_for("it_support_leads"),
+            dedupe_key=f"online-quote:{int(quote_id)}",
+        )
+    except Exception:
+        logger.exception("Failed to create notification for online quote %s", quote_id)
+
+
 @app.route("/api/storefront/request-quotation", methods=["POST"])
 def storefront_request_quotation():
     """Public website cart → online quotation (lead) for IT leads & quotations."""
@@ -2631,6 +2917,14 @@ def storefront_request_quotation():
     if not qid:
         return jsonify({"ok": False, "error": qerr or "Could not submit your request. Try again."}), 500
 
+    _notify_online_storefront_quotation(
+        quote_id=int(qid),
+        customer_name=name,
+        customer_phone=phone,
+        total=total,
+        item_count=count,
+    )
+
     company_wa = _company_whatsapp_phone()
     wa_message = _format_quotation_whatsapp_message(
         quote_id=int(qid),
@@ -2643,21 +2937,23 @@ def storefront_request_quotation():
         total=total,
         channel="online",
     )
-    wa_url = _whatsapp_send_url(company_wa, wa_message) if company_wa else ""
+    company_wa_url = _whatsapp_send_url(company_wa, wa_message) if company_wa else ""
 
-    success_message = "Thank you! Your quotation request was received."
-    if wa_url:
-        success_message += " WhatsApp will open — tap Send to notify the shop."
-    elif not company_wa:
-        success_message += " We will contact you shortly."
+    success_message = "Thank you! Your quotation was saved to our system."
+    if company_wa_url:
+        success_message += " WhatsApp will open — tap Send to deliver it to the company phone."
+    else:
+        success_message += " Set the company phone in System settings → Company to enable WhatsApp delivery."
 
     return jsonify(
         {
             "ok": True,
             "quote_id": int(qid),
             "message": success_message,
-            "whatsapp_url": wa_url,
+            "whatsapp_url": company_wa_url,
+            "company_whatsapp_url": company_wa_url,
             "whatsapp_configured": bool(company_wa),
+            "system_saved": True,
         }
     )
 
@@ -2699,6 +2995,13 @@ def _load_website_settings() -> dict:
     merged["featured_item_ids"] = _normalize_featured_item_ids(
         parsed.get("featured_item_ids") if "featured_item_ids" in parsed else merged.get("featured_item_ids")
     )
+    design, design_dirty = _strip_legacy_website_design(merged.get("design"))
+    merged["design"] = design
+    if design_dirty:
+        try:
+            _save_website_settings(merged)
+        except Exception:
+            pass
     return merged
 
 
@@ -2716,12 +3019,31 @@ def _website_settings_for_template() -> dict:
     from theme_presets import font_css_stack, google_fonts_url
 
     ws = _load_website_settings()
-    ws["primary_color_rgb"] = _hex_to_rgb_triplet(ws.get("primary_color"))
-    ws["accent_color_rgb"] = _hex_to_rgb_triplet(ws.get("accent_color"))
+    style = WEBSITE_THEME_STYLES.get(ws.get("theme_style") or "violet") or WEBSITE_THEME_STYLES["violet"]
+    primary = (ws.get("primary_color") or style["primary"]).strip()
+    accent = (ws.get("accent_color") or style["accent"]).strip()
+    if not _ok_hex_color(primary):
+        primary = style["primary"]
+    if not _ok_hex_color(accent):
+        accent = style["accent"]
+    ws["effective_primary"] = primary
+    ws["effective_accent"] = accent
+    ws["primary_color"] = primary
+    ws["accent_color"] = accent
+    ws["primary_color_rgb"] = _hex_to_rgb_triplet(primary)
+    ws["accent_color_rgb"] = _hex_to_rgb_triplet(accent)
     ws["font_family_stack"] = font_css_stack(ws.get("font_family"))
     ws["font_google_url"] = google_fonts_url(ws.get("font_family"))
-    style = WEBSITE_THEME_STYLES.get(ws.get("theme_style") or "violet") or WEBSITE_THEME_STYLES["violet"]
     ws["theme_style_label"] = style["label"]
+    ws["theme_config_key"] = "|".join(
+        [
+            str(ws.get("default_theme") or "light"),
+            primary.lower(),
+            accent.lower(),
+            str(ws.get("font_family") or "Plus Jakarta Sans"),
+            str(ws.get("theme_style") or "violet"),
+        ]
+    )
     return ws
 
 
@@ -11168,14 +11490,25 @@ def quotation_share_public(token: str):
             "quotation_share_public.html",
             error="These items are no longer available.",
         ), 404
-    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    identity = _load_company_identity_settings()
+    company = (identity.get("company_name") or "Our shop").strip()
     total = round(sum(float(i.get("price") or 0) for i in items), 2)
+    company_phone = (identity.get("company_phone") or "").strip()
+    wa_contact_url = ""
+    if company_phone and _company_whatsapp_phone():
+        wa_contact_url = _whatsapp_send_url(
+            company_phone,
+            f"Hello {company}, I received your quotation and would like to discuss it.",
+        )
+    generated_date = datetime.now().strftime("%d %b %Y")
     return render_template(
         "quotation_share_public.html",
         items=items,
         company_name=company,
         total_amount=total,
         share_url=_quotation_share_public_url(token),
+        generated_date=generated_date,
+        whatsapp_contact_url=wa_contact_url,
     )
 
 
@@ -18260,55 +18593,10 @@ def it_support_website_management():
 
 @app.route("/it_support/website-management/settings", methods=["GET", "POST"])
 @login_required
-def it_support_website_settings():
+def it_support_website_settings_removed():
+    """Legacy URL — website appearance now lives in System settings."""
     _it_support_only()
-    from theme_presets import fonts_for_template, google_fonts_url, normalize_default_theme, normalize_font_family
-
-    ws = _load_website_settings()
-
-    if request.method == "POST":
-        theme_style = (request.form.get("theme_style") or "violet").strip().lower()
-        if theme_style not in WEBSITE_THEME_STYLES:
-            theme_style = "violet"
-        style = WEBSITE_THEME_STYLES[theme_style]
-        primary_color = (request.form.get("primary_color") or style["primary"]).strip()
-        accent_color = (request.form.get("accent_color") or style["accent"]).strip()
-        if not _ok_hex_color(primary_color):
-            primary_color = style["primary"]
-        if not _ok_hex_color(accent_color):
-            accent_color = style["accent"]
-        default_theme = normalize_default_theme((request.form.get("default_theme") or "light").strip())
-        if default_theme == "system":
-            default_theme = "light"
-        font_family = normalize_font_family((request.form.get("font_family") or ws["font_family"]).strip())
-        domain = _normalize_website_domain((request.form.get("website_domain") or "").strip())
-        updated = {
-            **ws,
-            "domain": domain,
-            "theme_style": theme_style,
-            "primary_color": primary_color,
-            "accent_color": accent_color,
-            "font_family": font_family,
-            "default_theme": default_theme,
-        }
-        ok = _save_website_settings(updated)
-        if ok and domain:
-            _sync_website_domain_to_hosted(domain)
-        if ok:
-            share = _public_storefront_share_info()
-            flash(f"Website settings saved. Share link: {share['url']}", "success")
-        else:
-            flash("Could not save website settings. Try again.", "error")
-        return redirect(url_for("it_support_website_settings"))
-
-    font_ids = [f["id"] for f in fonts_for_template()]
-    return render_template(
-        "it_support_website_settings.html",
-        website_ws=ws,
-        website_theme_styles=WEBSITE_THEME_STYLES,
-        appearance_fonts=fonts_for_template(),
-        appearance_fonts_google_url=google_fonts_url(*font_ids),
-    )
+    return redirect(url_for("it_support_system_settings", tab="company"), code=301)
 
 
 @app.route("/it_support/website-management/designs", methods=["GET", "POST"])
@@ -18322,20 +18610,22 @@ def it_support_website_designs():
         action = (request.form.get("action") or "save").strip().lower()
         if action == "reset_auto":
             ids: list[int] = []
+            design = _website_design_from_form(ws.get("design") or design_defaults)
         else:
             ids = _normalize_featured_item_ids(request.form.get("featured_item_ids") or "[]")
-        updated = {**ws, "featured_item_ids": ids}
+            design = _website_design_from_form(ws.get("design") or design_defaults)
+        updated = {**ws, "featured_item_ids": ids, "design": design}
         ok = _save_website_settings(updated)
         if ok:
             if action == "reset_auto":
-                flash("Website products reset to automatic best-sellers from POS.", "success")
+                flash("Homepage products reset to automatic best-sellers from POS.", "success")
             else:
-                flash(f"Website products saved ({len(ids)} item{'s' if len(ids) != 1 else ''} on site).", "success")
+                flash("Website saved — homepage content, SEO, and featured products updated.", "success")
         else:
-            flash("Could not save website products. Try again.", "error")
+            flash("Could not save website. Try again.", "error")
         return redirect(url_for("it_support_website_designs"))
 
-    products = _website_featured_products(limit=48)
+    products = _website_featured_products(limit=WEBSITE_HOMEPAGE_FEATURED_MAX)
     try:
         from database import list_website_catalog_items
 
@@ -18355,6 +18645,8 @@ def it_support_website_designs():
         website_selected_ids=selected_ids,
         website_using_auto_products=using_auto,
         preview_url=_public_storefront_url(),
+        website_homepage_featured_max=WEBSITE_HOMEPAGE_FEATURED_MAX,
+        catalog_preview_url=url_for("marketing_catalog"),
     )
 
 
