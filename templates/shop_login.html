@@ -11,6 +11,9 @@
       {% include "partials/flashes.html" %}
 
       <form method="post" action="{{ url_for('shop_login', shop_id=shop.id) }}" class="mt-6 space-y-5">
+        {% if login_next %}
+          <input type="hidden" name="next" value="{{ login_next }}" />
+        {% endif %}
         <div>
           <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop code</label>
           <input

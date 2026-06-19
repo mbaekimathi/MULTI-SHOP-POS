@@ -173,9 +173,15 @@
     if (link.hasAttribute("data-wsf-cat-nav")) return;
     link.addEventListener("click", function (e) {
       var id = link.getAttribute("href");
-      if (!id || id.length < 2) return;
+      if (!isInPageNavHref(id)) return;
       var target = document.querySelector(id);
-      if (!target) return;
+      if (!target) {
+        var catalogPath = root.getAttribute("data-wsf-catalog-url") || "";
+        if (catalogPath && id.indexOf("wsf-product-") >= 0) {
+          window.location.href = catalogPath + id;
+        }
+        return;
+      }
       e.preventDefault();
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -288,10 +294,14 @@
     });
   }
 
+  function isInPageNavHref(href) {
+    return !!href && href.charAt(0) === "#" && href.length > 1;
+  }
+
   function bindCategoryNav(link) {
     link.addEventListener("click", function (e) {
       var href = link.getAttribute("href") || "";
-      if (href.charAt(0) !== "#") return;
+      if (!isInPageNavHref(href)) return;
       e.preventDefault();
       var cat = (link.getAttribute("data-wsf-cat-nav") || "all").toUpperCase();
       setCategoryInUrl(cat === "ALL" ? "all" : cat, link.getAttribute("data-wsf-cat-label") || "");

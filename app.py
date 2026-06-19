@@ -209,6 +209,14 @@ def _redirect_to_employee_dashboard():
     return redirect(url_for("employee_dashboard", role=role_key))
 
 
+def _clear_employee_portal_session() -> None:
+    """Drop employee portal keys (e.g. before starting a shop-password session)."""
+    session.pop("employee_id", None)
+    session.pop("employee_name", None)
+    session.pop("employee_role", None)
+    session.pop("shop_role_preview", None)
+
+
 def _safe_login_next(next_url: str) -> bool:
     """Reject open redirects (``//evil``) while allowing same-origin paths."""
     u = (next_url or "").strip()
@@ -1228,6 +1236,7 @@ def public_shop_login():
             flash("Invalid shop password.", "error")
             return redirect(url_for("public_shop_login"))
 
+        _clear_employee_portal_session()
         session["shop_id"] = int(shop["id"])
         session["shop_name"] = shop.get("shop_name")
         # Till devices stay signed in by default ("Remember this device" is
@@ -5115,6 +5124,7 @@ def _require_shop_access(shop: dict):
     # Employee portal (manager, admin, staff): may use primary shop_id or linked branches
     # (employee_shop_access). Session shop_id alone is not enough — it stays on the primary branch.
     emp_id = session.get("employee_id")
+    emp = None
     if emp_id:
         try:
             from database import get_employee_by_id, employee_may_use_shop_branch
@@ -5129,19 +5139,19 @@ def _require_shop_access(shop: dict):
                 flash("This shop is suspended. Contact IT support.", "error")
                 return _redirect_to_employee_dashboard()
             return None
-        if emp:
-            flash("You don't have access to this shop.", "error")
-            return _redirect_to_employee_dashboard()
 
-    # Shop password sessions (no employee portal): must match branch exactly.
-    if int(session.get("shop_id") or 0) != shop_id_int:
-        return redirect(url_for("shop_login", shop_id=shop_id_int))
+    # Shop password sessions: must match branch exactly (also when employee branch check failed).
+    if int(session.get("shop_id") or 0) == shop_id_int:
+        if shop.get("status") != "active":
+            flash("This shop is suspended. Contact IT support.", "error")
+            return redirect(url_for("shop_login", shop_id=shop_id_int))
+        return None
 
-    if shop.get("status") != "active":
-        flash("This shop is suspended. Contact IT support.", "error")
-        return redirect(url_for("shop_login", shop_id=shop_id_int))
+    if emp_id and emp:
+        flash("You don't have access to this shop.", "error")
+        return _redirect_to_employee_dashboard()
 
-    return None
+    return redirect(url_for("shop_login", shop_id=shop_id_int))
 
 
 @app.route("/it_support/item-management")
@@ -9353,12 +9363,19 @@ def shop_login(shop_id: int):
             flash("Invalid shop password.", "error")
             return redirect(url_for("shop_login", shop_id=shop_id))
 
+        _clear_employee_portal_session()
         session["shop_id"] = int(shop["id"])
         session["shop_name"] = shop.get("shop_name")
         flash(f"Welcome to {shop.get('shop_name')}.", "success")
+        next_url = (request.form.get("next") or request.args.get("next") or "").strip()
+        if _safe_login_next(next_url):
+            target_sid = _parse_next_shop_id(next_url)
+            if target_sid is None or target_sid == int(shop["id"]):
+                return redirect(next_url)
         return redirect(url_for("shop_pos", shop_id=shop_id))
 
-    return render_template("shop_login.html", shop=shop)
+    next_url = (request.args.get("next") or "").strip()
+    return render_template("shop_login.html", shop=shop, login_next=next_url if _safe_login_next(next_url) else "")
 
 
 @app.route("/shops/<int:shop_id>/logout", methods=["GET", "POST"])

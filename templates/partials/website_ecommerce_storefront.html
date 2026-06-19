@@ -35,6 +35,7 @@
   data-shop-lat="{{ _lat }}"
   data-shop-lng="{{ _lng }}"
   data-shop-location="{{ _loc }}"
+  data-wsf-catalog-url="{{ _catalog_url }}"
   {% if _design_mode %}data-wsf-design-preview="1"{% endif %}
 >
   <script type="application/json" id="wsf-products-json">{{ _products|tojson }}</script>
@@ -245,7 +246,7 @@
         {% for p in _products %}
           {% if p.on_sale %}
           <article class="wsf-deal-card group">
-            <a href="#wsf-product-{{ p.id }}" class="wsf-deal-card__link">
+            <a href="{{ (_catalog_url ~ '#wsf-product-' ~ p.id) if not _catalog_mode else ('#wsf-product-' ~ p.id) }}" class="wsf-deal-card__link">
               <div class="wsf-deal-card__media">
                 {% if p.image_url %}
                   <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-deal-card__img" loading="lazy" />

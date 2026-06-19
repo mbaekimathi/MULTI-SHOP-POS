@@ -5,7 +5,7 @@
     <a
       href="{{ _catalog_url if _cat_nav_catalog else '#wsf-products' }}"
       class="wsf-cat-tile{% if not _cat_nav_catalog %} is-active{% endif %}"
-      data-wsf-cat-nav="all"
+      {% if not _cat_nav_catalog %}data-wsf-cat-nav="all"{% endif %}
     >
       <span class="wsf-cat-tile__ring">
         <span class="wsf-cat-tile__inner wsf-cat-tile__inner--all" aria-hidden="true">

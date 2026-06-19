@@ -295,6 +295,19 @@
       openBtn.addEventListener("click", function () { setOpen(true); });
       closeBtn.addEventListener("click", function () { setOpen(false); });
       backdrop.addEventListener("click", function () { setOpen(false); });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (!window.matchMedia("(max-width: 767px)").matches) return;
+        if (sidebar.classList.contains("-translate-x-full")) return;
+        setOpen(false);
+      });
+
+      sidebar.querySelectorAll("a").forEach(function (a) {
+        a.addEventListener("click", function () {
+          if (window.matchMedia("(max-width: 767px)").matches) setOpen(false);
+        });
+      });
     })();
   </script>
 {% endblock %}
