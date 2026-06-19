@@ -249,25 +249,41 @@ def _redirect_login_preserving_next():
 def _session_may_follow_login_next(next_url: str):
     """
     Logged-in portal user visits GET /login?next=...
-    Honor branch URLs when IT/support or employee may use that shop (multi-branch aware).
+    Honor same-origin continuation URLs (shop branches, role dashboards, IT pages).
     """
-    if not _safe_login_next(next_url):
+    if not _safe_login_next(next_url) or not session.get("employee_id"):
         return None
+    role_key = str(session.get("employee_role") or "employee").strip().lower()
+    path = urlparse(next_url).path.rstrip("/")
+
     target_sid = _parse_next_shop_id(next_url)
-    if target_sid is None:
+    if target_sid is not None:
+        if role_key in COMPANY_PORTAL_ROLES:
+            return redirect(next_url)
+        try:
+            from database import get_employee_by_id, employee_may_use_shop_branch
+
+            emp = get_employee_by_id(int(session.get("employee_id") or 0))
+            if emp and employee_may_use_shop_branch(emp, target_sid):
+                return redirect(next_url)
+        except Exception:
+            pass
         return None
-    role_key = session.get("employee_role") or "employee"
+
+    if _is_role_dashboard_path(path) or _is_legacy_employee_role_dashboard_path(path):
+        return redirect(url_for("employee_dashboard", role=role_key))
+
     if role_key in COMPANY_PORTAL_ROLES:
         return redirect(next_url)
-    try:
-        from database import get_employee_by_id, employee_may_use_shop_branch
 
-        emp = get_employee_by_id(int(session.get("employee_id") or 0))
-        if emp and employee_may_use_shop_branch(emp, target_sid):
-            return redirect(next_url)
-    except Exception:
-        pass
-    return None
+    if path.startswith("/it_support"):
+        flash("That page is for IT support only.", "warning")
+        return redirect(url_for("employee_dashboard", role=role_key))
+
+    if path.startswith("/shops/"):
+        return redirect(next_url)
+
+    return redirect(next_url)
 
 
 def _is_role_dashboard_path(path: str) -> bool:
@@ -1357,6 +1373,9 @@ def employee_login():
 
         if next_url.startswith("/") and not next_url.startswith("//"):
             next_path = urlparse(next_url).path.rstrip("/")
+            if next_path.startswith("/it_support"):
+                flash("Signed in. That IT page is not available for your role.", "warning")
+                return redirect(url_for("shop_dashboard", shop_id=alloc_shop_id))
             # If login started from POS, shop staff should land on their shop role page,
             # not be sent back to the POS screen immediately.
             if next_path == f"/shops/{alloc_shop_id}/shop-pos":

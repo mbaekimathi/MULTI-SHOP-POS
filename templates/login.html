@@ -67,6 +67,13 @@
 
           {% include "partials/flashes.html" %}
 
+          {% if request.args.get('next') %}
+            <p class="mb-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/70 px-4 py-3 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+              After you sign in, you will continue to the page you requested.
+              Use your <strong class="text-[rgb(var(--rc-page-fg))]">employee code</strong>, not the branch shop code.
+            </p>
+          {% endif %}
+
           <form
             method="post"
             action="{{ url_for('employee_login') }}"
