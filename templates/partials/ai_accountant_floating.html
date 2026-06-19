@@ -1256,28 +1256,8 @@
     });
 
     var fabHost = document.getElementById('my-accountant-fab');
-    function installFabVisible() {
-      var ifab = document.querySelector('.pwa-install-fab');
-      if (!ifab) return null;
-      var shown = ifab.classList.contains('pwa-install-fab--show');
-      if (!shown) return 0;
-      var rect = ifab.getBoundingClientRect();
-      return rect && rect.height ? rect.height : 56;
+    if (fabHost) {
+      fabHost.style.setProperty('--ma-fab-offset', '0px');
     }
-    function adjustOffset() {
-      if (!fabHost) return;
-      var h = installFabVisible();
-      if (h && h > 0) {
-        fabHost.style.setProperty('--ma-fab-offset', (h + 12) + 'px');
-      } else {
-        fabHost.style.setProperty('--ma-fab-offset', '0px');
-      }
-    }
-    adjustOffset();
-    if (typeof MutationObserver !== 'undefined') {
-      var mo = new MutationObserver(adjustOffset);
-      mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-    }
-    window.addEventListener('resize', adjustOffset);
   })();
 </script>

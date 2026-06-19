@@ -54,7 +54,6 @@
     <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
     <link rel="apple-touch-icon" href="{{ url_for('static', filename=_app_icon) }}" />
     <link rel="mask-icon" href="{{ url_for('static', filename='icons/app-icon-monochrome.svg') }}" color="{{ _primary_hex }}" />
-    {% block pwa_head %}{% endblock %}
     <meta name="theme-color" content="{{ _primary_hex }}" />
     <meta name="color-scheme" content="dark light" />
     <meta name="format-detection" content="telephone=no" />
@@ -3654,7 +3653,6 @@
   </head>
   <body class="antialiased transition-[background-color,color] duration-200 font-sans">
     {% block body %}{% endblock %}
-    {% block pwa_install %}{% endblock %}
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
     {% block scripts %}{% endblock %}

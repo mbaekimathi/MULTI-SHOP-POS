@@ -1,9 +1,0 @@
-{# PWA manifest + install meta — shop portal and POS only. #}
-<link rel="manifest" href="{{ url_for('pwa_manifest') }}" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="{{ _app_short_name }}" />
-<meta name="application-name" content="{{ _app_name }}" />
-<meta name="msapplication-TileColor" content="{{ _primary_hex }}" />
-<meta name="msapplication-TileImage" content="{{ url_for('static', filename=_app_icon) }}" />

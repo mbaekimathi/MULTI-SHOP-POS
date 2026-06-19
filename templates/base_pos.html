@@ -5,7 +5,6 @@
   data-theme-key="{{ theme_key if theme_key else 'richcom-theme' }}"
   data-theme-default="{{ theme_default|default(site_settings.default_theme if site_settings else 'dark', true) }}"
   data-theme-preset="{{ theme_preset|default(site_settings.theme_preset if site_settings else 'eye-comfort', true) }}"
-  data-pwa-install="shop"
   style="--rc-font-family: {{ (font_family|default(portal_font_family|default(site_settings.font_family if site_settings else 'Plus Jakarta Sans', true), true))|font_stack }}"
 >
   <head>
@@ -52,16 +51,8 @@
     <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
     <link rel="apple-touch-icon" href="{{ url_for('static', filename=_app_icon) }}" />
     <link rel="mask-icon" href="{{ url_for('static', filename='icons/app-icon-monochrome.svg') }}" color="{{ _primary_hex }}" />
-    <link rel="manifest" href="{{ url_for('pwa_manifest') }}" />
     <meta name="theme-color" content="{{ _primary_hex }}" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="{{ _app_short_name }}" />
-    <meta name="application-name" content="{{ _app_name }}" />
-    <meta name="msapplication-TileColor" content="{{ _primary_hex }}" />
-    <meta name="msapplication-TileImage" content="{{ url_for('static', filename=_app_icon) }}" />
     <meta name="format-detection" content="telephone=no" />
     <title>{% block title %}{{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}</title>
     <meta name="description" content="{{ site_settings.company_name if site_settings else 'Point of Sale' }} — point of sale." />
@@ -85,7 +76,6 @@
   </head>
   <body class="antialiased transition-[background-color,color] duration-200 font-sans">
     {% block body %}{% endblock %}
-    {% include "partials/pwa_install_assets.html" %}
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
   </body>
 </html>
