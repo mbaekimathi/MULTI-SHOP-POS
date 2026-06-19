@@ -1,0 +1,178 @@
+{# Daraja M-Pesa — expects daraja_settings as ds #}
+{% set ds = daraja_settings if daraja_settings is defined else {} %}
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="max-w-2xl">
+            <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Daraja API (M-Pesa)</h3>
+            <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+              Safaricom Lipa Na M-Pesa Online credentials from the
+              <a href="https://developer.safaricom.co.ke/" target="_blank" rel="noopener noreferrer" class="font-medium text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Daraja portal</a>.
+              Used for STK Push and payment callbacks.
+            </p>
+          </div>
+          <label class="inline-flex items-center gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5">
+            <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Enable Daraja</span>
+            <input type="checkbox" name="daraja_enabled" value="1" class="rc-receipt-switch" {% if ds.daraja_enabled %}checked{% endif %} />
+          </label>
+        </div>
+
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Environment</label>
+            <select name="daraja_environment" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="sandbox" {% if (ds.daraja_environment or 'sandbox') == 'sandbox' %}selected{% endif %}>Sandbox (testing)</option>
+              <option value="production" {% if ds.daraja_environment == 'production' %}selected{% endif %}>Production (live)</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Transaction type</label>
+            <select name="daraja_transaction_type" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+              <option value="CustomerBuyGoodsOnline" {% if (ds.daraja_transaction_type or 'CustomerBuyGoodsOnline') == 'CustomerBuyGoodsOnline' %}selected{% endif %}>Buy Goods (Till)</option>
+              <option value="CustomerPayBillOnline" {% if ds.daraja_transaction_type == 'CustomerPayBillOnline' %}selected{% endif %}>Pay Bill</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Consumer key</label>
+            <input
+              name="daraja_consumer_key"
+              type="text"
+              autocomplete="off"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ ds.daraja_consumer_key or '' }}"
+              placeholder="From Daraja app credentials"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Consumer secret</label>
+            <input
+              name="daraja_consumer_secret"
+              type="password"
+              autocomplete="new-password"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="{% if ds.daraja_consumer_secret_configured %}Re-enter to replace saved secret{% else %}From Daraja app credentials{% endif %}"
+            />
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Credentials are stored securely and kept when you edit other settings tabs. To replace them, paste a fresh <strong>consumer key and secret</strong> together.</p>
+            <p
+              id="daraja-oauth-status"
+              class="mt-2 text-xs font-medium {% if ds.daraja_oauth_ok %}text-emerald-600 dark:text-emerald-400{% elif ds.daraja_enabled and ds.daraja_oauth_ok == false %}text-rose-600 dark:text-rose-400{% else %}text-[rgb(var(--rc-muted))]{% endif %}"
+              role="status"
+            >
+              {% if ds.daraja_oauth_ok %}
+                Daraja OAuth verified{% if ds.daraja_oauth_checked_at %} · {{ ds.daraja_oauth_checked_at }}{% endif %}
+              {% elif ds.daraja_enabled and ds.daraja_consumer_key_configured and ds.daraja_consumer_secret_configured %}
+                Daraja credentials saved — OAuth not verified yet. Save again after updating key/secret.
+              {% elif ds.daraja_enabled %}
+                Enter consumer key and secret from your Daraja Sandbox app.
+              {% else %}
+                Enable Daraja to configure M-Pesa STK Push.
+              {% endif %}
+            </p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Passkey</label>
+            <input
+              name="daraja_passkey"
+              type="password"
+              autocomplete="new-password"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="{% if ds.daraja_passkey_configured %}Saved — leave blank to keep{% else %}Lipa Na M-Pesa Online passkey{% endif %}"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Business short code</label>
+            <input
+              name="daraja_shortcode"
+              type="text"
+              inputmode="numeric"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ ds.daraja_shortcode or '' }}"
+              placeholder="Sandbox: 174379 · live Paybill or Till"
+            />
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">STK callback URL — hosted (HTTPS)</label>
+            <input
+              name="daraja_callback_url"
+              type="url"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ ds.daraja_callback_url or '' }}"
+              placeholder="https://your-domain.com/api/daraja/mpesa-callback"
+            />
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Optional if <strong>Hosted domain</strong> is set under Company settings (auto-fills <code class="text-[10px]">/api/daraja/mpesa-callback</code>). Otherwise enter your live HTTPS callback URL. <strong>Required for STK Push from localhost</strong> when no hosted domain is configured.</p>
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">STK callback URL — local dev (optional)</label>
+            <input
+              name="daraja_callback_url_local"
+              type="url"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ ds.daraja_callback_url_local or '' }}"
+              placeholder="Leave blank when using hosted URL + direct Safaricom status checks"
+            />
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Only needed if you want Safaricom callbacks (and the M-Pesa receipt reference) on <em>this</em> machine — e.g. ngrok to localhost. Otherwise leave blank and use the hosted URL above.</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Sandbox test phone: <strong>254708374149</strong> · shortcode <strong>174379</strong> · passkey from Daraja Lipa Na M-Pesa Online (or leave passkey blank to use the public sandbox default).</p>
+          </div>
+          {% set stk_cb = stk_callback_preview or {} %}
+          <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Active STK callback (this server)</p>
+            {% if stk_cb.resolved_url %}
+              <p class="mt-2 break-all font-mono text-[11px] text-[rgb(var(--rc-page-fg))]">{{ stk_cb.resolved_url }}</p>
+              {% if stk_cb.uses_ngrok %}
+                <p class="mt-2 text-xs text-amber-800 dark:text-amber-200">Using auto-detected ngrok. ngrok free may block Safaricom — prefer Hosted domain for production STK.</p>
+              {% endif %}
+            {% else %}
+              <p class="mt-2 text-xs text-rose-700 dark:text-rose-300">No valid STK callback URL. Set <strong>Hosted domain</strong> to your live HTTPS server, or run ngrok / Cloudflare Tunnel and paste the HTTPS URL under local dev.</p>
+              {% if stk_cb.auto_ngrok_url %}
+                <p class="mt-1 break-all font-mono text-[10px] text-[rgb(var(--rc-muted))]">ngrok detected: {{ stk_cb.auto_ngrok_url }}</p>
+              {% endif %}
+            {% endif %}
+          </div>
+          <div class="md:col-span-2">
+            <input
+              name="daraja_account_reference"
+              type="text"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ ds.daraja_account_reference or '' }}"
+              placeholder="Default reference on STK Push (e.g. shop name or invoice prefix)"
+            />
+          </div>
+          <div class="md:col-span-2">
+            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+              <input
+                type="checkbox"
+                name="daraja_stk_auto_customer_from_mpesa"
+                value="1"
+                class="rc-receipt-switch mt-0.5 shrink-0"
+                {% if ds.daraja_stk_auto_customer_from_mpesa %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Auto-register customers from M-Pesa STK</span>
+                <span class="mt-1 block text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+                  After a successful STK payment, if the phone is not already saved for that shop, register the customer using the payer name from the M-Pesa callback (POS fills the customer field automatically). Requires a reachable STK callback URL so Safaricom can post payment details.
+                </span>
+              </span>
+            </label>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Initiator name (optional)</label>
+            <input
+              name="daraja_initiator_name"
+              type="text"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              value="{{ ds.daraja_initiator_name or '' }}"
+              placeholder="e.g. testapi (sandbox) — required for live balance"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Security credential (optional)</label>
+            <input
+              name="daraja_security_credential"
+              type="password"
+              autocomplete="new-password"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="{% if ds.daraja_security_credential_configured %}Saved — leave blank to keep{% else %}Encrypted initiator password{% endif %}"
+            />
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+          Consumer key/secret are stored in dedicated database fields and are not cleared when you edit Theme, POS, or Receipt settings.
+        </p>

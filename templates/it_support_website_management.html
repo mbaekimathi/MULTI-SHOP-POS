@@ -2,57 +2,362 @@
 {% block title %}Website management — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Website management{% endblock %}
 {% block sidebar_links %}
-  {% include "partials/it_support_website_sidebar_nav.html" %}
+  {% with website_nav_active='overview' %}
+    {% include "partials/it_support_website_sidebar_nav.html" %}
+  {% endwith %}
 {% endblock %}
 {% block head %}
   {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}" />
   <style>
-    #website-management-page {
-      max-width: none;
-    }
+    #website-management-page { max-width: none; }
     #website-management-page .wsf-design-shell {
-      min-height: 38rem;
+      min-height: 28rem;
       border-radius: 1rem;
       overflow: hidden;
       border: 1px solid rgb(var(--rc-border));
       box-shadow: 0 24px 48px -32px rgba(15, 23, 42, 0.45);
+      background: rgb(var(--rc-surface));
     }
-    #website-management-page .wsf-design-shell .wsf-root {
-      border-radius: inherit;
+    #website-management-page .wsm-preview-frame {
+      display: block;
+      width: 100%;
+      min-height: 28rem;
+      height: min(72vh, 48rem);
+      border: 0;
+    }
+    #website-management-page .wsm-preview-frame[hidden],
+    #website-management-page .wsm-preview-placeholder[hidden] { display: none; }
+    #website-management-page .wsm-preview-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      min-height: 28rem;
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+    #website-management-page .wsm-detail-grid {
+      display: grid;
+      gap: 0.85rem 1.25rem;
+    }
+    @media (min-width: 640px) {
+      #website-management-page .wsm-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #website-management-page .wsm-detail-grid--full { grid-template-columns: 1fr; }
+    }
+    #website-management-page .wsm-detail dt {
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+    }
+    #website-management-page .wsm-detail dd {
+      margin: 0.2rem 0 0;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: rgb(var(--rc-page-fg));
+      word-break: break-word;
+    }
+    #website-management-page .wsm-detail dd.wsm-detail__muted {
+      color: rgb(var(--rc-muted));
+      font-style: italic;
+    }
+    #website-management-page .wsm-stat-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    #website-management-page .wsm-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgb(var(--rc-border));
+      background: rgb(var(--rc-surface-2));
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgb(var(--rc-muted));
+    }
+    #website-management-page .wsm-stat strong {
+      font-variant-numeric: tabular-nums;
+      color: rgb(var(--rc-page-fg));
+    }
+    #website-management-page .wsm-product-list { margin: 0; padding: 0; list-style: none; }
+    #website-management-page .wsm-product-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid rgb(var(--rc-border));
+      font-size: 0.8125rem;
+    }
+    #website-management-page .wsm-product-list li:last-child { border-bottom: 0; }
+    #website-management-page .wsm-product-list img,
+    #website-management-page .wsm-product-list .wsm-product-ph {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.5rem;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    #website-management-page .wsm-product-ph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgb(var(--rc-surface-2));
+      font-size: 0.75rem;
+      font-weight: 800;
     }
   </style>
 {% endblock %}
 {% block employee_content %}
   {% set d = website_design %}
+  {% set _c = storefront_homepage_copy %}
+  {% set max_feat = website_homepage_featured_max|default(6) %}
+  {% set _shops = website_public_shops|default([]) %}
+  {% set _cats = website_product_categories|default([]) %}
   <div id="website-management-page" class="space-y-5">
-    {% include "partials/website_share_link.html" %}
+    {% with share_compact=true %}
+      {% include "partials/website_share_link.html" %}
+    {% endwith %}
 
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div class="min-w-0">
-        <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-violet-600/90 dark:text-violet-400/90">Public site</p>
-        <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Website preview</h2>
-        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-          This is how your shop appears to customers — immersive product cards, category rows, cart, and WhatsApp quotations.
-          <span class="text-[rgb(var(--rc-muted))]">{{ website_featured_products|length }} products from POS.</span>
+    <div class="wsd-hero p-5 sm:p-6">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0">
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-[rgb(var(--rc-muted))]">Public site</p>
+          <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Website settings</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+            Overview of your live shop. Edit homepage content in
+            <a href="{{ url_for('it_support_website_designs') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Website builder</a>;
+            theme and domain in
+            <a href="{{ url_for('it_support_system_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">System settings</a>.
+          </p>
+          <div class="wsm-stat-row mt-3">
+            <span class="wsm-stat"><strong>{{ _shops|length }}</strong> active {{ 'shop' if _shops|length == 1 else 'shops' }}</span>
+            <span class="wsm-stat"><strong>{{ website_featured_products|length }}</strong> homepage products</span>
+            <span class="wsm-stat"><strong>{{ _cats|length }}</strong> categories</span>
+          </div>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <button type="button" id="wsm-preview-btn" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Preview website</button>
+          <a href="{{ url_for('it_support_website_designs') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Edit in builder</a>
+          <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Open live link</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-5 xl:grid-cols-2">
+      <section class="wsd-panel p-5 sm:p-6">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Company identity</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Header, footer, and contact details on your public site.</p>
+        <div class="mt-4">
+          {% include "partials/website_company_identity_summary.html" %}
+        </div>
+      </section>
+
+      <section class="wsd-panel p-5 sm:p-6">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Theme and domain</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Colors, fonts, and hosted URL from system settings.</p>
+        <dl class="wsm-detail-grid mt-4">
+          <div class="wsm-detail">
+            <dt>Primary color</dt>
+            <dd>{{ site_settings.primary_color if site_settings else '—' }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Accent color</dt>
+            <dd>{{ site_settings.accent_color if site_settings else '—' }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Font</dt>
+            <dd>{{ site_settings.font_family if site_settings else 'Plus Jakarta Sans' }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Public URL</dt>
+            <dd>{{ preview_url }}</dd>
+          </div>
+        </dl>
+        <p class="mt-3 text-xs text-[rgb(var(--rc-muted))]">
+          <a href="{{ url_for('it_support_system_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Open system settings</a>
         </p>
-      </div>
-      <div class="flex shrink-0 flex-wrap gap-2">
-        <a href="{{ url_for('it_support_system_settings') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">System settings</a>
-        <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Open live link</a>
-      </div>
+      </section>
+
+      <section class="wsd-panel p-5 sm:p-6 xl:col-span-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Homepage hero</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Headline block and call-to-action buttons.</p>
+        <dl class="wsm-detail-grid mt-4">
+          <div class="wsm-detail">
+            <dt>Eyebrow</dt>
+            <dd>{% if _c.hero_show_eyebrow %}{{ _c.hero_eyebrow }}{% else %}<span class="wsm-detail__muted">Default (company name)</span>{% endif %}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Headline</dt>
+            <dd>{{ _c.hero_headline }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Headline accent</dt>
+            <dd>{% if _c.hero_show_accent %}{{ _c.hero_headline_accent }}{% else %}<span class="wsm-detail__muted">Not set</span>{% endif %}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Intro</dt>
+            <dd>{{ _c.hero_lead }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Primary button</dt>
+            <dd>{{ _c.cta_primary_label }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Secondary button</dt>
+            <dd>{{ _c.cta_secondary_label }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Promo banner</dt>
+            <dd>{% if _c.promo_banner_text %}{{ _c.promo_banner_text }}{% else %}<span class="wsm-detail__muted">Hidden</span>{% endif %}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Search placeholder</dt>
+            <dd>{{ _c.search_placeholder }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="wsd-panel p-5 sm:p-6">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">SEO</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Page title and meta description for search engines.</p>
+        <dl class="wsm-detail-grid wsm-detail-grid--full mt-4">
+          <div class="wsm-detail">
+            <dt>Page title</dt>
+            <dd>{{ _c.page_title }}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Meta description</dt>
+            <dd>{{ _c.meta_description }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="wsd-panel p-5 sm:p-6">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Trust policies</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Return/refund and shipping information shown to customers.</p>
+        <dl class="wsm-detail-grid wsm-detail-grid--full mt-4">
+          <div class="wsm-detail">
+            <dt>Return and refund</dt>
+            <dd>{% if _c.return_refund_policy %}{{ _c.return_refund_policy[:280] }}{% if _c.return_refund_policy|length > 280 %}…{% endif %}{% else %}<span class="wsm-detail__muted">Not set</span>{% endif %}</dd>
+          </div>
+          <div class="wsm-detail">
+            <dt>Shipping and delivery</dt>
+            <dd>{% if _c.shipping_delivery_guidelines %}{{ _c.shipping_delivery_guidelines[:280] }}{% if _c.shipping_delivery_guidelines|length > 280 %}…{% endif %}{% else %}<span class="wsm-detail__muted">Not set</span>{% endif %}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="wsd-panel p-5 sm:p-6 xl:col-span-2">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Homepage products</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+              Up to {{ max_feat }} items on the homepage.
+              <a href="{{ catalog_preview_url }}" target="_blank" rel="noopener" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Full catalogue</a>
+            </p>
+          </div>
+          <span class="rounded-full bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-[10px] font-bold tabular-nums text-[rgb(var(--rc-muted))]">
+            {{ website_featured_products|length }} / {{ max_feat }}
+          </span>
+        </div>
+        <p class="mt-3 text-xs font-semibold text-[rgb(var(--rc-page-fg))]">
+          {% if website_using_auto_products %}Automatic best-sellers from POS{% else %}Custom selection{% endif %}
+        </p>
+        <ul class="wsm-product-list mt-2">
+          {% if website_using_auto_products %}
+            {% for p in website_featured_products %}
+              <li>
+                {% if p.image_url %}
+                  <img src="{{ p.image_url }}" alt="" />
+                {% else %}
+                  <span class="wsm-product-ph">{{ p.name[:1]|upper }}</span>
+                {% endif %}
+                <span class="min-w-0 flex-1 truncate font-medium text-[rgb(var(--rc-page-fg))]">{{ p.name }}</span>
+                <span class="shrink-0 text-[rgb(var(--rc-muted))]">KES {{ '%.0f'|format(p.price) }}</span>
+              </li>
+            {% else %}
+              <li class="text-[rgb(var(--rc-muted))]">No products in catalogue yet.</li>
+            {% endfor %}
+          {% else %}
+            {% for p in website_featured_products %}
+              <li>
+                {% if p.image_url %}
+                  <img src="{{ p.image_url }}" alt="" />
+                {% else %}
+                  <span class="wsm-product-ph">{{ p.name[:1]|upper }}</span>
+                {% endif %}
+                <span class="min-w-0 flex-1 truncate font-medium text-[rgb(var(--rc-page-fg))]">{{ p.name }}</span>
+                <span class="shrink-0 text-[rgb(var(--rc-muted))]">KES {{ '%.0f'|format(p.price) }}</span>
+              </li>
+            {% else %}
+              <li class="text-[rgb(var(--rc-muted))]">No custom products — will use best-sellers.</li>
+            {% endfor %}
+          {% endif %}
+        </ul>
+      </section>
     </div>
 
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-2.5 text-xs text-[rgb(var(--rc-muted))]">
-      <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Tip:</span>
-      Theme, colors, and fonts come from
-      <a href="{{ url_for('it_support_system_settings') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">System settings</a>.
-      Products update automatically from your POS best-sellers.
-    </div>
-
-    <div class="wsf-design-shell">
-      {% with website_design=d, storefront_design_mode=false %}
-        {% include "partials/website_ecommerce_storefront.html" %}
-      {% endwith %}
-    </div>
+    <section class="wsd-panel p-5 sm:p-6">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Website preview</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">See how customers view your shop. Preview loads only when you click the button below.</p>
+        </div>
+        <button type="button" id="wsm-preview-hide-btn" class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-semibold" hidden>Hide preview</button>
+      </div>
+      <div class="wsf-design-shell">
+        <div id="wsm-preview-placeholder" class="wsm-preview-placeholder">
+          <p class="max-w-sm text-sm font-medium text-[rgb(var(--rc-page-fg))]">Preview your homepage</p>
+          <p class="max-w-sm text-xs leading-relaxed text-[rgb(var(--rc-muted))]">Shows registered shops, best sellers, categories, and catalogue — same as the live site.</p>
+          <button type="button" class="wsm-preview-trigger btn-rc btn-rc-primary mt-1 px-4 py-2 text-sm font-semibold">Preview website</button>
+        </div>
+        <iframe
+          id="wsm-preview-frame"
+          class="wsm-preview-frame"
+          title="Website preview"
+          hidden
+          loading="lazy"
+          data-preview-src="{{ url_for('marketing_home') }}"
+        ></iframe>
+      </div>
+    </section>
   </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      var root = document.getElementById("website-management-page");
+      if (!root) return;
+      var previewFrame = document.getElementById("wsm-preview-frame");
+      var previewPlaceholder = document.getElementById("wsm-preview-placeholder");
+      var previewHideBtn = document.getElementById("wsm-preview-hide-btn");
+
+      function showPreview() {
+        if (!previewFrame || !previewPlaceholder) return;
+        if (!previewFrame.getAttribute("data-loaded")) {
+          previewFrame.src = previewFrame.getAttribute("data-preview-src") || "/site";
+          previewFrame.setAttribute("data-loaded", "1");
+        }
+        previewPlaceholder.hidden = true;
+        previewFrame.hidden = false;
+        if (previewHideBtn) previewHideBtn.hidden = false;
+        previewFrame.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function hidePreview() {
+        if (!previewFrame || !previewPlaceholder) return;
+        previewFrame.hidden = true;
+        previewPlaceholder.hidden = false;
+        if (previewHideBtn) previewHideBtn.hidden = true;
+      }
+
+      root.querySelectorAll(".wsm-preview-trigger, #wsm-preview-btn").forEach(function (btn) {
+        btn.addEventListener("click", showPreview);
+      });
+      if (previewHideBtn) previewHideBtn.addEventListener("click", hidePreview);
+    })();
+  </script>
 {% endblock %}

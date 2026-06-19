@@ -1,0 +1,61 @@
+{# Edit shop form body — used inside the edit modal. Expects ``shop`` as ``s``. #}
+<form method="post" action="{{ url_for('it_support_shop_edit', shop_id=s.id) }}" enctype="multipart/form-data" class="space-y-5">
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div>
+      <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop name</label>
+      <input
+        name="shop_name"
+        value="{{ s.shop_name }}"
+        required
+        class="js-shop-uppercase w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] uppercase outline-none"
+        placeholder="Shop name"
+      />
+    </div>
+    <div>
+      <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop code</label>
+      <input
+        name="shop_code"
+        value="{{ s.shop_code }}"
+        required
+        inputmode="numeric"
+        maxlength="6"
+        pattern="\d{6}"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+        placeholder="6-digit code"
+      />
+    </div>
+    <div>
+      <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">New password</label>
+      <input
+        name="shop_password"
+        type="password"
+        autocomplete="new-password"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+        placeholder="Leave blank to keep current"
+      />
+    </div>
+    <div>
+      <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Status</label>
+      <select
+        name="status"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+      >
+        <option value="active" {% if s.status == 'active' %}selected{% endif %}>Displayed</option>
+        <option value="suspended" {% if s.status != 'active' %}selected{% endif %}>Hidden</option>
+      </select>
+    </div>
+  </div>
+
+  {% with area_value=s.shop_location, description_value=s.shop_location_description or '', area_id=('edit_shop_location_' ~ s.id|string), description_id=('edit_shop_location_description_' ~ s.id|string), rows=3 %}
+    {% include "partials/shop_location_fields.html" %}
+  {% endwith %}
+
+  {% with logo=s.shop_logo, show_remove=true, preview_id=('edit-shop-logo-preview-' ~ s.id|string), input_id=('edit_shop_logo_' ~ s.id|string) %}
+    {% include "partials/shop_logo_upload_field.html" %}
+  {% endwith %}
+
+  <div class="flex flex-wrap justify-end gap-3 border-t border-[rgb(var(--rc-border))] pt-4">
+    <button type="button" class="btn-rc btn-rc-ghost px-5 py-2.5 text-sm js-close-shop-edit-modal">Cancel</button>
+    <button type="submit" class="btn-rc btn-rc-success px-5 py-2.5 text-sm">Save changes</button>
+  </div>
+</form>

@@ -1,0 +1,79 @@
+{# Registered shops grid for the public homepage. Expects website_public_shops. #}
+{% set _shops = website_public_shops|default([]) %}
+<section id="wsf-shops" class="wsf-section px-4 pb-12 pt-8 sm:px-6 sm:pb-16 wsf-reveal" aria-labelledby="wsf-shops-heading">
+  <div class="mx-auto max-w-7xl">
+    <div class="wsf-section-head wsf-reveal-child" style="--wsf-i: 0">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p class="wsf-section-head__eyebrow">Our branches</p>
+          <h2 id="wsf-shops-heading" class="wsf-strip__title wsf-strip__title--compact">{{ _c.shops_section_title }}</h2>
+          <p class="wsf-strip__sub">{{ _c.shops_section_subtitle }}</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="wsf-count-badge"><span>{{ _shops|length }}</span> {{ 'shop' if _shops|length == 1 else 'shops' }}</span>
+          <a href="{{ _catalog_url }}" class="wsf-view-all-link">Browse all products</a>
+        </div>
+      </div>
+    </div>
+
+    {% if _shops %}
+      <div class="wsf-shops-grid mt-8">
+        {% for shop in _shops %}
+          <article class="wsf-shop-card wsf-reveal-child" style="--wsf-i: {{ loop.index0 }}; --wsf-shop-delay: {{ loop.index0 * 90 }}ms;">
+            <div class="wsf-shop-card__border" aria-hidden="true"></div>
+            <div class="wsf-shop-card__inner">
+              <div class="wsf-shop-card__bg" aria-hidden="true">
+                {% if shop.shop_logo_url %}
+                  <img src="{{ shop.shop_logo_url }}" alt="" class="wsf-shop-card__bg-img" loading="lazy" />
+                {% else %}
+                  <div class="wsf-shop-card__bg-fallback">{{ shop.shop_name[:1]|upper }}</div>
+                {% endif %}
+                <div class="wsf-shop-card__overlay"></div>
+                <div class="wsf-shop-card__shine"></div>
+              </div>
+
+              <div class="wsf-shop-card__content">
+                <span class="wsf-shop-card__live">
+                  <span class="wsf-shop-card__live-dot" aria-hidden="true"></span>
+                  Active
+                </span>
+
+                <div class="wsf-shop-card__panel">
+                  <div class="wsf-shop-card__head">
+                    <h3 class="wsf-shop-card__name">{{ shop.shop_name }}</h3>
+                    {% if shop.shop_code %}
+                      <span class="wsf-shop-card__code">{{ shop.shop_code }}</span>
+                    {% endif %}
+                  </div>
+                  {% if shop.shop_location %}
+                    <p class="wsf-shop-card__location">
+                      <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>{{ shop.shop_location }}</span>
+                    </p>
+                  {% endif %}
+                  {% if shop.shop_location_description %}
+                    <p class="wsf-shop-card__desc">{{ shop.shop_location_description }}</p>
+                  {% endif %}
+                  <a href="{{ _catalog_url }}" class="wsf-shop-card__cta">
+                    <span class="wsf-shop-card__cta-label">View our products</span>
+                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="wsf-empty-state mt-8 rounded-2xl px-6 py-16 text-center">
+        <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">No shops registered yet</p>
+        <p class="mt-2 text-xs text-zinc-500">Active branches will appear here once they are added in My shops.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>

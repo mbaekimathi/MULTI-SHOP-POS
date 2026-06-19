@@ -1,11 +1,9 @@
 {# Shop session: profile trigger + dropdown (Log out). Expects ``shop`` in context. #}
-<div class="relative z-50" data-shop-header-dd>
-  <button
-    type="button"
+<details class="group relative z-50" data-shop-header-dd>
+  <summary
     id="shop-header-dd-btn"
-    class="inline-flex max-w-[min(13rem,52vw)] items-center gap-1.5 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-1.5 py-1 text-left shadow-sm ring-1 ring-black/5 transition hover:bg-[rgb(var(--rc-surface-2))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:max-w-[min(15rem,56vw)] sm:gap-2.5 sm:px-3 sm:py-2 dark:ring-white/10"
-    aria-expanded="false"
-    aria-haspopup="true"
+    class="inline-flex max-w-[min(13rem,52vw)] cursor-pointer list-none items-center gap-1.5 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] px-1.5 py-1 text-left shadow-sm ring-1 ring-black/5 transition hover:bg-[rgb(var(--rc-surface-2))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgb(var(--rc-primary))] sm:max-w-[min(15rem,56vw)] sm:gap-2.5 sm:px-3 sm:py-2 dark:ring-white/10 [&::-webkit-details-marker]:hidden"
+    aria-haspopup="menu"
     aria-controls="shop-header-dd-panel"
   >
     {% if shop.shop_logo %}
@@ -29,7 +27,7 @@
       <span class="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))] sm:block">Shop account</span>
     </span>
     <svg
-      class="shop-header-dd-chevron h-3.5 w-3.5 shrink-0 text-[rgb(var(--rc-muted))] transition-transform duration-200 sm:h-4 sm:w-4"
+      class="shop-header-dd-chevron h-3.5 w-3.5 shrink-0 text-[rgb(var(--rc-muted))] transition-transform duration-200 group-open:rotate-180 sm:h-4 sm:w-4"
       data-shop-dd-chevron
       fill="none"
       stroke="currentColor"
@@ -38,12 +36,11 @@
     >
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
     </svg>
-  </button>
+  </summary>
   <div
     id="shop-header-dd-panel"
-    class="shop-header-dd-panel absolute right-0 top-full z-[200] mt-1.5 hidden min-w-[13rem] max-w-[min(18rem,92vw)] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-1 shadow-xl ring-1 ring-black/10 dark:ring-white/10"
+    class="shop-header-dd-panel absolute right-0 top-full z-[200] mt-1.5 min-w-[13rem] max-w-[min(18rem,92vw)] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-1 shadow-xl ring-1 ring-black/10 dark:ring-white/10"
     role="menu"
-    hidden
   >
     <a
       href="{{ url_for('shop_logout', shop_id=shop.id) }}"
@@ -56,4 +53,4 @@
       Log out
     </a>
   </div>
-</div>
+</details>

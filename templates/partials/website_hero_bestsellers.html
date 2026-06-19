@@ -1,0 +1,113 @@
+{# Top-selling products for the homepage hero — semantic markup for SEO. #}
+{% set _hero_best = bestsellers|default([]) %}
+{% if _hero_best %}
+<section
+  class="wsf-hero-bestsellers"
+  aria-labelledby="wsf-bestsellers-heading"
+  data-wsf-hero-parallax
+>
+  <header class="wsf-hero-bestsellers__head">
+    <p class="wsf-hero-bestsellers__eyebrow">Best sellers</p>
+    <h2 id="wsf-bestsellers-heading" class="wsf-hero-bestsellers__title">Most popular right now</h2>
+  </header>
+
+  <ul class="wsf-hero-bestsellers__list">
+    {% for p in _hero_best %}
+      {% set _desc = p.description if p.description else (p.category ~ ' — one of our top-selling items.') %}
+      <li class="wsf-hero-bestsellers__item">
+        <article
+          id="wsf-bestseller-{{ p.id }}"
+          class="wsf-hero-bestsellers__card{% if p.on_sale %} wsf-hero-bestsellers__card--offer{% endif %}"
+          itemscope
+          itemtype="https://schema.org/Product"
+          style="--wsf-best-i: {{ loop.index0 }}"
+        >
+          <a
+            href="{{ catalog_url }}#wsf-product-{{ p.id }}"
+            class="wsf-hero-bestsellers__link"
+            itemprop="url"
+          >
+            <div class="wsf-hero-bestsellers__media">
+              {% if p.image_url %}
+                <img
+                  src="{{ p.image_url }}"
+                  alt="{{ p.name }}"
+                  class="wsf-hero-bestsellers__img"
+                  itemprop="image"
+                  loading="{% if loop.index0 < 2 %}eager{% else %}lazy{% endif %}"
+                  width="320"
+                  height="240"
+                />
+              {% else %}
+                <span class="wsf-hero-bestsellers__img-ph" aria-hidden="true">{{ p.name[:1]|upper }}</span>
+              {% endif %}
+              {% if p.qty_sold and p.qty_sold >= 1 %}
+                <span class="wsf-hero-bestsellers__rank">#{{ loop.index }}</span>
+              {% endif %}
+              {% if p.on_sale %}
+                <span class="wsf-hero-bestsellers__badge">−{{ p.discount_percent }}%</span>
+              {% endif %}
+            </div>
+
+            <div class="wsf-hero-bestsellers__body">
+              {% if p.category %}
+                <p class="wsf-hero-bestsellers__cat" itemprop="category">{{ p.category }}</p>
+              {% endif %}
+              <h3 class="wsf-hero-bestsellers__name" itemprop="name">{{ p.name }}</h3>
+              <p class="wsf-hero-bestsellers__desc" itemprop="description">{{ _desc }}</p>
+              <p
+                class="wsf-hero-bestsellers__price"
+                itemprop="offers"
+                itemscope
+                itemtype="https://schema.org/Offer"
+              >
+                <meta itemprop="priceCurrency" content="KES" />
+                <span itemprop="price" content="{{ '%.2f'|format(p.price) }}">
+                  KES {{ '%.0f'|format(p.price) }}
+                </span>
+                {% if p.on_sale %}
+                  <span class="wsf-hero-bestsellers__was">KES {{ '%.0f'|format(p.original_price) }}</span>
+                {% endif %}
+              </p>
+            </div>
+          </a>
+        </article>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <p class="wsf-hero-bestsellers__foot">
+    <a href="{{ catalog_url }}" class="wsf-view-all-link">View full catalogue</a>
+  </p>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "Best selling products",
+  "itemListElement": [
+    {% for p in _hero_best %}
+    {% set _ld_desc = p.description if p.description else (p.category ~ ' — one of our top-selling items.') %}
+    {
+      "@type": "ListItem",
+      "position": {{ loop.index }},
+      "item": {
+        "@type": "Product",
+        "name": {{ p.name|tojson }},
+        "description": {{ _ld_desc|tojson }},
+        {% if p.image_url %}"image": {{ p.image_url|tojson }},{% endif %}
+        "category": {{ p.category|tojson }},
+        "offers": {
+          "@type": "Offer",
+          "priceCurrency": "KES",
+          "price": {{ p.price }},
+          "availability": "https://schema.org/InStock"
+        }
+      }
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endif %}

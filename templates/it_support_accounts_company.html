@@ -32,7 +32,7 @@
 
         Your configured Lipa Na M-Pesa paybill or till from
 
-        <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Company settings → Daraja</a>.
+        <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">System settings → Daraja</a>.
 
       </p>
 
@@ -42,7 +42,7 @@
 
         <div class="mt-5 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
 
-          Daraja M-Pesa is not enabled. Turn it on in Company settings to show your live paybill or till number here.
+          Daraja M-Pesa is not enabled. Turn it on in System settings to show your live paybill or till number here.
 
         </div>
 
@@ -189,13 +189,13 @@
           {% if not acct.initiator_configured or not acct.security_credential_configured %}
           To fetch live balance, add <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Initiator name</strong> and
           <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Security credential</strong> in
-          <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>
+          <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>
           (from your Daraja app / Safaricom certificate).
           {% elif not cb.balance_ready %}
           Balance callbacks are not configured. Set
           <strong class="font-medium text-[rgb(var(--rc-page-fg))]">STK callback URL — hosted</strong>
           (or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">local dev</strong> / ngrok when testing on localhost) in
-          <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>.
+          <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Daraja settings</a>.
           Safaricom must reach a public HTTPS URL to post the balance back.
           {% endif %}
 
@@ -311,7 +311,7 @@
 
       <p class="mt-4 text-xs text-[rgb(var(--rc-muted))]">
         Edit URLs in
-        <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">Company settings → Daraja</a>.
+        <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-300">System settings → Daraja</a>.
       </p>
 
     </div>

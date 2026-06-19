@@ -28,6 +28,22 @@
     });
   }
 
+  function applyMarketingTheme(theme) {
+    var root = document.documentElement;
+    root.setAttribute("data-marketing-theme", theme);
+    root.style.colorScheme = theme === "dark" ? "dark" : "light";
+  }
+
+  function hasStoredMarketingTheme(cfgKey, cfg) {
+    try {
+      var storedCfg = localStorage.getItem(cfgKey);
+      var stored = localStorage.getItem("marketing-theme");
+      return !!(storedCfg && cfg && storedCfg === cfg && (stored === "dark" || stored === "light"));
+    } catch (e) {
+      return false;
+    }
+  }
+
   function initMarketingThemeToggle() {
     var key = "marketing-theme";
     var cfgKey = "marketing-theme-config";
@@ -40,19 +56,30 @@
       stored = localStorage.getItem(key);
     } catch (e) {}
     if (storedCfg && cfg && storedCfg === cfg && (stored === "dark" || stored === "light")) {
-      root.setAttribute("data-marketing-theme", stored);
+      applyMarketingTheme(stored);
     }
 
     document.querySelectorAll("[data-mk-theme-toggle]").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var next = root.getAttribute("data-marketing-theme") === "dark" ? "light" : "dark";
-        root.setAttribute("data-marketing-theme", next);
+        applyMarketingTheme(next);
         try {
           localStorage.setItem(key, next);
           if (cfg) localStorage.setItem(cfgKey, cfg);
         } catch (e) {}
       });
     });
+
+    var themeDefault = root.getAttribute("data-marketing-theme-default") || "system";
+    if (themeDefault !== "system") return;
+    try {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      mq.addEventListener("change", function () {
+        if (!hasStoredMarketingTheme(cfgKey, cfg)) {
+          applyMarketingTheme(mq.matches ? "dark" : "light");
+        }
+      });
+    } catch (e) {}
   }
 
   document.addEventListener("DOMContentLoaded", function () {

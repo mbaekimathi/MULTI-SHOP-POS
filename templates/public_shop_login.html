@@ -202,6 +202,11 @@
 
       var codeEl = document.getElementById("shop_code");
       if (codeEl) {
+        try {
+          var prefill = new URLSearchParams(window.location.search).get("shop_code") || "";
+          prefill = prefill.replace(/\D/g, "").slice(0, 6);
+          if (prefill) codeEl.value = prefill;
+        } catch (e) {}
         codeEl.addEventListener("input", function () {
           var v = (codeEl.value || "").replace(/\D/g, "").slice(0, 6);
           codeEl.value = v;

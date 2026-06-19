@@ -8,14 +8,12 @@
         <div>
           <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">My shops</h2>
           <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-            Register a new shop with required details. Shop name, code, and location are stored in uppercase.
+            Register a new shop with required details. Shop name, location, and location description are stored in uppercase.
           </p>
           <p class="mt-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-3 py-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
             <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Shop tools:</span>
-            open <span class="font-medium text-[rgb(var(--rc-page-fg))]">Analytics</span> for branch metrics, or
-            <span class="font-medium text-[rgb(var(--rc-page-fg))]">Shop admin</span> to enter that shop&apos;s dashboard (items, HR, audits) as IT support—no shop password required.
+            Use the <span class="font-medium text-[rgb(var(--rc-page-fg))]">Login as</span> dropdown to open as shop admin (direct dashboard) or shop manager (employee sign-in).
             Use <span class="font-medium text-[rgb(var(--rc-page-fg))]">POS</span> for the point-of-sale screen.
-            <span class="mt-1 block">Each registered branch has <span class="font-medium text-[rgb(var(--rc-page-fg))]">Shop manager login</span> — opens the employee portal, then returns to that branch&apos;s dashboard after sign-in.</span>
           </p>
         </div>
         <button
@@ -35,7 +33,7 @@
       {% include "partials/flashes.html" %}
 
       <div id="shop-form-wrap" class="mt-6 hidden">
-      <form method="post" action="{{ url_for('it_support_register_shop') }}" class="space-y-5">
+      <form method="post" action="{{ url_for('it_support_register_shop') }}" enctype="multipart/form-data" class="space-y-5">
         <div class="grid gap-5 md:grid-cols-2">
           <div>
             <label for="shop_name" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop name</label>
@@ -43,7 +41,7 @@
               id="shop_name"
               name="shop_name"
               required
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              class="js-shop-uppercase w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
               placeholder="E.G. MAIN STREET BRANCH"
             />
           </div>
@@ -95,17 +93,11 @@
               </button>
             </div>
           </div>
-          <div>
-            <label for="shop_location" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop location</label>
-            <input
-              id="shop_location"
-              name="shop_location"
-              required
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
-              placeholder="E.G. NAIROBI CBD"
-            />
-          </div>
         </div>
+
+        {% include "partials/shop_location_fields.html" %}
+
+        {% include "partials/shop_logo_upload_field.html" %}
 
         <div class="flex flex-wrap gap-3 pt-2">
           <button
@@ -143,9 +135,9 @@
           <table class="min-w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Image</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop name</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop code</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Location</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Actions</th>
               </tr>
@@ -153,49 +145,49 @@
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for s in shops %}
                 <tr>
-                  <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</td>
-                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ s.shop_code }}</td>
-                  <td class="px-4 py-3 text-[rgb(var(--rc-muted))]">{{ s.shop_location }}</td>
                   <td class="px-4 py-3">
-                    <span
-                      class="inline-flex rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider ring-1
-                      {% if s.status == 'active' %}bg-emerald-500/12 text-emerald-300 ring-emerald-400/20{% else %}bg-rose-500/10 text-rose-300 ring-rose-400/20{% endif %}"
-                    >
-                      {% if s.status == 'active' %}Displayed{% else %}Hidden{% endif %}
-                    </span>
+                    <div class="h-10 w-10 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
+                      {% if s.shop_logo %}
+                        <img src="{{ url_for('static', filename=s.shop_logo) }}" alt="" class="h-full w-full object-cover" />
+                      {% else %}
+                        <div class="flex h-full w-full items-center justify-center text-xs font-bold text-[rgb(var(--rc-muted))]">{{ s.shop_name[:1] }}</div>
+                      {% endif %}
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</td>
+                  <td class="px-4 py-3 font-mono text-sm font-semibold tracking-wider text-[rgb(var(--rc-page-fg))]">{{ s.shop_code }}</td>
+                  <td class="px-4 py-3">
+                    {% if s.status == 'active' %}
+                      <span
+                        class="inline-flex min-w-[8.5rem] items-center gap-2.5 rounded-xl border border-emerald-500/35 bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-emerald-100 shadow-sm shadow-emerald-500/15 ring-1 ring-emerald-400/30"
+                        title="This shop is visible on POS and staff portals"
+                      >
+                        <span class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+                          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50"></span>
+                          <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-950/20"></span>
+                        </span>
+                        <svg class="h-4 w-4 shrink-0 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>Displayed</span>
+                      </span>
+                    {% else %}
+                      <span
+                        class="inline-flex min-w-[8.5rem] items-center gap-2.5 rounded-xl border border-slate-500/35 bg-gradient-to-br from-slate-500/20 via-slate-500/10 to-transparent px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-slate-200 shadow-sm shadow-black/10 ring-1 ring-slate-400/25"
+                        title="This shop is hidden from POS and staff portals"
+                      >
+                        <span class="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400 ring-2 ring-slate-950/20" aria-hidden="true"></span>
+                        <svg class="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                        <span>Hidden</span>
+                      </span>
+                    {% endif %}
                   </td>
                   <td class="min-w-[14rem] px-4 py-3">
                     <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                      <a
-                        href="{{ url_for('shop_analytics', shop_id=s.id) }}"
-                        class="btn-rc btn-rc-primary inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold"
-                        title="Branch revenue, items, sales, credit, and customer analytics"
-                      >
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m4 14v-6m4 6V9m4 10v-4m4 4V7" />
-                        </svg>
-                        Analytics
-                      </a>
-                      <a
-                        href="{{ url_for('shop_dashboard', shop_id=s.id) }}"
-                        class="btn-rc btn-rc-success inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold"
-                        title="Shop admin dashboard (same access as branch manager for IT support)"
-                      >
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        </svg>
-                        Shop admin
-                      </a>
-                      <a
-                        href="{{ url_for('employee_login', next=url_for('shop_dashboard', shop_id=s.id)) }}"
-                        class="btn-rc btn-rc-ghost inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold ring-1 ring-[rgb(var(--rc-border))]"
-                        title="Employee portal: sign in with a manager or staff code assigned to this branch, then open this shop dashboard"
-                      >
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>
-                        Shop manager login
-                      </a>
+                      {% include "partials/it_support_shop_login_as.html" %}
                       <a
                         href="{{ url_for('shop_portal', shop_id=s.id) }}"
                         class="btn-rc btn-rc-info inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs"
@@ -208,8 +200,9 @@
                       </a>
                       <button
                         type="button"
-                        class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs js-toggle-edit-shop"
-                        data-target="edit-shop-{{ s.id }}"
+                        class="btn-rc btn-rc-ghost px-3 py-1.5 text-xs js-open-edit-shop"
+                        data-shop-id="{{ s.id }}"
+                        data-shop-name="{{ s.shop_name }}"
                       >
                         Edit
                       </button>
@@ -229,52 +222,6 @@
                     </div>
                   </td>
                 </tr>
-                <tr id="edit-shop-{{ s.id }}" class="hidden">
-                  <td colspan="5" class="px-4 py-4 bg-[rgb(var(--rc-surface-2))]">
-                    <form method="post" action="{{ url_for('it_support_shop_edit', shop_id=s.id) }}" class="grid gap-3 md:grid-cols-5">
-                      <input
-                        name="shop_name"
-                        value="{{ s.shop_name }}"
-                        required
-                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] uppercase outline-none"
-                        placeholder="Shop name"
-                      />
-                      <input
-                        name="shop_code"
-                        value="{{ s.shop_code }}"
-                        required
-                        inputmode="numeric"
-                        maxlength="6"
-                        pattern="\d{6}"
-                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none"
-                        placeholder="6-digit code"
-                      />
-                      <input
-                        name="shop_password"
-                        type="password"
-                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none"
-                        placeholder="New password (optional)"
-                      />
-                      <input
-                        name="shop_location"
-                        value="{{ s.shop_location }}"
-                        required
-                        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] uppercase outline-none"
-                        placeholder="Shop location"
-                      />
-                      <div class="flex gap-2">
-                        <select
-                          name="status"
-                          class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs text-[rgb(var(--rc-page-fg))] outline-none"
-                        >
-                          <option value="active" {% if s.status == 'active' %}selected{% endif %}>Displayed</option>
-                          <option value="suspended" {% if s.status != 'active' %}selected{% endif %}>Hidden</option>
-                        </select>
-                        <button type="submit" class="btn-rc btn-rc-success px-3 py-1.5 text-xs">Save</button>
-                      </div>
-                    </form>
-                  </td>
-                </tr>
               {% endfor %}
             </tbody>
           </table>
@@ -282,6 +229,49 @@
       {% endif %}
     </div>
   </div>
+
+  {% if shops %}
+  <div
+    id="shop-edit-modal"
+    class="fixed inset-0 z-[100] hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="shop-edit-modal-title"
+    aria-hidden="true"
+  >
+    <button
+      type="button"
+      class="js-close-shop-edit-modal absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]"
+      aria-label="Close edit shop dialog"
+    ></button>
+    <div class="flex min-h-full items-end justify-center p-4 sm:items-center sm:p-6">
+      <div class="relative z-[1] flex max-h-[min(92vh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl shadow-black/25">
+        <div class="flex shrink-0 items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Edit shop</p>
+            <h2 id="shop-edit-modal-title" class="mt-0.5 truncate text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop details</h2>
+          </div>
+          <button
+            type="button"
+            class="js-close-shop-edit-modal inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]"
+            aria-label="Close"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div id="shop-edit-modal-body" class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {% for s in shops %}
+            <div id="edit-shop-panel-{{ s.id }}" class="edit-shop-panel hidden" data-shop-id="{{ s.id }}">
+              {% include "partials/it_support_edit_shop_form.html" %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -306,16 +296,53 @@
     })();
 
     (function () {
-      var buttons = document.querySelectorAll(".js-toggle-edit-shop");
-      if (!buttons.length) return;
-      buttons.forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          var id = btn.getAttribute("data-target");
-          if (!id) return;
-          var row = document.getElementById(id);
-          if (!row) return;
-          row.classList.toggle("hidden");
+      var modal = document.getElementById("shop-edit-modal");
+      var titleEl = document.getElementById("shop-edit-modal-title");
+      var bodyEl = document.getElementById("shop-edit-modal-body");
+      if (!modal || !bodyEl) return;
+
+      var panels = bodyEl.querySelectorAll(".edit-shop-panel");
+      var lastFocus = null;
+
+      function openModal(shopId, shopName) {
+        panels.forEach(function (panel) {
+          panel.classList.toggle("hidden", panel.getAttribute("data-shop-id") !== String(shopId));
         });
+        if (titleEl) {
+          titleEl.textContent = shopName || "Shop details";
+        }
+        lastFocus = document.activeElement;
+        modal.classList.remove("hidden");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        var panel = document.getElementById("edit-shop-panel-" + shopId);
+        var firstInput = panel && panel.querySelector("input, select, textarea, button");
+        if (firstInput) firstInput.focus();
+      }
+
+      function closeModal() {
+        modal.classList.add("hidden");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+        if (lastFocus && typeof lastFocus.focus === "function") {
+          lastFocus.focus();
+        }
+      }
+
+      document.querySelectorAll(".js-open-edit-shop").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          openModal(btn.getAttribute("data-shop-id"), btn.getAttribute("data-shop-name"));
+        });
+      });
+
+      document.querySelectorAll(".js-close-shop-edit-modal").forEach(function (btn) {
+        btn.addEventListener("click", closeModal);
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !modal.classList.contains("hidden")) {
+          closeModal();
+        }
       });
     })();
 
@@ -415,6 +442,83 @@
         }
         toggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
         toggleBtn.setAttribute("title", showing ? "Show password" : "Hide password");
+      });
+    })();
+
+    (function () {
+      function uppercaseField(el) {
+        if (!el || el.disabled || el.readOnly) return;
+        var v = (el.value || "").toUpperCase();
+        if (el.value !== v) el.value = v;
+      }
+
+      function bindUppercase(el) {
+        if (!el || el.dataset.shopUppercaseBound === "1") return;
+        el.dataset.shopUppercaseBound = "1";
+        el.addEventListener("input", function () {
+          uppercaseField(el);
+        });
+        el.addEventListener("blur", function () {
+          uppercaseField(el);
+        });
+        el.addEventListener("paste", function () {
+          window.setTimeout(function () {
+            uppercaseField(el);
+          }, 0);
+        });
+        uppercaseField(el);
+      }
+
+      document.querySelectorAll(".js-shop-uppercase").forEach(bindUppercase);
+
+      document.querySelectorAll('form[action*="register-shop"], .edit-shop-panel form').forEach(function (form) {
+        form.addEventListener("submit", function () {
+          form.querySelectorAll(".js-shop-uppercase").forEach(uppercaseField);
+        });
+      });
+    })();
+
+    (function () {
+      document.querySelectorAll(".js-shop-login-wrap").forEach(function (wrap) {
+        var select = wrap.querySelector(".js-shop-login-as");
+        var goBtn = wrap.querySelector(".js-shop-login-go");
+        if (!select || !goBtn) return;
+
+        function navigate() {
+          var role = select.value;
+          var url = role === "admin" ? wrap.getAttribute("data-admin-url") : role === "manager" ? wrap.getAttribute("data-manager-url") : "";
+          if (!url) {
+            select.focus();
+            return;
+          }
+          window.location.href = url;
+        }
+
+        goBtn.addEventListener("click", navigate);
+        select.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            navigate();
+          }
+        });
+      });
+    })();
+
+    (function () {
+      document.querySelectorAll("[data-shop-logo-input]").forEach(function (input) {
+        input.addEventListener("change", function () {
+          var targetId = input.getAttribute("data-preview-target");
+          var preview = targetId ? document.getElementById(targetId) : null;
+          if (!preview) return;
+          var file = input.files && input.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            preview.src = reader.result;
+            preview.classList.remove("opacity-70");
+          };
+          reader.readAsDataURL(file);
+        });
       });
     })();
   </script>

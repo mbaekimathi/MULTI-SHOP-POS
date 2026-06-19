@@ -1819,7 +1819,7 @@
       justify-content: flex-start;
       gap: 0.5rem;
       overflow-x: auto;
-      overflow-y: hidden;
+      overflow-y: visible;
       -webkit-overflow-scrolling: touch;
       scroll-snap-type: x proximity;
       scrollbar-width: none;
@@ -2020,6 +2020,20 @@
       border-color: rgba(245, 158, 11, 0.5);
       background: rgba(245, 158, 11, 0.2);
       color: rgb(180, 83, 9);
+      font-variant-numeric: tabular-nums;
+    }
+    #pos-offline-sync-badge.pos-header-action:not(:empty) {
+      min-width: 1.75rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    #pos-offline-sync-badge.pos-header-action:empty {
+      min-width: 0.65rem;
+      width: 0.65rem;
+      height: 0.65rem;
+      min-height: 0.65rem;
+      padding: 0;
+      border-radius: 999px;
     }
     .dark #pos-offline-sync-badge.pos-header-action,
     .dark #pos-offline-sync-now.pos-header-action,
@@ -2216,6 +2230,17 @@
     .pos-pos-header-shell [data-shop-header-dd] #shop-header-dd-btn .shop-header-dd-chevron {
       width: 0.8rem;
       height: 0.8rem;
+    }
+    .shop-header-dd-panel.is-floating {
+      position: fixed;
+      z-index: 9999;
+      margin-top: 0;
+    }
+    .pos-pos-header-shell [data-shop-header-dd] > summary::-webkit-details-marker {
+      display: none;
+    }
+    .pos-pos-header-shell [data-shop-header-dd] > summary {
+      list-style: none;
     }
     .pos-pos-header-shell .btn-rc.btn-rc-primary {
       min-height: 2.75rem;

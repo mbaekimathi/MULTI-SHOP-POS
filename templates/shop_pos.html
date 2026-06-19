@@ -159,7 +159,6 @@
           <div class="pos-header-toolbar-wrap">
           <nav class="pos-header-toolbar" aria-label="POS toolbar">
             <div class="pos-header-toolbar__group" role="group" aria-label="Sales">
-              <span class="pos-header-toolbar__label">Sales</span>
             {% if pos_printing_settings.pos_show_buy_items_link %}
             <button
               type="button"
@@ -227,7 +226,6 @@
             </button>
             </div>
             <div class="pos-header-toolbar__group pos-header-toolbar__group--system" role="group" aria-label="Device &amp; sync">
-              <span class="pos-header-toolbar__label">Device</span>
             <button
               type="button"
               id="pos-printer-open"
@@ -259,13 +257,6 @@
                 <span class="h-2 w-2 rounded-full bg-current" aria-hidden="true"></span>
               </span>
               <span class="pos-header-action__text">Online</span>
-            </button>
-            <span id="pos-offline-sync-badge" class="pos-header-action hidden" title="Pending offline sync">Sync · 0</span>
-            <button type="button" id="pos-offline-sync-now" class="pos-header-action hidden" title="Sync now">
-              <span class="pos-header-action__text">Sync</span>
-            </button>
-            <button type="button" id="pos-offline-sync-diagnostics" class="pos-header-action hidden" title="Diagnostics">
-              <span class="pos-header-action__text">Diag</span>
             </button>
             </div>
             <div class="pos-header-toolbar__group pos-header-toolbar__group--account" role="group" aria-label="Account">

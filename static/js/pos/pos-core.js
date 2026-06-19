@@ -1634,7 +1634,8 @@ var saleType = "sale";
           if (offlineSyncDiagBtn) offlineSyncDiagBtn.disabled = count === 0;
           if (!count && online) {
             offlineSyncBadgeEl.classList.add("hidden");
-            offlineSyncBadgeEl.textContent = "Sync · 0";
+            offlineSyncBadgeEl.textContent = "";
+            offlineSyncBadgeEl.title = "Pending offline sync";
             return;
           }
           offlineSyncBadgeEl.classList.remove("hidden");
@@ -1644,9 +1645,17 @@ var saleType = "sale";
             if (stockInCount) parts.push(stockInCount + " stock-in" + (stockInCount === 1 ? "" : "s"));
             if (refillCount) parts.push(refillCount + " portion refill" + (refillCount === 1 ? "" : "s"));
             var detail = parts.length > 1 ? " (" + parts.join(" + ") + ")" : "";
-            offlineSyncBadgeEl.textContent = "Sync · " + String(count) + detail + (online ? "" : " offline");
+            offlineSyncBadgeEl.textContent = String(count);
+            offlineSyncBadgeEl.title =
+              "Pending sync: " + String(count) + detail + (online ? "" : " (offline)");
+            offlineSyncBadgeEl.setAttribute(
+              "aria-label",
+              "Pending sync: " + String(count) + detail + (online ? "" : ", offline")
+            );
           } else {
-            offlineSyncBadgeEl.textContent = "Offline";
+            offlineSyncBadgeEl.textContent = "";
+            offlineSyncBadgeEl.title = "Offline";
+            offlineSyncBadgeEl.setAttribute("aria-label", "Offline — no pending sync");
           }
         }).catch(function () {});
       }
@@ -8718,39 +8727,6 @@ var saleType = "sale";
         }, 4000);
         window.refreshPosCatalogStock = fetchCatalogStock;
         window.posApplyCatalogRows = applyCatalogStockRows;
-      })();
-
-      (function initShopHeaderDropdown() {
-        var wrap = document.querySelector("[data-shop-header-dd]");
-        if (!wrap) return;
-        var btn = document.getElementById("shop-header-dd-btn");
-        var panel = document.getElementById("shop-header-dd-panel");
-        var chev = wrap.querySelector("[data-shop-dd-chevron]");
-        if (!btn || !panel) return;
-        function setOpen(open) {
-          if (open) {
-            panel.classList.remove("hidden");
-            panel.removeAttribute("hidden");
-            btn.setAttribute("aria-expanded", "true");
-            if (chev) chev.classList.add("rotate-180");
-          } else {
-            panel.classList.add("hidden");
-            panel.setAttribute("hidden", "hidden");
-            btn.setAttribute("aria-expanded", "false");
-            if (chev) chev.classList.remove("rotate-180");
-          }
-        }
-        btn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          var on = panel.classList.contains("hidden");
-          setOpen(on);
-        });
-        document.addEventListener("click", function (e) {
-          if (!wrap.contains(e.target)) setOpen(false);
-        });
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape") setOpen(false);
-        });
       })();
 
       setSaleType("sale");

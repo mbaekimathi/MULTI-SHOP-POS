@@ -1,0 +1,40 @@
+{# Shop logo/image upload. Optional: logo, show_remove, preview_id, input_id #}
+{% set _logo = logo|default('', true) %}
+{% set _preview_id = preview_id|default('shop-logo-preview', true) %}
+{% set _input_id = input_id|default('shop_logo', true) %}
+<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 p-4">
+  <label for="{{ _input_id }}" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop image</label>
+  <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">Shown on POS, receipts, and the shop account menu. PNG, JPG, GIF, WebP, ICO, or SVG.</p>
+  <div class="flex flex-wrap items-center gap-4">
+    <div class="h-14 w-14 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      {% if _logo %}
+        <img id="{{ _preview_id }}" src="{{ url_for('static', filename=_logo) }}" alt="" class="h-full w-full object-cover" />
+      {% else %}
+        <img
+          id="{{ _preview_id }}"
+          src="{{ url_for('static', filename=(site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg')) }}"
+          alt=""
+          class="h-full w-full object-cover opacity-70"
+          data-default-src="{{ url_for('static', filename=(site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg')) }}"
+        />
+      {% endif %}
+    </div>
+    <div class="min-w-[14rem] flex-1">
+      <input
+        id="{{ _input_id }}"
+        name="shop_logo"
+        type="file"
+        accept=".png,.jpg,.jpeg,.gif,.webp,.ico,.svg,image/*"
+        class="block w-full text-sm text-[rgb(var(--rc-muted))] file:mr-3 file:rounded-lg file:border-0 file:bg-[rgb(var(--rc-primary))]/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[rgb(var(--rc-primary))]"
+        data-shop-logo-input
+        data-preview-target="{{ _preview_id }}"
+      />
+      {% if show_remove|default(false) and _logo %}
+        <label class="mt-2 inline-flex items-center gap-2 text-sm text-[rgb(var(--rc-muted))]">
+          <input type="checkbox" name="remove_shop_logo" value="1" class="h-4 w-4 rounded border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]" />
+          Remove shop image
+        </label>
+      {% endif %}
+    </div>
+  </div>
+</div>

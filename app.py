@@ -1088,6 +1088,19 @@ def _save_branding_upload(file_storage):
     return f"{BRANDING_UPLOAD_FOLDER_REL}/{fn}"
 
 
+def _resolve_shop_logo_upload(*, existing: str | None = None) -> tuple[str | None, bool, str | None]:
+    """Return (logo_path, should_update, error_message)."""
+    if (request.form.get("remove_shop_logo") or "").strip() == "1":
+        return ("", True, None)
+    logo_file = request.files.get("shop_logo")
+    if logo_file and getattr(logo_file, "filename", ""):
+        saved = _save_branding_upload(logo_file)
+        if saved is None:
+            return (existing, False, "Shop image must be PNG, JPG, GIF, WebP, ICO, or SVG.")
+        return (saved, True, None)
+    return (existing, False, None)
+
+
 @app.route("/")
 def index():
     """Public customer storefront at root."""
@@ -2055,6 +2068,8 @@ def _storefront_homepage_copy(design: dict | None, company: dict | None) -> dict
         "header_tagline": header_tagline,
         "featured_subtitle": _website_design_field(d, "featured_section_subtitle") or meta_desc or f"Featured products from {name}.",
         "featured_section_title": _website_design_field(d, "featured_section_title") or "Featured products",
+        "shops_section_title": "Registered shops",
+        "shops_section_subtitle": "Find our active branches, locations, and shop details.",
         "promo_banner_text": _website_design_field(d, "promo_banner_text"),
         "search_placeholder": _website_design_field(d, "search_placeholder") or "Search products…",
         "cta_primary_label": _website_design_field(d, "cta_primary_label") or "Browse products",
@@ -2080,7 +2095,7 @@ def _default_website_settings() -> dict:
         "primary_color": style["primary"],
         "accent_color": style["accent"],
         "font_family": "Plus Jakarta Sans",
-        "default_theme": "light",
+        "default_theme": "system",
         "design": _default_website_design(),
         "featured_item_ids": [],
     }
@@ -2207,6 +2222,7 @@ def _render_public_storefront(*, catalog_mode: bool = False):
         "marketing/home.html",
         website_design=design,
         website_featured_products=products,
+        website_public_shops=_public_storefront_shops(),
         website_product_categories=_website_catalog_categories(),
         is_live_public_website=_is_public_website_host_request(),
         storefront_catalog_mode=False,
@@ -2324,20 +2340,64 @@ def _website_featured_products(limit: int = 12) -> list[dict]:
     return products
 
 
-def _website_product_categories(products: list[dict]) -> list[str]:
-    seen: set[str] = set()
-    cats: list[str] = []
+def _public_storefront_shops() -> list[dict]:
+    """Active registered shops for the public homepage."""
+    try:
+        from database import list_shops
+
+        rows = list_shops(limit=100) or []
+    except Exception:
+        return []
+    shops: list[dict] = []
+    for s in rows:
+        if (s.get("status") or "").strip().lower() != "active":
+            continue
+        logo_rel = (s.get("shop_logo") or "").strip()
+        logo_url = url_for("static", filename=logo_rel) if logo_rel else ""
+        shops.append(
+            {
+                "id": int(s.get("id") or 0),
+                "shop_name": (s.get("shop_name") or "").strip(),
+                "shop_code": (s.get("shop_code") or "").strip(),
+                "shop_location": (s.get("shop_location") or "").strip(),
+                "shop_location_description": (s.get("shop_location_description") or "").strip(),
+                "shop_logo_url": logo_url,
+            }
+        )
+    return shops
+
+
+def _website_product_categories(products: list[dict]) -> list[dict]:
+    """Unique categories with the highest-selling product image per category."""
+    best: dict[str, dict] = {}
+    order: list[str] = []
     for p in products or []:
         c = (p.get("category") or "General").strip() or "General"
         key = c.upper()
-        if key in seen:
+        qty = float(p.get("qty_sold") or 0)
+        image_url = (p.get("image_url") or "").strip()
+        name = (p.get("name") or "").strip()
+        if key not in best:
+            order.append(key)
+            best[key] = {
+                "name": c,
+                "key": key,
+                "image_url": image_url,
+                "top_product_name": name,
+                "qty_sold": qty,
+            }
             continue
-        seen.add(key)
-        cats.append(c)
-    return cats
+        if qty > best[key]["qty_sold"]:
+            best[key]["qty_sold"] = qty
+            best[key]["image_url"] = image_url or best[key]["image_url"]
+            best[key]["top_product_name"] = name or best[key]["top_product_name"]
+        elif not best[key]["image_url"] and image_url:
+            best[key]["image_url"] = image_url
+            best[key]["top_product_name"] = name or best[key]["top_product_name"]
+    return [best[k] for k in order]
 
 
-def _website_catalog_categories() -> list[str]:
+def _website_catalog_categories() -> list[dict]:
     """All product categories from the full storefront catalogue."""
     try:
         from database import list_website_catalog_items
@@ -2987,8 +3047,6 @@ def _load_website_settings() -> dict:
 
     merged["font_family"] = normalize_font_family(str(merged.get("font_family") or defaults["font_family"]))
     merged["default_theme"] = normalize_default_theme(str(merged.get("default_theme") or defaults["default_theme"]))
-    if merged["default_theme"] == "system":
-        merged["default_theme"] = "light"
     for color_key in ("primary_color", "accent_color"):
         if not _ok_hex_color(str(merged.get(color_key) or "")):
             merged[color_key] = defaults[color_key]
@@ -3035,9 +3093,13 @@ def _website_settings_for_template() -> dict:
     ws["font_family_stack"] = font_css_stack(ws.get("font_family"))
     ws["font_google_url"] = google_fonts_url(ws.get("font_family"))
     ws["theme_style_label"] = style["label"]
+    theme_default = ws.get("default_theme") or "system"
+    if theme_default == "light":
+        theme_default = "system"
+    ws["default_theme"] = theme_default
     ws["theme_config_key"] = "|".join(
         [
-            str(ws.get("default_theme") or "light"),
+            str(theme_default),
             primary.lower(),
             accent.lower(),
             str(ws.get("font_family") or "Plus Jakarta Sans"),
@@ -4685,13 +4747,17 @@ def it_support_system_settings():
             flash("Could not update settings. Check database connection.", "error")
         return redirect(url_for("it_support_system_settings") + (request.form.get("return_hash") or ""))
     _tab_raw = (request.args.get("tab") or "").strip().lower()
-    _tab_q = {"printing": "receipt"}.get(_tab_raw, _tab_raw)
-    _valid_tabs = ("system", "company", "website", "pos", "receipt")
+    _tab_q = {"printing": "receipt", "website": "theme"}.get(_tab_raw, _tab_raw)
+    _valid_tabs = ("system", "theme", "company", "website", "pos", "receipt")
     initial_settings_tab = _tab_q if _tab_q in _valid_tabs else None
     from theme_presets import fonts_for_template, google_fonts_url, theme_presets_for_template
     from daraja_api import preview_stk_callback_url
 
     font_ids = [f["id"] for f in fonts_for_template()]
+    ws = _load_website_settings()
+    design_defaults = _default_website_design()
+    products = _website_featured_products(limit=WEBSITE_HOMEPAGE_FEATURED_MAX)
+    selected_ids = ws.get("featured_item_ids") or []
     return render_template(
         "it_support_system_settings.html",
         receipt_settings=_load_receipt_settings(),
@@ -4707,6 +4773,15 @@ def it_support_system_settings():
         appearance_presets=theme_presets_for_template(),
         appearance_fonts=fonts_for_template(),
         appearance_fonts_google_url=google_fonts_url(*font_ids),
+        website_design=ws.get("design") or design_defaults,
+        website_featured_products=products,
+        website_public_shops=_public_storefront_shops(),
+        website_product_categories=_website_product_categories(products),
+        website_using_auto_products=not selected_ids,
+        website_homepage_featured_max=WEBSITE_HOMEPAGE_FEATURED_MAX,
+        website_preview_url=_public_storefront_url(),
+        catalog_preview_url=url_for("marketing_catalog", _external=False),
+        preview_url=_public_storefront_url(),
     )
 
 
@@ -9092,12 +9167,18 @@ def it_support_register_shop():
         shop_code = (request.form.get("shop_code") or "").strip()
         shop_password = (request.form.get("shop_password") or "").strip()
         shop_location = (request.form.get("shop_location") or "").strip().upper()
+        shop_location_description = (request.form.get("shop_location_description") or "").strip().upper()
 
         if not shop_name or not shop_code or not shop_password or not shop_location:
             flash("Please fill shop name, shop code, shop password, and shop location.", "error")
             return redirect(url_for("it_support_register_shop"))
         if not CODE_RE.match(shop_code):
             flash("Shop code must be exactly 6 digits.", "error")
+            return redirect(url_for("it_support_register_shop"))
+
+        logo_path, _, logo_err = _resolve_shop_logo_upload()
+        if logo_err:
+            flash(logo_err, "error")
             return redirect(url_for("it_support_register_shop"))
 
         try:
@@ -9112,9 +9193,16 @@ def it_support_register_shop():
                 shop_code=shop_code,
                 shop_password_hash=generate_password_hash(shop_password),
                 shop_location=shop_location,
+                shop_location_description=shop_location_description or None,
                 created_by_employee_id=session.get("employee_id"),
+                shop_logo=logo_path,
             )
+        except RuntimeError as e:
+            app.logger.error("Register shop schema error: %s", e)
+            flash("Could not save location description — database update required. Restart the app or contact support.", "error")
+            return redirect(url_for("it_support_register_shop"))
         except Exception:
+            app.logger.exception("Could not register shop")
             flash("Could not register shop. Check database connection.", "error")
             return redirect(url_for("it_support_register_shop"))
 
@@ -9168,6 +9256,7 @@ def it_support_shop_edit(shop_id: int):
     shop_code = (request.form.get("shop_code") or "").strip()
     shop_password = (request.form.get("shop_password") or "").strip()
     shop_location = (request.form.get("shop_location") or "").strip().upper()
+    shop_location_description = (request.form.get("shop_location_description") or "").strip().upper()
     status = (request.form.get("status") or "").strip().lower()
 
     if not shop_name or not shop_code or not shop_location:
@@ -9181,17 +9270,31 @@ def it_support_shop_edit(shop_id: int):
         return redirect(url_for("it_support_register_shop"))
 
     try:
-        from database import update_shop_details
+        from database import get_shop_by_id, update_shop_details
+
+        shop = get_shop_by_id(shop_id)
+        if not shop:
+            flash("Shop not found.", "error")
+            return redirect(url_for("it_support_register_shop"))
+
+        logo_path, update_logo, logo_err = _resolve_shop_logo_upload(existing=(shop.get("shop_logo") or "").strip() or None)
+        if logo_err:
+            flash(logo_err, "error")
+            return redirect(url_for("it_support_register_shop"))
 
         ok = update_shop_details(
             shop_id=shop_id,
             shop_name=shop_name,
             shop_code=shop_code,
             shop_location=shop_location,
+            shop_location_description=shop_location_description or None,
             status=status,
             shop_password_hash=generate_password_hash(shop_password) if shop_password else None,
+            shop_logo=logo_path,
+            update_shop_logo=update_logo,
         )
     except Exception:
+        app.logger.exception("Could not update shop %s", shop_id)
         ok = False
 
     flash("Shop details updated." if ok else "Could not update shop details.", "success" if ok else "error")
@@ -18578,17 +18681,7 @@ def it_support_employee_delete(emp_id: int):
 @login_required
 def it_support_website_management():
     _it_support_only()
-    ws = _load_website_settings()
-    design_defaults = _default_website_design()
-    products = _website_featured_products(limit=12)
-    return render_template(
-        "it_support_website_management.html",
-        website_ws=ws,
-        website_design=ws.get("design") or design_defaults,
-        website_featured_products=products,
-        website_product_categories=_website_product_categories(products),
-        preview_url=_public_storefront_url(),
-    )
+    return redirect(url_for("it_support_system_settings", tab="theme"))
 
 
 @app.route("/it_support/website-management/settings", methods=["GET", "POST"])

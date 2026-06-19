@@ -53,7 +53,7 @@
         <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
           M-Pesa payouts need <strong>Initiator name</strong>, <strong>Security credential</strong>, and a reachable
           <strong>hosted HTTPS callback</strong> in
-          <a href="{{ url_for('it_support_system_settings') }}#company" class="font-medium underline-offset-2 hover:underline">Company settings → Daraja</a>.
+          <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium underline-offset-2 hover:underline">System settings → Daraja</a>.
           Your paybill must also have B2C disbursement enabled with Safaricom.
         </div>
       {% elif mpesa.payout_ready and mpesa.hosted_fallback %}

@@ -1,0 +1,36 @@
+{# Shop location: short area label + optional longer description. #}
+{% set _area_id = area_id|default('shop_location', true) %}
+{% set _desc_id = description_id|default('shop_location_description', true) %}
+{% set _area_value = area_value|default('', true) %}
+{% set _desc_value = description_value|default('', true) %}
+<div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 p-4 space-y-4">
+  <div>
+    <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shop location</h3>
+    <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Area, city, and description are stored in uppercase.</p>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <label for="{{ _area_id }}" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Area / city</label>
+      <input
+        id="{{ _area_id }}"
+        name="shop_location"
+        value="{{ _area_value }}"
+        required
+        class="js-shop-uppercase w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+        placeholder="E.G. NAIROBI CBD"
+      />
+    </div>
+    <div class="md:col-span-2">
+      <label for="{{ _desc_id }}" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Location description</label>
+      <textarea
+        id="{{ _desc_id }}"
+        name="shop_location_description"
+        rows="{{ rows|default(3, true) }}"
+        maxlength="1000"
+        class="js-shop-uppercase w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+        placeholder="E.G. GROUND FLOOR, SARIT CENTRE, WESTLANDS — OPPOSITE THE MAIN ESCALATOR."
+      >{{ _desc_value }}</textarea>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Optional. Directions, landmarks, floor, or building details.</p>
+    </div>
+  </div>
+</div>
