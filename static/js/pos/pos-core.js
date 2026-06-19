@@ -155,11 +155,6 @@ var saleType = "sale";
 
       hydrateOfflineSyncLogFromStorage();
 
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function () {
-          navigator.serviceWorker.register("/pos-sw.js").catch(function () {});
-        });
-      }
       function todayIso() {
         var d = new Date();
         var y = d.getFullYear();

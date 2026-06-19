@@ -9573,8 +9573,8 @@ def pwa_manifest():
     manifest = {
         "name": brand["name"],
         "short_name": brand["short_name"],
-        "description": f"{brand['name']} — multi-shop point of sale, stock, and reports.",
-        "start_url": "/?source=pwa",
+        "description": f"{brand['name']} — shop point of sale and till.",
+        "start_url": "/shop-login?source=pwa",
         "scope": "/",
         "display": "standalone",
         "display_override": ["standalone", "minimal-ui"],
@@ -9587,23 +9587,10 @@ def pwa_manifest():
         "icons": icons,
         "shortcuts": [
             {
-                "name": "Open POS",
-                "short_name": "POS",
-                "description": "Jump to your shop point of sale.",
-                "url": "/?source=pwa-shortcut-pos",
-                "icons": [
-                    {
-                        "src": url_for("static", filename="icons/app-icon-192.png"),
-                        "sizes": "192x192",
-                        "type": "image/png",
-                    }
-                ],
-            },
-            {
-                "name": "Sign in",
+                "name": "Shop sign in",
                 "short_name": "Sign in",
-                "description": "Employee or shop sign in.",
-                "url": "/?source=pwa-shortcut-signin",
+                "description": "Sign in to your shop till.",
+                "url": "/shop-login?source=pwa-shortcut-signin",
                 "icons": [
                     {
                         "src": url_for("static", filename="icons/app-icon-192.png"),

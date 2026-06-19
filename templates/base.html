@@ -54,16 +54,9 @@
     <link rel="apple-touch-icon" sizes="512x512" href="{{ url_for('static', filename='icons/app-icon-512.png') }}" />
     <link rel="apple-touch-icon" href="{{ url_for('static', filename=_app_icon) }}" />
     <link rel="mask-icon" href="{{ url_for('static', filename='icons/app-icon-monochrome.svg') }}" color="{{ _primary_hex }}" />
-    <link rel="manifest" href="{{ url_for('pwa_manifest') }}" />
+    {% block pwa_head %}{% endblock %}
     <meta name="theme-color" content="{{ _primary_hex }}" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="{{ _app_short_name }}" />
-    <meta name="application-name" content="{{ _app_name }}" />
-    <meta name="msapplication-TileColor" content="{{ _primary_hex }}" />
-    <meta name="msapplication-TileImage" content="{{ url_for('static', filename=_app_icon) }}" />
     <meta name="format-detection" content="telephone=no" />
     <title>{% block title %}{{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}</title>
     <meta
@@ -3661,42 +3654,9 @@
   </head>
   <body class="antialiased transition-[background-color,color] duration-200 font-sans">
     {% block body %}{% endblock %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa-install.css') }}" />
+    {% block pwa_install %}{% endblock %}
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/pwa-install.js') }}" defer></script>
-    <script>
-      (function () {
-        if (!("serviceWorker" in navigator)) return;
-        if (window.__rcSwRegistered) return;
-        window.__rcSwRegistered = true;
-        window.addEventListener("load", function () {
-          navigator.serviceWorker
-            .register("/pos-sw.js", { scope: "/" })
-            .then(function (reg) {
-              if (!reg) return;
-              if (reg.waiting) {
-                try { reg.waiting.postMessage("SKIP_WAITING"); } catch (e) {}
-              }
-              reg.addEventListener && reg.addEventListener("updatefound", function () {
-                var nw = reg.installing;
-                if (!nw) return;
-                nw.addEventListener("statechange", function () {
-                  if (nw.state === "installed" && navigator.serviceWorker.controller) {
-                    try { nw.postMessage("SKIP_WAITING"); } catch (e) {}
-                  }
-                });
-              });
-            })
-            .catch(function () {});
-        });
-        var refreshing = false;
-        navigator.serviceWorker.addEventListener("controllerchange", function () {
-          if (refreshing) return;
-          refreshing = true;
-        });
-      })();
-    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

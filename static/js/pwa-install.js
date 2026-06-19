@@ -2,6 +2,7 @@
  * PWA install controller — in-page experience.
  *
  * Goals:
+ *  - Only surface install UI on shop sessions (shop portal / POS), not employee portal.
  *  - Only surface install UI when the app is not already installed.
  *  - Auto card on first visit + floating pill as a secondary affordance.
  *  - Gracefully handle: Chromium (beforeinstallprompt), iOS Safari (manual steps),
@@ -78,8 +79,12 @@
     }
   }
 
+  function isShopSession() {
+    return document.documentElement.getAttribute("data-pwa-install") === "shop";
+  }
+
   function shouldOfferInstallUi() {
-    return !isStandalone() && !isInPosPage() && !dismissedThisSession();
+    return isShopSession() && !isStandalone() && !isInPosPage() && !dismissedThisSession();
   }
 
   function dismissInstallUi() {
@@ -375,7 +380,7 @@
 
   const api = {
     show() {
-      if (isStandalone()) return;
+      if (!isShopSession() || isStandalone()) return;
       if (deferredPrompt) {
         showCard("prompt");
       } else {
@@ -398,6 +403,7 @@
 
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
+    if (!isShopSession()) return;
     deferredPrompt = e;
     refreshInstallButtons();
     if (!shouldOfferInstallUi()) return;
@@ -423,6 +429,7 @@
   });
 
   async function bootstrap() {
+    if (!isShopSession()) return;
     refreshInstallButtons();
     if (isStandalone()) return;
     if (await isInstalledRelatedApp()) {

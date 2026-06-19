@@ -16,7 +16,7 @@
  * network attempt itself fails (true offline).
  */
 
-const SW_VERSION = "pwa-sw-v4";
+const SW_VERSION = "pwa-sw-v5";
 const APP_SHELL_CACHE = `app-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `runtime-${SW_VERSION}`;
 const STATIC_CACHE = `static-${SW_VERSION}`;

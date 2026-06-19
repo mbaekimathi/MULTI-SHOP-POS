@@ -1,0 +1,7 @@
+{# In-page install UI + service worker — shop sessions only. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pwa-install.css') }}" />
+<script>
+  document.documentElement.setAttribute("data-pwa-install", "shop");
+</script>
+<script src="{{ url_for('static', filename='js/pwa-install.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pwa-sw-update.js') }}" defer></script>
