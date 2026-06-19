@@ -58,7 +58,20 @@
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
               placeholder="E.G. 123456"
             />
-            <p id="shop-code-help" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter a unique 6-digit code.</p>
+            <p id="shop-code-help" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter a unique 6-digit code (for till login — not shown on the website).</p>
+          </div>
+          <div>
+            <label for="shop_phone" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop phone</label>
+            <input
+              id="shop_phone"
+              name="shop_phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              placeholder="e.g. 0712 345 678"
+            />
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Shown on the public homepage. Leave blank to use the company phone.</p>
           </div>
         </div>
 

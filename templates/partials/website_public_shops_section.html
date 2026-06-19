@@ -41,8 +41,13 @@
                 <div class="wsf-shop-card__panel">
                   <div class="wsf-shop-card__head">
                     <h3 class="wsf-shop-card__name">{{ shop.shop_name }}</h3>
-                    {% if shop.shop_code %}
-                      <span class="wsf-shop-card__code">{{ shop.shop_code }}</span>
+                    {% set _branch_phone = shop.shop_phone or (site_settings.company_phone if site_settings else '') %}
+                    {% if _branch_phone %}
+                      <a
+                        href="tel:{{ shop.shop_phone_tel or _branch_phone }}"
+                        class="wsf-shop-card__phone"
+                        title="Call {{ shop.shop_name }}"
+                      >{{ _branch_phone }}</a>
                     {% endif %}
                   </div>
                   {% if shop.shop_location %}

@@ -2431,6 +2431,20 @@ def ensure_shop_location_description_column() -> bool:
         return False
 
 
+def ensure_shop_phone_column() -> bool:
+    """Public contact phone for a shop branch (homepage, customer-facing)."""
+    try:
+        with get_cursor(commit=True) as cur:
+            if not column_exists("shops", "shop_phone"):
+                cur.execute(
+                    "ALTER TABLE shops ADD COLUMN shop_phone VARCHAR(40) NULL AFTER shop_location_description"
+                )
+        return column_exists("shops", "shop_phone")
+    except pymysql.Error as e:
+        logger.warning("Could not add shops.shop_phone column: %s", e)
+        return False
+
+
 def create_shop(
     *,
     shop_name: str,
@@ -2440,13 +2454,16 @@ def create_shop(
     created_by_employee_id: Optional[int] = None,
     shop_logo: Optional[str] = None,
     shop_location_description: Optional[str] = None,
+    shop_phone: Optional[str] = None,
 ) -> int:
     if not ensure_shop_location_description_column():
         raise RuntimeError("shops.shop_location_description column is not available")
+    ensure_shop_phone_column()
+    phone = (shop_phone or "").strip() or None
     sql = """
     INSERT INTO shops
-        (shop_name, shop_code, shop_password_hash, shop_location, shop_location_description, created_by_employee_id, shop_logo)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+        (shop_name, shop_code, shop_password_hash, shop_location, shop_location_description, shop_phone, created_by_employee_id, shop_logo)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """
     with get_cursor(commit=True) as cur:
         desc = (shop_location_description or "").strip().upper() or None
@@ -2458,6 +2475,7 @@ def create_shop(
                 shop_password_hash,
                 shop_location.strip().upper(),
                 desc,
+                phone,
                 created_by_employee_id,
                 (shop_logo or "").strip() or None,
             ),
@@ -2474,8 +2492,9 @@ def shop_code_available(shop_code: str) -> bool:
 
 def list_shops(limit: int = 500):
     ensure_shop_location_description_column()
+    ensure_shop_phone_column()
     sql = """
-    SELECT id, shop_name, shop_code, shop_location, shop_location_description, status, default_theme, font_family, primary_color, accent_color, shop_logo,
+    SELECT id, shop_name, shop_code, shop_location, shop_location_description, shop_phone, status, default_theme, font_family, primary_color, accent_color, shop_logo,
            printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,
            stock_workspace_settings_json, created_at
     FROM shops
@@ -2489,8 +2508,9 @@ def list_shops(limit: int = 500):
 
 def get_shop_by_id(shop_id: int):
     ensure_shop_location_description_column()
+    ensure_shop_phone_column()
     sql = """
-    SELECT id, shop_name, shop_code, shop_password_hash, shop_location, shop_location_description, status, default_theme, font_family, primary_color, accent_color, shop_logo,
+    SELECT id, shop_name, shop_code, shop_password_hash, shop_location, shop_location_description, shop_phone, status, default_theme, font_family, primary_color, accent_color, shop_logo,
            printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,
            stock_workspace_settings_json, created_at
     FROM shops
@@ -2643,9 +2663,11 @@ def update_shop_details(
     shop_logo: Optional[str] = None,
     update_shop_logo: bool = False,
     shop_location_description: Optional[str] = None,
+    shop_phone: Optional[str] = None,
 ) -> bool:
     if not ensure_shop_location_description_column():
         return False
+    ensure_shop_phone_column()
     status = (status or "").strip().lower()
     if status not in {"active", "suspended"}:
         return False
@@ -2661,12 +2683,13 @@ def update_shop_details(
         if cur.fetchone():
             return False
 
-        sets = ["shop_name=%s", "shop_code=%s", "shop_location=%s", "shop_location_description=%s", "status=%s"]
+        sets = ["shop_name=%s", "shop_code=%s", "shop_location=%s", "shop_location_description=%s", "shop_phone=%s", "status=%s"]
         params: list = [
             shop_name_clean,
             shop_code_clean,
             shop_location_clean,
             (shop_location_description or "").strip().upper() or None,
+            (shop_phone or "").strip() or None,
             status,
         ]
 

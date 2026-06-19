@@ -25,6 +25,19 @@
       />
     </div>
     <div>
+      <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop phone</label>
+      <input
+        name="shop_phone"
+        type="tel"
+        inputmode="tel"
+        autocomplete="tel"
+        value="{{ s.shop_phone or '' }}"
+        class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+        placeholder="Public contact number"
+      />
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Shown on the homepage. Uses company phone when blank.</p>
+    </div>
+    <div>
       <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">New password</label>
       <input
         name="shop_password"

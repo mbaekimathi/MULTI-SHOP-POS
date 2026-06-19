@@ -2340,6 +2340,18 @@ def _website_featured_products(limit: int = 12) -> list[dict]:
     return products
 
 
+def _public_shop_display_phone(shop_row: dict, company_fallback: str) -> str:
+    """Contact number for a branch on the public homepage."""
+    phone = (shop_row.get("shop_phone") or "").strip()
+    if not phone:
+        override = _parse_shop_settings_json(shop_row.get("company_settings_json"))
+        if override:
+            phone = (override.get("company_phone") or "").strip()
+    if not phone:
+        phone = (company_fallback or "").strip()
+    return phone
+
+
 def _public_storefront_shops() -> list[dict]:
     """Active registered shops for the public homepage."""
     try:
@@ -2348,20 +2360,24 @@ def _public_storefront_shops() -> list[dict]:
         rows = list_shops(limit=100) or []
     except Exception:
         return []
+    company_phone = (_load_company_identity_settings().get("company_phone") or "").strip()
     shops: list[dict] = []
     for s in rows:
         if (s.get("status") or "").strip().lower() != "active":
             continue
         logo_rel = (s.get("shop_logo") or "").strip()
         logo_url = url_for("static", filename=logo_rel) if logo_rel else ""
+        display_phone = _public_shop_display_phone(s, company_phone)
+        phone_tel = _normalize_storefront_phone(display_phone) if display_phone else ""
         shops.append(
             {
                 "id": int(s.get("id") or 0),
                 "shop_name": (s.get("shop_name") or "").strip(),
-                "shop_code": (s.get("shop_code") or "").strip(),
                 "shop_location": (s.get("shop_location") or "").strip(),
                 "shop_location_description": (s.get("shop_location_description") or "").strip(),
                 "shop_logo_url": logo_url,
+                "shop_phone": display_phone,
+                "shop_phone_tel": phone_tel,
             }
         )
     return shops
@@ -9168,6 +9184,7 @@ def it_support_register_shop():
         shop_password = (request.form.get("shop_password") or "").strip()
         shop_location = (request.form.get("shop_location") or "").strip().upper()
         shop_location_description = (request.form.get("shop_location_description") or "").strip().upper()
+        shop_phone = (request.form.get("shop_phone") or "").strip()
 
         if not shop_name or not shop_code or not shop_password or not shop_location:
             flash("Please fill shop name, shop code, shop password, and shop location.", "error")
@@ -9194,6 +9211,7 @@ def it_support_register_shop():
                 shop_password_hash=generate_password_hash(shop_password),
                 shop_location=shop_location,
                 shop_location_description=shop_location_description or None,
+                shop_phone=shop_phone or None,
                 created_by_employee_id=session.get("employee_id"),
                 shop_logo=logo_path,
             )
@@ -9257,6 +9275,7 @@ def it_support_shop_edit(shop_id: int):
     shop_password = (request.form.get("shop_password") or "").strip()
     shop_location = (request.form.get("shop_location") or "").strip().upper()
     shop_location_description = (request.form.get("shop_location_description") or "").strip().upper()
+    shop_phone = (request.form.get("shop_phone") or "").strip()
     status = (request.form.get("status") or "").strip().lower()
 
     if not shop_name or not shop_code or not shop_location:
@@ -9288,6 +9307,7 @@ def it_support_shop_edit(shop_id: int):
             shop_code=shop_code,
             shop_location=shop_location,
             shop_location_description=shop_location_description or None,
+            shop_phone=shop_phone or None,
             status=status,
             shop_password_hash=generate_password_hash(shop_password) if shop_password else None,
             shop_logo=logo_path,
