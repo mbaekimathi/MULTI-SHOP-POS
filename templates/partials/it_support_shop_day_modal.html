@@ -1,0 +1,137 @@
+{# IT register-shop: till open / close balances popup #}
+<style>
+  .it-shop-day-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    pointer-events: none;
+  }
+  .it-shop-day-modal.is-open {
+    display: flex;
+    pointer-events: auto;
+  }
+  .it-shop-day-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(2 6 23 / 0.72);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+  }
+  .it-shop-day-modal.is-open .it-shop-day-modal__backdrop {
+    opacity: 1;
+  }
+  .it-shop-day-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 28rem;
+    max-height: min(92vh, 44rem);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1.25rem;
+    border: 1px solid rgb(var(--rc-border) / 0.85);
+    background: rgb(var(--rc-surface));
+    box-shadow: 0 28px 80px -24px rgb(0 0 0 / 0.55);
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    transition: opacity 0.24s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .it-shop-day-modal.is-open .it-shop-day-modal__panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .it-shop-day-modal__scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  body.it-shop-day-modal-open {
+    overflow: hidden;
+  }
+</style>
+
+<div
+  id="it-shop-day-modal"
+  class="it-shop-day-modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="it-shop-day-modal-title"
+  aria-hidden="true"
+>
+  <div id="it-shop-day-modal-backdrop" class="it-shop-day-modal__backdrop" aria-hidden="true"></div>
+  <div class="it-shop-day-modal__panel">
+    <div id="it-shop-day-modal-accent" class="h-1 shrink-0 bg-gradient-to-r from-emerald-500 via-sky-500 to-violet-500" aria-hidden="true"></div>
+    <div class="it-shop-day-modal__scroll">
+      <div class="border-b border-[rgb(var(--rc-border))]/80 px-5 py-4 sm:px-6 sm:py-5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p id="it-shop-day-modal-kicker" class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Till day</p>
+            <h2 id="it-shop-day-modal-title" class="mt-1 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Shop till</h2>
+            <p id="it-shop-day-modal-desc" class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]"></p>
+          </div>
+          <button
+            id="it-shop-day-modal-dismiss"
+            type="button"
+            class="shrink-0 rounded-xl border border-[rgb(var(--rc-border))] p-2 text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+            aria-label="Close dialog"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <p id="it-shop-day-modal-hint" class="mt-4 hidden rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/80 px-3.5 py-2.5 text-xs leading-relaxed text-[rgb(var(--rc-muted))]"></p>
+      </div>
+
+      <form id="it-shop-day-closing-form" class="hidden space-y-4 px-5 py-4 sm:px-6 sm:py-5">
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing cash (KES)</span>
+            <input id="it-shop-day-closing-cash" type="number" inputmode="decimal" min="0" step="0.01" value="0" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tabular-nums outline-none focus:ring-2 focus:ring-violet-400/20" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing M-Pesa (KES)</span>
+            <input id="it-shop-day-closing-mpesa" type="number" inputmode="decimal" min="0" step="0.01" value="0" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tabular-nums outline-none focus:ring-2 focus:ring-violet-400/20" />
+          </label>
+        </div>
+        <p class="rounded-xl border border-violet-400/25 bg-violet-500/10 px-3.5 py-2.5 text-xs leading-relaxed text-violet-950/90 dark:text-violet-100/95">
+          Closing balances are required before the till can be marked open or closed for the business day.
+        </p>
+        <p id="it-shop-day-closing-msg" class="hidden text-sm font-semibold"></p>
+        <div class="flex justify-end gap-2 border-t border-[rgb(var(--rc-border))]/70 pt-4">
+          <button type="button" class="it-shop-day-cancel btn-rc btn-rc-secondary min-h-[2.75rem] px-5 text-sm">Cancel</button>
+          <button id="it-shop-day-closing-submit" type="submit" class="btn-rc btn-rc-primary min-h-[2.75rem] px-5 text-sm font-bold">Save closing &amp; continue</button>
+        </div>
+      </form>
+
+      <form id="it-shop-day-opening-form" class="hidden space-y-4 px-5 py-4 sm:px-6 sm:py-5">
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening cash (KES)</span>
+            <input id="it-shop-day-opening-cash" type="number" inputmode="decimal" min="0" step="0.01" value="0" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tabular-nums outline-none focus:ring-2 focus:ring-emerald-400/20" />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening M-Pesa (KES)</span>
+            <input id="it-shop-day-opening-mpesa" type="number" inputmode="decimal" min="0" step="0.01" value="0" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tabular-nums outline-none focus:ring-2 focus:ring-emerald-400/20" />
+          </label>
+        </div>
+        <label id="it-shop-day-stock-wrap" class="hidden flex items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/60 px-3.5 py-3">
+          <input id="it-shop-day-stock-confirmed" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-[rgb(var(--rc-border))]" />
+          <span class="text-xs leading-relaxed text-[rgb(var(--rc-muted))]">Shop stock is up to date and confirmed for today.</span>
+        </label>
+        <p class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3.5 py-2.5 text-xs leading-relaxed text-emerald-950/90 dark:text-emerald-100/95">
+          Opening balances are required before the till is marked open and POS sales can proceed.
+        </p>
+        <p id="it-shop-day-opening-msg" class="hidden text-sm font-semibold"></p>
+        <div class="flex justify-end gap-2 border-t border-[rgb(var(--rc-border))]/70 pt-4">
+          <button type="button" class="it-shop-day-cancel btn-rc btn-rc-secondary min-h-[2.75rem] px-5 text-sm">Cancel</button>
+          <button id="it-shop-day-opening-submit" type="submit" class="btn-rc btn-rc-primary min-h-[2.75rem] px-5 text-sm font-bold">Open till &amp; save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

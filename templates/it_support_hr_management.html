@@ -164,17 +164,24 @@
                 <p class="mt-1 truncate text-sm text-[rgb(var(--rc-muted))]">{{ e.phone }}</p>
               </div>
               {% if is_pending %}
-                <button
-                  type="button"
-                  class="btn-rc btn-rc-success h-10 w-10 shrink-0 p-0 js-approve"
-                  title="Approve employee"
-                  data-emp-id="{{ e.id }}"
-                  data-emp-name="{{ e.full_name }}"
-                >
-                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
+                <div class="flex shrink-0 flex-wrap justify-end gap-1.5">
+                  <button
+                    type="button"
+                    class="btn-rc btn-rc-success h-10 w-10 shrink-0 p-0 js-approve"
+                    title="Approve employee"
+                    data-emp-id="{{ e.id }}"
+                    data-emp-name="{{ e.full_name }}"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  {% if not is_self %}
+                    <form method="post" action="{{ url_for('it_support_employee_delete', emp_id=e.id) }}" class="inline" onsubmit="return confirm('Delete this pending registration permanently? This cannot be undone.');">
+                      <button type="submit" class="btn-rc btn-rc-danger px-2 py-1.5 text-[10px] font-bold uppercase" title="Delete">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
               {% else %}
                 <div class="flex shrink-0 flex-wrap justify-end gap-1.5">
                   <button
@@ -289,6 +296,11 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                           </svg>
                         </button>
+                        {% if not is_self %}
+                          <form method="post" action="{{ url_for('it_support_employee_delete', emp_id=e.id) }}" class="inline" onsubmit="return confirm('Delete this pending registration permanently? This cannot be undone.');">
+                            <button type="submit" class="btn-rc btn-rc-danger px-2.5 py-1.5 text-xs font-bold uppercase">Delete</button>
+                          </form>
+                        {% endif %}
                       {% else %}
                         <button
                           type="button"

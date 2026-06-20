@@ -1,0 +1,207 @@
+{# Close shop — floating dialog (POS header, shop report). #}
+<style>
+  .shop-day-closing-reminder {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    pointer-events: none;
+  }
+  .shop-day-closing-reminder.is-open {
+    display: flex;
+    pointer-events: auto;
+  }
+  .shop-day-closing-reminder__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(2 6 23 / 0.72);
+    backdrop-filter: blur(10px) saturate(1.1);
+    -webkit-backdrop-filter: blur(10px) saturate(1.1);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+  }
+  .shop-day-closing-reminder.is-open .shop-day-closing-reminder__backdrop {
+    opacity: 1;
+  }
+  .shop-day-closing-reminder__panel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 28rem;
+    max-height: min(92vh, 44rem);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1.25rem;
+    border: 1px solid rgb(var(--rc-border) / 0.85);
+    background: rgb(var(--rc-surface));
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.04),
+      0 28px 80px -24px rgb(0 0 0 / 0.55),
+      0 12px 32px -16px rgb(88 28 135 / 0.25);
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+    transition:
+      opacity 0.24s ease,
+      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .shop-day-closing-reminder.is-open .shop-day-closing-reminder__panel {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .shop-day-closing-reminder__scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .shop-day-closing-reminder__accent {
+    height: 0.2rem;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, rgb(139 92 246), rgb(99 102 241), rgb(14 165 233));
+  }
+  body.shop-day-closing-reminder-open {
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shop-day-closing-reminder__backdrop,
+    .shop-day-closing-reminder__panel {
+      transition: none;
+    }
+    .shop-day-closing-reminder.is-open .shop-day-closing-reminder__panel {
+      transform: none;
+    }
+  }
+</style>
+
+<div
+  id="shop-day-closing-reminder-modal"
+  class="shop-day-closing-reminder"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="shop-day-closing-reminder-title"
+  aria-hidden="true"
+>
+  <div
+    id="shop-day-closing-reminder-backdrop"
+    class="shop-day-closing-reminder__backdrop"
+    aria-hidden="true"
+  ></div>
+  <div class="shop-day-closing-reminder__panel">
+    <div class="shop-day-closing-reminder__accent" aria-hidden="true"></div>
+    <div class="shop-day-closing-reminder__scroll">
+      <div class="border-b border-[rgb(var(--rc-border))]/80 bg-gradient-to-b from-violet-500/[0.1] via-indigo-500/[0.04] to-transparent px-5 py-4 sm:px-6 sm:py-5">
+        <div class="flex items-start gap-3">
+          <span
+            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600 ring-1 ring-violet-400/25 dark:bg-violet-500/20 dark:text-violet-300"
+            aria-hidden="true"
+          >
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">End of day</p>
+            <h2 id="shop-day-closing-reminder-title" class="mt-1 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">
+              Close shop
+            </h2>
+            <p id="shop-day-closing-reminder-desc" class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Count cash and M-Pesa in the till, then close the shop for this business day.
+            </p>
+          </div>
+          <button
+            id="shop-day-closing-reminder-dismiss"
+            type="button"
+            class="shrink-0 rounded-xl border border-[rgb(var(--rc-border))] p-2 text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]"
+            aria-label="Close dialog"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <p
+          id="shop-day-closing-reminder-hint"
+          class="mt-4 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/80 px-3.5 py-2.5 text-xs leading-relaxed text-[rgb(var(--rc-muted))]"
+        ></p>
+        <p id="shop-day-closing-reminder-timing" class="mt-2 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
+      </div>
+
+      <form id="shop-day-closing-reminder-form" class="space-y-4 px-5 py-4 sm:px-6 sm:py-5">
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing cash (KES)</span>
+            <input
+              id="shop-day-closing-reminder-cash"
+              name="closing_cash"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              value="0"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tabular-nums outline-none ring-0 transition focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/20"
+            />
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing M-Pesa (KES)</span>
+            <input
+              id="shop-day-closing-reminder-mpesa"
+              name="closing_mpesa"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="0.01"
+              value="0"
+              required
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tabular-nums outline-none ring-0 transition focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/20"
+            />
+          </label>
+        </div>
+        <div id="shop-day-closing-reminder-code-wrap">
+          <label class="block">
+            <span class="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Manager / admin 6-digit code</span>
+            <input
+              id="shop-day-closing-reminder-employee-code"
+              name="employee_code"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              autocomplete="off"
+              placeholder="000000"
+              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-3 text-sm font-semibold tracking-[0.2em] outline-none focus:ring-2 focus:ring-violet-400/20"
+            />
+          </label>
+          <p class="mt-2 text-[11px] leading-relaxed text-[rgb(var(--rc-muted))]">
+            Required: manager, admin, company manager, IT support, or super admin. Saving starts automatically when the code is verified.
+          </p>
+        </div>
+        <p
+          class="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2.5 text-xs leading-relaxed text-amber-950/90 dark:text-amber-100/95"
+        >
+          Submitting will <strong>close the shop for today</strong>. Sales stop immediately — staff can still browse the catalog until the next opening.
+        </p>
+        <p id="shop-day-closing-reminder-msg" class="hidden text-sm font-semibold"></p>
+        <div class="flex flex-col-reverse gap-2 border-t border-[rgb(var(--rc-border))]/70 pt-4 sm:flex-row sm:justify-end">
+          <button
+            id="shop-day-closing-reminder-later"
+            type="button"
+            class="btn-rc btn-rc-secondary min-h-[2.85rem] px-5 text-sm font-semibold sm:min-w-[7rem]"
+          >
+            Cancel
+          </button>
+          <button
+            id="shop-day-closing-reminder-submit"
+            type="submit"
+            class="btn-rc btn-rc-primary min-h-[2.85rem] px-5 text-sm font-bold sm:min-w-[12rem]"
+          >
+            Close shop &amp; save
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

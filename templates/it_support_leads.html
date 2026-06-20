@@ -17,6 +17,15 @@
         Set <strong>Phone (WhatsApp)</strong> under System settings → Company so website quotations can notify your shop on WhatsApp.
       </p>
     {% endif %}
+    {% if quotation_share_domain and quotation_share_domain.base_url %}
+      <p class="mt-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-100">
+        Shared quotation links use <strong class="font-semibold">{{ quotation_share_domain.base_url }}</strong>.
+      </p>
+    {% elif quotation_share_domain %}
+      <p class="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+        {{ quotation_share_domain.hint }}
+      </p>
+    {% endif %}
   </div>
 
   <form method="get" action="{{ url_for('it_support_leads') }}" id="leads-filter-form-it" class="mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
@@ -142,6 +151,16 @@
         <div class="flex flex-col items-end gap-1">
           <a
             href="#"
+            id="quote-lines-dialog-link-it"
+            target="_blank"
+            rel="noopener"
+            class="hidden inline-flex items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+            title="Open customer quotation page"
+          >
+            Open link
+          </a>
+          <a
+            href="#"
             id="quote-lines-dialog-wa-it"
             target="_blank"
             rel="noopener"
@@ -188,6 +207,7 @@
     var subEl = document.getElementById("quote-lines-dialog-sub-it");
     var totalEl = document.getElementById("quote-lines-dialog-total-it");
     var waBtn = document.getElementById("quote-lines-dialog-wa-it");
+    var linkBtn = document.getElementById("quote-lines-dialog-link-it");
     var waHint = document.getElementById("quote-lines-dialog-wa-hint-it");
     var closeBtn = document.getElementById("quote-lines-dialog-close-it");
 
@@ -266,6 +286,15 @@
           waBtn.classList.add("pointer-events-none", "opacity-50");
           waBtn.title = "No customer phone on this quotation";
           if (waHint) waHint.classList.remove("hidden");
+        }
+      }
+      if (linkBtn) {
+        if (share.share_url) {
+          linkBtn.href = share.share_url;
+          linkBtn.classList.remove("hidden");
+        } else {
+          linkBtn.href = "#";
+          linkBtn.classList.add("hidden");
         }
       }
       if (dlg && typeof dlg.showModal === "function") dlg.showModal();

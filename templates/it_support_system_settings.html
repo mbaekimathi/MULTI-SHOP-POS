@@ -932,7 +932,7 @@
 
     <div id="company" data-panel="company" class="hidden scroll-mt-24">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</h2>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Company identity, contact details, and hosted public domain.</p>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Company identity, contact details, and opening hours.</p>
 
       <div class="mt-6 grid gap-4 md:grid-cols-2">
         <div class="md:col-span-2">
@@ -995,43 +995,7 @@
       </div>
 
       <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
-        <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Hosted domain (public APIs)</h3>
-        <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
-          Your live HTTPS domain when the app is hosted (e.g. on cPanel). Used for M-Pesa callbacks, balance webhooks, WhatsApp credit pay links, and other public API URLs — even when you develop on <code class="rounded bg-[rgb(var(--rc-surface-2))] px-1 py-0.5 text-xs">127.0.0.1</code>.
-        </p>
-        <div class="mt-6 grid gap-4 md:grid-cols-2">
-          <div class="md:col-span-2">
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Company domain (HTTPS)</label>
-            <input
-              name="public_app_url"
-              type="url"
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
-              value="{{ site_settings.public_app_url if site_settings else '' }}"
-              placeholder="https://pos.yourcompany.com"
-              autocomplete="url"
-            />
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-              Enter the full URL or domain only (<strong>pos.yourcompany.com</strong>). Saved without a trailing slash.
-              {% if public_app_url_env_override %}
-                <span class="block mt-1 text-amber-700 dark:text-amber-300">Note: <code class="text-[10px]">PUBLIC_APP_URL</code> in <code class="text-[10px]">.env</code> overrides this value on the server.</span>
-              {% endif %}
-            </p>
-          </div>
-          {% if hosted_api_base %}
-          <div class="md:col-span-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-3">
-            <p class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">API endpoints on this domain</p>
-            <ul class="mt-2 space-y-1.5 font-mono text-[11px] leading-relaxed text-[rgb(var(--rc-page-fg))] break-all">
-              <li>{{ hosted_api_base }}/api/daraja/mpesa-callback</li>
-              <li>{{ hosted_api_base }}/api/daraja/account-balance-result</li>
-              <li>{{ hosted_api_base }}/api/daraja/account-balance-timeout</li>
-              <li>{{ hosted_api_base }}/api/daraja/b2c-result</li>
-              <li>{{ hosted_api_base }}/api/daraja/b2c-timeout</li>
-              <li>{{ hosted_api_base }}/pay/credit/&lt;token&gt;</li>
-            </ul>
-            <p class="mt-2 text-xs text-[rgb(var(--rc-muted))]">Configure STK callback under <strong>System settings → Daraja</strong>. Leave blank to use the M-Pesa callback endpoint above automatically.</p>
-          </div>
-          {% endif %}
-        </div>
+        {% include "partials/company_opening_hours.html" %}
       </div>
     </div>
 

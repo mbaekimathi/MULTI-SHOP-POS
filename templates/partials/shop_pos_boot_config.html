@@ -19,6 +19,8 @@
     "daraja": daraja_pos_boot if daraja_pos_boot is defined else {"enabled": false},
     "receiptSettings": pos_receipt_settings,
     "holdEnabled": (pos_printing_settings.pos_cart_mode == 'withhold'),
+    "openingHours": shop_opening_hours_status if shop_opening_hours_status is defined else {"is_open_now": true},
+    "dayOpening": shop_day_opening_boot if shop_day_opening_boot is defined else {"completed": true, "can_submit": false, "requires_stock_confirmation": false},
     "apis": {
       "stockIn": url_for('shop_pos_stock_in', shop_id=shop.id),
       "refillPortions": url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id) if pos_inventory_mode in ('kitchen', 'both') else "",
@@ -48,6 +50,9 @@
       "holdSave": url_for('shop_pos_hold_save', shop_id=shop.id),
       "holdList": url_for('shop_pos_hold_list', shop_id=shop.id),
       "holdGetBase": ('/shops/' ~ shop.id|string ~ '/shop-pos/hold/'),
+      "dayOpening": url_for('shop_pos_day_opening_submit', shop_id=shop.id),
+      "dayOpeningStatus": url_for('shop_pos_day_opening_status', shop_id=shop.id),
+      "dayClosing": url_for('shop_pos_day_closing_submit', shop_id=shop.id),
     },
     "site": {
       "company_name": (_shop_co.company_name if _shop_co else (site_settings.company_name if site_settings else "")) or "",

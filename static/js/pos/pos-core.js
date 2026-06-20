@@ -73,6 +73,121 @@
   })();
   window.POS_RECEIPT_SETTINGS = BOOT.receiptSettings;
   window.POS_SITE = BOOT.site;
+  var POS_OPENING_HOURS = BOOT.openingHours || {};
+  var POS_WEEKDAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  function posJsDayKey(d) {
+    return POS_WEEKDAY_KEYS[(d.getDay() + 6) % 7];
+  }
+  function posParseHmToMinutes(raw) {
+    if (!raw) return null;
+    var parts = String(raw).split(":");
+    if (parts.length < 2) return null;
+    var h = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return h * 60 + m;
+  }
+  function posOpeningHoursHasScheduledDays(oh) {
+    oh = oh || {};
+    var days = oh.days || {};
+    for (var i = 0; i < POS_WEEKDAY_KEYS.length; i++) {
+      var row = days[POS_WEEKDAY_KEYS[i]] || {};
+      if (row.open && row.close) return true;
+    }
+    return false;
+  }
+  function evaluateOpeningHoursNow(oh) {
+    oh = oh || {};
+    if (posOpeningHoursHasScheduledDays(oh)) {
+      var now = new Date();
+      var key = posJsDayKey(now);
+      var row = (oh.days && oh.days[key]) || {};
+      if (row.closed) {
+        return { open: false, message: "Closed today (" + key.charAt(0).toUpperCase() + key.slice(1) + ")" };
+      }
+      var openM = posParseHmToMinutes(row.open);
+      var closeM = posParseHmToMinutes(row.close);
+      if (openM === null || closeM === null) {
+        return { open: false, message: "Closed today — no opening hours set" };
+      }
+      var nowM = now.getHours() * 60 + now.getMinutes();
+      if (openM === closeM) {
+        return { open: false, message: "Closed today" };
+      }
+      var isOpen;
+      if (openM < closeM) {
+        isOpen = openM <= nowM && nowM < closeM;
+      } else {
+        isOpen = nowM >= openM || nowM < closeM;
+      }
+      if (isOpen) return { open: true, message: "Open until " + row.close };
+      if (nowM < openM) return { open: false, message: "Closed — opens at " + row.open };
+      return { open: false, message: "Closed — today's hours were " + row.open + "–" + row.close };
+    }
+    if (oh.open_24_hours) {
+      return { open: true, message: "Open 24 hours" };
+    }
+    return { open: false, message: "Closed — no opening hours configured for today" };
+  }
+  function posShopIsOpenForSales() {
+    return !!evaluateOpeningHoursNow(POS_OPENING_HOURS).open;
+  }
+  function posShopClosedMessage() {
+    return evaluateOpeningHoursNow(POS_OPENING_HOURS).message || "Shop is closed. Sales are not allowed right now.";
+  }
+  window.posShopIsOpenForSales = posShopIsOpenForSales;
+  window.__posShopClosedMessage = posShopClosedMessage;
+  var POS_DAY_OPENING = BOOT.dayOpening || {};
+  var POS_DAY_CLOSING_REMINDER = POS_DAY_OPENING.closing_reminder || {};
+  var DAY_OPENING_API = (BOOT.apis && BOOT.apis.dayOpening) || "";
+  var DAY_CLOSING_API = (BOOT.apis && BOOT.apis.dayClosing) || "";
+  var DAY_OPENING_STATUS_API = (BOOT.apis && BOOT.apis.dayOpeningStatus) || "";
+  function posDayClosingPending() {
+    var pc = POS_DAY_OPENING.pending_closing;
+    return !!(pc && pc.required !== false);
+  }
+  function posTodayClosed() {
+    return POS_DAY_OPENING.today_closed === true;
+  }
+  function posNeedsOpeningGate() {
+    if (posTodayClosed()) return false;
+    if (posDayClosingPending()) return true;
+    return !POS_DAY_OPENING.completed;
+  }
+  function posDayOpeningComplete() {
+    if (typeof POS_DAY_OPENING.ready_for_sales === "boolean") {
+      return POS_DAY_OPENING.ready_for_sales;
+    }
+    return POS_DAY_OPENING.completed === true && !posDayClosingPending();
+  }
+  function posSalesBlockedMessage() {
+    if (posTodayClosed()) {
+      return "Shop closed for today. Use Open shop to enter opening balances and resume sales.";
+    }
+    if (!posShopIsOpenForSales()) return posShopClosedMessage();
+    if (posDayClosingPending()) {
+      var closeLabel =
+        (POS_DAY_OPENING.pending_closing && POS_DAY_OPENING.pending_closing.label) || "the previous day";
+      if (POS_DAY_OPENING.can_submit) {
+        return "Submit closing balances for " + closeLabel + " before sales can start.";
+      }
+      return "Waiting for a shop admin or manager to submit closing balances for " + closeLabel + ".";
+    }
+    if (!POS_DAY_OPENING.completed) {
+      if (POS_DAY_OPENING.can_submit) {
+        return "Set today's opening cash and M-Pesa balances before sales can start.";
+      }
+      return "Waiting for a shop admin or manager to complete today's opening procedure.";
+    }
+    return "";
+  }
+  function posSalesAllowed() {
+    if (posTodayClosed()) return false;
+    return posShopIsOpenForSales() && posDayOpeningComplete();
+  }
+  window.posDayOpeningComplete = posDayOpeningComplete;
+  window.posSalesAllowed = posSalesAllowed;
+  window.__posSalesBlockedMessage = posSalesBlockedMessage;
 var saleType = "sale";
       var salePaymentMethod = "";
       var authorizedEmployee = null;
@@ -2954,7 +3069,135 @@ var saleType = "sale";
         return typeof t === "number" && Date.now() < t;
       }
 
+      function showShopClosedToast() {
+        var t = document.getElementById("pos-toast");
+        if (!t) return;
+        t.textContent = posSalesBlockedMessage() || posShopClosedMessage();
+        t.classList.remove("hidden");
+        t.classList.add("pos-toast-show");
+        clearTimeout(t._tid);
+        t._tid = setTimeout(function () {
+          t.classList.add("hidden");
+          t.classList.remove("pos-toast-show");
+        }, 2800);
+      }
+
+      function applyPosDayOpeningPendingUi() {
+        var todayClosed = posTodayClosed();
+        var needsOpeningGate = posNeedsOpeningGate();
+        var banner = document.getElementById("pos-day-opening-pending-banner");
+        if (banner) {
+          banner.classList.toggle("hidden", !needsOpeningGate);
+          if (needsOpeningGate) {
+            var msgEl = document.getElementById("pos-day-opening-pending-banner-msg");
+            if (msgEl) {
+              msgEl.textContent = posSalesBlockedMessage();
+            }
+          }
+        }
+        var closedBanner = document.getElementById("pos-day-closed-banner");
+        if (closedBanner) {
+          closedBanner.classList.toggle("hidden", !todayClosed);
+          if (todayClosed) {
+            var closedMsg = document.getElementById("pos-day-closed-banner-msg");
+            if (closedMsg) closedMsg.textContent = posSalesBlockedMessage();
+          }
+        }
+        var closeShopBtn = document.getElementById("pos-close-shop-open");
+        var closeShopLink = document.getElementById("pos-close-shop-link");
+        var openShopBtn = document.getElementById("pos-open-shop-open");
+        var openShopLink = document.getElementById("pos-open-shop-link");
+        var showClose = canShowCloseShopButton();
+        var showOpen = canShowOpenShopButton();
+        if (closeShopBtn) closeShopBtn.classList.toggle("hidden", !showClose);
+        if (closeShopLink) closeShopLink.classList.toggle("hidden", !showClose);
+        if (openShopBtn) openShopBtn.classList.toggle("hidden", !showOpen);
+        if (openShopLink) openShopLink.classList.toggle("hidden", !showOpen);
+        if (window.__shopDayOpeningModal) {
+          if (needsOpeningGate && POS_DAY_OPENING.can_submit) window.__shopDayOpeningModal.show();
+          else window.__shopDayOpeningModal.hide();
+        }
+      }
+
+      function canShowCloseShopButton() {
+        if (posTodayClosed()) return false;
+        var cr = POS_DAY_CLOSING_REMINDER || {};
+        return !!cr.can_close_today;
+      }
+
+      function canShowOpenShopButton() {
+        if (!posTodayClosed()) return false;
+        return !!POS_DAY_OPENING.can_submit;
+      }
+
+      function openCloseShopModal() {
+        if (window.__shopDayClosingReminder && typeof window.__shopDayClosingReminder.show === "function") {
+          window.__shopDayClosingReminder.show();
+          return;
+        }
+        if (!POS_DAY_OPENING.completed) {
+          window.alert("Set today's opening balances first, then you can close the shop.");
+          return;
+        }
+        window.alert("Close shop is not available right now. Refresh the page and try again.");
+      }
+
+      function openReopenShopModal() {
+        if (window.__shopDayOpeningModal && typeof window.__shopDayOpeningModal.showReopen === "function") {
+          window.__shopDayOpeningModal.showReopen();
+          return;
+        }
+        if (window.__shopDayOpeningModal && typeof window.__shopDayOpeningModal.showOpening === "function") {
+          window.__shopDayOpeningModal.showOpening();
+          return;
+        }
+        window.alert("Open shop is not available right now. Refresh the page and try again.");
+      }
+
+      function applyPosShopClosedMode() {
+        var todayClosed = posTodayClosed();
+        var hoursClosed = !posShopIsOpenForSales();
+        var openingPending = posNeedsOpeningGate();
+        var salesBlocked = !posSalesAllowed();
+        try {
+          document.body.classList.toggle("pos-shop-closed", salesBlocked);
+          document.body.classList.toggle("pos-day-opening-pending", openingPending);
+          document.body.classList.toggle("pos-day-closed", todayClosed);
+        } catch (eBody) {}
+        var banner = document.getElementById("pos-shop-closed-banner");
+        if (banner) {
+          banner.classList.toggle("hidden", !hoursClosed || todayClosed);
+          if (hoursClosed && !todayClosed) {
+            var msgEl = document.getElementById("pos-shop-closed-banner-msg");
+            if (msgEl) msgEl.textContent = posShopClosedMessage();
+          }
+        }
+        applyPosDayOpeningPendingUi();
+        var catalog = document.getElementById("pos-catalog-main");
+        if (catalog) catalog.classList.toggle("pos-shop-closed-view-only", salesBlocked);
+        document.querySelectorAll(".pos-item-card").forEach(function (card) {
+          card.classList.toggle("pos-item-card--view-only", salesBlocked);
+          if (salesBlocked) card.setAttribute("aria-disabled", "true");
+          else card.removeAttribute("aria-disabled");
+        });
+        var fab = document.getElementById("pos-cart-toggle-fab");
+        if (fab) {
+          fab.disabled = salesBlocked;
+          fab.setAttribute("aria-disabled", salesBlocked ? "true" : "false");
+        }
+        ["pos-hold-toggle-fab", "pos-cart-hold-save", "pos-hold-open"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.disabled = salesBlocked;
+          el.setAttribute("aria-disabled", salesBlocked ? "true" : "false");
+        });
+        if (salesBlocked && typeof setCartOpen === "function") setCartOpen(false);
+        updateProceedState();
+      }
+      window.applyPosShopClosedMode = applyPosShopClosedMode;
+
       function changeQty(id, delta) {
+        if (!posSalesAllowed()) return;
         var lines = load();
         var i = lines.findIndex(function (l) {
           return l.id === id;
@@ -2976,6 +3219,7 @@ var saleType = "sale";
       }
 
       function commitQtyInput(input) {
+        if (!posSalesAllowed()) return;
         if (!input || !input.classList || !input.classList.contains("pos-qty-input")) return;
         var id = parseInt(input.getAttribute("data-id"), 10);
         if (isNaN(id)) return;
@@ -3004,6 +3248,7 @@ var saleType = "sale";
       }
 
       function commitLineAmountInput(input) {
+        if (!posSalesAllowed()) return;
         if (!input || !input.classList || !input.classList.contains("pos-line-amount-input")) return;
         var id = parseInt(input.getAttribute("data-id"), 10);
         if (isNaN(id)) return;
@@ -3109,6 +3354,10 @@ var saleType = "sale";
       }
 
       function addFromCard(btn) {
+        if (!posSalesAllowed()) {
+          showShopClosedToast();
+          return;
+        }
         // Withhold POS: when the Held-orders editor is in "Pick from catalog" mode, item-card
         // clicks are diverted into the active held order's draft instead of the cart.
         if (typeof window.__posHoldPickHandler === "function") {
@@ -4420,7 +4669,7 @@ var saleType = "sale";
         if (!btn) return;
         updatePaymentMethodState();
         var lines = load();
-        var can = lines.length > 0 && !!authorizedEmployee;
+        var can = lines.length > 0 && !!authorizedEmployee && posSalesAllowed();
         btn.disabled = !can;
       }
       window.updateProceedState = updateProceedState;
@@ -4535,6 +4784,10 @@ var saleType = "sale";
       }
 
       function proceedSale() {
+        if (!posSalesAllowed()) {
+          setAuthStatus(posSalesBlockedMessage() || posShopClosedMessage(), "error");
+          return;
+        }
         // Withhold POS: when staff selected "Hold tab" and there is no held order linked yet,
         // authorizing the cart saves it as a new held order (and shows the order number) instead
         // of running the final-sale flow. Loading a held order from the modal sets Direct sale first,
@@ -4706,6 +4959,9 @@ var saleType = "sale";
       }
 
       function commitQuoteWithOfflineFallback(lines, mode) {
+        if (!posSalesAllowed()) {
+          return Promise.reject(new Error(posSalesBlockedMessage() || posShopClosedMessage()));
+        }
         var body = buildQuoteRequestBody(lines, mode);
         body.client_txn_id = randomTxnId();
         return recordQuoteForLeads(body).then(function (res) {
@@ -4824,6 +5080,9 @@ var saleType = "sale";
       }
 
       function commitSaleWithOfflineFallback(lines, mode) {
+        if (!posSalesAllowed()) {
+          return Promise.reject(new Error(posSalesBlockedMessage() || posShopClosedMessage()));
+        }
         var payload = buildAnalyticsPayload(lines, mode);
         payload.clientTxnId = randomTxnId();
         return recordSaleForAnalytics(payload).then(function (res) {
@@ -8882,6 +9141,66 @@ var saleType = "sale";
       };
       render();
       applyPosCartUiSettings();
+      if (typeof window.initShopDayOpeningModal === "function") {
+        window.__shopDayOpeningModal = window.initShopDayOpeningModal({
+          boot: POS_DAY_OPENING,
+          submitApi: DAY_OPENING_API,
+          openingApi: DAY_OPENING_API,
+          closingApi: DAY_CLOSING_API,
+          delayMs: 400,
+          onComplete: function (updatedBoot) {
+            if (updatedBoot) {
+              POS_DAY_OPENING.completed = updatedBoot.completed;
+              POS_DAY_OPENING.pending_closing = updatedBoot.pending_closing;
+              POS_DAY_OPENING.ready_for_sales = updatedBoot.ready_for_sales;
+              POS_DAY_OPENING.today_closed = updatedBoot.today_closed === true;
+              POS_DAY_OPENING.record = updatedBoot.record || POS_DAY_OPENING.record;
+            }
+            applyPosShopClosedMode();
+          },
+        });
+      }
+      if (typeof window.initShopDayClosingReminder === "function") {
+        window.__shopDayClosingReminder = window.initShopDayClosingReminder({
+          boot: POS_DAY_CLOSING_REMINDER,
+          closingApi: DAY_CLOSING_API,
+          statusApi: DAY_OPENING_STATUS_API,
+          shopId: BOOT.shopId || 0,
+          autoInit: false,
+          onSubmitted: function (j) {
+            POS_DAY_CLOSING_REMINDER.pending = null;
+            POS_DAY_CLOSING_REMINDER.auto_show = false;
+            if (j) {
+              if (typeof j.ready_for_sales === "boolean") POS_DAY_OPENING.ready_for_sales = j.ready_for_sales;
+              if (j.today_closed === true) POS_DAY_OPENING.today_closed = true;
+              if (j.pending_closing !== undefined) POS_DAY_OPENING.pending_closing = j.pending_closing;
+            }
+            applyPosShopClosedMode();
+          },
+        });
+      }
+      var closeShopBtn = document.getElementById("pos-close-shop-open");
+      var closeShopLink = document.getElementById("pos-close-shop-link");
+      [closeShopBtn, closeShopLink].forEach(function (el) {
+        if (!el) return;
+        el.addEventListener("click", function (ev) {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          openCloseShopModal();
+        });
+      });
+      var openShopBtn = document.getElementById("pos-open-shop-open");
+      var openShopLink = document.getElementById("pos-open-shop-link");
+      [openShopBtn, openShopLink].forEach(function (el) {
+        if (!el) return;
+        el.addEventListener("click", function (ev) {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          openReopenShopModal();
+        });
+      });
+      applyPosShopClosedMode();
+      setInterval(function () {
+        applyPosShopClosedMode();
+      }, 60000);
 
       /** Fallback if printer script finishes after first paint — compulsory + not ready → open setup. */
       window.addEventListener("load", function () {

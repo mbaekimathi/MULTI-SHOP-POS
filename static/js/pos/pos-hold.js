@@ -852,6 +852,14 @@ function loadCheckoutPathPreference() {
                 return;
               }
               var proceed = function () {
+                if (typeof window.posSalesAllowed === "function" && !window.posSalesAllowed()) {
+                  var closedMsg = typeof window.__posShopClosedMessage === "function" ? window.__posShopClosedMessage() : "Shop is closed.";
+                  if (!auto) setStatus(closedMsg, "bad");
+                  else {
+                    try { toastSay(closedMsg); } catch (eToastClosed) {}
+                  }
+                  return;
+                }
                 setStatus(auto ? "Auto-saving…" : "Saving…", "ok");
                 panel.__saveInFlight = true;
                 saveBtn.disabled = true;
@@ -1057,6 +1065,12 @@ function loadCheckoutPathPreference() {
         } catch (eToast) {}
 
         window.__posHoldPickHandler = function (btn) {
+          if (typeof window.posSalesAllowed === "function" && !window.posSalesAllowed()) {
+            try {
+              toastSay(typeof window.__posShopClosedMessage === "function" ? window.__posShopClosedMessage() : "Shop is closed.");
+            } catch (eClosedPick) {}
+            return true;
+          }
           try {
             if (!panel || !panel.__holdId) return false;
             var id = parseInt(btn.getAttribute("data-item-id"), 10);
@@ -1610,6 +1624,10 @@ function loadCheckoutPathPreference() {
       }
 
       function saveCurrentCartToHold() {
+        if (typeof window.posSalesAllowed === "function" && !window.posSalesAllowed()) {
+          toastSay(typeof window.__posShopClosedMessage === "function" ? window.__posShopClosedMessage() : "Shop is closed.");
+          return;
+        }
         if (window.__POS_CHECKOUT_PATH !== "hold") {
           toastSay('Switch checkout mode to "Hold tab" to save a held order.');
           return;

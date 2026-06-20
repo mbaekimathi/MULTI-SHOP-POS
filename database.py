@@ -198,6 +198,44 @@ def _analytics_where_clause(analytics_filter: dict, alias: str = ""):
     return "1=1", []
 
 
+def _analytics_business_date_where(analytics_filter: dict, column: str = "business_date"):
+    """Return SQL and params for filtering DATE columns to the analytics period."""
+    f = analytics_filter or {}
+    start = (f.get("range_start") or "").strip()
+    end = (f.get("range_end_exclusive") or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", end):
+        return f"{column} >= %s AND {column} < %s", [start, end]
+    day = (f.get("single_day") or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+        return f"{column} = %s", [day]
+    return "1=1", []
+
+
+def _enrich_period_report_financials(out: dict) -> dict:
+    """Add till opening/closing balances and a sold-items list to period reports."""
+    opening_cash = float(out.get("opening_cash_total") or 0)
+    opening_mpesa = float(out.get("opening_mpesa_total") or 0)
+    cash_revenue = float(out.get("cash_revenue") or 0)
+    mpesa_revenue = float(out.get("mpesa_revenue") or 0)
+    out["till_summary"] = {
+        "opening_cash": round(opening_cash, 2),
+        "opening_mpesa": round(opening_mpesa, 2),
+        "opening_total": round(opening_cash + opening_mpesa, 2),
+        "closing_cash": round(opening_cash + cash_revenue, 2),
+        "closing_mpesa": round(opening_mpesa + mpesa_revenue, 2),
+        "closing_total": round(opening_cash + opening_mpesa + cash_revenue + mpesa_revenue, 2),
+    }
+    items = list(out.get("items") or [])
+    sold = [
+        i
+        for i in items
+        if int(i.get("stock_sold") or 0) > 0 or float(i.get("revenue") or 0) > 0
+    ]
+    sold.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
+    out["items_sold"] = sold
+    return out
+
+
 def _analytics_receipt_scope_clause(analytics_scope: Optional[str], alias: str = ""):
     """Return SQL and params for analytics data scope.
 
@@ -551,6 +589,672 @@ def init_hr_activity_log_table():
     except pymysql.Error as e:
         logger.warning("Could not init hr_activity_log: %s", e)
         return False
+
+
+def init_shop_day_openings_table() -> bool:
+    """Daily shop opening balances (cash/M-Pesa) and stock confirmation."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS shop_day_openings (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NOT NULL,
+        business_date DATE NOT NULL,
+        opening_cash DECIMAL(14,2) NOT NULL DEFAULT 0,
+        opening_mpesa DECIMAL(14,2) NOT NULL DEFAULT 0,
+        stock_confirmed TINYINT(1) NOT NULL DEFAULT 0,
+        submitted_by_employee_id INT NULL,
+        submitted_by_code VARCHAR(20) NULL,
+        submitted_by_name VARCHAR(200) NULL,
+        submitted_by_role VARCHAR(40) NULL,
+        closing_cash DECIMAL(14,2) NULL,
+        closing_mpesa DECIMAL(14,2) NULL,
+        closing_submitted_at TIMESTAMP NULL,
+        closing_submitted_by_employee_id INT NULL,
+        closing_submitted_by_code VARCHAR(20) NULL,
+        closing_submitted_by_name VARCHAR(200) NULL,
+        closing_submitted_by_role VARCHAR(40) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_shop_day_openings_shop_date (shop_id, business_date),
+        KEY idx_shop_day_openings_date (business_date),
+        KEY idx_shop_day_openings_shop (shop_id, business_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        ensure_shop_day_closing_schema()
+        logger.info("Table shop_day_openings is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init shop_day_openings: %s", e)
+        return False
+
+
+def ensure_shop_day_closing_schema() -> bool:
+    """Add end-of-day closing balance columns to shop_day_openings on existing installs."""
+    if not table_exists("shop_day_openings"):
+        return False
+    cols = [
+        ("closing_cash", "DECIMAL(14,2) NULL"),
+        ("closing_mpesa", "DECIMAL(14,2) NULL"),
+        ("closing_submitted_at", "TIMESTAMP NULL"),
+        ("closing_submitted_by_employee_id", "INT NULL"),
+        ("closing_submitted_by_code", "VARCHAR(20) NULL"),
+        ("closing_submitted_by_name", "VARCHAR(200) NULL"),
+        ("closing_submitted_by_role", "VARCHAR(40) NULL"),
+    ]
+    try:
+        with get_cursor(commit=True) as cur:
+            for col, ddl in cols:
+                if column_exists("shop_day_openings", col):
+                    continue
+                cur.execute(f"ALTER TABLE shop_day_openings ADD COLUMN {col} {ddl}")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not ensure shop_day_openings closing schema: %s", e)
+        return False
+
+
+def _normalize_business_date(value) -> Optional[date]:
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    raw = str(value or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
+    return None
+
+
+def _serialize_shop_day_opening_row(row: Optional[dict]) -> Optional[dict]:
+    if not row:
+        return None
+    biz = row.get("business_date")
+    if hasattr(biz, "isoformat"):
+        biz_out = biz.isoformat()
+    else:
+        biz_out = str(biz or "")
+    created = row.get("created_at")
+    if hasattr(created, "isoformat"):
+        created_out = created.isoformat(sep=" ", timespec="seconds")
+    else:
+        created_out = str(created or "")
+    closing_at = row.get("closing_submitted_at")
+    if hasattr(closing_at, "isoformat"):
+        closing_at_out = closing_at.isoformat(sep=" ", timespec="seconds")
+    else:
+        closing_at_out = str(closing_at or "") if closing_at else ""
+    return {
+        "id": int(row.get("id") or 0),
+        "shop_id": int(row.get("shop_id") or 0),
+        "business_date": biz_out,
+        "opening_cash": float(row.get("opening_cash") or 0),
+        "opening_mpesa": float(row.get("opening_mpesa") or 0),
+        "stock_confirmed": bool(int(row.get("stock_confirmed") or 0)),
+        "submitted_by_employee_id": row.get("submitted_by_employee_id"),
+        "submitted_by_code": row.get("submitted_by_code") or "",
+        "submitted_by_name": row.get("submitted_by_name") or "",
+        "submitted_by_role": row.get("submitted_by_role") or "",
+        "created_at": created_out,
+        "closing_cash": float(row.get("closing_cash") or 0) if row.get("closing_submitted_at") else None,
+        "closing_mpesa": float(row.get("closing_mpesa") or 0) if row.get("closing_submitted_at") else None,
+        "closing_submitted_at": closing_at_out or None,
+        "closing_submitted_by_employee_id": row.get("closing_submitted_by_employee_id"),
+        "closing_submitted_by_code": row.get("closing_submitted_by_code") or "",
+        "closing_submitted_by_name": row.get("closing_submitted_by_name") or "",
+        "closing_submitted_by_role": row.get("closing_submitted_by_role") or "",
+        "shop_name": row.get("shop_name") or "",
+        "shop_code": row.get("shop_code") or "",
+    }
+
+
+def get_shop_day_opening(shop_id: int, business_date) -> Optional[dict]:
+    """Return today's (or given date's) opening record for a shop, if any."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return None
+    if sid <= 0:
+        return None
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return None
+    sql = """
+    SELECT
+        id, shop_id, business_date, opening_cash, opening_mpesa, stock_confirmed,
+        submitted_by_employee_id, submitted_by_code, submitted_by_name, submitted_by_role, created_at,
+        closing_cash, closing_mpesa, closing_submitted_at,
+        closing_submitted_by_employee_id, closing_submitted_by_code,
+        closing_submitted_by_name, closing_submitted_by_role
+    FROM shop_day_openings
+    WHERE shop_id = %s AND business_date = %s
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (sid, biz))
+            row = cur.fetchone()
+        return _serialize_shop_day_opening_row(row)
+    except pymysql.Error as e:
+        logger.warning("get_shop_day_opening failed shop=%s date=%s: %s", sid, biz, e)
+        return None
+
+
+def save_shop_day_opening(
+    shop_id: int,
+    business_date,
+    *,
+    opening_cash: float,
+    opening_mpesa: float,
+    stock_confirmed: bool,
+    require_stock_confirmation: bool = True,
+    employee_id: Optional[int] = None,
+    employee_code: Optional[str] = None,
+    employee_name: Optional[str] = None,
+    employee_role: Optional[str] = None,
+) -> Tuple[bool, Optional[str], Optional[dict]]:
+    """Insert the daily opening record once per shop/date. Returns existing row if already saved."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return False, "Invalid shop.", None
+    if sid <= 0:
+        return False, "Invalid shop.", None
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return False, "Invalid business date.", None
+
+    existing = get_shop_day_opening(sid, biz)
+    if existing:
+        return True, None, existing
+
+    if require_stock_confirmation and not stock_confirmed:
+        return False, "Confirm that stock is up to date before submitting.", None
+
+    stock_confirmed_val = bool(stock_confirmed) if require_stock_confirmation else False
+
+    try:
+        cash_val = float(opening_cash or 0)
+        mpesa_val = float(opening_mpesa or 0)
+    except (TypeError, ValueError):
+        return False, "Enter valid opening cash and M-Pesa amounts.", None
+    if cash_val < 0 or mpesa_val < 0:
+        return False, "Opening balances cannot be negative.", None
+
+    emp_id_val: Optional[int] = None
+    if employee_id is not None:
+        try:
+            emp_id_val = int(employee_id)
+            if emp_id_val <= 0:
+                emp_id_val = None
+        except Exception:
+            emp_id_val = None
+
+    sql = """
+    INSERT INTO shop_day_openings (
+        shop_id, business_date, opening_cash, opening_mpesa, stock_confirmed,
+        submitted_by_employee_id, submitted_by_code, submitted_by_name, submitted_by_role
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    params = (
+        sid,
+        biz,
+        round(cash_val, 2),
+        round(mpesa_val, 2),
+        1 if stock_confirmed_val else 0,
+        emp_id_val,
+        (employee_code or "").strip() or None,
+        (employee_name or "").strip() or None,
+        (employee_role or "").strip() or None,
+    )
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, params)
+    except pymysql.IntegrityError:
+        existing = get_shop_day_opening(sid, biz)
+        if existing:
+            return True, None, existing
+        return False, "Opening balances were already submitted for today.", None
+    except pymysql.Error as e:
+        logger.warning("save_shop_day_opening failed shop=%s date=%s: %s", sid, biz, e)
+        return False, "Could not save opening balances. Try again.", None
+
+    saved = get_shop_day_opening(sid, biz)
+    return True, None, saved
+
+
+def _format_business_date_label(business_date) -> str:
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return str(business_date or "")
+    try:
+        return biz.strftime("%d %b %Y")
+    except Exception:
+        return biz.isoformat()
+
+
+def _shop_day_payment_totals(shop_id: int, business_date) -> dict:
+    """Cash and M-Pesa collected on a shop business date (POS sales)."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return {"cash_revenue": 0.0, "mpesa_revenue": 0.0}
+    if sid <= 0:
+        return {"cash_revenue": 0.0, "mpesa_revenue": 0.0}
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return {"cash_revenue": 0.0, "mpesa_revenue": 0.0}
+    sql = """
+    SELECT
+        COALESCE(SUM(s.cash_amount), 0) AS cash_revenue,
+        COALESCE(SUM(s.mpesa_amount), 0) AS mpesa_revenue
+    FROM shop_pos_sales s
+    WHERE s.shop_id = %s AND DATE(s.created_at) = %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (sid, biz))
+            row = cur.fetchone() or {}
+        return {
+            "cash_revenue": float(row.get("cash_revenue") or 0),
+            "mpesa_revenue": float(row.get("mpesa_revenue") or 0),
+        }
+    except pymysql.Error as e:
+        logger.warning(
+            "_shop_day_payment_totals failed shop=%s date=%s: %s", sid, biz, e
+        )
+        return {"cash_revenue": 0.0, "mpesa_revenue": 0.0}
+
+
+def get_pending_shop_day_closing(shop_id: int, as_of=None) -> Optional[dict]:
+    """Most recent day before as_of with opening submitted but no closing."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return None
+    if sid <= 0:
+        return None
+    as_of_date = _normalize_business_date(as_of) or date.today()
+    ensure_shop_day_closing_schema()
+    sql = """
+    SELECT
+        id, shop_id, business_date, opening_cash, opening_mpesa, stock_confirmed,
+        submitted_by_employee_id, submitted_by_code, submitted_by_name, submitted_by_role, created_at,
+        closing_cash, closing_mpesa, closing_submitted_at,
+        closing_submitted_by_employee_id, closing_submitted_by_code,
+        closing_submitted_by_name, closing_submitted_by_role
+    FROM shop_day_openings
+    WHERE shop_id = %s AND business_date < %s AND closing_submitted_at IS NULL
+    ORDER BY business_date DESC
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (sid, as_of_date))
+            row = cur.fetchone()
+        if not row:
+            return None
+        record = _serialize_shop_day_opening_row(row)
+        if not record:
+            return None
+        payments = _shop_day_payment_totals(sid, record.get("business_date"))
+        opening_cash = float(record.get("opening_cash") or 0)
+        opening_mpesa = float(record.get("opening_mpesa") or 0)
+        cash_revenue = float(payments.get("cash_revenue") or 0)
+        mpesa_revenue = float(payments.get("mpesa_revenue") or 0)
+        return {
+            "required": True,
+            "business_date": record.get("business_date") or "",
+            "label": _format_business_date_label(record.get("business_date")),
+            "opening_cash": opening_cash,
+            "opening_mpesa": opening_mpesa,
+            "cash_revenue": cash_revenue,
+            "mpesa_revenue": mpesa_revenue,
+            "suggested_closing_cash": round(opening_cash + cash_revenue, 2),
+            "suggested_closing_mpesa": round(opening_mpesa + mpesa_revenue, 2),
+        }
+    except pymysql.Error as e:
+        logger.warning("get_pending_shop_day_closing failed shop=%s: %s", sid, e)
+        return None
+
+
+def save_shop_day_closing(
+    shop_id: int,
+    business_date,
+    *,
+    closing_cash: float,
+    closing_mpesa: float,
+    employee_id: Optional[int] = None,
+    employee_code: Optional[str] = None,
+    employee_name: Optional[str] = None,
+    employee_role: Optional[str] = None,
+) -> Tuple[bool, Optional[str], Optional[dict]]:
+    """Record end-of-day closing balances once per shop/date."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return False, "Invalid shop.", None
+    if sid <= 0:
+        return False, "Invalid shop.", None
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return False, "Invalid business date.", None
+    if biz > date.today():
+        return False, "Closing balances cannot be submitted for a future date.", None
+
+    existing = get_shop_day_opening(sid, biz)
+    if not existing:
+        return False, "No opening record found for that day.", None
+    if existing.get("closing_submitted_at"):
+        return True, None, existing
+
+    try:
+        cash_val = float(closing_cash or 0)
+        mpesa_val = float(closing_mpesa or 0)
+    except (TypeError, ValueError):
+        return False, "Enter valid closing cash and M-Pesa amounts.", None
+    if cash_val < 0 or mpesa_val < 0:
+        return False, "Closing balances cannot be negative.", None
+
+    emp_id_val: Optional[int] = None
+    if employee_id is not None:
+        try:
+            emp_id_val = int(employee_id)
+            if emp_id_val <= 0:
+                emp_id_val = None
+        except Exception:
+            emp_id_val = None
+
+    sql = """
+    UPDATE shop_day_openings SET
+        closing_cash = %s,
+        closing_mpesa = %s,
+        closing_submitted_at = CURRENT_TIMESTAMP,
+        closing_submitted_by_employee_id = %s,
+        closing_submitted_by_code = %s,
+        closing_submitted_by_name = %s,
+        closing_submitted_by_role = %s
+    WHERE shop_id = %s AND business_date = %s AND closing_submitted_at IS NULL
+    """
+    params = (
+        round(cash_val, 2),
+        round(mpesa_val, 2),
+        emp_id_val,
+        (employee_code or "").strip() or None,
+        (employee_name or "").strip() or None,
+        (employee_role or "").strip() or None,
+        sid,
+        biz,
+    )
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, params)
+            if cur.rowcount <= 0:
+                existing = get_shop_day_opening(sid, biz)
+                if existing and existing.get("closing_submitted_at"):
+                    return True, None, existing
+                return False, "Could not save closing balances. Try again.", None
+    except pymysql.Error as e:
+        logger.warning("save_shop_day_closing failed shop=%s date=%s: %s", sid, biz, e)
+        return False, "Could not save closing balances. Try again.", None
+
+    saved = get_shop_day_opening(sid, biz)
+    return True, None, saved
+
+
+def reopen_shop_day_till(
+    shop_id: int,
+    business_date,
+    *,
+    opening_cash: float,
+    opening_mpesa: float,
+    stock_confirmed: bool = False,
+    require_stock_confirmation: bool = True,
+    employee_id: Optional[int] = None,
+    employee_code: Optional[str] = None,
+    employee_name: Optional[str] = None,
+    employee_role: Optional[str] = None,
+) -> Tuple[bool, Optional[str], Optional[dict]]:
+    """Clear today's closing submission so sales can resume; optionally refresh opening balances."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return False, "Invalid shop.", None
+    if sid <= 0:
+        return False, "Invalid shop.", None
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return False, "Invalid business date.", None
+
+    existing = get_shop_day_opening(sid, biz)
+    if not existing:
+        return False, "No opening record for this day.", None
+    if not existing.get("closing_submitted_at"):
+        return True, None, existing
+
+    if require_stock_confirmation and not stock_confirmed:
+        return False, "Confirm that stock is up to date before reopening.", None
+
+    try:
+        cash_val = float(opening_cash or 0)
+        mpesa_val = float(opening_mpesa or 0)
+    except (TypeError, ValueError):
+        return False, "Enter valid opening cash and M-Pesa amounts.", None
+    if cash_val < 0 or mpesa_val < 0:
+        return False, "Opening balances cannot be negative.", None
+
+    emp_id_val: Optional[int] = None
+    if employee_id is not None:
+        try:
+            emp_id_val = int(employee_id)
+            if emp_id_val <= 0:
+                emp_id_val = None
+        except Exception:
+            emp_id_val = None
+
+    stock_val = 1 if (stock_confirmed if require_stock_confirmation else bool(existing.get("stock_confirmed"))) else 0
+
+    sql = """
+    UPDATE shop_day_openings SET
+        opening_cash = %s,
+        opening_mpesa = %s,
+        stock_confirmed = %s,
+        closing_cash = NULL,
+        closing_mpesa = NULL,
+        closing_submitted_at = NULL,
+        closing_submitted_by_employee_id = NULL,
+        closing_submitted_by_code = NULL,
+        closing_submitted_by_name = NULL,
+        closing_submitted_by_role = NULL,
+        submitted_by_employee_id = %s,
+        submitted_by_code = %s,
+        submitted_by_name = %s,
+        submitted_by_role = %s
+    WHERE shop_id = %s AND business_date = %s AND closing_submitted_at IS NOT NULL
+    """
+    params = (
+        round(cash_val, 2),
+        round(mpesa_val, 2),
+        stock_val,
+        emp_id_val,
+        (employee_code or "").strip() or None,
+        (employee_name or "").strip() or None,
+        (employee_role or "").strip() or None,
+        sid,
+        biz,
+    )
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql, params)
+            if cur.rowcount <= 0:
+                row = get_shop_day_opening(sid, biz)
+                if row and not row.get("closing_submitted_at"):
+                    return True, None, row
+                return False, "Could not reopen the till. Try again.", None
+    except pymysql.Error as e:
+        logger.warning("reopen_shop_day_till failed shop=%s date=%s: %s", sid, biz, e)
+        return False, "Could not reopen the till. Try again.", None
+
+    saved = get_shop_day_opening(sid, biz)
+    return True, None, saved
+
+
+def get_shop_day_closing_context(shop_id: int, business_date) -> Optional[dict]:
+    """Opening + sales summary for submitting closing balances on a business date."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return None
+    if sid <= 0:
+        return None
+    biz = _normalize_business_date(business_date)
+    if not biz:
+        return None
+    record = get_shop_day_opening(sid, biz)
+    if not record:
+        return None
+    if record.get("closing_submitted_at"):
+        return {
+            "submitted": True,
+            "business_date": record.get("business_date") or biz.isoformat(),
+            "label": _format_business_date_label(biz),
+            "closing_cash": float(record.get("closing_cash") or 0),
+            "closing_mpesa": float(record.get("closing_mpesa") or 0),
+            "closing_submitted_at": record.get("closing_submitted_at") or "",
+            "closing_submitted_by_name": record.get("closing_submitted_by_name") or "",
+        }
+    payments = _shop_day_payment_totals(sid, biz)
+    opening_cash = float(record.get("opening_cash") or 0)
+    opening_mpesa = float(record.get("opening_mpesa") or 0)
+    cash_revenue = float(payments.get("cash_revenue") or 0)
+    mpesa_revenue = float(payments.get("mpesa_revenue") or 0)
+    return {
+        "submitted": False,
+        "business_date": record.get("business_date") or biz.isoformat(),
+        "label": _format_business_date_label(biz),
+        "opening_cash": opening_cash,
+        "opening_mpesa": opening_mpesa,
+        "cash_revenue": cash_revenue,
+        "mpesa_revenue": mpesa_revenue,
+        "suggested_closing_cash": round(opening_cash + cash_revenue, 2),
+        "suggested_closing_mpesa": round(opening_mpesa + mpesa_revenue, 2),
+    }
+
+
+def list_shop_day_openings_for_report(
+    analytics_filter: dict,
+    shop_id: Optional[int] = None,
+) -> list:
+    """Opening balances submitted during the analytics period."""
+    date_where, date_params = _analytics_business_date_where(analytics_filter, "sdo.business_date")
+    shop_clause = ""
+    params: list = list(date_params)
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except Exception:
+            sid = 0
+        if sid > 0:
+            shop_clause = " AND sdo.shop_id = %s"
+            params.append(sid)
+    sql = f"""
+    SELECT
+        sdo.id, sdo.shop_id, sdo.business_date, sdo.opening_cash, sdo.opening_mpesa,
+        sdo.stock_confirmed, sdo.submitted_by_employee_id, sdo.submitted_by_code,
+        sdo.submitted_by_name, sdo.submitted_by_role, sdo.created_at,
+        s.shop_name, s.shop_code
+    FROM shop_day_openings sdo
+    JOIN shops s ON s.id = sdo.shop_id
+    WHERE {date_where}{shop_clause}
+    ORDER BY sdo.business_date DESC, s.shop_name ASC, sdo.id DESC
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        out = []
+        for row in rows:
+            ser = _serialize_shop_day_opening_row(row)
+            if ser:
+                out.append(ser)
+        return out
+    except pymysql.Error as e:
+        logger.warning("list_shop_day_openings_for_report failed: %s", e)
+        return []
+
+
+def list_shop_expenditure_for_report(shop_id: int, analytics_filter: dict) -> list:
+    """Manual stock purchases (expenditure) for one shop in the analytics period."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return []
+    if sid <= 0:
+        return []
+    sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
+    sst_where = f"({sst_where}) AND sst.shop_id = %s AND sst.direction = 'in' AND sst.source = 'manual'"
+    params = list(sst_params) + [sid]
+    sql = f"""
+    SELECT
+        sst.id,
+        sst.created_at,
+        sst.item_id,
+        i.name AS item_name,
+        i.category,
+        sst.qty,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.payment_status,
+        sst.amount_paid,
+        COALESCE(e.full_name, '') AS created_by
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {sst_where}
+    ORDER BY sst.created_at DESC, sst.id DESC
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+    except pymysql.Error as e:
+        logger.warning("list_shop_expenditure_for_report failed shop=%s: %s", sid, e)
+        return []
+    out = []
+    for r in rows:
+        try:
+            qty = float(r.get("qty") or 0)
+        except Exception:
+            qty = 0.0
+        try:
+            unit = float(r.get("buying_price") or 0)
+        except Exception:
+            unit = 0.0
+        total_cost = round(qty * unit, 2)
+        created = r.get("created_at")
+        if hasattr(created, "strftime"):
+            created_out = created.strftime("%d %b %Y %H:%M")
+        else:
+            created_out = str(created or "")
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "created_at": created_out,
+                "item_id": int(r.get("item_id") or 0),
+                "name": (r.get("item_name") or "").strip() or f"Item #{r.get('item_id')}",
+                "category": (r.get("category") or "").strip(),
+                "qty": qty,
+                "buying_price": round(unit, 2),
+                "total_cost": total_cost,
+                "supplier": (r.get("place_brought_from") or "").strip() or "—",
+                "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
+                "amount_paid": round(float(r.get("amount_paid") or 0), 2),
+                "created_by": (r.get("created_by") or "").strip(),
+            }
+        )
+    return out
 
 
 def log_hr_activity(
@@ -13280,7 +13984,15 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
 
     items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
     out["items"] = items_out
-    return out
+    openings = list_shop_day_openings_for_report(af)
+    out["shop_openings"] = openings
+    out["opening_cash_total"] = round(
+        sum(float(o.get("opening_cash") or 0) for o in openings), 2
+    )
+    out["opening_mpesa_total"] = round(
+        sum(float(o.get("opening_mpesa") or 0) for o in openings), 2
+    )
+    return _enrich_period_report_financials(out)
 
 
 def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str = "general"):
@@ -13520,7 +14232,16 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
 
     items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
     out["items"] = items_out
-    return out
+    openings = list_shop_day_openings_for_report(af, shop_id=sid)
+    out["shop_openings"] = openings
+    out["opening_cash_total"] = round(
+        sum(float(o.get("opening_cash") or 0) for o in openings), 2
+    )
+    out["opening_mpesa_total"] = round(
+        sum(float(o.get("opening_mpesa") or 0) for o in openings), 2
+    )
+    out["expenditure_rows"] = list_shop_expenditure_for_report(sid, af)
+    return _enrich_period_report_financials(out)
 
 
 def list_company_stock_movements(
@@ -13988,12 +14709,13 @@ def shop_request_stock_from_company(
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
     stock_request_id: Optional[int] = None,
+    cur=None,
 ) -> bool:
     n = normalize_stock_move_qty(qty)
     if n is None:
         return False
 
-    with get_cursor(commit=True) as cur:
+    def _run(cur):
         # Lock company item row.
         cur.execute(
             "SELECT stock_qty, status FROM items WHERE id=%s FOR UPDATE",
@@ -14068,6 +14790,11 @@ def shop_request_stock_from_company(
             )
         return True
 
+    if cur is not None:
+        return _run(cur)
+    with get_cursor(commit=True) as cur:
+        return _run(cur)
+
 
 def shop_return_stock_to_company(
     *,
@@ -14080,6 +14807,7 @@ def shop_return_stock_to_company(
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
     stock_request_id: Optional[int] = None,
+    cur=None,
 ) -> bool:
     n = normalize_stock_move_qty(qty)
     if n is None:
@@ -14098,7 +14826,7 @@ def shop_return_stock_to_company(
     else:
         refund_amount = None
 
-    with get_cursor(commit=True) as cur:
+    def _run(cur):
         # Lock company item row.
         cur.execute(
             "SELECT stock_qty, status FROM items WHERE id=%s FOR UPDATE",
@@ -14178,6 +14906,11 @@ def shop_return_stock_to_company(
                 ),
             )
         return True
+
+    if cur is not None:
+        return _run(cur)
+    with get_cursor(commit=True) as cur:
+        return _run(cur)
 
 
 def shop_manual_stock_in(
@@ -14353,6 +15086,7 @@ def shop_transfer_stock_between_shops(
     note: Optional[str] = None,
     created_by_employee_id: Optional[int] = None,
     stock_request_id: Optional[int] = None,
+    cur=None,
 ) -> bool:
     """Move stock for one item from one shop to another (atomic)."""
     n = normalize_stock_move_qty(qty)
@@ -14361,7 +15095,7 @@ def shop_transfer_stock_between_shops(
     if int(from_shop_id) == int(to_shop_id):
         return False
 
-    with get_cursor(commit=True) as cur:
+    def _run(cur):
         # Lock source + destination rows.
         cur.execute(
             f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s FOR UPDATE",
@@ -14477,6 +15211,11 @@ def shop_transfer_stock_between_shops(
                 ),
             )
         return True
+
+    if cur is not None:
+        return _run(cur)
+    with get_cursor(commit=True) as cur:
+        return _run(cur)
 
 
 def get_site_settings(keys: Optional[list[str]] = None) -> dict:
@@ -14971,6 +15710,28 @@ def count_notifications_for_session(*, employee_id: Optional[int], shop_id: Opti
         return 0
 
 
+def list_shop_stock_request_alerts_for_shop(*, shop_id: int, limit: int = 20):
+    """Outcome alerts for a shop that submitted stock requests (approved or cancelled)."""
+    shop_id = int(shop_id)
+    limit = max(1, min(int(limit), 50))
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, title, message, link_url, created_at, dedupe_key
+                FROM app_notifications
+                WHERE shop_id = %s
+                  AND dedupe_key LIKE 'sr:rev:%:rq'
+                ORDER BY id DESC
+                LIMIT %s
+                """,
+                (shop_id, limit),
+            )
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
 def create_shop_stock_request(
     *,
     requesting_shop_id: int,
@@ -15329,6 +16090,7 @@ def review_stock_request(
                         note=(req.get("note") or "").strip() or f"Approved return request #{request_id}",
                         created_by_employee_id=approver_employee_id,
                         stock_request_id=request_id,
+                        cur=cur,
                     )
                 elif (req.get("source_type") or "").lower() == "company":
                     ok = shop_request_stock_from_company(
@@ -15338,6 +16100,7 @@ def review_stock_request(
                         note=(req.get("note") or "").strip() or f"Approved request #{request_id}",
                         created_by_employee_id=approver_employee_id,
                         stock_request_id=request_id,
+                        cur=cur,
                     )
                 else:
                     ok = shop_transfer_stock_between_shops(
@@ -15348,6 +16111,7 @@ def review_stock_request(
                         note=(req.get("note") or "").strip() or f"Approved request #{request_id}",
                         created_by_employee_id=approver_employee_id,
                         stock_request_id=request_id,
+                        cur=cur,
                     )
                 if not ok:
                     return (
@@ -15387,22 +16151,38 @@ def review_stock_request(
                 payload=ev_payload,
             )
 
-            status_word = "approved" if approve else "declined"
+            status_word = "approved" if approve else "cancelled"
             item_label = ((req.get("item_name") or "").strip() or f"Item #{int(req['item_id'])}")[:200]
             rq_shop = int(req["requesting_shop_id"])
-            xfer_qty = eff_qty if approve else rqty
-            to_requester = (
-                f"Request #{request_id}: {item_label} × {xfer_qty} was {status_word}."
-                if approve
-                else (
-                    f"Request #{request_id}: {item_label} × {rqty} was declined. "
-                    "The other party chose not to fulfil this request."
+            st = (req.get("source_type") or "").lower()
+            src_sid = int(req["source_shop_id"] or 0)
+            src_nm = ((req.get("source_shop_name") or "").strip() or (f"Shop #{src_sid}" if src_sid else "Company"))[:120]
+            if approve:
+                if st == "shop" and src_sid > 0:
+                    requester_title = "Stock request approved"
+                    to_requester = (
+                        f"Request #{request_id}: {item_label} × {eff_qty} approved. "
+                        f"Stock was transferred from {src_nm} to your shop — levels updated at both shops."
+                    )
+                elif st == "company":
+                    requester_title = "Stock request approved"
+                    to_requester = (
+                        f"Request #{request_id}: {item_label} × {eff_qty} approved. "
+                        "Stock was added to your shop from company inventory."
+                    )
+                else:
+                    requester_title = "Stock request approved"
+                    to_requester = f"Request #{request_id}: {item_label} × {eff_qty} was approved."
+            else:
+                requester_title = "Stock request cancelled"
+                to_requester = (
+                    f"Request #{request_id} cancelled: {item_label} × {rqty}. "
+                    "The supplying party declined this request."
                 )
-            )
             link_requester = f"/shops/{rq_shop}/notifications"
             _insert_app_notification(
                 cur,
-                title=f"Stock request {status_word}",
+                title=requester_title[:180],
                 message=to_requester[:500],
                 employee_id=None,
                 shop_id=rq_shop,
@@ -15410,8 +16190,6 @@ def review_stock_request(
                 link_url=link_requester[:500],
                 dedupe_key=f"sr:rev:{request_id}:rq",
             )
-            st = (req.get("source_type") or "").lower()
-            src_sid = int(req["source_shop_id"] or 0)
             if st == "shop" and src_sid > 0:
                 rq_nm = ((req.get("requesting_shop_name") or "").strip() or f"Shop #{rq_shop}")[:120]
                 if approve:
@@ -15430,7 +16208,8 @@ def review_stock_request(
                         dedupe_key=f"sr:rev:{request_id}:src:{src_sid}",
                     )
             return True, ""
-    except pymysql.Error:
+    except pymysql.Error as e:
+        logger.warning("review_stock_request failed for request_id=%s: %s", request_id, e)
         return False, "Something went wrong. Please try again."
 
 
@@ -15684,6 +16463,7 @@ _EXPECTED_SCHEMA_TABLES = (
     "app_notifications",
     "pos_held_orders",
     "hr_activity_log",
+    "shop_day_openings",
 )
 
 
@@ -15732,6 +16512,7 @@ def init_schema() -> bool:
     ok_notifications = init_notifications_table()
     ok_pos_held_orders = init_pos_held_orders_table()
     ok_hr_activity_log = init_hr_activity_log_table()
+    ok_shop_day_openings = init_shop_day_openings_table()
     steps_ok = (
         ok_contact
         and ok_employees
@@ -15761,6 +16542,7 @@ def init_schema() -> bool:
         and ok_notifications
         and ok_pos_held_orders
         and ok_hr_activity_log
+        and ok_shop_day_openings
     )
     if not steps_ok:
         logger.warning("Database schema initialization did not complete successfully.")
@@ -16847,8 +17629,8 @@ def set_employee_suspended(emp_id: int, *, suspended: bool) -> bool:
 
 
 def delete_employee_if_approved(emp_id: int) -> bool:
-    """Hard-delete an employee who is active or suspended (not pending approval)."""
-    sql = "DELETE FROM employees WHERE id=%s AND status IN ('active','suspended')"
+    """Hard-delete an employee (active, suspended, or pending approval)."""
+    sql = "DELETE FROM employees WHERE id=%s AND status IN ('active','suspended','pending_approval')"
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql, (int(emp_id),))

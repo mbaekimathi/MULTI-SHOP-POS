@@ -1,0 +1,49 @@
+{# Popup when a stock request submitted by this shop is approved or cancelled. #}
+<div
+  id="shop-sr-outcome-modal"
+  class="fixed inset-0 z-[95] hidden"
+  aria-hidden="true"
+  role="alertdialog"
+  aria-modal="true"
+  aria-labelledby="shop-sr-outcome-title"
+>
+  <div id="shop-sr-outcome-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+    <div
+      class="w-full max-w-md rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl ring-1 ring-[rgb(var(--rc-primary))]/20"
+    >
+      <div class="flex items-start gap-3">
+        <div
+          id="shop-sr-outcome-icon"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400"
+          aria-hidden="true"
+        >
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 id="shop-sr-outcome-title" class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Stock request update</h3>
+          <p id="shop-sr-outcome-message" class="mt-2 text-sm leading-snug text-[rgb(var(--rc-muted))]"></p>
+        </div>
+      </div>
+      <div class="mt-5 flex flex-wrap items-center justify-end gap-2">
+        <a
+          id="shop-sr-outcome-link"
+          href="#"
+          class="btn-rc btn-rc-ghost hidden px-4 py-2 text-xs font-bold uppercase tracking-wider"
+        >View notifications</a>
+        <button
+          type="button"
+          id="shop-sr-outcome-dismiss"
+          class="btn-rc btn-rc-primary px-4 py-2 text-xs font-bold uppercase tracking-wider"
+        >OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  window.__SHOP_STOCK_ALERT_SHOP_ID = {{ shop.id|int }};
+  window.__SHOP_STOCK_ALERTS_API = {{ url_for('shop_stock_request_alerts_json', shop_id=shop.id)|tojson }};
+</script>
+<script defer src="{{ url_for('static', filename='js/shop-stock-request-alerts.js') }}?v=1"></script>

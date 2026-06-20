@@ -13,10 +13,35 @@
 {% block employee_content %}
   {% set d = website_design %}
   {% set max_feat = website_homepage_featured_max|default(6) %}
+  {% set website_enabled = website_ws.get('public_website_enabled', true) if website_ws is defined else true %}
   <div id="website-designs-page" class="space-y-5">
-    {% with share_compact=true %}
-      {% include "partials/website_share_link.html" %}
-    {% endwith %}
+    <form method="post" action="{{ url_for('it_support_website_designs') }}" id="wsd-enabled-form" class="wsd-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <input type="hidden" name="action" value="toggle_enabled" />
+      <div class="min-w-0">
+        <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Public website</p>
+        <h3 class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Website visibility</h3>
+        <p class="mt-1 max-w-2xl text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+          When off, your home page shows the shop login instead of the customer storefront. Preview below still works while you build.
+        </p>
+        <p class="mt-2 text-xs font-semibold {% if website_enabled %}text-emerald-700 dark:text-emerald-300{% else %}text-amber-800 dark:text-amber-200{% endif %}">
+          {% if website_enabled %}Website is live at your home page.{% else %}Website is hidden — home page shows shop login.{% endif %}
+        </p>
+      </div>
+      <label class="flex shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+        <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{% if website_enabled %}On{% else %}Off{% endif %}</span>
+        <input
+          type="checkbox"
+          name="public_website_enabled"
+          value="1"
+          class="wsd-visibility-switch"
+          role="switch"
+          aria-checked="{% if website_enabled %}true{% else %}false{% endif %}"
+          aria-label="Turn public website on or off"
+          {% if website_enabled %}checked{% endif %}
+          onchange="this.form.submit()"
+        />
+      </label>
+    </form>
 
     <div class="wsd-hero p-5 sm:p-6">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -45,6 +70,9 @@
 
     <form method="post" action="{{ url_for('it_support_website_designs') }}" id="wsd-form" class="grid gap-5 xl:grid-cols-12">
       <input type="hidden" name="featured_item_ids" id="wsd-featured-ids" value="{{ website_selected_ids|tojson }}" />
+      {% if website_enabled %}
+        <input type="hidden" name="public_website_enabled" value="1" />
+      {% endif %}
 
       <div class="space-y-4 xl:col-span-7">
         <section class="wsd-panel p-5 sm:p-6">

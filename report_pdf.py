@@ -289,6 +289,57 @@ def build_period_report_pdf(
     )
     pdf.set_y(y1 + box_h + 7)
 
+    till = rd.get("till_summary") or {}
+    if till:
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*C_SLATE)
+        pdf.cell(0, 7, _pdf_text("Till balances"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(*C_MUTED)
+        pdf.cell(
+            0,
+            5,
+            _pdf_text(
+                f"Opening cash {_fmt_money(till.get('opening_cash'))} · M-Pesa {_fmt_money(till.get('opening_mpesa'))}  |  "
+                f"Closing cash {_fmt_money(till.get('closing_cash'))} · M-Pesa {_fmt_money(till.get('closing_mpesa'))}"
+            ),
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+        pdf.cell(
+            0,
+            5,
+            _pdf_text(
+                f"Sales {_fmt_money(rd.get('sale_revenue'))} · Credit {_fmt_money(rd.get('credit_revenue'))} · "
+                f"Expenditure {_fmt_money(rd.get('total_expenditure'))} · Net {_fmt_money(rd.get('net_profit'))}"
+            ),
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+        pdf.ln(2)
+
+    openings = list(rd.get("shop_openings") or [])
+    if openings:
+        opening_cash_total = float(rd.get("opening_cash_total") or 0)
+        opening_mpesa_total = float(rd.get("opening_mpesa_total") or 0)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*C_SLATE)
+        pdf.cell(0, 7, _pdf_text("Shop opening balances"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(*C_MUTED)
+        pdf.cell(
+            0,
+            5,
+            _pdf_text(
+                f"Opening cash total {_fmt_money(opening_cash_total)}  |  "
+                f"Opening M-Pesa total {_fmt_money(opening_mpesa_total)}  |  "
+                f"{len(openings)} submission(s) in period"
+            ),
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+        pdf.ln(2)
+
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(*C_SLATE)
     pdf.cell(0, 7, _pdf_text("Items in period"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)

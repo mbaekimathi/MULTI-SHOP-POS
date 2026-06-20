@@ -4,6 +4,15 @@
 {% block shop_sidebar_links %}
   {% include "partials/shop_dashboard_sidebar_nav.html" %}
 {% endblock %}
+{% block head %}
+  {{ super() }}
+  {% set _day_gate_pending = shop_day_opening_boot and (shop_day_opening_boot.pending_closing or not shop_day_opening_boot.completed) %}
+  {% if shop_day_opening_boot and shop_day_opening_boot.can_submit and _day_gate_pending %}
+    <style>
+      body.shop-day-opening-modal-open { overflow: hidden; }
+    </style>
+  {% endif %}
+{% endblock %}
 {% block shop_content %}
   {% set pos_show_kitchen_nav = (pos_inventory_mode|default('')) in ('kitchen', 'both') %}
   <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
@@ -28,4 +37,32 @@
       </div>
     </div>
   </div>
+
+  {% set _day_gate_pending = shop_day_opening_boot and (shop_day_opening_boot.pending_closing or not shop_day_opening_boot.completed) %}
+  {% if shop_day_opening_boot and shop_day_opening_boot.can_submit and _day_gate_pending %}
+    {% include "partials/shop_day_opening_modal.html" %}
+    <script>
+      window.__SHOP_DAY_OPENING_BOOT = {{ shop_day_opening_boot|tojson }};
+      window.__SHOP_DAY_OPENING_API = {{ (shop_day_opening_api or '')|tojson }};
+      window.__SHOP_DAY_CLOSING_API = {{ (shop_day_closing_api or '')|tojson }};
+    </script>
+    <script defer src="{{ url_for('static', filename='js/shop-day-opening-modal.js') }}?v=3"></script>
+    <script defer>
+      document.addEventListener("DOMContentLoaded", function () {
+        if (typeof window.initShopDayOpeningModal !== "function") return;
+        window.initShopDayOpeningModal({
+          boot: window.__SHOP_DAY_OPENING_BOOT || {},
+          submitApi: window.__SHOP_DAY_OPENING_API || "",
+          openingApi: window.__SHOP_DAY_OPENING_API || "",
+          closingApi: window.__SHOP_DAY_CLOSING_API || "",
+          delayMs: 300,
+          onComplete: function (boot) {
+            if (boot && boot.ready_for_sales) {
+              window.location.reload();
+            }
+          },
+        });
+      });
+    </script>
+  {% endif %}
 {% endblock %}

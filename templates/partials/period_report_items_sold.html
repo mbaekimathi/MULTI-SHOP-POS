@@ -1,0 +1,37 @@
+{% set sold_rows = items_sold_rows if items_sold_rows is defined else [] %}
+<div class="cr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+  <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Items sold</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">All products with sales in this period (updates live when viewing today).</p>
+      </div>
+      <input id="report-items-sold-search" type="search" autocomplete="off" placeholder="Search sold items…" class="no-print min-w-[12rem] flex-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-xs" />
+    </div>
+  </div>
+  <div class="cr-table-wrap overflow-x-auto">
+    <table id="report-items-sold-table" class="cr-table min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+      <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+        <tr>
+          <th class="sticky left-0 z-20 bg-[rgb(var(--rc-surface-2))] px-4 py-3 shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+          <th class="px-4 py-3 text-right">Qty sold</th>
+          <th class="px-4 py-3 text-right">Revenue</th>
+        </tr>
+      </thead>
+      <tbody id="report-items-sold-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+        {% for row in sold_rows %}
+          <tr class="cr-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or ''))|lower }}">
+            <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-4 py-3 shadow-[1px_0_0_rgb(var(--rc-border))]">
+              <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
+              {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
+            </td>
+            <td class="px-4 py-3 text-right tabular-nums">{{ row.stock_sold or 0 }}</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.revenue or 0) }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3" class="px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No items sold yet for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

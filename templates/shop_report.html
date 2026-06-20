@@ -1,57 +1,26 @@
 {% extends "shop_layout.html" %}
-{% block title %}Shop reports — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}Shop reports{% endblock %}
+{% block title %}Shop report — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop report{% endblock %}
 {% block shop_sidebar_links %}
   {% include "partials/shop_dashboard_sidebar_nav.html" %}
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
   <style>
-    #shop-report-page .cr-card {
+    #shop-report-page .sr-card {
       border-color: rgba(var(--rc-border), 0.9);
       box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
     }
-    #shop-report-page .cr-stat::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto auto 0;
-      width: 100%;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(16, 185, 129, 0.85), rgba(56, 189, 248, 0.85), rgba(245, 158, 11, 0.85));
-    }
-    #shop-report-page .cr-table-wrap {
-      max-height: min(72vh, 780px);
+    #shop-report-page .sr-table-wrap {
+      max-height: min(70vh, 720px);
       overflow: auto;
-      -webkit-overflow-scrolling: touch;
     }
-    #shop-report-page .cr-table thead tr {
+    #shop-report-page .sr-table thead tr {
       position: sticky;
       top: 0;
       z-index: 10;
     }
-    #shop-report-page .cr-actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      gap: 0.75rem;
-    }
-    #shop-report-page .cr-wa-phone { min-width: 11rem; }
-    #shop-report-page .cr-btn-whatsapp {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      border-radius: 0.75rem;
-      background: #25d366;
-      color: #fff;
-      font-size: 0.875rem;
-      font-weight: 600;
-      padding: 0.625rem 1rem;
-      border: 0;
-      cursor: pointer;
-    }
-    #shop-report-page .cr-print-header { display: none; }
+    #shop-report-page .sr-print-header { display: none; }
     @page { margin: 12mm; }
     @media print {
       body * { visibility: hidden; }
@@ -67,261 +36,200 @@
       #shop-sidebar, #shop-sidebar-backdrop, #shop-shell > div > header, .no-print {
         display: none !important;
       }
-      #shop-report-page .cr-card {
-        border: 0 !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        padding: 0 !important;
-      }
-      #shop-report-page .cr-print-header {
-        display: block !important;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 2px solid #000;
-      }
-      #shop-report-page .cr-table-wrap { max-height: none !important; overflow: visible !important; }
-      #shop-report-page .cr-table, #shop-report-page .cr-table th, #shop-report-page .cr-table td {
-        color: #000 !important;
-        background: #fff !important;
-      }
-      #shop-report-page .cr-table th, #shop-report-page .cr-table td {
-        border: 1px solid #ccc !important;
-        font-size: 10px !important;
-        padding: 4px 6px !important;
-      }
-      #shop-report-page .hidden { display: none !important; }
+      #shop-report-page .sr-print-header { display: block !important; }
+      #shop-report-page .sr-table-wrap { max-height: none !important; overflow: visible !important; }
     }
   </style>
-  <script src="{{ url_for('static', filename='js/company-report-whatsapp.js') }}?v=5" defer></script>
+  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=3" defer></script>
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set rd = report_data or {} %}
-  {% set rows = item_rows or [] %}
-  <div id="shop-report-page" class="mx-auto max-w-7xl space-y-6">
-    <div id="shop-report-print" class="space-y-6">
-      <div class="cr-print-header">
+  {% set sold_rows = items_sold_rows or [] %}
+  {% set period_label = report_period_label or 'Today' %}
+  {% set today_iso = report_today_iso or '' %}
+  <div id="shop-report-page" class="mx-auto max-w-5xl space-y-5">
+    <div id="shop-report-print" class="space-y-5">
+      <div class="sr-print-header mb-4 border-b border-black pb-3">
         <h1 class="text-xl font-bold text-black">{{ shop.shop_name }}</h1>
-        <p class="mt-1 text-sm font-semibold text-black">Shop report</p>
-        <p class="text-sm text-black">Period: {{ f.range_label or 'Today' }}{% if (analytics_scope or 'general') == 'actual' %} · Confirmed receipts only{% endif %}</p>
+        <p class="text-sm text-black">Shop report · {{ period_label }}</p>
         <p class="mt-2 text-xs text-black">
           Revenue {{ "%.2f"|format(rd.total_revenue or 0) }}
-          (Sales {{ "%.2f"|format(rd.sale_revenue or 0) }} · Credit {{ "%.2f"|format(rd.credit_revenue or 0) }}
-          · Cash {{ "%.2f"|format(rd.cash_revenue or 0) }} · M-Pesa {{ "%.2f"|format(rd.mpesa_revenue or 0) }})
-          · Expenditure {{ "%.2f"|format(rd.total_expenditure or 0) }}
           · Net {{ "%.2f"|format(rd.net_profit or 0) }}
+          · Closing cash {{ "%.2f"|format((rd.till_summary or {}).closing_cash or 0) }}
+          · Closing M-Pesa {{ "%.2f"|format((rd.till_summary or {}).closing_mpesa or 0) }}
         </p>
-        {% if report_generated_at %}<p class="text-xs text-gray-700">Printed {{ report_generated_at }}</p>{% endif %}
       </div>
 
-      <div class="cr-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <div class="sr-card no-print rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
         <div class="flex flex-wrap items-start justify-between gap-4">
-          <div class="min-w-0 flex-1">
-            <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600/90 dark:text-brand-400/90">Shop · Report</p>
-            <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Shop reports</h2>
-            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-              Revenue from this shop’s POS sales, expenditure from manual stock purchases, and per-item stock movement for <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</strong>.
-              Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Daily report</p>
+            <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ shop.shop_name }}</h2>
+            <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+              <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ period_label }}</span>
+              {% if report_generated_at %} · updated {{ report_generated_at }}{% endif %}
             </p>
           </div>
-          <div class="cr-actions no-print shrink-0">
-            <div class="cr-wa-phone">
-              <label for="shop-report-wa-phone" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">WhatsApp to (optional)</label>
-              <input id="shop-report-wa-phone" type="tel" inputmode="tel" autocomplete="tel" data-shop-report-wa-phone placeholder="e.g. 0712345678" class="w-full min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-            </div>
-            <button type="button" data-shop-report-whatsapp-share class="cr-btn-whatsapp" aria-label="Share shop report on WhatsApp">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              Share on WhatsApp
-            </button>
-            <button type="button" data-shop-report-print class="btn-rc btn-rc-primary min-h-[2.55rem] px-4 py-2 text-sm font-semibold">Print report</button>
+          <div class="flex flex-wrap items-center gap-2">
+            {% if today_iso and f.single_day != today_iso %}
+              <a href="{{ url_for('shop_report', shop_id=shop.id, mode='single_day', single_day=today_iso) }}" class="btn-rc btn-rc-secondary min-h-[2.45rem] px-3 py-2 text-sm font-semibold">Today</a>
+            {% endif %}
+            <button type="button" data-shop-report-print class="btn-rc btn-rc-primary min-h-[2.45rem] px-4 py-2 text-sm font-semibold">Print</button>
           </div>
         </div>
 
-        <div class="mt-5 grid gap-3 sm:grid-cols-3">
-          <div class="cr-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total revenue</div>
-            <div class="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{{ "%.2f"|format(rd.total_revenue or 0) }}</div>
+        <form id="shop-report-filter-form" method="get" action="{{ url_for('shop_report', shop_id=shop.id) }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
+          <input type="hidden" name="mode" id="sr-filter-mode" value="{{ f.mode or 'single_day' }}" />
+          <div id="sr-filter-single-day" class="{% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
+            <label for="sr-filter-day" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date</label>
+            <input id="sr-filter-day" type="date" name="single_day" value="{{ f.single_day or today_iso }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
           </div>
-          <div class="cr-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total expenditure</div>
-            <div class="mt-1 text-2xl font-extrabold tabular-nums text-amber-600 dark:text-amber-400">{{ "%.2f"|format(rd.total_expenditure or 0) }}</div>
-            <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Manual stock purchases at this shop</div>
+          <div id="sr-filter-period-start" class="{% if (f.mode or '') != 'period' %}hidden{% endif %}">
+            <label for="sr-filter-start" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">From</label>
+            <input id="sr-filter-start" type="date" name="start_date" value="{{ f.start_date or today_iso }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
           </div>
-          <div class="cr-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-            <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Net profit</div>
-            <div class="mt-1 text-2xl font-extrabold tabular-nums {% if (rd.net_profit or 0) >= 0 %}text-[rgb(var(--rc-page-fg))]{% else %}text-rose-500{% endif %}">{{ "%.2f"|format(rd.net_profit or 0) }}</div>
-            <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Revenue minus expenditure</div>
+          <div id="sr-filter-period-end" class="{% if (f.mode or '') != 'period' %}hidden{% endif %}">
+            <label for="sr-filter-end" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">To</label>
+            <input id="sr-filter-end" type="date" name="end_date" value="{{ f.end_date or today_iso }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
           </div>
-        </div>
-
-        <div class="mt-4 grid gap-3 sm:grid-cols-2">
-          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4">
-            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Revenue by sale type</p>
-            <div class="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash sales</div>
-                <div class="mt-1 text-xl font-extrabold tabular-nums">{{ "%.2f"|format(rd.sale_revenue or 0) }}</div>
-              </div>
-              <div>
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Credit sales</div>
-                <div class="mt-1 text-xl font-extrabold tabular-nums text-sky-600 dark:text-sky-400">{{ "%.2f"|format(rd.credit_revenue or 0) }}</div>
-              </div>
-            </div>
+          <div id="sr-filter-month" class="{% if (f.mode or '') != 'month' %}hidden{% endif %}">
+            <label for="sr-filter-month-input" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="sr-filter-month-input" type="month" name="month" value="{{ f.month or '' }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
           </div>
-          <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4">
-            <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Revenue by payment</p>
-            <div class="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash</div>
-                <div class="mt-1 text-xl font-extrabold tabular-nums">{{ "%.2f"|format(rd.cash_revenue or 0) }}</div>
-              </div>
-              <div>
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">M-Pesa</div>
-                <div class="mt-1 text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{{ "%.2f"|format(rd.mpesa_revenue or 0) }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="cr-card no-print rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
-        <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Period filters</h3>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Filters apply automatically when you change a value.</p>
-        <form id="shop-report-filter-form" method="get" action="{{ url_for('shop_report', shop_id=shop.id) }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-          <div>
-            <label for="sr-filter-mode" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period type</label>
-            <select id="sr-filter-mode" name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
-              <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-              <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
-              <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-              <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-            </select>
-          </div>
-          <div id="sr-filter-single-day" {% if (f.mode or 'single_day') != 'single_day' %}class="hidden"{% endif %}>
-            <label for="sr-filter-day" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Date</label>
-            <input id="sr-filter-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-          </div>
-          <div id="sr-filter-period-start" {% if (f.mode or '') != 'period' %}class="hidden"{% endif %}>
-            <label for="sr-filter-start" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">From</label>
-            <input id="sr-filter-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-          </div>
-          <div id="sr-filter-period-end" {% if (f.mode or '') != 'period' %}class="hidden"{% endif %}>
-            <label for="sr-filter-end" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">To</label>
-            <input id="sr-filter-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-          </div>
-          <div id="sr-filter-month" {% if (f.mode or '') != 'month' %}class="hidden"{% endif %}>
-            <label for="sr-filter-month-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Month</label>
-            <input id="sr-filter-month-input" type="month" name="month" value="{{ f.month or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
-          </div>
-          <div id="sr-filter-year" {% if (f.mode or '') != 'year' %}class="hidden"{% endif %}>
-            <label for="sr-filter-year-input" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Year</label>
-            <input id="sr-filter-year-input" type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="min-h-[2.55rem] w-28 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+          <div id="sr-filter-year" class="{% if (f.mode or '') != 'year' %}hidden{% endif %}">
+            <label for="sr-filter-year-input" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="sr-filter-year-input" type="number" name="year" min="2000" max="2100" value="{{ f.year or '' }}" class="min-h-[2.45rem] w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
           </div>
           <div>
-            <label for="sr-filter-scope" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipt scope</label>
-            <select id="sr-filter-scope" name="analytics_scope" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
-              <option value="general" {% if (analytics_scope or 'general') != 'actual' %}selected{% endif %}>General — all marks</option>
-              <option value="actual" {% if (analytics_scope or 'general') == 'actual' %}selected{% endif %}>Actual — confirmed only</option>
+            <label for="sr-filter-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Receipts</label>
+            <select id="sr-filter-scope" name="analytics_scope" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+              <option value="general" {% if (analytics_scope or 'general') != 'actual' %}selected{% endif %}>All marks</option>
+              <option value="actual" {% if (analytics_scope or 'general') == 'actual' %}selected{% endif %}>Confirmed only</option>
             </select>
           </div>
+          <details class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2">
+            <summary class="cursor-pointer text-xs font-semibold text-[rgb(var(--rc-muted))]">Other period</summary>
+            <div class="mt-2 flex flex-wrap gap-2 pb-1">
+              <button type="button" data-sr-set-mode="single_day" class="rounded-md border border-[rgb(var(--rc-border))] px-2.5 py-1 text-xs font-semibold">Day</button>
+              <button type="button" data-sr-set-mode="period" class="rounded-md border border-[rgb(var(--rc-border))] px-2.5 py-1 text-xs font-semibold">Range</button>
+              <button type="button" data-sr-set-mode="month" class="rounded-md border border-[rgb(var(--rc-border))] px-2.5 py-1 text-xs font-semibold">Month</button>
+              <button type="button" data-sr-set-mode="year" class="rounded-md border border-[rgb(var(--rc-border))] px-2.5 py-1 text-xs font-semibold">Year</button>
+            </div>
+          </details>
         </form>
       </div>
 
-      <div class="cr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-        <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
+      {% include "partials/shop_report_daily_summary.html" %}
+
+      <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+        <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Items in period</h3>
-              <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Stock figures are for this shop only. Stock sold and revenue come from POS lines.</p>
+              <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Expenditure</h3>
+              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Manual stock purchases at this shop</p>
+              <p class="mt-1 text-base font-extrabold tabular-nums text-amber-600 dark:text-amber-400">
+                Total <span data-report-live="total_expenditure">{{ "%.2f"|format(rd.total_expenditure or 0) }}</span>
+              </p>
             </div>
-            <input id="shop-report-search" type="search" autocomplete="off" placeholder="Search item or category…" class="no-print min-w-[12rem] flex-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-xs" />
+            <input id="report-expenditure-search" type="search" autocomplete="off" placeholder="Search expenditure…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
           </div>
         </div>
-        {% if rows %}
-        <div class="cr-table-wrap overflow-x-auto">
-          <table id="shop-report-table" class="cr-table min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+        <div class="sr-table-wrap overflow-x-auto">
+          <table id="report-expenditure-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
-                <th class="sticky left-0 z-20 bg-[rgb(var(--rc-surface-2))] px-4 py-3">Item</th>
-                <th class="px-4 py-3 text-right">Starting stock</th>
-                <th class="px-4 py-3 text-right">Ending stock</th>
-                <th class="px-4 py-3 text-right">Stock in</th>
-                <th class="px-4 py-3 text-right">Stock out</th>
-                <th class="px-4 py-3 text-right">Stock sold</th>
-                <th class="px-4 py-3 text-right">Revenue</th>
+                <th class="px-4 py-3">When</th>
+                <th class="px-4 py-3">Item</th>
+                <th class="px-4 py-3">Supplier</th>
+                <th class="px-4 py-3 text-right">Qty</th>
+                <th class="px-4 py-3 text-right">Unit cost</th>
+                <th class="px-4 py-3 text-right">Total</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-              {% for row in rows %}
-              <tr class="cr-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or ''))|lower }}">
-                <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-4 py-3">
-                  <div class="font-medium">{{ row.name }}</div>
-                  {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
-                </td>
-                <td class="px-4 py-3 text-right tabular-nums">{{ row.starting_stock or 0 }}</td>
-                <td class="px-4 py-3 text-right tabular-nums">{{ row.ending_stock or 0 }}</td>
-                <td class="px-4 py-3 text-right tabular-nums text-emerald-600">{{ row.stock_in or 0 }}</td>
-                <td class="px-4 py-3 text-right tabular-nums text-rose-500">{{ row.stock_out or 0 }}</td>
-                <td class="px-4 py-3 text-right tabular-nums">{{ row.stock_sold or 0 }}</td>
-                <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ "%.2f"|format(row.revenue or 0) }}</td>
-              </tr>
+            <tbody id="report-expenditure-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% set exp_rows = expenditure_rows or [] %}
+              {% for row in exp_rows %}
+                <tr class="exp-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or '') ~ ' ' ~ (row.supplier or ''))|lower }}">
+                  <td class="whitespace-nowrap px-4 py-3 text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ row.created_at or '—' }}</td>
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
+                    {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
+                  </td>
+                  <td class="px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">{{ row.supplier or '—' }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.qty }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.buying_price or 0) }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums text-amber-700 dark:text-amber-300">{{ "%.2f"|format(row.total_cost or 0) }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No stock purchases recorded for this period.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        {% else %}
-        <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No item activity found for this period.</p>
-        {% endif %}
+      </div>
+
+      <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+        <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Items sold</h3>
+              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Products with sales in this period</p>
+            </div>
+            <input id="report-items-sold-search" type="search" autocomplete="off" placeholder="Search…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
+          </div>
+        </div>
+        <div class="sr-table-wrap overflow-x-auto">
+          <table id="report-items-sold-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-4 py-3">Item</th>
+                <th class="px-4 py-3 text-right">Qty</th>
+                <th class="px-4 py-3 text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody id="report-items-sold-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in sold_rows %}
+                <tr class="cr-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or ''))|lower }}">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
+                    {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
+                  </td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.stock_sold or 0 }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ "%.2f"|format(row.revenue or 0) }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="3" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No items sold for this period yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 
-  <script type="application/json" id="shop-report-whatsapp-data">
-    {
-      "reportTitle": "SHOP REPORT",
-      "pdfUrl": {{ (url_for('shop_report_pdf', shop_id=shop.id) + (('?' + request.query_string.decode()) if request.query_string else ''))|tojson }},
-      "shopName": {{ shop.shop_name|tojson }},
-      "periodLabel": {{ (f.range_label or 'Today')|tojson }},
-      "scopeLabel": {{ ('Confirmed receipts only' if (analytics_scope or 'general') == 'actual' else 'All receipt marks')|tojson }},
-      "totalRevenue": {{ (rd.total_revenue or 0)|float }},
-      "saleRevenue": {{ (rd.sale_revenue or 0)|float }},
-      "creditRevenue": {{ (rd.credit_revenue or 0)|float }},
-      "cashRevenue": {{ (rd.cash_revenue or 0)|float }},
-      "mpesaRevenue": {{ (rd.mpesa_revenue or 0)|float }},
-      "totalExpenditure": {{ (rd.total_expenditure or 0)|float }},
-      "netProfit": {{ (rd.net_profit or 0)|float }},
-      "shareUrl": {{ (report_share_url or '')|tojson }},
-      "generatedAt": {{ (report_generated_at or '')|tojson }},
-      "items": [
-        {% for row in rows[:25] %}
-        {
-          "name": {{ (row.name or '')|tojson }},
-          "startingStock": {{ row.starting_stock or 0 }},
-          "endingStock": {{ row.ending_stock or 0 }},
-          "stockIn": {{ row.stock_in or 0 }},
-          "stockOut": {{ row.stock_out or 0 }},
-          "stockSold": {{ row.stock_sold or 0 }},
-          "revenue": {{ (row.revenue or 0)|float }}
-        }{% if not loop.last %},{% endif %}
-        {% endfor %}
-      ]
-    }
-  </script>
+  {% if report_is_single_day|default(false) %}
+    {% include "partials/shop_day_opening_modal.html" %}
+    {% include "partials/shop_day_closing_reminder_modal.html" %}
+    <script defer src="{{ url_for('static', filename='js/shop-day-opening-modal.js') }}?v=5"></script>
+    <script defer src="{{ url_for('static', filename='js/shop-day-closing-reminder.js') }}?v=3"></script>
+    <style>
+      body.pos-day-opening-modal-open { overflow: hidden; }
+    </style>
+  {% endif %}
+
   <script>
     (function () {
       var form = document.getElementById("shop-report-filter-form");
-      var mode = document.getElementById("sr-filter-mode");
+      var modeInput = document.getElementById("sr-filter-mode");
       var day = document.getElementById("sr-filter-single-day");
       var periodStart = document.getElementById("sr-filter-period-start");
       var periodEnd = document.getElementById("sr-filter-period-end");
       var month = document.getElementById("sr-filter-month");
       var year = document.getElementById("sr-filter-year");
-      var search = document.getElementById("shop-report-search");
-      var rows = document.querySelectorAll("#shop-report-table .cr-row");
 
       function syncModePanels() {
-        if (!mode) return;
-        var m = mode.value || "single_day";
+        var m = (modeInput && modeInput.value) || "single_day";
         if (day) day.classList.toggle("hidden", m !== "single_day");
         if (periodStart) periodStart.classList.toggle("hidden", m !== "period");
         if (periodEnd) periodEnd.classList.toggle("hidden", m !== "period");
@@ -331,34 +239,122 @@
 
       function submitForm() {
         if (!form) return;
-        if (window.itSupportAnalyticsFilter && typeof window.itSupportAnalyticsFilter.save === "function") {
-          window.itSupportAnalyticsFilter.save(new FormData(form));
-        }
         if (typeof form.requestSubmit === "function") form.requestSubmit();
         else form.submit();
       }
 
-      if (mode) {
-        mode.addEventListener("change", function () { syncModePanels(); submitForm(); });
-        syncModePanels();
-      }
+      if (modeInput) syncModePanels();
+
+      document.querySelectorAll("[data-sr-set-mode]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          if (!modeInput) return;
+          modeInput.value = btn.getAttribute("data-sr-set-mode") || "single_day";
+          syncModePanels();
+          submitForm();
+        });
+      });
+
       if (form) {
         form.querySelectorAll("input, select").forEach(function (el) {
-          if (el === mode) return;
           el.addEventListener("change", submitForm);
         });
       }
-      if (search && rows.length) {
-        search.addEventListener("input", function () {
-          var q = (search.value || "").trim().toLowerCase();
-          rows.forEach(function (tr) {
+
+      var soldSearch = document.getElementById("report-items-sold-search");
+      var soldTable = document.getElementById("report-items-sold-table");
+      if (soldSearch && soldTable) {
+        soldSearch.addEventListener("input", function () {
+          var q = (soldSearch.value || "").trim().toLowerCase();
+          soldTable.querySelectorAll(".cr-row").forEach(function (tr) {
             var hay = tr.getAttribute("data-search") || "";
             tr.classList.toggle("hidden", q.length > 0 && hay.indexOf(q) === -1);
           });
         });
       }
+
+      var expSearch = document.getElementById("report-expenditure-search");
+      var expTable = document.getElementById("report-expenditure-table");
+      if (expSearch && expTable) {
+        expSearch.addEventListener("input", function () {
+          var q = (expSearch.value || "").trim().toLowerCase();
+          expTable.querySelectorAll(".exp-row").forEach(function (tr) {
+            var hay = tr.getAttribute("data-search") || "";
+            tr.classList.toggle("hidden", q.length > 0 && hay.indexOf(q) === -1);
+          });
+        });
+      }
+
+      var printBtn = document.querySelector("[data-shop-report-print]");
+      if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
+
+      if (typeof window.initPeriodReportLive === "function") {
+        window.initPeriodReportLive({
+          jsonUrl: {{ (report_json_url or '')|tojson }},
+          liveEnabled: {{ (report_live_enabled or false)|tojson }},
+          pollMs: 45000,
+        });
+      }
+
       {% if report_should_print %}
       window.addEventListener("load", function () { window.print(); });
+      {% endif %}
+
+      function openReportOpeningModal() {
+        if (window.__shopDayOpeningModal && typeof window.__shopDayOpeningModal.showOpening === "function") {
+          window.__shopDayOpeningModal.showOpening();
+        } else if (window.__shopDayOpeningModal && typeof window.__shopDayOpeningModal.show === "function") {
+          window.__shopDayOpeningModal.show({ force: true, step: "opening" });
+        }
+      }
+
+      function openReportClosingModal() {
+        var hasOpening = {{ (shop_day_opening_boot.get('completed') if shop_day_opening_boot else false)|tojson }};
+        if (!hasOpening) {
+          window.alert("Set today's opening balances first, then you can close the shop.");
+          return;
+        }
+        if (window.__shopDayClosingReminder && typeof window.__shopDayClosingReminder.show === "function") {
+          window.__shopDayClosingReminder.show();
+          return;
+        }
+        window.alert("Closing balances cannot be opened right now. Refresh the page and try again.");
+      }
+
+      {% if report_is_single_day|default(false) %}
+      document.addEventListener("DOMContentLoaded", function () {
+        if (typeof window.initShopDayOpeningModal === "function") {
+          window.__shopDayOpeningModal = window.initShopDayOpeningModal({
+            boot: {{ shop_day_opening_boot|tojson }},
+            submitApi: {{ (shop_day_opening_api or '')|tojson }},
+            closingApi: {{ (shop_day_closing_api or '')|tojson }},
+            autoInit: false,
+            onComplete: function () {
+              window.location.reload();
+            },
+          });
+        }
+        if (typeof window.initShopDayClosingReminder === "function") {
+          window.__shopDayClosingReminder = window.initShopDayClosingReminder({
+            boot: {{ shop_day_closing_reminder_boot|tojson }},
+            closingApi: {{ (shop_day_closing_api or '')|tojson }},
+            shopId: {{ shop.id|int }},
+            autoInit: false,
+            onSubmitted: function () {
+              window.location.reload();
+            },
+          });
+        }
+        var openOpeningBtn = document.getElementById("shop-report-submit-opening-btn");
+        if (openOpeningBtn) openOpeningBtn.addEventListener("click", openReportOpeningModal);
+        document.querySelectorAll("[data-shop-report-open-opening]").forEach(function (el) {
+          el.addEventListener("click", openReportOpeningModal);
+        });
+        var openClosingBtn = document.getElementById("shop-report-submit-closing-btn");
+        if (openClosingBtn) openClosingBtn.addEventListener("click", openReportClosingModal);
+        document.querySelectorAll("[data-shop-report-open-closing]").forEach(function (el) {
+          el.addEventListener("click", openReportClosingModal);
+        });
+      });
       {% endif %}
     })();
   </script>

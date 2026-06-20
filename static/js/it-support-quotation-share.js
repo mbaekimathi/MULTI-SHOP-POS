@@ -20,11 +20,13 @@
   var previewEl = root.querySelector("[data-qs-preview-list]");
   var phoneEl = root.querySelector("[data-qs-phone]");
   var sendWaBtn = root.querySelector("[data-qs-send-wa]");
+  var generateBtn = root.querySelector("[data-qs-generate-link]");
   var resultEl = root.querySelector("[data-qs-share-result]");
   var urlInput = root.querySelector("[data-qs-share-url]");
   var copyBtn = root.querySelector("[data-qs-copy]");
   var copiedEl = root.querySelector("[data-qs-copied]");
   var waHint = root.querySelector("[data-qs-wa-hint]");
+  var linkHint = root.querySelector("[data-qs-link-hint]");
   var openLink = root.querySelector("[data-qs-open-link]");
   var errorEl = root.querySelector("[data-qs-error]");
   var selectAllBtn = root.querySelector("[data-qs-select-all]");
@@ -69,24 +71,38 @@
     return (phoneEl && phoneEl.value || "").trim();
   }
 
+  function canGenerateLink() {
+    return selectedIds().length > 0 && !generating;
+  }
+
   function canSendWhatsApp() {
-    return selectedIds().length > 0 && isValidWaPhone(phoneValue()) && !generating;
+    return canGenerateLink() && isValidWaPhone(phoneValue());
   }
 
   function syncShareControls() {
     var ids = selectedIds();
     var phone = phoneValue();
     var validPhone = isValidWaPhone(phone);
+    if (generateBtn) generateBtn.disabled = !canGenerateLink();
     if (sendWaBtn) sendWaBtn.disabled = !canSendWhatsApp();
+    if (linkHint) {
+      if (!ids.length) {
+        linkHint.textContent = "Select catalog items to include in the quotation.";
+      } else if (lastShareUrl) {
+        linkHint.textContent = "Link ready — copy it or open the quotation page.";
+      } else {
+        linkHint.textContent = "Create a shareable link for your customer.";
+      }
+    }
     if (waHint) {
       if (!ids.length) {
         waHint.textContent = "Select catalog items to include in the quotation.";
       } else if (!phone) {
-        waHint.textContent = "Enter the client's WhatsApp number above.";
+        waHint.textContent = "Enter the client's WhatsApp number to send.";
       } else if (!validPhone) {
         waHint.textContent = "Enter a valid number (e.g. 0712345678).";
       } else {
-        waHint.textContent = "Ready — opens WhatsApp with the quotation message and link.";
+        waHint.textContent = "Opens WhatsApp with the quotation message and link.";
       }
     }
   }
@@ -108,17 +124,21 @@
     if (copiedEl) copiedEl.classList.add("hidden");
   }
 
-  function generateShareLink() {
+  function generateShareLink(requirePhone) {
     var ids = selectedIds();
     if (!ids.length || !apiUrl) {
       return Promise.reject(new Error("Select at least one item."));
     }
     var phone = phoneValue();
-    if (!isValidWaPhone(phone)) {
+    if (requirePhone && !isValidWaPhone(phone)) {
+      return Promise.reject(new Error("Enter a valid WhatsApp number (e.g. 0712345678)."));
+    }
+    if (phone && !isValidWaPhone(phone)) {
       return Promise.reject(new Error("Enter a valid WhatsApp number (e.g. 0712345678)."));
     }
     generating = true;
     syncShareControls();
+    if (generateBtn) generateBtn.textContent = "Preparing quotation…";
     if (sendWaBtn) sendWaBtn.textContent = "Preparing quotation…";
     if (errorEl) {
       errorEl.textContent = "";
@@ -143,6 +163,10 @@
       })
       .finally(function () {
         generating = false;
+        if (generateBtn) {
+          generateBtn.innerHTML =
+            '<svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" /></svg> Generate quotation link';
+        }
         if (sendWaBtn) {
           sendWaBtn.innerHTML =
             '<svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 00.918.918l4.458-1.495A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.714 9.714 0 01-4.915-1.332l-.352-.209-2.642.886.886-2.578-.23-.375A9.736 9.736 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg> Send quotation via WhatsApp';
@@ -309,10 +333,22 @@
     });
   }
 
+  if (generateBtn) {
+    generateBtn.addEventListener("click", function () {
+      if (!canGenerateLink()) return;
+      generateShareLink(false).catch(function (err) {
+        if (errorEl) {
+          errorEl.textContent = err.message || "Could not create share link.";
+          errorEl.classList.remove("hidden");
+        }
+      });
+    });
+  }
+
   if (sendWaBtn) {
     sendWaBtn.addEventListener("click", function () {
       if (!canSendWhatsApp()) return;
-      generateShareLink()
+      generateShareLink(true)
         .then(function (data) {
           var waUrl = buildWaUrl(phoneValue(), data.whatsapp_text || lastWaText);
           window.open(waUrl, "_blank", "noopener,noreferrer");

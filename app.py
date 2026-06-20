@@ -160,6 +160,11 @@ SHOP_SHELL_CAN_ROLES: dict[str, frozenset[str]] = {
     "settings": frozenset({"manager", "admin"}),
 }
 
+SHOP_DAY_OPENING_SUBMIT_ROLES = frozenset({"admin", "manager"})
+SHOP_DAY_CLOSING_SUBMIT_ROLES = frozenset(
+    {"admin", "manager", "super_admin", "it_support", "company_manager"}
+)
+
 
 def _session_shop_shell_role_key() -> str:
     """Effective branch UI role for shop-shell RBAC (preview-aware)."""
@@ -634,6 +639,34 @@ def _build_analytics_filter():
         "range_end_exclusive": range_end_exclusive,
         "range_label": range_label,
     }
+
+
+def _analytics_filter_is_today(analytics_filter: dict) -> bool:
+    """True when the filter is single-day and that day is today (live report refresh)."""
+    af = analytics_filter or {}
+    if (af.get("mode") or "single_day") != "single_day":
+        return False
+    return (af.get("single_day") or "").strip() == date.today().isoformat()
+
+
+def _shop_report_has_filter_params() -> bool:
+    keys = ("mode", "single_day", "start_date", "end_date", "month", "year", "analytics_scope")
+    return any((request.args.get(k) or "").strip() for k in keys)
+
+
+def _shop_report_period_label(analytics_filter: dict) -> str:
+    af = analytics_filter or {}
+    today = date.today()
+    mode = (af.get("mode") or "single_day").strip().lower()
+    if mode == "single_day":
+        sd = (af.get("single_day") or "").strip()
+        if sd == today.isoformat():
+            return "Today"
+        try:
+            return datetime.strptime(sd, "%Y-%m-%d").date().strftime("%d %b %Y")
+        except Exception:
+            return sd or "Today"
+    return (af.get("range_label") or "Selected period").strip()
 
 
 def _analytics_scope_from_request() -> str:
@@ -1264,7 +1297,9 @@ def _resolve_shop_logo_upload(*, existing: str | None = None) -> tuple[str | Non
 
 @app.route("/")
 def index():
-    """Public customer storefront at root."""
+    """Public customer storefront at root, or shop login when the website is turned off."""
+    if not _public_website_enabled():
+        return redirect(url_for("public_shop_login"))
     return _render_public_storefront()
 
 
@@ -1289,6 +1324,8 @@ def marketing_catalog_live():
     """Full catalog on the live website domain."""
     if not _is_public_website_host_request():
         return redirect(url_for("marketing_catalog"), code=302)
+    if not _public_website_enabled():
+        return redirect(url_for("public_shop_login"))
     return _render_public_storefront(catalog_mode=True)
 
 
@@ -2023,6 +2060,19 @@ _COMPANY_IDENTITY_KEYS = (
     "company_longitude",
 )
 
+COMPANY_OPENING_HOURS_JSON_KEY = "company_opening_hours_json"
+COMPANY_OPENING_HOURS_SHOP_KEY = "opening_hours"
+
+COMPANY_WEEKDAYS = (
+    ("monday", "Monday"),
+    ("tuesday", "Tuesday"),
+    ("wednesday", "Wednesday"),
+    ("thursday", "Thursday"),
+    ("friday", "Friday"),
+    ("saturday", "Saturday"),
+    ("sunday", "Sunday"),
+)
+
 
 def _google_maps_api_key() -> str:
     return (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
@@ -2059,6 +2109,665 @@ def _location_settings_from_form() -> dict:
         "company_location_name": (request.form.get("company_location_name") or "").strip(),
         "company_latitude": _parse_latitude_from_form(request.form.get("company_latitude") or ""),
         "company_longitude": _parse_longitude_from_form(request.form.get("company_longitude") or ""),
+    }
+
+
+def _default_company_opening_hours() -> dict:
+    return {
+        "open_24_hours": True,
+        "days": {day: {"open": "", "close": "", "closed": False} for day, _ in COMPANY_WEEKDAYS},
+    }
+
+
+def _parse_company_time_hhmm(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    parts = s.split(":", 1)
+    if len(parts) != 2:
+        return ""
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except (TypeError, ValueError):
+        return ""
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _parse_company_opening_hours_day_row(row) -> dict:
+    if not isinstance(row, dict):
+        return {"open": "", "close": "", "closed": False}
+    closed = row.get("closed") in (True, "true", "1", 1, "True")
+    open_t = _parse_company_time_hhmm(str(row.get("open") or ""))
+    close_t = _parse_company_time_hhmm(str(row.get("close") or ""))
+    if closed:
+        open_t, close_t = "", ""
+    return {"open": open_t, "close": close_t, "closed": closed}
+
+
+def _normalize_opening_hours_data(data) -> dict:
+    defaults = _default_company_opening_hours()
+    if not isinstance(data, dict):
+        return defaults
+
+    open_24 = defaults["open_24_hours"]
+    if "open_24_hours" in data:
+        open_24 = data.get("open_24_hours") in (True, "true", "1", 1, "True")
+
+    days_out = dict(defaults["days"])
+    day_source = data.get("days") if isinstance(data.get("days"), dict) else {}
+    if not day_source:
+        for day, _ in COMPANY_WEEKDAYS:
+            if day in data:
+                day_source[day] = data.get(day)
+    for day, _ in COMPANY_WEEKDAYS:
+        if day in day_source:
+            days_out[day] = _parse_company_opening_hours_day_row(day_source.get(day))
+
+    result = {"open_24_hours": open_24, "days": days_out}
+    if _opening_hours_has_scheduled_days(result):
+        result["open_24_hours"] = False
+    return result
+
+
+def _load_company_opening_hours() -> dict:
+    try:
+        from database import get_site_settings
+
+        raw = get_site_settings([COMPANY_OPENING_HOURS_JSON_KEY]).get(COMPANY_OPENING_HOURS_JSON_KEY) or "{}"
+    except Exception:
+        raw = "{}"
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    return _normalize_opening_hours_data(data)
+
+
+def _opening_hours_has_scheduled_days(hours: dict) -> bool:
+    days = hours.get("days") if isinstance(hours.get("days"), dict) else {}
+    for day, _ in COMPANY_WEEKDAYS:
+        row = _parse_company_opening_hours_day_row(days.get(day))
+        if row.get("open") and row.get("close"):
+            return True
+    return False
+
+
+def _effective_open_24_hours_flag(hours: dict) -> bool:
+    """True only when explicitly 24/7 and no per-day open/close windows are configured."""
+    return bool(hours.get("open_24_hours")) and not _opening_hours_has_scheduled_days(hours)
+
+
+def _opening_hours_from_form(existing: dict | None = None) -> dict:
+    existing = existing if isinstance(existing, dict) else {}
+    fallback_days = existing.get("days") if isinstance(existing.get("days"), dict) else None
+    days = _company_opening_hours_days_from_form(fallback_days)
+    has_schedule = _opening_hours_has_scheduled_days({"days": days})
+
+    open_24_raw = request.form.get("hours_open_24_hours")
+    if has_schedule:
+        open_24 = False
+    elif open_24_raw is None:
+        open_24 = bool(existing.get("open_24_hours", True))
+    else:
+        open_24 = open_24_raw.strip() == "1"
+
+    if open_24:
+        seed_days = existing.get("days") if isinstance(existing.get("days"), dict) else None
+        if not isinstance(seed_days, dict) or not seed_days:
+            seed_days = _default_company_opening_hours()["days"]
+        return {"open_24_hours": True, "days": seed_days}
+    return {"open_24_hours": False, "days": days}
+
+
+def _company_opening_hours_from_form() -> dict:
+    return _opening_hours_from_form(_load_company_opening_hours())
+
+
+def _load_shop_opening_hours_override(shop: dict) -> dict | None:
+    data = _parse_shop_settings_json(shop.get("company_settings_json"))
+    if not isinstance(data, dict):
+        return None
+    blob = data.get(COMPANY_OPENING_HOURS_SHOP_KEY)
+    if blob is None:
+        return None
+    if isinstance(blob, str):
+        try:
+            blob = json.loads(blob)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return _normalize_opening_hours_data(blob)
+
+
+def _shop_has_opening_hours_override(shop: dict) -> bool:
+    return _load_shop_opening_hours_override(shop) is not None
+
+
+def _effective_opening_hours_for_shop(shop: dict) -> dict:
+    override = _load_shop_opening_hours_override(shop)
+    if override is not None:
+        return override
+    return _load_company_opening_hours()
+
+
+def _shop_opening_hours_for_form(shop: dict) -> dict:
+    override = _load_shop_opening_hours_override(shop)
+    if override is not None:
+        return override
+    return _load_company_opening_hours()
+
+
+def _shop_company_settings_payload_from_form(shop: dict) -> dict | None:
+    use_custom = (request.form.get("shop_company_custom") or "").strip() == "1"
+    use_hours_custom = (request.form.get("shop_opening_hours_custom") or "").strip() == "1"
+    if not use_custom and not use_hours_custom:
+        return None
+
+    payload: dict = {}
+    if use_custom:
+        payload.update(
+            {
+                "company_name": (request.form.get("company_name") or "").strip() or "Point of Sale",
+                "company_email": (request.form.get("company_email") or "").strip(),
+                "company_phone": (request.form.get("company_phone") or "").strip(),
+                "company_facebook": (request.form.get("company_facebook") or "").strip(),
+                "company_instagram": (request.form.get("company_instagram") or "").strip(),
+                "company_twitter": (request.form.get("company_twitter") or "").strip(),
+                "company_tiktok": (request.form.get("company_tiktok") or "").strip(),
+                **_location_settings_from_form(),
+            }
+        )
+    if use_hours_custom:
+        seed = _load_shop_opening_hours_override(shop) or _load_company_opening_hours()
+        payload[COMPANY_OPENING_HOURS_SHOP_KEY] = _opening_hours_from_form(seed)
+    return payload
+
+
+def _company_opening_hours_days_from_form(fallback: dict | None = None) -> dict:
+    days = {}
+    fallback = fallback if isinstance(fallback, dict) else {}
+    for day, _ in COMPANY_WEEKDAYS:
+        open_key = f"hours_{day}_open"
+        close_key = f"hours_{day}_close"
+        closed_key = f"hours_{day}_closed"
+        if (
+            open_key not in request.form
+            and close_key not in request.form
+            and closed_key not in request.form
+        ):
+            days[day] = _parse_company_opening_hours_day_row(fallback.get(day))
+            continue
+        closed = (request.form.get(closed_key) or "").strip() == "1"
+        open_t = _parse_company_time_hhmm(request.form.get(open_key) or "")
+        close_t = _parse_company_time_hhmm(request.form.get(close_key) or "")
+        if closed:
+            open_t, close_t = "", ""
+        days[day] = {"open": open_t, "close": close_t, "closed": closed}
+    return days
+
+
+def _time_hhmm_to_minutes(raw: str) -> int | None:
+    parsed = _parse_company_time_hhmm(raw)
+    if not parsed:
+        return None
+    hour, minute = parsed.split(":", 1)
+    return int(hour) * 60 + int(minute)
+
+
+def _shop_opening_hours_status(shop: dict, at: datetime | None = None) -> dict:
+    now = at or datetime.now()
+    hours = _effective_opening_hours_for_shop(shop)
+    source = "shop" if _shop_has_opening_hours_override(shop) else "company"
+    day_key, day_label = COMPANY_WEEKDAYS[now.weekday()]
+    base = {
+        "source": source,
+        "open_24_hours": _effective_open_24_hours_flag(hours),
+        "today_label": day_label,
+        "today_key": day_key,
+        "checked_at": now.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+
+    if _effective_open_24_hours_flag(hours):
+        return {
+            **base,
+            "is_open_now": True,
+            "status": "open_24",
+            "message": "Open 24 hours",
+            "today_hours": None,
+        }
+
+    day_row = (hours.get("days") or {}).get(day_key) or {}
+    today_hours = _parse_company_opening_hours_day_row(day_row)
+    if today_hours.get("closed"):
+        return {
+            **base,
+            "open_24_hours": False,
+            "is_open_now": False,
+            "status": "closed_today",
+            "message": f"Closed today ({day_label})",
+            "today_hours": today_hours,
+        }
+
+    open_t = today_hours.get("open") or ""
+    close_t = today_hours.get("close") or ""
+    if not open_t or not close_t:
+        return {
+            **base,
+            "open_24_hours": False,
+            "is_open_now": False,
+            "status": "hours_not_set",
+            "message": f"Closed today — no opening hours set for {day_label}",
+            "today_hours": today_hours,
+        }
+
+    open_m = _time_hhmm_to_minutes(open_t)
+    close_m = _time_hhmm_to_minutes(close_t)
+    now_m = now.hour * 60 + now.minute
+    if open_m is None or close_m is None:
+        return {
+            **base,
+            "open_24_hours": False,
+            "is_open_now": False,
+            "status": "invalid_hours",
+            "message": "Closed — opening hours are not configured correctly",
+            "today_hours": today_hours,
+        }
+
+    if open_m == close_m:
+        return {
+            **base,
+            "open_24_hours": False,
+            "is_open_now": False,
+            "status": "closed_today",
+            "message": f"Closed today ({day_label})",
+            "today_hours": today_hours,
+        }
+
+    if open_m < close_m:
+        is_open = open_m <= now_m < close_m
+        if is_open:
+            message = f"Open until {close_t}"
+            status = "open"
+        elif now_m < open_m:
+            message = f"Closed — opens at {open_t}"
+            status = "before_open"
+        else:
+            message = f"Closed — today's hours were {open_t}–{close_t}"
+            status = "after_close"
+    else:
+        is_open = now_m >= open_m or now_m < close_m
+        if is_open:
+            message = f"Open until {close_t}"
+            status = "open_overnight"
+        else:
+            message = f"Closed — opens at {open_t}"
+            status = "before_open_overnight"
+
+    return {
+        **base,
+        "open_24_hours": False,
+        "is_open_now": is_open,
+        "status": status,
+        "message": message,
+        "today_hours": today_hours,
+    }
+
+
+def _shop_pos_sales_allowed(shop: dict) -> tuple[bool, str]:
+    status = _shop_opening_hours_status(shop)
+    if not status.get("is_open_now"):
+        return False, str(status.get("message") or "Shop is closed. Sales are not allowed right now.")
+    from database import get_pending_shop_day_closing, get_shop_day_opening
+
+    shop_id = int(shop.get("id") or 0)
+    if shop_id > 0:
+        pending = get_pending_shop_day_closing(shop_id)
+        if pending:
+            label = pending.get("label") or pending.get("business_date") or "a previous day"
+            return (
+                False,
+                f"Closing balances for {label} must be submitted before sales can start.",
+            )
+        today_opening = get_shop_day_opening(shop_id, date.today())
+        if not today_opening:
+            return (
+                False,
+                "Opening cash and M-Pesa balances must be set by a shop admin or manager before sales can start.",
+            )
+        if today_opening.get("closing_submitted_at"):
+            return (
+                False,
+                "Shop closed for today. Closing balances were submitted — sales resume after the next opening.",
+            )
+    return True, ""
+
+
+def _shop_session_can_submit_day_opening() -> bool:
+    er = str(session.get("employee_role") or "").strip().lower()
+    if er in COMPANY_PORTAL_ROLES:
+        return True
+    return _session_shop_shell_role_key() in SHOP_DAY_OPENING_SUBMIT_ROLES
+
+
+def _shop_session_can_submit_day_closing() -> bool:
+    er = str(session.get("employee_role") or "").strip().lower()
+    if er in COMPANY_PORTAL_ROLES:
+        return True
+    return _session_shop_shell_role_key() in SHOP_DAY_CLOSING_SUBMIT_ROLES
+
+
+def _shop_day_opening_requires_stock_confirmation(shop: dict) -> bool:
+    """Stock confirmation in the opening popup applies when POS uses shop shelf stock."""
+    return _pos_inventory_mode(shop) in ("shop", "both")
+
+
+def _shop_closing_reminder_window(shop: dict, at: datetime | None = None) -> dict:
+    """True when current time is within one hour before today's configured closing time."""
+    now = at or datetime.now()
+    hours = _effective_opening_hours_for_shop(shop)
+    if _effective_open_24_hours_flag(hours):
+        return {"active": False, "close_time": "", "minutes_until_close": None}
+
+    status = _shop_opening_hours_status(shop, at=now)
+    today_hours = status.get("today_hours") or {}
+    if today_hours.get("closed"):
+        return {"active": False, "close_time": "", "minutes_until_close": None}
+
+    close_t = (today_hours.get("close") or "").strip()
+    open_t = (today_hours.get("open") or "").strip()
+    close_m = _time_hhmm_to_minutes(close_t)
+    open_m = _time_hhmm_to_minutes(open_t)
+    if close_m is None or open_m is None or not close_t:
+        return {"active": False, "close_time": close_t, "minutes_until_close": None}
+
+    now_m = now.hour * 60 + now.minute
+    minutes_until: int | None
+
+    if open_m < close_m:
+        minutes_until = close_m - now_m
+        active = now_m >= (close_m - 60)
+    elif status.get("is_open_now"):
+        if now_m >= open_m:
+            minutes_until = (24 * 60 - now_m) + close_m
+        else:
+            minutes_until = close_m - now_m
+        active = minutes_until is not None and minutes_until <= 60
+    else:
+        minutes_until = None
+        active = False
+
+    return {
+        "active": active,
+        "close_time": close_t,
+        "open_time": open_t,
+        "minutes_until_close": minutes_until if minutes_until is not None else None,
+    }
+
+
+def _shop_day_closing_payload(shop: dict, business_date) -> dict | None:
+    from database import get_shop_day_closing_context
+
+    shop_id = int(shop.get("id") or 0)
+    if shop_id <= 0:
+        return None
+    ctx = get_shop_day_closing_context(shop_id, business_date)
+    if not ctx:
+        return None
+    return ctx
+
+
+def _shop_day_closing_reminder_payload(shop: dict) -> dict:
+    """End-of-day closing for today (admin/manager). Manual open only — no auto popup."""
+    shop_id = int(shop.get("id") or 0)
+    biz = date.today()
+    can_submit = _shop_session_can_submit_day_closing()
+    ctx = _shop_day_closing_payload(shop, biz)
+    window = _shop_closing_reminder_window(shop)
+    pending = ctx if ctx and not ctx.get("submitted") else None
+    can_close_today = bool(can_submit and pending)
+    return {
+        "business_date": biz.isoformat(),
+        "can_submit": can_submit,
+        "can_close_today": can_close_today,
+        "requires_employee_code": True,
+        "pending": pending,
+        "auto_show": False,
+        "close_time": window.get("close_time") or "",
+        "minutes_until_close": window.get("minutes_until_close"),
+    }
+
+
+def _shop_day_opening_boot_payload(shop: dict) -> dict:
+    from database import get_pending_shop_day_closing, get_shop_day_opening
+
+    shop_id = int(shop.get("id") or 0)
+    biz = date.today()
+    record = get_shop_day_opening(shop_id, biz) if shop_id > 0 else None
+    pending_closing = get_pending_shop_day_closing(shop_id) if shop_id > 0 else None
+    rec_out = None
+    if record:
+        rec_out = {
+            "opening_cash": float(record.get("opening_cash") or 0),
+            "opening_mpesa": float(record.get("opening_mpesa") or 0),
+            "stock_confirmed": bool(record.get("stock_confirmed")),
+            "submitted_by_name": record.get("submitted_by_name") or "",
+            "submitted_at": record.get("created_at") or "",
+        }
+    opening_completed = record is not None
+    today_closing_submitted = bool(record and record.get("closing_submitted_at"))
+    ready_for_sales = opening_completed and not pending_closing and not today_closing_submitted
+    closing_rec_out = None
+    if today_closing_submitted and record:
+        closing_rec_out = {
+            "closing_cash": float(record.get("closing_cash") or 0),
+            "closing_mpesa": float(record.get("closing_mpesa") or 0),
+            "submitted_by_name": record.get("closing_submitted_by_name") or "",
+            "submitted_at": record.get("closing_submitted_at") or "",
+            "business_date": record.get("business_date") or biz.isoformat(),
+        }
+    return {
+        "business_date": biz.isoformat(),
+        "completed": opening_completed,
+        "today_closed": today_closing_submitted,
+        "ready_for_sales": ready_for_sales,
+        "can_submit": _shop_session_can_submit_day_opening(),
+        "requires_employee_code": not bool(session.get("employee_id")),
+        "requires_stock_confirmation": _shop_day_opening_requires_stock_confirmation(shop),
+        "inventory_mode": _pos_inventory_mode(shop),
+        "record": rec_out,
+        "closing_record": closing_rec_out,
+        "pending_closing": pending_closing,
+        "closing_reminder": _shop_day_closing_reminder_payload(shop),
+    }
+
+
+def _shop_till_day_summary(shop: dict) -> dict:
+    """Compact till open/closed state for shop list UIs."""
+    boot = _shop_day_opening_boot_payload(shop)
+    pending = boot.get("pending_closing")
+    today_closed = boot.get("today_closed")
+    completed = boot.get("completed")
+    if pending:
+        state, label = "pending_closing", "Previous closing due"
+        can_open_till = True
+        can_close_till = False
+    elif today_closed:
+        state, label = "closed", "Closed for today"
+        can_open_till = True
+        can_close_till = False
+    elif completed:
+        state, label = "open", "Open"
+        can_open_till = False
+        can_close_till = True
+    else:
+        state, label = "not_opened", "Not opened"
+        can_open_till = True
+        can_close_till = False
+    cr = boot.get("closing_reminder") or {}
+    closing_ctx = cr.get("pending") if isinstance(cr, dict) else None
+    if boot.get("today_closed") and boot.get("closing_record"):
+        closing_ctx = boot.get("closing_record")
+    return {
+        "till_state": state,
+        "till_label": label,
+        "can_open_till": can_open_till,
+        "can_close_till": can_close_till,
+        "requires_stock_confirmation": boot.get("requires_stock_confirmation") is True,
+        "inventory_mode": boot.get("inventory_mode") or "shop",
+        "pending_closing": pending,
+        "closing_context": closing_ctx,
+        "opening_record": boot.get("record"),
+        "closing_record": boot.get("closing_record"),
+        "business_date": boot.get("business_date") or date.today().isoformat(),
+    }
+
+
+def _resolve_it_portal_day_submitter() -> Tuple[Optional[dict], Optional[str], int]:
+    """IT / company portal session user for till day actions (no 6-digit code)."""
+    uid = session.get("employee_id")
+    if not uid:
+        return None, "Sign in required.", 403
+    try:
+        from database import get_employee_by_id
+
+        row = get_employee_by_id(int(uid))
+    except Exception:
+        row = None
+    if not row:
+        return None, "Session employee not found.", 403
+    role = str(row.get("role") or "").strip().lower()
+    if role not in COMPANY_PORTAL_ROLES:
+        return None, "Only company portal staff can manage till day status.", 403
+    return row, None, 200
+
+
+def _apply_shop_day_opening_or_reopen(
+    shop: dict,
+    shop_id: int,
+    *,
+    opening_cash: float,
+    opening_mpesa: float,
+    stock_confirmed: bool,
+    emp_row: Optional[dict],
+    employee_code: str = "",
+) -> Tuple[bool, Optional[str], Optional[dict], bool]:
+    """Save today's opening or reopen till after closing. Returns (ok, err, record, reopened)."""
+    from database import get_pending_shop_day_closing, get_shop_day_opening, reopen_shop_day_till, save_shop_day_opening
+
+    pending = get_pending_shop_day_closing(shop_id)
+    if pending:
+        label = pending.get("label") or pending.get("business_date") or "a previous day"
+        return False, f"Submit closing balances for {label} first.", None, False
+
+    require_stock = _shop_day_opening_requires_stock_confirmation(shop)
+    eid = emp_row.get("id") if emp_row else None
+    ecode = (emp_row.get("employee_code") if emp_row else employee_code) or ""
+    ename = emp_row.get("full_name") if emp_row else None
+    erole = emp_row.get("role") if emp_row else None
+
+    today_rec = get_shop_day_opening(shop_id, date.today())
+    if today_rec and today_rec.get("closing_submitted_at"):
+        ok, err, record = reopen_shop_day_till(
+            shop_id,
+            date.today(),
+            opening_cash=opening_cash,
+            opening_mpesa=opening_mpesa,
+            stock_confirmed=stock_confirmed,
+            require_stock_confirmation=require_stock,
+            employee_id=eid,
+            employee_code=ecode,
+            employee_name=ename,
+            employee_role=erole,
+        )
+        return ok, err, record, True
+
+    ok, err, record = save_shop_day_opening(
+        shop_id,
+        date.today(),
+        opening_cash=opening_cash,
+        opening_mpesa=opening_mpesa,
+        stock_confirmed=stock_confirmed,
+        require_stock_confirmation=require_stock,
+        employee_id=eid,
+        employee_code=ecode,
+        employee_name=ename,
+        employee_role=erole,
+    )
+    return ok, err, record, False
+
+
+def _resolve_day_opening_submitter(
+    shop_id: int, employee_code: str
+) -> Tuple[Optional[dict], Optional[str], int]:
+    uid = session.get("employee_id")
+    if uid:
+        try:
+            from database import get_employee_by_id
+
+            row = get_employee_by_id(int(uid))
+        except Exception:
+            row = None
+        if not row:
+            return None, "Session employee not found.", 403
+        role = str(row.get("role") or "").strip().lower()
+        if role in COMPANY_PORTAL_ROLES:
+            return row, None, 200
+        if role not in SHOP_DAY_OPENING_SUBMIT_ROLES:
+            return None, "Only shop admin or manager can submit opening balances.", 403
+        return row, None, 200
+
+    row, err, status = _shop_pos_validate_employee_code(shop_id, employee_code)
+    if err:
+        return None, err, status
+    role = str(row.get("role") or "").strip().lower()
+    if role in COMPANY_PORTAL_ROLES:
+        return row, None, 200
+    if role not in SHOP_DAY_OPENING_SUBMIT_ROLES:
+        return None, "Only shop admin or manager can submit opening balances.", 403
+    return row, None, 200
+
+
+def _resolve_day_closing_submitter(
+    shop_id: int, employee_code: str
+) -> Tuple[Optional[dict], Optional[str], int]:
+    """Closing always requires a 6-digit code from an authorized role."""
+    code = (employee_code or "").strip()
+    if not re.fullmatch(r"\d{6}", code):
+        return (
+            None,
+            "Enter a manager, admin, company manager, IT support, or super admin 6-digit code to close the shop.",
+            400,
+        )
+
+    row, err, status = _shop_pos_validate_employee_code(shop_id, code)
+    if err:
+        return None, err, status
+    role = str(row.get("role") or "").strip().lower()
+    if role not in SHOP_DAY_CLOSING_SUBMIT_ROLES:
+        return (
+            None,
+            "Only a manager, admin, company manager, IT support, or super admin can close the shop.",
+            403,
+        )
+    return row, None, 200
+
+
+def _shop_pos_sales_hours_block(shop: dict):
+    allowed, msg = _shop_pos_sales_allowed(shop)
+    if allowed:
+        return None
+    return jsonify({"ok": False, "error": msg, "shop_closed": True}), 403
+
+
+def _opening_hours_boot_payload(shop: dict) -> dict:
+    hours = _effective_opening_hours_for_shop(shop)
+    status = _shop_opening_hours_status(shop)
+    return {
+        **status,
+        "open_24_hours": _effective_open_24_hours_flag(hours),
+        "days": hours.get("days") or _default_company_opening_hours()["days"],
     }
 
 
@@ -2353,7 +3062,16 @@ def _default_website_settings() -> dict:
         "default_theme": "system",
         "design": _default_website_design(),
         "featured_item_ids": [],
+        "public_website_enabled": True,
     }
+
+
+def _public_website_enabled() -> bool:
+    """Whether the public storefront is shown at / (vs shop login)."""
+    try:
+        return bool(_load_website_settings().get("public_website_enabled", True))
+    except Exception:
+        return True
 
 
 def _normalize_website_domain(raw: str) -> str:
@@ -3080,11 +3798,7 @@ def _quotation_share_items_for_public(item_ids: list[int]) -> list[dict]:
         ip = (r.get("image_path") or "").strip()
         img_url = ""
         if ip:
-            rel = _normalize_static_relative_path(ip)
-            if rel.startswith("http://") or rel.startswith("https://"):
-                img_url = rel
-            elif rel:
-                img_url = url_for("static", filename=rel, _external=True)
+            img_url = _public_static_upload_url(ip)
         out.append(
             {
                 "id": int(r.get("id") or 0),
@@ -3181,13 +3895,7 @@ def _enrich_quotation_lines_for_display(
             row["category"] = (cat.get("category") or "").strip() or "General"
             row["description"] = (cat.get("description") or "").strip()
             ip = (cat.get("image_path") or "").strip()
-            rel = _normalize_static_relative_path(ip)
-            if rel.startswith("http://") or rel.startswith("https://"):
-                row["image_url"] = rel
-            elif rel:
-                row["image_url"] = url_for("static", filename=rel, _external=True)
-            else:
-                row["image_url"] = ""
+            row["image_url"] = _public_static_upload_url(ip) if ip else ""
         else:
             row.setdefault("category", "")
             row.setdefault("description", "")
@@ -3529,6 +4237,8 @@ def _load_website_settings() -> dict:
     merged["featured_item_ids"] = _normalize_featured_item_ids(
         parsed.get("featured_item_ids") if "featured_item_ids" in parsed else merged.get("featured_item_ids")
     )
+    if "public_website_enabled" in parsed:
+        merged["public_website_enabled"] = bool(parsed.get("public_website_enabled"))
     design, design_dirty = _strip_legacy_website_design(merged.get("design"))
     merged["design"] = design
     if design_dirty:
@@ -3613,7 +4323,10 @@ def _load_company_identity_settings() -> dict:
 
 
 def _shop_has_company_override(shop: dict) -> bool:
-    return _parse_shop_settings_json(shop.get("company_settings_json")) is not None
+    data = _parse_shop_settings_json(shop.get("company_settings_json"))
+    if not data:
+        return False
+    return any(k in data for k in _COMPANY_IDENTITY_KEYS)
 
 
 def _effective_company_settings_for_shop(shop: dict) -> dict:
@@ -4118,14 +4831,26 @@ def _public_share_base_url() -> str:
     Public base URL for WhatsApp-shareable links.
 
     WhatsApp only linkifies URLs customers can open (HTTPS public host).
-    Prefer PUBLIC_APP_URL / Company hosted domain, ngrok, or Daraja callback domain.
+    Prefer branded website domain, then PUBLIC_APP_URL / Company hosted domain,
+    ngrok, or a real Daraja callback host (never placeholder URLs).
     """
+    try:
+        domain = _normalize_website_domain(_load_website_settings().get("domain") or "")
+        if domain:
+            return domain
+    except Exception:
+        pass
+
     hosted = _effective_public_app_url()
     if hosted:
         return hosted
 
     try:
-        from daraja_api import _is_local_callback_host, _try_local_ngrok_callback_url
+        from daraja_api import (
+            _is_local_callback_host,
+            _is_placeholder_callback_url,
+            _try_local_ngrok_callback_url,
+        )
 
         ngrok_cb = _try_local_ngrok_callback_url()
         if ngrok_cb:
@@ -4134,7 +4859,11 @@ def _public_share_base_url() -> str:
                 return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
 
         hosted = str(_load_daraja_settings().get("daraja_callback_url") or "").strip().rstrip("/")
-        if hosted and not _is_local_callback_host(hosted):
+        if (
+            hosted
+            and not _is_local_callback_host(hosted)
+            and not _is_placeholder_callback_url(hosted)
+        ):
             parsed = urlparse(hosted)
             if parsed.scheme and parsed.netloc:
                 return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
@@ -4151,6 +4880,70 @@ def _public_share_base_url() -> str:
     except Exception:
         pass
     return ""
+
+
+def _public_absolute_url(path: str) -> str:
+    """Absolute URL for a site path using the configured public app domain when set."""
+    raw = (path or "").strip()
+    if not raw:
+        return ""
+    if raw.lower().startswith(("http://", "https://")):
+        return raw
+    rel = raw if raw.startswith("/") else "/" + raw
+    base = _public_share_base_url()
+    if base:
+        link = base.rstrip("/") + rel
+        if link.lower().startswith("http://") and "ngrok" not in link.lower():
+            link = "https://" + link[7:]
+        return link
+    try:
+        return url_for("static", filename=rel.lstrip("/"), _external=True) if rel.startswith("/static/") else (
+            (request.url_root or "").rstrip("/") + rel
+        )
+    except RuntimeError:
+        return rel
+
+
+def _public_static_upload_url(path) -> str:
+    """Public absolute URL for uploaded static assets (quotation share pages, etc.)."""
+    rel = _normalize_static_relative_path(path)
+    if not rel:
+        return ""
+    if rel.startswith("http://") or rel.startswith("https://"):
+        return rel
+    return _public_absolute_url(url_for("static", filename=rel, _external=False))
+
+
+def _quotation_share_domain_info() -> dict:
+    """Share-link metadata for IT Support quotation tools."""
+    base = _public_share_base_url()
+    if not base:
+        return {
+            "base_url": "",
+            "kind": "local",
+            "is_branded": False,
+            "hint": (
+                "Set a website domain or hosted URL under Company / Website settings "
+                "so customers receive a proper shareable link (not localhost)."
+            ),
+        }
+    try:
+        domain = _normalize_website_domain(_load_website_settings().get("domain") or "")
+    except Exception:
+        domain = ""
+    is_branded = bool(domain and base.rstrip("/") == domain.rstrip("/"))
+    if is_branded:
+        hint = "Quotation links use your branded website domain."
+    elif _public_app_url_from_env() or _load_public_app_url_setting():
+        hint = "Quotation links use your hosted app URL from settings."
+    else:
+        hint = "Quotation links use your current public server URL."
+    return {
+        "base_url": base,
+        "kind": "domain" if is_branded else "hosted",
+        "is_branded": is_branded,
+        "hint": hint,
+    }
 
 
 def _credit_pay_public_link(
@@ -5197,6 +5990,9 @@ def it_support_system_settings():
                 "theme_preset": theme_preset,
                 "receipt_settings_json": json.dumps(_receipt_settings_from_form(), separators=(",", ":")),
                 "printing_settings_json": json.dumps(_printing_settings_from_form(), separators=(",", ":")),
+                COMPANY_OPENING_HOURS_JSON_KEY: json.dumps(
+                    _company_opening_hours_from_form(), separators=(",", ":")
+                ),
             }
             values.update(_daraja_settings_persist_payload(daraja_form))
             if app_icon_path is not None:
@@ -5264,6 +6060,8 @@ def it_support_system_settings():
         website_preview_url=_public_storefront_url(),
         catalog_preview_url=url_for("marketing_catalog", _external=False),
         preview_url=_public_storefront_url(),
+        company_opening_hours=_load_company_opening_hours(),
+        company_weekdays=COMPANY_WEEKDAYS,
     )
 
 
@@ -9697,10 +10495,148 @@ def it_support_register_shop():
     try:
         from database import list_shops
 
-        shops = list_shops(limit=500)
+        shops_raw = list_shops(limit=500)
     except Exception:
-        shops = []
+        shops_raw = []
+    shops = []
+    for s in shops_raw or []:
+        row = dict(s)
+        try:
+            row.update(_shop_till_day_summary(row))
+        except Exception:
+            row.update(
+                {
+                    "till_state": "not_opened",
+                    "till_label": "Not opened",
+                    "can_open_till": True,
+                    "can_close_till": False,
+                }
+            )
+        shops.append(row)
     return render_template("it_support_register_shop.html", shops=shops)
+
+
+@app.route("/it_support/shops/<int:shop_id>/day-status.json")
+@login_required
+def it_support_shop_day_status(shop_id: int):
+    """Till day open/closed status for IT register-shop page."""
+    _it_support_only()
+    shop = _get_shop_or_404(shop_id)
+    summary = _shop_till_day_summary(shop)
+    boot = _shop_day_opening_boot_payload(shop)
+    return jsonify({"ok": True, **summary, "boot": boot})
+
+
+@app.route("/it_support/shops/<int:shop_id>/day-opening", methods=["POST"])
+@login_required
+def it_support_shop_day_opening_submit(shop_id: int):
+    """Submit today's opening balances from IT register-shop (no 6-digit code)."""
+    _it_support_only()
+    shop = _get_shop_or_404(shop_id)
+    data = request.get_json(force=True, silent=True) or {}
+    emp_row, emp_err, emp_status = _resolve_it_portal_day_submitter()
+    if emp_err:
+        return jsonify({"ok": False, "error": emp_err}), emp_status
+
+    try:
+        opening_cash = float(
+            data.get("opening_cash") if data.get("opening_cash") is not None else request.form.get("opening_cash") or 0
+        )
+        opening_mpesa = float(
+            data.get("opening_mpesa") if data.get("opening_mpesa") is not None else request.form.get("opening_mpesa") or 0
+        )
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Enter valid opening cash and M-Pesa amounts."}), 400
+
+    stock_confirmed_raw = data.get("stock_confirmed")
+    if stock_confirmed_raw is None:
+        stock_confirmed_raw = request.form.get("stock_confirmed")
+    stock_confirmed = stock_confirmed_raw in (True, 1, "1", "true", "yes", "on")
+
+    ok, err, record, reopened = _apply_shop_day_opening_or_reopen(
+        shop,
+        shop_id,
+        opening_cash=opening_cash,
+        opening_mpesa=opening_mpesa,
+        stock_confirmed=stock_confirmed,
+        emp_row=emp_row,
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not save opening balances."}), 400
+
+    summary = _shop_till_day_summary(shop)
+    rec_out = None
+    if record:
+        rec_out = {
+            "opening_cash": float(record.get("opening_cash") or 0),
+            "opening_mpesa": float(record.get("opening_mpesa") or 0),
+            "stock_confirmed": bool(record.get("stock_confirmed")),
+            "submitted_by_name": record.get("submitted_by_name") or "",
+            "submitted_at": record.get("created_at") or "",
+        }
+    return jsonify({"ok": True, "record": rec_out, "reopened": reopened, **summary})
+
+
+@app.route("/it_support/shops/<int:shop_id>/day-closing", methods=["POST"])
+@login_required
+def it_support_shop_day_closing_submit(shop_id: int):
+    """Submit closing balances from IT register-shop (no 6-digit code)."""
+    _it_support_only()
+    shop = _get_shop_or_404(shop_id)
+    data = request.get_json(force=True, silent=True) or {}
+    business_date_raw = (data.get("business_date") or request.form.get("business_date") or "").strip()
+    if not business_date_raw:
+        from database import get_pending_shop_day_closing
+
+        today_ctx = _shop_day_closing_payload(shop, date.today())
+        if today_ctx and not today_ctx.get("submitted"):
+            business_date_raw = date.today().isoformat()
+        else:
+            pending = get_pending_shop_day_closing(shop_id)
+            if not pending:
+                return jsonify({"ok": False, "error": "No closing balance to submit for today or a previous day."}), 400
+            business_date_raw = pending.get("business_date") or ""
+
+    emp_row, emp_err, emp_status = _resolve_it_portal_day_submitter()
+    if emp_err:
+        return jsonify({"ok": False, "error": emp_err}), emp_status
+
+    try:
+        closing_cash = float(
+            data.get("closing_cash") if data.get("closing_cash") is not None else request.form.get("closing_cash") or 0
+        )
+        closing_mpesa = float(
+            data.get("closing_mpesa") if data.get("closing_mpesa") is not None else request.form.get("closing_mpesa") or 0
+        )
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Enter valid closing cash and M-Pesa amounts."}), 400
+
+    from database import save_shop_day_closing
+
+    ok, err, record = save_shop_day_closing(
+        shop_id,
+        business_date_raw,
+        closing_cash=closing_cash,
+        closing_mpesa=closing_mpesa,
+        employee_id=emp_row.get("id") if emp_row else None,
+        employee_code=emp_row.get("employee_code") if emp_row else None,
+        employee_name=emp_row.get("full_name") if emp_row else None,
+        employee_role=emp_row.get("role") if emp_row else None,
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not save closing balances."}), 400
+
+    summary = _shop_till_day_summary(shop)
+    rec_out = None
+    if record:
+        rec_out = {
+            "closing_cash": float(record.get("closing_cash") or 0),
+            "closing_mpesa": float(record.get("closing_mpesa") or 0),
+            "submitted_by_name": record.get("closing_submitted_by_name") or "",
+            "submitted_at": record.get("closing_submitted_at") or "",
+            "business_date": record.get("business_date") or "",
+        }
+    return jsonify({"ok": True, "record": rec_out, **summary})
 
 
 @app.route("/it_support/check-shop-code")
@@ -9944,6 +10880,8 @@ def shop_pos(shop_id: int):
         buy_items_catalog = items
 
     shop_co = _effective_company_settings_for_shop(shop)
+    opening_hours = _opening_hours_boot_payload(shop)
+    day_opening = _shop_day_opening_boot_payload(shop)
     return render_template(
         "shop_pos.html",
         shop=shop,
@@ -9955,7 +10893,172 @@ def shop_pos(shop_id: int):
         pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
         daraja_pos_boot=_daraja_pos_boot_payload(),
         shop_company_settings=shop_co,
+        shop_opening_hours_status=opening_hours,
+        shop_day_opening_boot=day_opening,
         **_shop_theme_template_vars(shop),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/day-opening/status", methods=["GET"])
+def shop_pos_day_opening_status(shop_id: int):
+    """Return whether today's opening balances have been submitted for this shop."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    payload = _shop_day_opening_boot_payload(shop)
+    return jsonify({"ok": True, **payload})
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/day-opening", methods=["POST"])
+def shop_pos_day_opening_submit(shop_id: int):
+    """Submit daily opening cash/M-Pesa balances and stock confirmation (admin/manager once per day)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not _shop_session_can_submit_day_opening():
+        return jsonify({"ok": False, "error": "Only shop admin or manager can submit opening balances."}), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    employee_code = (data.get("employee_code") or request.form.get("employee_code") or "").strip()
+    emp_row, emp_err, emp_status = _resolve_day_opening_submitter(shop_id, employee_code)
+    if emp_err:
+        return jsonify({"ok": False, "error": emp_err}), emp_status
+
+    try:
+        opening_cash = float(data.get("opening_cash") if data.get("opening_cash") is not None else request.form.get("opening_cash") or 0)
+        opening_mpesa = float(data.get("opening_mpesa") if data.get("opening_mpesa") is not None else request.form.get("opening_mpesa") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Enter valid opening cash and M-Pesa amounts."}), 400
+
+    stock_confirmed_raw = data.get("stock_confirmed")
+    if stock_confirmed_raw is None:
+        stock_confirmed_raw = request.form.get("stock_confirmed")
+    stock_confirmed = stock_confirmed_raw in (True, 1, "1", "true", "yes", "on")
+
+    ok, err, record, reopened = _apply_shop_day_opening_or_reopen(
+        shop,
+        shop_id,
+        opening_cash=opening_cash,
+        opening_mpesa=opening_mpesa,
+        stock_confirmed=stock_confirmed,
+        emp_row=emp_row,
+        employee_code=employee_code,
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not save opening balances."}), 400
+
+    rec_out = None
+    if record:
+        rec_out = {
+            "opening_cash": float(record.get("opening_cash") or 0),
+            "opening_mpesa": float(record.get("opening_mpesa") or 0),
+            "stock_confirmed": bool(record.get("stock_confirmed")),
+            "submitted_by_name": record.get("submitted_by_name") or "",
+            "submitted_at": record.get("created_at") or "",
+        }
+    payload = _shop_day_opening_boot_payload(shop)
+    return jsonify(
+        {
+            "ok": True,
+            "completed": True,
+            "reopened": reopened,
+            "ready_for_sales": payload.get("ready_for_sales"),
+            "today_closed": payload.get("today_closed"),
+            "pending_closing": payload.get("pending_closing"),
+            "business_date": date.today().isoformat(),
+            "record": rec_out,
+        }
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/day-closing", methods=["POST"])
+def shop_pos_day_closing_submit(shop_id: int):
+    """Submit end-of-day closing cash/M-Pesa for a past business day (admin/manager)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not _shop_session_can_submit_day_closing():
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Only a manager, admin, company manager, IT support, or super admin can close the shop.",
+            }
+        ), 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    business_date_raw = (
+        data.get("business_date")
+        or request.form.get("business_date")
+        or ""
+    ).strip()
+    if not business_date_raw:
+        from database import get_pending_shop_day_closing
+
+        today_ctx = _shop_day_closing_payload(shop, date.today())
+        if today_ctx and not today_ctx.get("submitted"):
+            business_date_raw = date.today().isoformat()
+        else:
+            pending = get_pending_shop_day_closing(shop_id)
+            if not pending:
+                return jsonify({"ok": False, "error": "No closing balance to submit for today or a previous day."}), 400
+            business_date_raw = pending.get("business_date") or ""
+
+    employee_code = (data.get("employee_code") or request.form.get("employee_code") or "").strip()
+    emp_row, emp_err, emp_status = _resolve_day_closing_submitter(shop_id, employee_code)
+    if emp_err:
+        return jsonify({"ok": False, "error": emp_err}), emp_status
+
+    try:
+        closing_cash = float(
+            data.get("closing_cash")
+            if data.get("closing_cash") is not None
+            else request.form.get("closing_cash") or 0
+        )
+        closing_mpesa = float(
+            data.get("closing_mpesa")
+            if data.get("closing_mpesa") is not None
+            else request.form.get("closing_mpesa") or 0
+        )
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Enter valid closing cash and M-Pesa amounts."}), 400
+
+    from database import save_shop_day_closing
+
+    ok, err, record = save_shop_day_closing(
+        shop_id,
+        business_date_raw,
+        closing_cash=closing_cash,
+        closing_mpesa=closing_mpesa,
+        employee_id=emp_row.get("id") if emp_row else None,
+        employee_code=emp_row.get("employee_code") if emp_row else employee_code,
+        employee_name=emp_row.get("full_name") if emp_row else None,
+        employee_role=emp_row.get("role") if emp_row else None,
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not save closing balances."}), 400
+
+    payload = _shop_day_opening_boot_payload(shop)
+    rec_out = None
+    if record:
+        rec_out = {
+            "closing_cash": float(record.get("closing_cash") or 0),
+            "closing_mpesa": float(record.get("closing_mpesa") or 0),
+            "submitted_by_name": record.get("closing_submitted_by_name") or "",
+            "submitted_at": record.get("closing_submitted_at") or "",
+            "business_date": record.get("business_date") or "",
+        }
+    return jsonify(
+        {
+            "ok": True,
+            "record": rec_out,
+            "pending_closing": payload.get("pending_closing"),
+            "ready_for_sales": payload.get("ready_for_sales"),
+            "today_closed": payload.get("today_closed"),
+            "completed": payload.get("completed"),
+        }
     )
 
 
@@ -10752,6 +11855,9 @@ def shop_pos_mpesa_stk_push(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    hours_block = _shop_pos_sales_hours_block(shop)
+    if hours_block is not None:
+        return hours_block
 
     data = request.get_json(force=True, silent=True) or {}
     phone = (data.get("phone") or "").strip()
@@ -11299,6 +12405,11 @@ def shop_pos_record_sale(shop_id: int):
     offline_queue_replay = bool(data.get("offline_queue_sync")) or bool(
         str(data.get("queued_at") or "").strip()
     )
+    if not offline_queue_replay:
+        hours_block = _shop_pos_sales_hours_block(shop)
+        if hours_block is not None:
+            return hours_block
+
     sale_type = (data.get("sale_type") or "sale").strip().lower()
     if sale_type not in ("sale", "credit"):
         return jsonify({"ok": False, "error": "Invalid sale type."}), 400
@@ -11436,6 +12547,9 @@ def shop_pos_hold_save(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    hours_block = _shop_pos_sales_hours_block(shop)
+    if hours_block is not None:
+        return hours_block
 
     data = request.get_json(force=True, silent=True) or {}
     emp = data.get("employee") or {}
@@ -11655,6 +12769,9 @@ def shop_pos_record_quote(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    hours_block = _shop_pos_sales_hours_block(shop)
+    if hours_block is not None:
+        return hours_block
 
     data = request.get_json(force=True, silent=True) or {}
     if not _shop_pos_allow_quotations(shop):
@@ -11840,6 +12957,7 @@ def it_support_leads():
         quote_customer_share_by_id=quote_customer_share_by_id,
         quote_whatsapp_by_id=_quotation_whatsapp_by_id(quotes),
         company_whatsapp_phone=_company_whatsapp_phone(),
+        quotation_share_domain=_quotation_share_domain_info(),
         leads_filter=filt,
         leads_nav_active="list",
     )
@@ -11865,7 +12983,7 @@ def it_support_leads_share_quotation():
                 "name": (row.get("name") or "").strip() or "Product",
                 "description": (row.get("description") or "").strip(),
                 "price": float(row.get("price") or 0),
-                "image_url": static_upload_url(ip) if ip else "",
+                "image_url": _public_static_upload_url(ip) if ip else "",
             }
         )
     company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
@@ -11873,6 +12991,7 @@ def it_support_leads_share_quotation():
         "it_support_leads_share_quotation.html",
         picker_items=picker_items,
         company_name=company,
+        quotation_share_domain=_quotation_share_domain_info(),
         leads_nav_active="share",
     )
 
@@ -11936,10 +13055,13 @@ def quotation_share_public(token: str):
             f"Hello {company}, I received your quotation and would like to discuss it.",
         )
     generated_date = datetime.now().strftime("%d %b %Y")
+    logo_path = (identity.get("app_icon") or "").strip()
+    company_logo_url = _public_static_upload_url(logo_path) if logo_path else ""
     return render_template(
         "quotation_share_public.html",
         items=items,
         company_name=company,
+        company_logo_url=company_logo_url,
         total_amount=total,
         share_url=_quotation_share_public_url(token),
         generated_date=generated_date,
@@ -13093,11 +14215,15 @@ def shop_dashboard(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    day_opening = _shop_day_opening_boot_payload(shop)
     return render_template(
         "shop_dashboard.html",
         shop=shop,
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         pos_inventory_mode=_pos_inventory_mode(shop),
+        shop_day_opening_boot=day_opening,
+        shop_day_opening_api=url_for("shop_pos_day_opening_submit", shop_id=shop_id),
+        shop_day_closing_api=url_for("shop_pos_day_closing_submit", shop_id=shop_id),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -13108,11 +14234,20 @@ def shop_dashboard(shop_id: int):
 
 @app.route("/shops/<int:shop_id>/shop-report")
 def shop_report(shop_id: int):
-    """Single-shop period report: revenue, expenditure, and per-item stock + sales."""
+    """Single-shop daily report: till balances, revenue vs expense, and items sold."""
     shop = _get_shop_or_404(shop_id)
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not _shop_report_has_filter_params():
+        return redirect(
+            url_for(
+                "shop_report",
+                shop_id=shop_id,
+                mode="single_day",
+                single_day=date.today().isoformat(),
+            )
+        )
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
     report_data = {
@@ -13145,14 +14280,83 @@ def shop_report(shop_id: int):
     share_url = f"{_public_share_base_url()}{share_path}"
     if share_qs:
         share_url = f"{share_url}?{share_qs}"
+    report_json_url = url_for("shop_report_json", shop_id=shop_id)
+    if share_qs:
+        report_json_url = f"{report_json_url}?{share_qs}"
+    report_mode = (analytics_filter.get("mode") or "single_day").strip().lower()
+    report_business_date = (analytics_filter.get("single_day") or date.today().isoformat()).strip()
+    day_opening_boot = _shop_day_opening_boot_payload(shop)
+    report_closing_ctx = (
+        _shop_day_closing_payload(shop, report_business_date)
+        if report_mode == "single_day"
+        else None
+    )
+    report_is_single_day = report_mode == "single_day"
+    report_show_opening_link = bool(
+        report_is_single_day
+        and report_business_date == date.today().isoformat()
+        and not day_opening_boot.get("completed")
+    )
+    report_show_closing_link = bool(
+        report_is_single_day
+        and report_business_date == date.today().isoformat()
+        and day_opening_boot.get("completed")
+        and not day_opening_boot.get("today_closed")
+        and _shop_session_can_submit_day_closing()
+    )
+    report_can_submit_opening = bool(
+        report_show_opening_link and day_opening_boot.get("can_submit")
+    )
+    report_can_submit_closing = report_show_closing_link
+    report_till_actions_enabled = report_is_single_day
+    report_closing_submitted = bool(
+        report_business_date == date.today().isoformat()
+        and day_opening_boot.get("today_closed")
+    ) or bool(
+        report_closing_ctx and report_closing_ctx.get("submitted")
+    )
+    report_has_closing_pending = bool(
+        report_show_closing_link
+        and report_closing_ctx
+        and not report_closing_ctx.get("submitted")
+    )
+    closing_reminder_boot = {
+        "business_date": report_business_date,
+        "can_submit": _shop_session_can_submit_day_closing(),
+        "can_close_today": report_show_closing_link,
+        "requires_employee_code": True,
+        "pending": report_closing_ctx if (report_closing_ctx and not report_closing_ctx.get("submitted")) else None,
+        "auto_show": False,
+        "close_time": day_opening_boot.get("closing_reminder", {}).get("close_time") or "",
+        "minutes_until_close": day_opening_boot.get("closing_reminder", {}).get("minutes_until_close"),
+    }
     return render_template(
         "shop_report.html",
         shop=shop,
         analytics_filter=analytics_filter,
         analytics_scope=analytics_scope,
         report_data=report_data,
-        item_rows=report_data.get("items") or [],
+        items_sold_rows=report_data.get("items_sold") or [],
+        expenditure_rows=report_data.get("expenditure_rows") or [],
         report_share_url=share_url,
+        report_json_url=report_json_url,
+        report_live_enabled=_analytics_filter_is_today(analytics_filter),
+        report_period_label=_shop_report_period_label(analytics_filter),
+        report_today_iso=date.today().isoformat(),
+        report_business_date=report_business_date,
+        report_is_single_day=report_is_single_day,
+        report_show_opening_link=report_show_opening_link,
+        report_show_closing_link=report_show_closing_link,
+        report_can_submit_closing=report_can_submit_closing,
+        report_can_submit_opening=report_can_submit_opening,
+        report_till_actions_enabled=report_till_actions_enabled,
+        report_closing_submitted=report_closing_submitted,
+        report_has_closing_pending=report_has_closing_pending,
+        report_closing_ctx=report_closing_ctx,
+        shop_day_opening_boot=day_opening_boot,
+        shop_day_opening_api=url_for("shop_pos_day_opening_submit", shop_id=shop_id),
+        shop_day_closing_reminder_boot=closing_reminder_boot,
+        shop_day_closing_api=url_for("shop_pos_day_closing_submit", shop_id=shop_id),
         report_should_print=report_should_print,
         report_generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
@@ -13163,6 +14367,47 @@ def shop_report(shop_id: int):
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
         primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
         accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-report.json")
+def shop_report_json(shop_id: int):
+    """JSON snapshot of shop period report (used for live refresh on today's view)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+        "items_sold": [],
+        "till_summary": {},
+    }
+    try:
+        from database import get_shop_report
+
+        report_data = get_shop_report(
+            shop_id=int(shop_id),
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        logger.exception("shop_report_json failed shop_id=%s", shop_id)
+    return jsonify(
+        {
+            "ok": True,
+            "report": report_data,
+            "generated_at": datetime.now().strftime("%d %b %Y %H:%M"),
+            "live_enabled": _analytics_filter_is_today(analytics_filter),
+        }
     )
 
 
@@ -15372,13 +16617,20 @@ def shop_stock_management_item(shop_id: int, mode: str, item_id: int):
 
 def _can_user_review_stock_request(row: dict, *, role_key: str, viewer_shop_id: int | None) -> bool:
     role_key = (role_key or "employee").strip().lower()
+    request_type = (row.get("request_type") or "stock_in").strip().lower()
+    source_type = (row.get("source_type") or "").strip().lower()
     if role_key in COMPANY_PORTAL_ROLES:
-        return True
-    # Company-only approvals for return-to-company requests.
-    if (row.get("request_type") or "").lower() == "return_to_company":
+        if request_type == "return_to_company":
+            return True
+        if source_type == "company":
+            return True
+        if source_type == "shop":
+            return True
+    if request_type == "return_to_company":
         return False
-    # Shop-to-shop: only the source shop can approve/decline.
-    if (row.get("source_type") or "").lower() == "shop":
+    if source_type == "company":
+        return False
+    if source_type == "shop":
         try:
             return int(viewer_shop_id or 0) == int(row.get("source_shop_id") or 0)
         except Exception:
@@ -15418,20 +16670,44 @@ def notifications():
     if shop_id:
         return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
     try:
-        from database import list_stock_requests_for_session, can_fulfill_stock_request
+        from database import list_notifications_for_session, list_stock_requests_for_session, can_fulfill_stock_request
 
+        notifications = list_notifications_for_session(
+            employee_id=session.get("employee_id"),
+            shop_id=None,
+            role_key=role_key,
+            limit=300,
+        )
         stock_requests = list_stock_requests_for_session(
             role_key=role_key,
             viewer_shop_id=None,
             limit=300,
         )
     except Exception:
-        stock_requests = []
+        notifications, stock_requests = [], []
     viewer_shop_id = _effective_viewer_shop_id(role_key)
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=viewer_shop_id)
         r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
-    return render_template("notifications.html", stock_requests=stock_requests)
+
+    def _stock_request_sort_key(row: dict) -> tuple:
+        st = (row.get("status") or "").lower()
+        pending_first = 0 if st == "pending" else 1
+        ca = row.get("created_at")
+        try:
+            ts = -ca.timestamp() if hasattr(ca, "timestamp") else 0
+        except Exception:
+            ts = 0
+        return (pending_first, ts)
+
+    stock_requests = sorted(stock_requests or [], key=_stock_request_sort_key)
+    pending_request_count = sum(1 for r in stock_requests if (r.get("status") or "").lower() == "pending")
+    return render_template(
+        "notifications.html",
+        notifications=notifications,
+        stock_requests=stock_requests,
+        pending_request_count=pending_request_count,
+    )
 
 
 @app.route("/shops/<int:shop_id>/notifications")
@@ -15458,14 +16734,38 @@ def shop_notifications(shop_id: int):
         )
     except Exception:
         rows, stock_requests = [], []
+    sr_outcome_max_id = 0
+    try:
+        from database import list_shop_stock_request_alerts_for_shop
+
+        sr_rows = list_shop_stock_request_alerts_for_shop(shop_id=shop_id, limit=1)
+        if sr_rows:
+            sr_outcome_max_id = int(sr_rows[0].get("id") or 0)
+    except Exception:
+        sr_outcome_max_id = 0
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=shop_id)
         r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
+
+    def _stock_request_sort_key(row: dict) -> tuple:
+        st = (row.get("status") or "").lower()
+        pending_first = 0 if st == "pending" else 1
+        ca = row.get("created_at")
+        try:
+            ts = -ca.timestamp() if hasattr(ca, "timestamp") else 0
+        except Exception:
+            ts = 0
+        return (pending_first, ts)
+
+    stock_requests = sorted(stock_requests or [], key=_stock_request_sort_key)
+    pending_request_count = sum(1 for r in stock_requests if (r.get("status") or "").lower() == "pending")
     return render_template(
         "shop_notifications.html",
         shop=shop,
         notifications=rows,
         stock_requests=stock_requests,
+        pending_request_count=pending_request_count,
+        sr_outcome_max_id=sr_outcome_max_id,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -15493,7 +16793,7 @@ def approve_stock_request(request_id: int):
     except Exception:
         ok, err_msg = False, "Could not approve stock request."
     flash(
-        "Stock request approved." if ok else (err_msg or "Could not approve stock request."),
+        "Stock request approved. Stock levels were updated." if ok else (err_msg or "Could not approve stock request."),
         "success" if ok else "error",
     )
     if shop_id:
@@ -15520,12 +16820,48 @@ def reject_stock_request(request_id: int):
     except Exception:
         ok, err_msg = False, "Could not reject stock request."
     flash(
-        "Stock request rejected." if ok else (err_msg or "Could not reject stock request."),
+        "Stock request cancelled." if ok else (err_msg or "Could not cancel stock request."),
         "success" if ok else "error",
     )
     if shop_id:
         return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
     return redirect(url_for("notifications"))
+
+
+@app.route("/shops/<int:shop_id>/notifications/stock-request-alerts.json")
+@login_required
+def shop_stock_request_alerts_json(shop_id: int):
+    """Recent stock-request outcome alerts for popup on POS and shop pages."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    try:
+        from database import list_shop_stock_request_alerts_for_shop
+
+        rows = list_shop_stock_request_alerts_for_shop(shop_id=shop_id, limit=20)
+    except Exception:
+        rows = []
+    out = []
+    for r in rows or []:
+        ca = r.get("created_at")
+        if hasattr(ca, "isoformat"):
+            ca = ca.isoformat(sep=" ", timespec="seconds")
+        else:
+            ca = str(ca) if ca is not None else None
+        title = (r.get("title") or "").strip()
+        cancelled = "cancel" in title.lower()
+        out.append(
+            {
+                "id": int(r.get("id") or 0),
+                "title": title or "Stock request update",
+                "message": (r.get("message") or "").strip(),
+                "link_url": (r.get("link_url") or "").strip() or None,
+                "created_at": ca,
+                "kind": "cancelled" if cancelled else "approved",
+            }
+        )
+    return jsonify({"ok": True, "alerts": out})
 
 
 def _shop_active_sku_count(shop_id: int) -> int:
@@ -16669,6 +18005,9 @@ def _shop_settings_template_extra(shop: dict) -> dict:
         "shop_appearance_custom": _shop_has_appearance_override(shop),
         "company_settings": _effective_company_settings_for_shop(shop),
         "shop_company_custom": _shop_has_company_override(shop),
+        "company_opening_hours": _shop_opening_hours_for_form(shop),
+        "shop_opening_hours_custom": _shop_has_opening_hours_override(shop),
+        "company_weekdays": COMPANY_WEEKDAYS,
         "pos_allow_credit_sale": _shop_pos_allow_credit_sale(shop),
         **_shop_theme_template_vars(shop),
     }
@@ -16901,23 +18240,11 @@ def shop_settings_company(shop_id: int):
         return gate
     if request.method == "POST":
         use_custom = (request.form.get("shop_company_custom") or "").strip() == "1"
-        company_json = None
+        payload = _shop_company_settings_payload_from_form(shop)
+        company_json = json.dumps(payload, separators=(",", ":")) if payload else None
         logo_path = shop.get("shop_logo")
         update_logo = False
         if use_custom:
-            company_json = json.dumps(
-                {
-                    "company_name": (request.form.get("company_name") or "").strip() or "Point of Sale",
-                    "company_email": (request.form.get("company_email") or "").strip(),
-                    "company_phone": (request.form.get("company_phone") or "").strip(),
-                    "company_facebook": (request.form.get("company_facebook") or "").strip(),
-                    "company_instagram": (request.form.get("company_instagram") or "").strip(),
-                    "company_twitter": (request.form.get("company_twitter") or "").strip(),
-                    "company_tiktok": (request.form.get("company_tiktok") or "").strip(),
-                    **_location_settings_from_form(),
-                },
-                separators=(",", ":"),
-            )
             remove_logo = (request.form.get("remove_shop_logo") or "").strip() == "1"
             logo_file = request.files.get("shop_logo")
             if remove_logo:
@@ -16930,7 +18257,7 @@ def shop_settings_company(shop_id: int):
                     return redirect(url_for("shop_settings_company", shop_id=shop["id"]))
                 logo_path = saved
                 update_logo = True
-        else:
+        elif not payload:
             logo_path = ""
             update_logo = True
         try:
@@ -17986,16 +19313,60 @@ def it_support_company_report():
     except Exception:
         company_name = ""
     report_generated_at = datetime.now().strftime("%d %b %Y %H:%M")
+    report_json_url = url_for("it_support_company_report_json")
+    if share_qs:
+        report_json_url = f"{report_json_url}?{share_qs}"
     return render_template(
         "it_support_company_report.html",
         analytics_filter=analytics_filter,
         analytics_scope=analytics_scope,
         report_data=report_data,
         item_rows=report_data.get("items") or [],
+        items_sold_rows=report_data.get("items_sold") or [],
         report_share_url=share_url,
+        report_json_url=report_json_url,
+        report_live_enabled=_analytics_filter_is_today(analytics_filter),
         report_company_name=company_name,
         report_should_print=report_should_print,
         report_generated_at=report_generated_at,
+    )
+
+
+@app.route("/it_support/company-report.json")
+@login_required
+def it_support_company_report_json():
+    """JSON snapshot of company period report (live refresh on today's view)."""
+    _it_support_only()
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "net_profit": 0.0,
+        "items": [],
+        "items_sold": [],
+        "till_summary": {},
+    }
+    try:
+        from database import get_company_report
+
+        report_data = get_company_report(
+            analytics_filter=analytics_filter,
+            analytics_scope=analytics_scope,
+        )
+    except Exception:
+        logger.exception("it_support_company_report_json failed")
+    return jsonify(
+        {
+            "ok": True,
+            "report": report_data,
+            "generated_at": datetime.now().strftime("%d %b %Y %H:%M"),
+            "live_enabled": _analytics_filter_is_today(analytics_filter),
+        }
     )
 
 
@@ -19007,7 +20378,7 @@ def it_support_employee_delete(emp_id: int):
             target_id=int(emp_id),
             description=f"Deleted employee #{emp_id}",
         )
-    flash("Employee deleted." if ok else "Could not delete employee (may still be pending approval).", "success" if ok else "error")
+    flash("Employee deleted." if ok else "Could not delete employee.", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
 
@@ -19035,13 +20406,36 @@ def it_support_website_designs():
 
     if request.method == "POST":
         action = (request.form.get("action") or "save").strip().lower()
+        if action == "toggle_enabled":
+            enabled = (request.form.get("public_website_enabled") or "").strip().lower() in {
+                "1",
+                "on",
+                "true",
+                "yes",
+            }
+            updated = {**ws, "public_website_enabled": enabled}
+            ok = _save_website_settings(updated)
+            if ok:
+                if enabled:
+                    flash("Public website is on — visitors see your shop homepage.", "success")
+                else:
+                    flash("Public website is off — visitors see the shop login page instead.", "success")
+            else:
+                flash("Could not update website visibility. Try again.", "error")
+            return redirect(url_for("it_support_website_designs"))
         if action == "reset_auto":
             ids: list[int] = []
             design = _website_design_from_form(ws.get("design") or design_defaults)
         else:
             ids = _normalize_featured_item_ids(request.form.get("featured_item_ids") or "[]")
             design = _website_design_from_form(ws.get("design") or design_defaults)
-        updated = {**ws, "featured_item_ids": ids, "design": design}
+        enabled = (request.form.get("public_website_enabled") or "").strip().lower() in {
+            "1",
+            "on",
+            "true",
+            "yes",
+        }
+        updated = {**ws, "featured_item_ids": ids, "design": design, "public_website_enabled": enabled}
         ok = _save_website_settings(updated)
         if ok:
             if action == "reset_auto":

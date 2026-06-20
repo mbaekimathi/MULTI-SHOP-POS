@@ -145,6 +145,25 @@
               <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
                 <h1 class="pos-header-brand__title min-w-0 truncate text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</h1>
                 <time id="pos-clock" class="pos-header-brand__clock shrink-0" aria-hidden="true"></time>
+                {% if shop_day_opening_boot and shop_day_opening_boot.can_submit and not shop_day_opening_boot.today_closed %}
+                <button
+                  type="button"
+                  id="pos-close-shop-link"
+                  class="pos-header-close-shop-link shrink-0"
+                  title="Submit closing balances and close the shop for today"
+                >
+                  Close shop
+                </button>
+                {% elif shop_day_opening_boot and shop_day_opening_boot.can_submit and shop_day_opening_boot.today_closed %}
+                <button
+                  type="button"
+                  id="pos-open-shop-link"
+                  class="pos-header-close-shop-link shrink-0 !border-emerald-500/40 !bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-300"
+                  title="Reopen the shop for today and resume sales"
+                >
+                  Open shop
+                </button>
+                {% endif %}
                 {% if pos_printing_settings.pos_cart_mode == 'withhold' %}
                 <span id="pos-cart-mode-badge" class="pos-header-brand__badge shrink-0" title="Withhold POS — save carts before payment" aria-label="Withhold mode">
                   <svg class="h-2.5 w-2.5 max-sm:h-2 max-sm:w-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -224,6 +243,37 @@
               </span>
               <span class="pos-header-action__text">Receipts</span>
             </button>
+            {% if shop_day_opening_boot and shop_day_opening_boot.can_submit and not shop_day_opening_boot.today_closed %}
+            <button
+              type="button"
+              id="pos-close-shop-open"
+              class="pos-header-action pos-header-action--close-shop"
+              aria-label="Close shop for today"
+              title="Submit closing balances and close the shop for today"
+            >
+              <span class="pos-header-action__icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </span>
+              <span class="pos-header-action__text">Close shop</span>
+            </button>
+            {% elif shop_day_opening_boot and shop_day_opening_boot.can_submit and shop_day_opening_boot.today_closed %}
+            <button
+              type="button"
+              id="pos-open-shop-open"
+              class="pos-header-action pos-header-action--close-shop !border-emerald-500/35 !text-emerald-700 dark:!text-emerald-300"
+              aria-label="Reopen shop for today"
+              title="Reopen the shop for today and resume sales"
+            >
+              <span class="pos-header-action__icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                </svg>
+              </span>
+              <span class="pos-header-action__text">Open shop</span>
+            </button>
+            {% endif %}
             </div>
             <div class="pos-header-toolbar__group pos-header-toolbar__group--system" role="group" aria-label="Device &amp; sync">
             <button
@@ -299,9 +349,55 @@
             id="pos-catalog-stale-banner"
             class="mt-2 hidden rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-900 dark:text-amber-200"
           ></div>
+          <div
+            id="pos-shop-closed-banner"
+            class="{% if shop_opening_hours_status and not shop_opening_hours_status.is_open_now %}{% else %}hidden {% endif %}mt-2 rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 py-2.5 text-rose-950 dark:text-rose-100"
+            role="status"
+          >
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-rose-700 dark:text-rose-300">Shop closed — browse only</p>
+            <p id="pos-shop-closed-banner-msg" class="mt-1 text-xs font-semibold">
+              {{ shop_opening_hours_status.message if shop_opening_hours_status else 'Sales are not allowed right now.' }}
+            </p>
+            <p class="mt-1 text-[10px] leading-snug text-rose-900/80 dark:text-rose-100/80">You can view items in the catalog. Checkout, held orders, and quotations stay disabled until opening hours.</p>
+          </div>
+          <div
+            id="pos-day-opening-pending-banner"
+            class="{% if shop_day_opening_boot and not shop_day_opening_boot.ready_for_sales and not shop_day_opening_boot.today_closed %}{% else %}hidden {% endif %}mt-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-amber-950 dark:text-amber-100"
+            role="status"
+          >
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">Daily till procedure not completed</p>
+            <p id="pos-day-opening-pending-banner-msg" class="mt-1 text-xs font-semibold">
+              {% if shop_day_opening_boot and shop_day_opening_boot.pending_closing %}
+                {% if shop_day_opening_boot.can_submit %}
+                  Submit closing balances for {{ shop_day_opening_boot.pending_closing.label or shop_day_opening_boot.pending_closing.business_date }} before sales can start.
+                {% else %}
+                  Waiting for a shop admin or manager to submit closing balances for {{ shop_day_opening_boot.pending_closing.label or shop_day_opening_boot.pending_closing.business_date }}.
+                {% endif %}
+              {% elif shop_day_opening_boot and shop_day_opening_boot.can_submit %}
+                Set today&apos;s opening cash and M-Pesa balances and confirm stock before sales can start.
+              {% else %}
+                Waiting for a shop admin or manager to complete today&apos;s opening procedure.
+              {% endif %}
+            </p>
+            <p class="mt-1 text-[10px] leading-snug text-amber-900/80 dark:text-amber-100/80">Sales stay disabled until any pending closing and today&apos;s opening balances are submitted.</p>
+          </div>
+          <div
+            id="pos-day-closed-banner"
+            class="{% if shop_day_opening_boot and shop_day_opening_boot.today_closed %}{% else %}hidden {% endif %}mt-2 rounded-xl border border-violet-500/35 bg-violet-500/10 px-3 py-2.5 text-violet-950 dark:text-violet-100"
+            role="status"
+          >
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-violet-700 dark:text-violet-300">Shop closed for today — browse only</p>
+            <p id="pos-day-closed-banner-msg" class="mt-1 text-xs font-semibold">
+              Closing balances were submitted. Use Open shop to resume sales for today.
+            </p>
+            <p class="mt-1 text-[10px] leading-snug text-violet-900/80 dark:text-violet-100/80">You can view items in the catalog. Checkout, held orders, and quotations stay disabled.</p>
+          </div>
         </div>
       </div>
     </header>
+
+    {# Daily opening gate: admin/manager sets cash/M-Pesa + stock confirmation once per day #}
+    {% include "partials/shop_day_opening_modal.html" %}
 
     {# Compulsory-printing gate: modal appears when standard sale is blocked until printer is ready #}
     <div
@@ -1805,5 +1901,7 @@
     </div>
   </div>
 
+  {% include "partials/shop_stock_request_outcome_modal.html" %}
+  {% include "partials/shop_day_closing_reminder_modal.html" %}
   {% include "partials/shop_pos_scripts.html" %}
 {% endblock %}

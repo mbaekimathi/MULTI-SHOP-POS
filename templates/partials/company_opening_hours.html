@@ -1,0 +1,390 @@
+{# Expects: company_opening_hours, company_weekdays; optional shop mode vars #}
+{% set hours_cfg = company_opening_hours if company_opening_hours else {} %}
+{% set open_24_hours = hours_cfg.open_24_hours if hours_cfg.open_24_hours is defined else true %}
+{% set hours_days = hours_cfg.days if hours_cfg.days is defined else {} %}
+{% set opening_hours_shop_mode = opening_hours_shop_mode|default(false) %}
+{% set shop_opening_hours_custom = shop_opening_hours_custom|default(false) %}
+{% set opening_hours_locked = opening_hours_shop_mode and not shop_opening_hours_custom %}
+<style>
+  .coh-section {
+    border: 1px solid rgb(var(--rc-border));
+    border-radius: 1rem;
+    background: rgb(var(--rc-surface-2) / 0.35);
+    overflow: hidden;
+  }
+  .coh-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface-2) / 0.55);
+  }
+  .coh-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 9999px;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .coh-badge--24 {
+    color: rgb(4 120 87);
+    background: rgb(16 185 129 / 0.14);
+    border: 1px solid rgb(16 185 129 / 0.25);
+  }
+  .coh-badge--inherit {
+    color: rgb(var(--rc-muted));
+    background: rgb(var(--rc-surface));
+    border: 1px solid rgb(var(--rc-border));
+  }
+  .coh-badge--custom {
+    color: rgb(var(--rc-primary));
+    background: rgb(var(--rc-primary) / 0.12);
+    border: 1px solid rgb(var(--rc-primary) / 0.22);
+  }
+  .coh-day-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 9rem) 1fr;
+    gap: 0.85rem 1rem;
+    align-items: center;
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface));
+    transition: background 0.15s ease;
+  }
+  .coh-day-row:last-child { border-bottom: 0; }
+  .coh-day-row:hover { background: rgb(var(--rc-surface-2) / 0.45); }
+  .coh-day-row.is-weekend .coh-day-name { color: rgb(var(--rc-primary)); }
+  .coh-day-row.is-closed { opacity: 0.72; }
+  .coh-day-name {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgb(var(--rc-page-fg));
+  }
+  .coh-day-meta {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.6875rem;
+    color: rgb(var(--rc-muted));
+  }
+  .coh-day-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+    gap: 0.65rem;
+    align-items: end;
+  }
+  @media (max-width: 640px) {
+    .coh-day-row { grid-template-columns: 1fr; }
+    .coh-day-controls { grid-template-columns: 1fr 1fr; }
+    .coh-day-controls .coh-closed-toggle { grid-column: 1 / -1; }
+  }
+  .coh-time-field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(var(--rc-muted));
+  }
+  .coh-time-field input[type="time"] {
+    width: 100%;
+    min-height: 2.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface-2));
+    padding: 0.45rem 0.65rem;
+    font-size: 0.875rem;
+    color: rgb(var(--rc-page-fg));
+  }
+  .coh-closed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.5rem;
+    padding: 0 0.85rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface-2));
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(var(--rc-muted));
+    white-space: nowrap;
+  }
+  .coh-closed-toggle:has(input:checked) {
+    border-color: rgb(244 63 94 / 0.35);
+    background: rgb(244 63 94 / 0.08);
+    color: rgb(190 18 60);
+  }
+  .coh-24-banner {
+    margin: 1rem 1.1rem 1.1rem;
+    border-radius: 0.9rem;
+    border: 1px dashed rgb(16 185 129 / 0.35);
+    background: linear-gradient(135deg, rgb(16 185 129 / 0.08), rgb(var(--rc-surface-2) / 0.5));
+    padding: 1.35rem 1rem;
+    text-align: center;
+  }
+  .coh-fields-locked {
+    opacity: 0.72;
+    pointer-events: none;
+  }
+  .coh-inherit-note {
+    margin: 0 1.1rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface));
+    padding: 0.75rem 0.9rem;
+    font-size: 0.8125rem;
+    color: rgb(var(--rc-muted));
+  }
+</style>
+
+<div class="company-opening-hours md:col-span-2" data-company-opening-hours>
+  <div class="coh-section">
+    <div class="coh-section-head">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Opening hours</p>
+        <p class="mt-1 max-w-2xl text-sm text-[rgb(var(--rc-muted))]">
+          {% if opening_hours_shop_mode %}
+            Override company hours for this shop, or keep the shared schedule from IT settings.
+          {% else %}
+            Open around the clock by default, or set daily opening and closing times.
+          {% endif %}
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        {% if opening_hours_locked %}
+          <span class="coh-badge coh-badge--inherit">Using company defaults</span>
+        {% elif opening_hours_shop_mode and shop_opening_hours_custom %}
+          <span class="coh-badge coh-badge--custom">Shop override</span>
+        {% endif %}
+        {% if open_24_hours %}
+          <span class="coh-badge coh-badge--24">24 / 7</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if opening_hours_shop_mode %}
+    <label class="mx-3 mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 transition hover:bg-[rgb(var(--rc-surface-2))]/40">
+      <input
+        type="checkbox"
+        name="shop_opening_hours_custom"
+        value="1"
+        class="company-opening-hours-custom-toggle mt-1 h-4 w-4 rounded border-[rgb(var(--rc-border))]"
+        {% if shop_opening_hours_custom %}checked{% endif %}
+      />
+      <span>
+        <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customize opening hours for this shop</span>
+        <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">When off, this shop uses the same opening hours as <strong class="font-medium text-[rgb(var(--rc-page-fg))]">IT → System settings → Company settings</strong>.</span>
+      </span>
+    </label>
+    {% endif %}
+
+    {% if opening_hours_locked %}
+    <p class="coh-inherit-note">These hours come from company settings. Enable customization above to set a different schedule for this shop.</p>
+    {% endif %}
+
+    <div class="company-opening-hours-fields mt-3 {% if opening_hours_locked %}coh-fields-locked{% endif %}">
+      <div class="mx-3 flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3">
+        <div>
+          <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">24 hour shop</p>
+          <p class="text-xs text-[rgb(var(--rc-muted))]">Open every day with no closing time.</p>
+        </div>
+        <input
+          type="checkbox"
+          name="hours_open_24_hours"
+          value="1"
+          class="company-opening-hours-24 rc-receipt-switch"
+          aria-label="24 hour shop"
+          {% if open_24_hours %}checked{% endif %}
+          {% if opening_hours_locked %}disabled{% endif %}
+        />
+      </div>
+
+      <div class="company-opening-hours-24-panel {% if not open_24_hours %}hidden{% endif %}">
+        <div class="coh-24-banner">
+          <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Open 24 hours, 7 days a week</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Turn off 24 hour shop to define specific hours for each day.</p>
+        </div>
+      </div>
+
+      <div class="company-opening-hours-schedule mt-3 {% if open_24_hours %}hidden{% endif %}">
+        <div class="border-t border-[rgb(var(--rc-border))]">
+          {% for day_key, day_label in company_weekdays %}
+            {% set row = hours_days[day_key] if hours_days else {} %}
+            {% set is_closed = row.closed if row else false %}
+            {% set day_open = row.open if row and row.open else '' %}
+            {% set day_close = row.close if row and row.close else '' %}
+            <div class="coh-day-row company-opening-hours-row {% if day_key in ['saturday', 'sunday'] %}is-weekend{% endif %} {% if is_closed %}is-closed{% endif %}" data-day="{{ day_key }}">
+              <div>
+                <span class="coh-day-name">{{ day_label }}</span>
+                <span class="coh-day-meta company-opening-hours-summary">
+                  {% if is_closed %}
+                    Closed all day
+                  {% elif day_open and day_close %}
+                    {{ day_open }} – {{ day_close }}
+                  {% else %}
+                    Set open and close times
+                  {% endif %}
+                </span>
+              </div>
+              <div class="coh-day-controls">
+                <div class="coh-time-field">
+                  <label for="hours_{{ day_key }}_open">Opens</label>
+                  <input
+                    id="hours_{{ day_key }}_open"
+                    type="time"
+                    name="hours_{{ day_key }}_open"
+                    class="company-opening-hours-open"
+                    value="{{ day_open }}"
+                    {% if is_closed or opening_hours_locked %}disabled{% endif %}
+                  />
+                </div>
+                <div class="coh-time-field">
+                  <label for="hours_{{ day_key }}_close">Closes</label>
+                  <input
+                    id="hours_{{ day_key }}_close"
+                    type="time"
+                    name="hours_{{ day_key }}_close"
+                    class="company-opening-hours-close"
+                    value="{{ day_close }}"
+                    {% if is_closed or opening_hours_locked %}disabled{% endif %}
+                  />
+                </div>
+                <label class="coh-closed-toggle company-opening-hours-closed-wrap">
+                  <input
+                    type="checkbox"
+                    name="hours_{{ day_key }}_closed"
+                    value="1"
+                    class="company-opening-hours-closed h-4 w-4 rounded border-[rgb(var(--rc-border))]"
+                    {% if is_closed %}checked{% endif %}
+                    {% if opening_hours_locked %}disabled{% endif %}
+                  />
+                  Closed
+                </label>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    document.querySelectorAll("[data-company-opening-hours]").forEach(function (root) {
+      var customToggle = root.querySelector(".company-opening-hours-custom-toggle");
+      var fieldsWrap = root.querySelector(".company-opening-hours-fields");
+      var toggle24 = root.querySelector(".company-opening-hours-24");
+      var schedule = root.querySelector(".company-opening-hours-schedule");
+      var panel24 = root.querySelector(".company-opening-hours-24-panel");
+
+      function setFieldDisabled(el, off) {
+        if (!el) return;
+        el.disabled = off;
+      }
+
+      function updateRowSummary(row) {
+        var summary = row.querySelector(".company-opening-hours-summary");
+        var closed = row.querySelector(".company-opening-hours-closed");
+        var openInput = row.querySelector(".company-opening-hours-open");
+        var closeInput = row.querySelector(".company-opening-hours-close");
+        if (!summary) return;
+        if (closed && closed.checked) {
+          summary.textContent = "Closed all day";
+          row.classList.add("is-closed");
+          return;
+        }
+        row.classList.remove("is-closed");
+        var openVal = openInput ? openInput.value : "";
+        var closeVal = closeInput ? closeInput.value : "";
+        summary.textContent = (openVal && closeVal) ? (openVal + " – " + closeVal) : "Set open and close times";
+      }
+
+      function syncCustomLock() {
+        if (!customToggle) return;
+        var locked = !customToggle.checked;
+        if (fieldsWrap) {
+          fieldsWrap.classList.toggle("coh-fields-locked", locked);
+        }
+        setFieldDisabled(toggle24, locked);
+        root.querySelectorAll(".company-opening-hours-open, .company-opening-hours-close, .company-opening-hours-closed").forEach(function (el) {
+          if (el.classList.contains("company-opening-hours-closed")) {
+            setFieldDisabled(el, locked);
+            return;
+          }
+          var row = el.closest(".company-opening-hours-row");
+          var closed = row ? row.querySelector(".company-opening-hours-closed") : null;
+          setFieldDisabled(el, locked || (closed && closed.checked));
+        });
+      }
+
+      function sync24() {
+        if (!toggle24) return;
+        var on = toggle24.checked;
+        if (schedule) schedule.classList.toggle("hidden", on);
+        if (panel24) panel24.classList.toggle("hidden", !on);
+      }
+
+      if (customToggle) {
+        customToggle.addEventListener("change", syncCustomLock);
+        syncCustomLock();
+      }
+
+      function maybeDisable24FromSchedule() {
+        if (!toggle24 || toggle24.disabled) return;
+        var hasTimes = false;
+        var anyClosed = false;
+        root.querySelectorAll(".company-opening-hours-open, .company-opening-hours-close").forEach(function (el) {
+          if (el && el.value) hasTimes = true;
+        });
+        root.querySelectorAll(".company-opening-hours-closed").forEach(function (el) {
+          if (el && el.checked) anyClosed = true;
+        });
+        if ((hasTimes || anyClosed) && toggle24.checked) {
+          toggle24.checked = false;
+          sync24();
+        }
+      }
+
+      if (toggle24) {
+        toggle24.addEventListener("change", sync24);
+        sync24();
+      }
+
+      root.querySelectorAll(".company-opening-hours-row").forEach(function (row) {
+        var closed = row.querySelector(".company-opening-hours-closed");
+        var openInput = row.querySelector(".company-opening-hours-open");
+        var closeInput = row.querySelector(".company-opening-hours-close");
+        if (!closed || !openInput || !closeInput) return;
+
+        function syncClosed() {
+          var locked = customToggle && !customToggle.checked;
+          var off = closed.checked || locked;
+          openInput.disabled = off;
+          closeInput.disabled = off;
+          updateRowSummary(row);
+          maybeDisable24FromSchedule();
+        }
+
+        function syncTimes() {
+          updateRowSummary(row);
+          maybeDisable24FromSchedule();
+        }
+
+        closed.addEventListener("change", syncClosed);
+        openInput.addEventListener("change", syncTimes);
+        closeInput.addEventListener("change", syncTimes);
+        syncClosed();
+      });
+    });
+  })();
+</script>

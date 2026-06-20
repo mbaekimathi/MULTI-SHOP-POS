@@ -1,0 +1,126 @@
+{% set rd = report_data or {} %}
+{% set till = rd.till_summary or {} %}
+<section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+  <div class="border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-primary))]/10 via-transparent to-transparent px-4 py-4 sm:px-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Till &amp; summary</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Opening from start-of-day · closing = opening + collected on receipts</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {% if report_live_enabled %}
+          <p id="report-live-badge" class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Live · updates every 45s</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if report_is_single_day|default(false) %}
+      <div class="no-print mt-4 flex flex-wrap items-center gap-2 border-t border-[rgb(var(--rc-border))]/70 pt-4">
+        {% if report_show_opening_link|default(false) %}
+          <button
+            id="shop-report-submit-opening-btn"
+            type="button"
+            class="btn-rc btn-rc-primary min-h-[2.45rem] px-4 py-2 text-sm font-semibold"
+          >
+            Set opening balances
+          </button>
+        {% elif report_business_date == report_today_iso %}
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">
+            Opening recorded
+          </span>
+        {% endif %}
+
+        {% if report_show_closing_link|default(false) %}
+          <button
+            id="shop-report-submit-closing-btn"
+            type="button"
+            class="btn-rc btn-rc-secondary min-h-[2.45rem] px-4 py-2 text-sm font-semibold"
+            {% if not report_closing_ctx %}title="Set opening balances for this day first"{% endif %}
+          >
+            Submit closing balances
+          </button>
+        {% elif report_closing_submitted|default(false) %}
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 ring-1 ring-indigo-400/25 dark:text-indigo-300">
+            Closing recorded
+          </span>
+        {% endif %}
+
+        {% if not report_show_opening_link|default(false) and not report_show_closing_link|default(false) and not report_closing_submitted|default(false) and report_business_date != report_today_iso %}
+          <span class="text-xs text-[rgb(var(--rc-muted))]">Till actions apply to today&apos;s report only.</span>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="space-y-4 p-4 sm:p-5">
+    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening cash</div>
+          {% if report_show_opening_link|default(false) %}
+            <button type="button" data-shop-report-open-opening class="no-print text-xs font-bold text-[rgb(var(--rc-primary))] underline underline-offset-2 hover:opacity-80">Set opening</button>
+          {% endif %}
+        </div>
+        <div class="mt-0.5 text-lg font-extrabold tabular-nums" data-report-live="opening_cash">{{ "%.2f"|format(till.opening_cash or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening M-Pesa</div>
+          {% if report_show_opening_link|default(false) %}
+            <button type="button" data-shop-report-open-opening class="no-print text-xs font-bold text-emerald-600 underline underline-offset-2 hover:opacity-80 dark:text-emerald-400">Set opening</button>
+          {% endif %}
+        </div>
+        <div class="mt-0.5 text-lg font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="opening_mpesa">{{ "%.2f"|format(till.opening_mpesa or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing cash</div>
+          {% if report_show_closing_link|default(false) %}
+            <button type="button" data-shop-report-open-closing class="no-print text-xs font-bold text-[rgb(var(--rc-primary))] underline underline-offset-2 hover:opacity-80">Submit closing</button>
+          {% endif %}
+        </div>
+        <div class="mt-0.5 text-lg font-extrabold tabular-nums" data-report-live="closing_cash">{{ "%.2f"|format(till.closing_cash or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing M-Pesa</div>
+          {% if report_show_closing_link|default(false) %}
+            <button type="button" data-shop-report-open-closing class="no-print text-xs font-bold text-emerald-600 underline underline-offset-2 hover:opacity-80 dark:text-emerald-400">Submit closing</button>
+          {% endif %}
+        </div>
+        <div class="mt-0.5 text-lg font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="closing_mpesa">{{ "%.2f"|format(till.closing_mpesa or 0) }}</div>
+      </div>
+    </div>
+
+    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-3 py-2">
+        <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total revenue</div>
+        <div class="text-base font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="total_revenue">{{ "%.2f"|format(rd.total_revenue or 0) }}</div>
+      </div>
+      <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-3 py-2">
+        <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Sales · credit</div>
+        <div class="text-base font-bold tabular-nums">
+          <span data-report-live="sale_revenue">{{ "%.2f"|format(rd.sale_revenue or 0) }}</span>
+          <span class="mx-1 text-[rgb(var(--rc-muted))]">·</span>
+          <span class="text-sky-600 dark:text-sky-400" data-report-live="credit_revenue">{{ "%.2f"|format(rd.credit_revenue or 0) }}</span>
+        </div>
+      </div>
+      <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-3 py-2">
+        <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash · M-Pesa collected</div>
+        <div class="text-base font-bold tabular-nums">
+          <span data-report-live="cash_revenue">{{ "%.2f"|format(rd.cash_revenue or 0) }}</span>
+          <span class="mx-1 text-[rgb(var(--rc-muted))]">·</span>
+          <span class="text-emerald-600 dark:text-emerald-400" data-report-live="mpesa_revenue">{{ "%.2f"|format(rd.mpesa_revenue or 0) }}</span>
+        </div>
+      </div>
+      <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-3 py-2">
+        <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expenditure · net</div>
+        <div class="text-base font-bold tabular-nums">
+          <span class="text-amber-600 dark:text-amber-400" data-report-live="total_expenditure">{{ "%.2f"|format(rd.total_expenditure or 0) }}</span>
+          <span class="mx-1 text-[rgb(var(--rc-muted))]">·</span>
+          <span data-report-live="net_profit">{{ "%.2f"|format(rd.net_profit or 0) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

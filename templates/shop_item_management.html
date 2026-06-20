@@ -75,7 +75,30 @@
         {% endif %}
       </div>
     {% else %}
-      <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="relative min-w-0 flex-1">
+          <label for="sim-item-search" class="sr-only">Search items</label>
+          <span class="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[rgb(var(--rc-muted))]" aria-hidden="true">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </span>
+          <input
+            id="sim-item-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search by name, category or description…"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] py-2.5 pl-10 pr-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+          />
+        </div>
+        <div class="flex shrink-0 gap-2">
+          <button type="button" id="sim-item-search-btn" class="btn-rc btn-rc-primary px-5 py-2.5 text-sm font-semibold">Search</button>
+          <button type="button" id="sim-item-search-clear" class="btn-rc btn-rc-ghost hidden px-4 py-2.5 text-sm font-semibold">Clear</button>
+        </div>
+      </div>
+      <p id="sim-item-search-meta" class="mt-2 text-xs text-[rgb(var(--rc-muted))]" aria-live="polite"></p>
+
+      <div class="mt-4 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
         <div class="overflow-x-auto">
           <table class="min-w-full text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
@@ -116,7 +139,7 @@
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]">
               {% for grp in (items|sort(attribute='category')|groupby('category')) %}
-                <tr>
+                <tr class="sim-cat-row" data-sim-cat="{{ (grp.grouper or '')|lower }}">
                   <td colspan="8" class="bg-[rgb(var(--rc-surface-2))] px-4 py-2">
                     <div class="flex items-center gap-2">
                       <span class="text-xs font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-page-fg))]">
@@ -134,7 +157,8 @@
                   {% set company_stock_on = (item.company_stock_update_enabled|default(0)|int == 1) %}
                   {% set display_switch_locked_on = (not company_active) and (item.displayed|int != 1) %}
                   {% set stock_switch_locked_on = ((not company_active) or (not company_stock_on)) and (item.stock_update_enabled|int != 1) %}
-                  <tr class="align-top">
+                  {% set search_blob = ((item.name or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.description or ''))|lower %}
+                  <tr class="sim-item-row align-top" data-sim-search="{{ search_blob }}">
                     <td class="px-4 py-3">
                       {% set _item_img = static_upload_url(item.image_path) %}
                       {% if _item_img %}
@@ -297,6 +321,73 @@
 
 {% block scripts %}
   {{ super() }}
+  {% if items and not register_view %}
+  <script>
+    (function () {
+      var input = document.getElementById("sim-item-search");
+      var btn = document.getElementById("sim-item-search-btn");
+      var clearBtn = document.getElementById("sim-item-search-clear");
+      var meta = document.getElementById("sim-item-search-meta");
+      if (!input || !btn) return;
+
+      function norm(s) {
+        return (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+      }
+
+      function applySearch() {
+        var q = norm(input.value);
+        var rows = document.querySelectorAll("tr.sim-item-row");
+        var catRows = document.querySelectorAll("tr.sim-cat-row");
+        var visibleItems = 0;
+
+        rows.forEach(function (row) {
+          var hay = norm(row.getAttribute("data-sim-search") || "");
+          var show = !q || hay.indexOf(q) !== -1;
+          row.classList.toggle("hidden", !show);
+          if (show) visibleItems += 1;
+        });
+
+        catRows.forEach(function (cr) {
+          var cat = (cr.getAttribute("data-sim-cat") || "").toLowerCase();
+          var next = cr.nextElementSibling;
+          var any = false;
+          while (next && next.classList.contains("sim-item-row")) {
+            if (!next.classList.contains("hidden")) any = true;
+            next = next.nextElementSibling;
+          }
+          var catMatch = q && cat.indexOf(q) !== -1;
+          cr.classList.toggle("hidden", !any && !catMatch);
+        });
+
+        if (clearBtn) clearBtn.classList.toggle("hidden", !q);
+        if (meta) {
+          if (!q) {
+            meta.textContent = "";
+          } else {
+            meta.textContent = visibleItems === 0
+              ? "No items match your search."
+              : "Showing " + visibleItems + " matching item(s).";
+          }
+        }
+      }
+
+      btn.addEventListener("click", applySearch);
+      if (clearBtn) {
+        clearBtn.addEventListener("click", function () {
+          input.value = "";
+          applySearch();
+          input.focus();
+        });
+      }
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          applySearch();
+        }
+      });
+    })();
+  </script>
+  {% endif %}
   {% if items %}
   <div id="sim-ajax-toast" class="pointer-events-none fixed bottom-6 right-6 z-50 hidden max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg transition-opacity duration-300" role="status" aria-live="polite"></div>
   <script>

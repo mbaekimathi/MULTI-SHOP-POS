@@ -1,0 +1,53 @@
+{% set rd = report_data or {} %}
+{% set till = rd.till_summary or {} %}
+<div class="mt-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Till balances · revenue vs expense</p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+        Opening from start-of-day submission. Closing = opening + cash/M-Pesa collected on receipts. Credit sales are revenue but not in the till.
+      </p>
+      {% if report_live_enabled %}
+        <p id="report-live-badge" class="mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Live · updates every 45s (today)</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/70 p-3">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening cash</div>
+      <div class="mt-1 text-lg font-extrabold tabular-nums" data-report-live="opening_cash">{{ "%.2f"|format(till.opening_cash or 0) }}</div>
+    </div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/70 p-3">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening M-Pesa</div>
+      <div class="mt-1 text-lg font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="opening_mpesa">{{ "%.2f"|format(till.opening_mpesa or 0) }}</div>
+    </div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/70 p-3">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing cash</div>
+      <div class="mt-1 text-lg font-extrabold tabular-nums" data-report-live="closing_cash">{{ "%.2f"|format(till.closing_cash or 0) }}</div>
+      <div class="mt-1 text-[10px] text-[rgb(var(--rc-muted))]">Opening + cash collected</div>
+    </div>
+    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/70 p-3">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing M-Pesa</div>
+      <div class="mt-1 text-lg font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="closing_mpesa">{{ "%.2f"|format(till.closing_mpesa or 0) }}</div>
+      <div class="mt-1 text-[10px] text-[rgb(var(--rc-muted))]">Opening + M-Pesa collected</div>
+    </div>
+  </div>
+  <div class="mt-4 grid gap-3 sm:grid-cols-3">
+    <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 px-3 py-2">
+      <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Sales revenue</div>
+      <div class="text-base font-bold tabular-nums" data-report-live="sale_revenue">{{ "%.2f"|format(rd.sale_revenue or 0) }}</div>
+    </div>
+    <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 px-3 py-2">
+      <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Credit revenue</div>
+      <div class="text-base font-bold tabular-nums text-sky-600 dark:text-sky-400" data-report-live="credit_revenue">{{ "%.2f"|format(rd.credit_revenue or 0) }}</div>
+    </div>
+    <div class="rounded-lg border border-[rgb(var(--rc-border))]/80 px-3 py-2">
+      <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expenditure · net</div>
+      <div class="text-base font-bold tabular-nums">
+        <span data-report-live="total_expenditure">{{ "%.2f"|format(rd.total_expenditure or 0) }}</span>
+        <span class="mx-1 text-[rgb(var(--rc-muted))]">·</span>
+        <span data-report-live="net_profit">{{ "%.2f"|format(rd.net_profit or 0) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
