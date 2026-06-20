@@ -86,6 +86,24 @@
             value="{{ cs.company_instagram or '' }}"
           />
         </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">X (Twitter)</label>
+          <input
+            name="company_twitter"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_twitter or '' }}"
+            placeholder="https://x.com/yourpage"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">TikTok</label>
+          <input
+            name="company_tiktok"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ cs.company_tiktok or '' }}"
+            placeholder="https://tiktok.com/@yourpage"
+          />
+        </div>
         {% set location_name = cs.company_location_name or '' %}
         {% set location_lat = cs.company_latitude or '' %}
         {% set location_lng = cs.company_longitude or '' %}

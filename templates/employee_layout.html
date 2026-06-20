@@ -199,6 +199,9 @@
     </div>
   </div>
   {% include "partials/ai_accountant_floating.html" %}
+  {% if employee_session_idle_guard %}
+    {% include "partials/employee_session_idle_guard.html" %}
+  {% endif %}
 {% endblock %}
 {% block scripts %}
   {{ super() }}

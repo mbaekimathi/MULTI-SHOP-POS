@@ -46,8 +46,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     {% set _icon = site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg' %}
     <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
-    <title>{% block title %}{{ pub_brand_name }}{% endblock %} — {{ pub_title_suffix }}</title>
+    <title>{% block title %}{{ pub_brand_name }}{% endblock %}{% if not storefront_seo %} — {{ pub_title_suffix }}{% endif %}</title>
     <meta name="description" content="{% block meta_description %}{{ storefront_homepage_copy.meta_description if storefront_homepage_copy else 'Browse products and request a quote online.' }}{% endblock %}" />
+    {% include "partials/storefront_seo_head.html" %}
     {% if site_settings and site_settings.font_google_url %}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

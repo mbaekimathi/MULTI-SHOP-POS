@@ -978,7 +978,15 @@
         </div>
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Instagram</label>
-          <input name="company_instagram" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_instagram if site_settings else '' }}" />
+          <input name="company_instagram" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_instagram if site_settings else '' }}" placeholder="https://instagram.com/yourpage" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">X (Twitter)</label>
+          <input name="company_twitter" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_twitter if site_settings else '' }}" placeholder="https://x.com/yourpage" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">TikTok</label>
+          <input name="company_tiktok" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none" value="{{ site_settings.company_tiktok if site_settings else '' }}" placeholder="https://tiktok.com/@yourpage" />
         </div>
         {% set location_name = site_settings.company_location_name if site_settings else '' %}
         {% set location_lat = site_settings.company_latitude if site_settings else '' %}

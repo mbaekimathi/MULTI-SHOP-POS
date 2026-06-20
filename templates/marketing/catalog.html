@@ -1,26 +1,20 @@
-{% extends "marketing/base_marketing.html" %}
-
-{% set _c = storefront_homepage_copy %}
-
-{% set _d = website_settings.design if website_settings and website_settings.design else {} %}
-
-{% block title %}All products — {{ _c.company_name }}{% endblock %}
-
-{% block meta_description %}{{ _c.meta_description }}{% endblock %}
-
-{% block marketing_header %}{% endblock %}
-
-{% block marketing_footer %}{% endblock %}
-
-{% block main_class %} mk-main--flush{% endblock %}
-
-{% block content %}
-
-  {% with website_design=_d, storefront_include_chrome=true, storefront_catalog_mode=true %}
-
-    {% include "partials/website_ecommerce_storefront.html" %}
-
-  {% endwith %}
-
-{% endblock %}
-
+{% extends "marketing/base_storefront.html" %}
+
+{% set _c = storefront_homepage_copy %}
+
+{% set _d = website_settings.design if website_settings and website_settings.design else {} %}
+
+{% block title %}All products — {{ _c.company_name }}{% endblock %}
+
+{% block meta_description %}{{ _c.meta_description or ('Browse the full ' ~ _c.company_name ~ ' product catalogue and request a quote online.') }}{% endblock %}
+
+{% block content %}
+
+  {% with website_design=_d, storefront_include_chrome=true, storefront_catalog_mode=true %}
+
+    {% include "partials/website_ecommerce_storefront.html" %}
+
+  {% endwith %}
+
+{% endblock %}
+

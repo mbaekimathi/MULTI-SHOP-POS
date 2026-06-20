@@ -11,7 +11,7 @@
 >
   <div class="wsf-product-card__media">
     {% if p.image_url %}
-      <img src="{{ p.image_url }}" alt="" class="wsf-product-card__img" loading="lazy" />
+      <img src="{{ p.image_url }}" alt="" class="wsf-product-card__img" loading="lazy" decoding="async" width="280" height="280" />
     {% else %}
       <div class="wsf-product-card__img-ph">
         <span>{{ p.name[:1]|upper }}</span>

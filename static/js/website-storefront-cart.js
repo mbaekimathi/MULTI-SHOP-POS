@@ -6,15 +6,44 @@
   var storageKey = "wsf-cart-v1";
   var cart = [];
   var productsById = {};
+  var productsReady = false;
+  var pendingAdds = [];
+    if (!Array.isArray(list)) return;
+    list.forEach(function (p) {
+      if (p && p.id != null) productsById[String(p.id)] = p;
+    });
+  }
 
-  try {
+  function loadProducts(done) {
     var catalogEl = document.getElementById("wsf-products-json");
     if (catalogEl && catalogEl.textContent) {
-      JSON.parse(catalogEl.textContent).forEach(function (p) {
-        productsById[String(p.id)] = p;
-      });
+      try {
+        ingestProducts(JSON.parse(catalogEl.textContent));
+      } catch (e) {}
+      productsReady = true;
+      done();
+      return;
     }
-  } catch (e) {}
+    var url = root.getAttribute("data-wsf-products-url");
+    if (!url) {
+      productsReady = true;
+      done();
+      return;
+    }
+    fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (r) {
+        if (!r.ok) throw new Error("products");
+        return r.json();
+      })
+      .then(function (data) {
+        ingestProducts((data && data.products) || data || []);
+      })
+      .catch(function () {})
+      .finally(function () {
+        productsReady = true;
+        done();
+      });
+  }
 
   function loadCart() {
     try {
@@ -68,6 +97,10 @@
   }
 
   function addToCart(id, qty, addBtn) {
+    if (!productsReady) {
+      pendingAdds.push({ id: id, qty: qty, addBtn: addBtn });
+      return;
+    }
     var p = productsById[String(id)];
     if (!p) return;
     var q = Math.max(1, Math.min(999, parseInt(qty, 10) || 1));
@@ -132,6 +165,7 @@
 
   function openDrawer() {
     if (!drawer) return;
+    if (typeof window.wsfCloseContactDrawer === "function") window.wsfCloseContactDrawer();
     drawer.classList.add("is-open");
     if (backdrop) backdrop.classList.add("is-open");
     document.body.classList.add("wsf-cart-open");
@@ -548,6 +582,12 @@
     });
   }
 
-  loadCart();
-  render();
+  loadProducts(function () {
+    pendingAdds.forEach(function (row) {
+      addToCart(row.id, row.qty, row.addBtn);
+    });
+    pendingAdds = [];
+    loadCart();
+    render();
+  });
 })();

@@ -1,0 +1,24 @@
+{# Canonical, Open Graph, and Twitter tags for public storefront pages. #}
+{% if storefront_seo %}
+  <meta name="robots" content="index, follow" />
+  {% if storefront_seo.canonical_url %}
+    <link rel="canonical" href="{{ storefront_seo.canonical_url }}" />
+  {% endif %}
+  <meta property="og:locale" content="en_KE" />
+  <meta property="og:site_name" content="{{ storefront_seo.og_site_name }}" />
+  <meta property="og:type" content="{{ storefront_seo.og_type }}" />
+  <meta property="og:title" content="{{ storefront_seo.og_title }}" />
+  <meta property="og:description" content="{{ storefront_seo.og_description }}" />
+  {% if storefront_seo.og_url %}
+    <meta property="og:url" content="{{ storefront_seo.og_url }}" />
+  {% endif %}
+  {% if storefront_seo.og_image %}
+    <meta property="og:image" content="{{ storefront_seo.og_image }}" />
+  {% endif %}
+  <meta name="twitter:card" content="{{ storefront_seo.twitter_card }}" />
+  <meta name="twitter:title" content="{{ storefront_seo.og_title }}" />
+  <meta name="twitter:description" content="{{ storefront_seo.og_description }}" />
+  {% if storefront_seo.og_image %}
+    <meta name="twitter:image" content="{{ storefront_seo.og_image }}" />
+  {% endif %}
+{% endif %}

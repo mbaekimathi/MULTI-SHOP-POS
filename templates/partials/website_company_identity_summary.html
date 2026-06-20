@@ -22,12 +22,16 @@
         {% if _co and _co.company_location_name %}
           <li class="flex items-center gap-2"><span class="text-[10px] font-bold uppercase tracking-wide opacity-70">Location</span> {{ _co.company_location_name }}</li>
         {% endif %}
-        {% if _co and (_co.company_facebook or _co.company_instagram) %}
+        {% if _co and (_co.company_facebook or _co.company_instagram or _co.company_twitter or _co.company_tiktok) %}
           <li class="flex flex-wrap items-center gap-2">
             <span class="text-[10px] font-bold uppercase tracking-wide opacity-70">Social</span>
             {% if _co.company_facebook %}<span>Facebook</span>{% endif %}
-            {% if _co.company_facebook and _co.company_instagram %}<span aria-hidden="true">·</span>{% endif %}
+            {% if _co.company_facebook and (_co.company_instagram or _co.company_twitter or _co.company_tiktok) %}<span aria-hidden="true">·</span>{% endif %}
             {% if _co.company_instagram %}<span>Instagram</span>{% endif %}
+            {% if _co.company_instagram and (_co.company_twitter or _co.company_tiktok) %}<span aria-hidden="true">·</span>{% endif %}
+            {% if _co.company_twitter %}<span>X</span>{% endif %}
+            {% if _co.company_twitter and _co.company_tiktok %}<span aria-hidden="true">·</span>{% endif %}
+            {% if _co.company_tiktok %}<span>TikTok</span>{% endif %}
           </li>
         {% endif %}
       </ul>

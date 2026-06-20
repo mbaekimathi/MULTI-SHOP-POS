@@ -1,0 +1,74 @@
+{% set _sf_font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
+{% set _ws_theme = website_settings.default_theme if website_settings else 'system' %}
+{% set _mk_theme_default = 'system' if _ws_theme == 'light' else (_ws_theme if _ws_theme in ['dark', 'light', 'system'] else 'system') %}
+<!DOCTYPE html>
+<html
+  lang="en"
+  data-marketing-theme-default="{{ _mk_theme_default }}"
+  data-marketing-theme="{{ _mk_theme_default }}"
+  data-marketing-theme-config="{{ (website_settings.theme_config_key if website_settings else none)|default(site_settings.theme_config_key if site_settings else '', true) }}"
+  data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
+  style="--mk-primary: {{ site_settings.primary_color if site_settings else '#f97316' }}; --mk-accent: {{ site_settings.accent_color if site_settings else '#fb923c' }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '249, 115, 22' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '251, 146, 60' }}; --rc-font-family: {{ _sf_font }};"
+>
+  <script>
+    (function () {
+      try {
+        var docEl = document.documentElement;
+        var def = docEl.getAttribute("data-marketing-theme-default") || docEl.getAttribute("data-marketing-theme") || "system";
+        function resolveDefault(mode) {
+          if (mode === "system") {
+            try {
+              return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            } catch (e2) {
+              return "light";
+            }
+          }
+          return mode === "light" || mode === "dark" ? mode : "light";
+        }
+        var cfg = docEl.getAttribute("data-marketing-theme-config") || "";
+        var storedCfg = localStorage.getItem("marketing-theme-config");
+        var t = localStorage.getItem("marketing-theme");
+        var theme;
+        if (storedCfg && cfg && storedCfg === cfg && (t === "dark" || t === "light")) {
+          theme = t;
+        } else {
+          theme = resolveDefault(def);
+        }
+        docEl.setAttribute("data-marketing-theme", theme);
+        docEl.style.colorScheme = theme === "dark" ? "dark" : "light";
+      } catch (e) {}
+    })();
+  </script>
+  <head>
+    {% include "partials/system_public_brand.html" %}
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    {% set _icon = site_settings.app_icon if site_settings and site_settings.app_icon else 'app-icon.svg' %}
+    <link rel="icon" href="{{ url_for('static', filename=_icon) }}" />
+    <title>{% block title %}{{ pub_brand_name }}{% endblock %}{% if not storefront_seo %} — {{ pub_title_suffix }}{% endif %}</title>
+    <meta name="description" content="{% block meta_description %}{{ storefront_homepage_copy.meta_description if storefront_homepage_copy else 'Browse products and request a quote online.' }}{% endblock %}" />
+    {% include "partials/storefront_seo_head.html" %}
+    {% if site_settings and site_settings.font_google_url %}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      <link rel="preload" as="style" href="{{ site_settings.font_google_url }}" />
+      <link rel="stylesheet" href="{{ site_settings.font_google_url }}" media="print" onload="this.media='all'" />
+      <noscript><link rel="stylesheet" href="{{ site_settings.font_google_url }}" /></noscript>
+    {% else %}
+      {% include "partials/theme_font_link.html" %}
+    {% endif %}
+    <link rel="preload" href="{{ url_for('static', filename='css/website-storefront-layout.css') }}" as="style" />
+    <link rel="preload" href="{{ url_for('static', filename='css/website-storefront.css') }}" as="style" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-layout.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-premium.css') }}" />
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body class="overflow-x-hidden text-zinc-900 dark:text-zinc-100">
+    <main class="wsf-page-main">{% block content %}{% endblock %}</main>
+    <script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/website-storefront-location.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/website-storefront-cart.js') }}" defer></script>
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

@@ -1,0 +1,122 @@
+{# Inactivity warning + auto sign-out for logged-in employee sessions. #}
+<div
+  id="employee-session-idle-root"
+  class="hidden"
+  aria-hidden="true"
+  data-idle-ms="{{ (employee_session_idle_minutes * 60 * 1000)|int }}"
+  data-warn-ms="{{ (employee_session_idle_warn_seconds * 1000)|int }}"
+  data-ping-url="{{ url_for('employee_session_activity_ping') }}"
+  data-logout-url="{{ url_for('employee_logout', reason='idle') }}"
+  data-login-url="{{ url_for('employee_login') }}"
+></div>
+<div
+  id="employee-session-idle-modal"
+  class="employee-session-idle-modal"
+  role="alertdialog"
+  aria-modal="true"
+  aria-labelledby="employee-session-idle-title"
+  aria-describedby="employee-session-idle-desc"
+  hidden
+>
+  <div class="employee-session-idle-modal__backdrop" data-idle-dismiss-bg></div>
+  <div class="employee-session-idle-modal__panel">
+    <p class="employee-session-idle-modal__eyebrow">Session timeout</p>
+    <h2 id="employee-session-idle-title" class="employee-session-idle-modal__title">Are you still there?</h2>
+    <p id="employee-session-idle-desc" class="employee-session-idle-modal__desc">
+      You have been inactive. You will be signed out in
+      <strong id="employee-session-idle-count">60</strong>
+      seconds unless you respond.
+    </p>
+    <div class="employee-session-idle-modal__actions">
+      <button type="button" class="employee-session-idle-modal__btn employee-session-idle-modal__btn--primary" data-idle-stay>
+        Stay signed in
+      </button>
+      <button type="button" class="employee-session-idle-modal__btn employee-session-idle-modal__btn--ghost" data-idle-logout>
+        Sign out now
+      </button>
+    </div>
+  </div>
+</div>
+<style>
+  .employee-session-idle-modal[hidden] { display: none !important; }
+  .employee-session-idle-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .employee-session-idle-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+  }
+  .employee-session-idle-modal__panel {
+    position: relative;
+    width: min(100%, 24rem);
+    border-radius: 1rem;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface));
+    padding: 1.25rem 1.25rem 1rem;
+    box-shadow: 0 24px 48px -24px rgba(15, 23, 42, 0.45);
+  }
+  .employee-session-idle-modal__eyebrow {
+    margin: 0 0 0.35rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgb(var(--rc-muted));
+  }
+  .employee-session-idle-modal__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: rgb(var(--rc-page-fg));
+  }
+  .employee-session-idle-modal__desc {
+    margin: 0.65rem 0 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: rgb(var(--rc-muted));
+  }
+  .employee-session-idle-modal__desc strong {
+    color: rgb(var(--rc-primary));
+    font-variant-numeric: tabular-nums;
+  }
+  .employee-session-idle-modal__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .employee-session-idle-modal__btn {
+    flex: 1 1 auto;
+    min-height: 2.5rem;
+    border-radius: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .employee-session-idle-modal__btn--primary {
+    background: rgb(var(--rc-primary));
+    color: #fff;
+  }
+  .employee-session-idle-modal__btn--primary:hover {
+    filter: brightness(1.05);
+  }
+  .employee-session-idle-modal__btn--ghost {
+    background: rgb(var(--rc-surface-2));
+    border-color: rgb(var(--rc-border));
+    color: rgb(var(--rc-page-fg));
+  }
+  .employee-session-idle-modal__btn--ghost:hover {
+    background: rgb(var(--rc-surface));
+  }
+</style>
+<script src="{{ url_for('static', filename='js/employee-session-idle.js') }}" defer></script>

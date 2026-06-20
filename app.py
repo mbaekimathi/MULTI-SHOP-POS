@@ -64,6 +64,13 @@ if (os.getenv("TRUST_PROXY_HEADERS") or "1").strip().lower() not in {
 # state because the session cookie still validates once the network returns.
 _SESSION_DAYS = int(os.getenv("SESSION_LIFETIME_DAYS", "90") or "90")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=max(1, _SESSION_DAYS))
+_EMPLOYEE_IDLE_MINUTES = max(1, int(os.getenv("EMPLOYEE_SESSION_IDLE_MINUTES", "5") or "5"))
+EMPLOYEE_SESSION_IDLE_SECONDS = _EMPLOYEE_IDLE_MINUTES * 60
+_EMPLOYEE_IDLE_WARN_SECONDS_RAW = int(os.getenv("EMPLOYEE_SESSION_IDLE_WARN_SECONDS", "60") or "60")
+EMPLOYEE_SESSION_IDLE_WARN_SECONDS = max(
+    15,
+    min(_EMPLOYEE_IDLE_WARN_SECONDS_RAW, max(EMPLOYEE_SESSION_IDLE_SECONDS - 15, 15)),
+)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 # Only set Secure when explicitly told the deployment is on HTTPS, so localhost
@@ -71,6 +78,18 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = (
     (os.getenv("SESSION_COOKIE_SECURE") or "").strip().lower() in {"1", "true", "yes", "on"}
 )
+
+_STATIC_CACHE_MAX_AGE = int(os.getenv("STATIC_CACHE_MAX_AGE", "604800") or "604800")
+
+
+@app.after_request
+def _add_static_cache_headers(response):
+    """Long-cache versioned static assets; skip in debug to ease local iteration."""
+    if request.path.startswith("/static/") and not app.debug:
+        response.cache_control.public = True
+        response.cache_control.max_age = max(3600, _STATIC_CACHE_MAX_AGE)
+        response.cache_control.immutable = True
+    return response
 
 UPLOAD_FOLDER_REL = "uploads/profiles"
 ALLOWED_PROFILE_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
@@ -215,6 +234,101 @@ def _clear_employee_portal_session() -> None:
     session.pop("employee_name", None)
     session.pop("employee_role", None)
     session.pop("shop_role_preview", None)
+    session.pop("employee_last_activity", None)
+
+
+def _touch_employee_session_activity() -> None:
+    session["employee_last_activity"] = time.time()
+
+
+def _request_is_shop_branch_session_view() -> bool:
+    """True on shop till / branch pages where idle sign-out would interrupt selling."""
+    if not session.get("shop_id"):
+        return False
+    ep = request.endpoint or ""
+    if ep == "shop_pos" or ep.startswith("shop_"):
+        return True
+    path = (request.path or "").strip("/")
+    parts = path.split("/")
+    return len(parts) >= 2 and parts[0] == "shops" and parts[1].isdigit()
+
+
+_EMPLOYEE_IDLE_SKIP_ENDPOINTS = frozenset(
+    {
+        "static",
+        "employee_login",
+        "employee_logout",
+        "employee_signup",
+        "public_shop_login",
+        "shop_login",
+        "shop_logout",
+    }
+)
+
+
+def _enforce_employee_session_idle_timeout():
+    """Sign out employee portal sessions after inactivity (shop-password session may remain)."""
+    if request.endpoint in _EMPLOYEE_IDLE_SKIP_ENDPOINTS:
+        return None
+    if not session.get("employee_id"):
+        return None
+    if _request_is_shop_branch_session_view():
+        return None
+
+    now = time.time()
+    try:
+        last = float(session.get("employee_last_activity"))
+    except (TypeError, ValueError):
+        _touch_employee_session_activity()
+        return None
+
+    if now - last <= EMPLOYEE_SESSION_IDLE_SECONDS:
+        _touch_employee_session_activity()
+        return None
+
+    emp_id = session.get("employee_id")
+    emp_name = session.get("employee_name")
+    emp_role = session.get("employee_role")
+    _log_hr_activity_safe(
+        "logout",
+        employee_id=emp_id,
+        target_type="employee",
+        target_id=int(emp_id) if emp_id else None,
+        description=f"Automatic sign-out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity",
+        employee_full_name=emp_name,
+        employee_role=emp_role,
+    )
+    _clear_employee_portal_session()
+
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "").lower()
+    )
+    if wants_json:
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "error": f"Session expired after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
+                    "login_url": url_for("employee_login"),
+                }
+            ),
+            401,
+        )
+
+    flash(
+        f"You were signed out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
+        "warning",
+    )
+    next_url = request.path if request.method == "GET" else ""
+    if _safe_login_next(next_url):
+        return redirect(url_for("employee_login", next=next_url))
+    return redirect(url_for("employee_login"))
+
+
+@app.before_request
+def _employee_session_idle_timeout_on_request():
+    return _enforce_employee_session_idle_timeout()
 
 
 def _safe_login_next(next_url: str) -> bool:
@@ -732,6 +846,16 @@ def inject_storefront_homepage_copy():
 
 
 @app.context_processor
+def inject_storefront_seo():
+    """Canonical, Open Graph, and JSON-LD context for public storefront pages."""
+    try:
+        seo = _storefront_seo_context_for_request()
+    except Exception:
+        seo = {}
+    return {"storefront_seo": seo or None}
+
+
+@app.context_processor
 def inject_site_settings():
     from theme_presets import (
         DEFAULT_THEME_PRESET,
@@ -749,6 +873,8 @@ def inject_site_settings():
         "company_phone": "",
         "company_facebook": "",
         "company_instagram": "",
+        "company_twitter": "",
+        "company_tiktok": "",
         "public_app_url": "",
         "company_location_name": "",
         "company_latitude": "",
@@ -797,6 +923,17 @@ def inject_site_settings():
         "theme_presets_css": THEME_PRESETS,
         "theme_font_google_url": google_fonts_url(portal_font),
         "google_maps_api_key": _google_maps_api_key(),
+    }
+
+
+@app.context_processor
+def inject_employee_session_idle_config():
+    if not session.get("employee_id") or _request_is_shop_branch_session_view():
+        return {"employee_session_idle_guard": False}
+    return {
+        "employee_session_idle_guard": True,
+        "employee_session_idle_minutes": _EMPLOYEE_IDLE_MINUTES,
+        "employee_session_idle_warn_seconds": EMPLOYEE_SESSION_IDLE_WARN_SECONDS,
     }
 
 
@@ -1155,6 +1292,58 @@ def marketing_catalog_live():
     return _render_public_storefront(catalog_mode=True)
 
 
+@app.route("/robots.txt")
+def storefront_robots_txt():
+    """Crawler rules for the public shop."""
+    return Response(_storefront_robots_txt_body(), mimetype="text/plain; charset=utf-8")
+
+
+@app.route("/sitemap.xml")
+def storefront_sitemap_xml():
+    """XML sitemap for homepage, catalogue, and category pages."""
+    entries = _storefront_sitemap_entries()
+    url_blocks = []
+    for row in entries:
+        loc = (row.get("loc") or "").replace("&", "&amp;").replace("<", "&lt;")
+        if not loc:
+            continue
+        url_blocks.append(
+            "  <url>\n"
+            f"    <loc>{loc}</loc>\n"
+            f"    <changefreq>{row.get('changefreq', 'weekly')}</changefreq>\n"
+            f"    <priority>{row.get('priority', '0.5')}</priority>\n"
+            "  </url>"
+        )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(url_blocks)
+        + "\n</urlset>\n"
+    )
+    return Response(xml, mimetype="application/xml; charset=utf-8")
+
+
+@app.route("/api/storefront/products.json")
+def storefront_products_json():
+    """Lightweight product list for cart — loaded after catalog HTML paints."""
+    try:
+        from database import list_website_catalog_items
+
+        catalog_rows = list_website_catalog_items(limit=500)
+    except Exception:
+        catalog_rows = []
+    products = [
+        _serialize_website_product_cart_row(_serialize_website_product_row(r))
+        for r in catalog_rows
+        if int(r.get("id") or 0) > 0
+    ]
+    response = jsonify({"ok": True, "products": products})
+    if not app.debug:
+        response.cache_control.public = True
+        response.cache_control.max_age = 300
+    return response
+
+
 @app.route("/features")
 def marketing_features():
     return render_template("marketing/features.html")
@@ -1314,6 +1503,7 @@ def employee_login():
         session["employee_name"] = row["full_name"]
         session["employee_role"] = row.get("role") or "employee"
         role_key = session.get("employee_role") or "employee"
+        _touch_employee_session_activity()
 
         _log_hr_activity_safe(
             "login",
@@ -1400,12 +1590,17 @@ def employee_login():
 @app.route("/logout", methods=["POST", "GET"])
 def employee_logout():
     had_employee = bool(session.get("employee_id"))
+    idle_sign_out = (request.args.get("reason") or "").strip().lower() == "idle"
     if had_employee:
         _log_hr_activity_safe(
             "logout",
             target_type="employee",
             target_id=session.get("employee_id"),
-            description=f"Logout by {session.get('employee_name') or 'employee'}",
+            description=(
+                f"Automatic sign-out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity"
+                if idle_sign_out
+                else f"Logout by {session.get('employee_name') or 'employee'}"
+            ),
         )
     session.pop("employee_id", None)
     session.pop("employee_name", None)
@@ -1413,10 +1608,32 @@ def employee_logout():
     session.pop("shop_id", None)
     session.pop("shop_name", None)
     session.pop("shop_role_preview", None)
-    flash("You have been signed out.", "success")
+    session.pop("employee_last_activity", None)
+    if idle_sign_out:
+        flash(
+            f"You were signed out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
+            "warning",
+        )
+    else:
+        flash("You have been signed out.", "success")
     if had_employee:
         return redirect(url_for("employee_login"))
     return redirect(url_for("public_shop_login"))
+
+
+@app.route("/session/employee-activity", methods=["POST"])
+def employee_session_activity_ping():
+    """Keep employee session alive after user confirms they are still present."""
+    if not session.get("employee_id"):
+        return jsonify({"ok": False, "expired": True, "login_url": url_for("employee_login")}), 401
+    _touch_employee_session_activity()
+    return jsonify(
+        {
+            "ok": True,
+            "idle_seconds": EMPLOYEE_SESSION_IDLE_SECONDS,
+            "warn_seconds": EMPLOYEE_SESSION_IDLE_WARN_SECONDS,
+        }
+    )
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -1798,6 +2015,8 @@ _COMPANY_IDENTITY_KEYS = (
     "company_phone",
     "company_facebook",
     "company_instagram",
+    "company_twitter",
+    "company_tiktok",
     "public_app_url",
     "company_location_name",
     "company_latitude",
@@ -1850,6 +2069,8 @@ def _company_identity_values_from_form() -> dict:
         "company_phone": (request.form.get("company_phone") or "").strip(),
         "company_facebook": (request.form.get("company_facebook") or "").strip(),
         "company_instagram": (request.form.get("company_instagram") or "").strip(),
+        "company_twitter": (request.form.get("company_twitter") or "").strip(),
+        "company_tiktok": (request.form.get("company_tiktok") or "").strip(),
         **_location_settings_from_form(),
     }
 
@@ -2103,12 +2324,18 @@ def _storefront_homepage_copy(design: dict | None, company: dict | None) -> dict
         "cta_primary_label": _website_design_field(d, "cta_primary_label") or "Browse products",
         "cta_secondary_label": _website_design_field(d, "cta_secondary_label") or "Request quote",
         "phone": (co.get("company_phone") or "").strip(),
+        "whatsapp_url": _whatsapp_send_url(
+            (co.get("company_phone") or "").strip(),
+            f"Hello, I'd like to get in touch with {name}.",
+        ),
         "email": (co.get("company_email") or "").strip(),
         "location": location,
         "latitude": (co.get("company_latitude") or "").strip(),
         "longitude": (co.get("company_longitude") or "").strip(),
         "facebook": (co.get("company_facebook") or "").strip(),
         "instagram": (co.get("company_instagram") or "").strip(),
+        "twitter": (co.get("company_twitter") or "").strip(),
+        "tiktok": (co.get("company_tiktok") or "").strip(),
         "app_icon": (co.get("app_icon") or "").strip(),
         "return_refund_policy": _website_design_field(d, "return_refund_policy"),
         "shipping_delivery_guidelines": _website_design_field(d, "shipping_delivery_guidelines"),
@@ -2226,6 +2453,199 @@ def _public_storefront_share_info() -> dict:
     }
 
 
+def _storefront_seo_canonical_base() -> str:
+    """Absolute base URL for canonical links and sitemap (branded domain preferred)."""
+    share = _public_storefront_share_info()
+    kind = share.get("kind") or ""
+    url = (share.get("url") or "").strip()
+    if kind in ("domain", "hosted") and url.startswith("http"):
+        return url.rstrip("/")
+    try:
+        root = (request.url_root or "").strip().rstrip("/")
+        if root:
+            return root
+    except RuntimeError:
+        pass
+    if url.startswith("http"):
+        return url.rstrip("/")
+    return ""
+
+
+def _storefront_seo_absolute_url(path: str = "/") -> str:
+    """Build an absolute storefront URL for SEO tags and sitemap entries."""
+    base = _storefront_seo_canonical_base()
+    if not base:
+        return ""
+    if not path.startswith("/"):
+        path = "/" + path
+    return base.rstrip("/") + path
+
+
+def _storefront_seo_image_url() -> str:
+    """Absolute URL for og:image / business schema image."""
+    try:
+        co = _load_company_identity_settings()
+        icon = (co.get("app_icon") or "").strip() or "app-icon.svg"
+        base = _storefront_seo_canonical_base()
+        static_path = url_for("static", filename=icon)
+        if base:
+            return base.rstrip("/") + static_path
+        return url_for("static", filename=icon, _external=True)
+    except Exception:
+        return ""
+
+
+def _storefront_local_business_json_ld() -> dict | None:
+    """Schema.org Store payload for the public homepage."""
+    try:
+        ws = _load_website_settings()
+        co = _load_company_identity_settings()
+        copy = _storefront_homepage_copy(ws.get("design"), co)
+    except Exception:
+        return None
+    name = (copy.get("company_name") or "").strip()
+    if not name:
+        return None
+    home_url = _storefront_seo_absolute_url("/")
+    payload: dict = {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        "name": name,
+        "description": (copy.get("meta_description") or copy.get("hero_lead") or "").strip(),
+    }
+    if home_url:
+        payload["url"] = home_url
+    phone = (copy.get("phone") or "").strip()
+    if phone:
+        payload["telephone"] = phone
+    email = (copy.get("email") or "").strip()
+    if email:
+        payload["email"] = email
+    image = _storefront_seo_image_url()
+    if image:
+        payload["image"] = image
+    location = (copy.get("location") or "").strip()
+    if location:
+        payload["address"] = {"@type": "PostalAddress", "streetAddress": location}
+    lat = (copy.get("latitude") or "").strip()
+    lng = (copy.get("longitude") or "").strip()
+    if lat and lng:
+        try:
+            payload["geo"] = {
+                "@type": "GeoCoordinates",
+                "latitude": float(lat),
+                "longitude": float(lng),
+            }
+        except (TypeError, ValueError):
+            pass
+    if not payload.get("description"):
+        payload.pop("description", None)
+    return payload
+
+
+def _storefront_sitemap_entries() -> list[dict]:
+    """Public storefront URLs for sitemap.xml."""
+    base = _storefront_seo_canonical_base()
+    if not base:
+        return []
+    entries = [
+        {"loc": _storefront_seo_absolute_url("/"), "changefreq": "daily", "priority": "1.0"},
+        {"loc": _storefront_seo_absolute_url("/catalog"), "changefreq": "daily", "priority": "0.9"},
+    ]
+    try:
+        for cat in _website_catalog_categories():
+            name = (cat.get("name") if isinstance(cat, dict) else str(cat or "")).strip()
+            if not name:
+                continue
+            entries.append(
+                {
+                    "loc": _storefront_seo_absolute_url("/catalog") + "?cat=" + quote(name),
+                    "changefreq": "weekly",
+                    "priority": "0.7",
+                }
+            )
+    except Exception:
+        pass
+    return entries
+
+
+def _storefront_robots_txt_body() -> str:
+    """robots.txt for public shop discovery."""
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        "Allow: /catalog",
+        "Disallow: /api/",
+        "Disallow: /it_support/",
+        "Disallow: /shop/",
+        "Disallow: /employee/",
+        "Disallow: /login",
+        "Disallow: /shop-login",
+        "Disallow: /signup",
+        "Disallow: /logout",
+        "Disallow: /profile/",
+        "Disallow: /site",
+        "Disallow: /features",
+        "Disallow: /pricing",
+        "Disallow: /about",
+        "Disallow: /contact",
+        "Disallow: /dashboard-preview",
+        "",
+    ]
+    sitemap_url = _storefront_seo_absolute_url("/sitemap.xml")
+    if sitemap_url:
+        lines.append(f"Sitemap: {sitemap_url}")
+    return "\n".join(lines) + "\n"
+
+
+def _storefront_seo_context_for_request() -> dict:
+    """SEO meta for public storefront pages (homepage + catalogue)."""
+    ep = request.endpoint or ""
+    page_map = {
+        "index": ("home", "/"),
+        "marketing_home": ("home", "/"),
+        "marketing_catalog": ("catalog", "/catalog"),
+        "marketing_catalog_live": ("catalog", "/catalog"),
+    }
+    if ep not in page_map:
+        return {}
+    page, canonical_path = page_map[ep]
+    try:
+        ws = _load_website_settings()
+        co = _load_company_identity_settings()
+        copy = _storefront_homepage_copy(ws.get("design"), co)
+    except Exception:
+        copy = _storefront_homepage_copy({}, {})
+    company = copy.get("company_name") or "Our Store"
+    if page == "catalog":
+        og_title = f"All products — {company}"
+        meta_desc = (copy.get("meta_description") or "").strip()
+        og_description = meta_desc or f"Browse the full {company} product catalogue and request a quote online."
+    else:
+        og_title = (copy.get("page_title") or company).strip()
+        og_description = (copy.get("meta_description") or copy.get("hero_lead") or "").strip()
+        if not og_description:
+            og_description = f"Shop {company} — browse products and request a quote online."
+    canonical_url = _storefront_seo_absolute_url(canonical_path)
+    image_url = _storefront_seo_image_url()
+    ctx = {
+        "page": page,
+        "canonical_url": canonical_url,
+        "og_title": og_title,
+        "og_description": og_description,
+        "og_url": canonical_url,
+        "og_type": "website",
+        "og_image": image_url,
+        "og_site_name": company,
+        "twitter_card": "summary_large_image" if image_url else "summary",
+    }
+    if page == "home":
+        ld = _storefront_local_business_json_ld()
+        if ld:
+            ctx["local_business_json"] = ld
+    return ctx
+
+
 def _render_public_storefront(*, catalog_mode: bool = False):
     ws = _load_website_settings()
     design = ws.get("design") or _default_website_design()
@@ -2241,6 +2661,7 @@ def _render_public_storefront(*, catalog_mode: bool = False):
             "marketing/catalog.html",
             website_design=design,
             website_featured_products=products,
+            website_cart_products=[_serialize_website_product_cart_row(p) for p in products],
             website_product_categories=_website_product_categories(products),
             is_live_public_website=_is_public_website_host_request(),
             storefront_catalog_mode=True,
@@ -2250,6 +2671,7 @@ def _render_public_storefront(*, catalog_mode: bool = False):
         "marketing/home.html",
         website_design=design,
         website_featured_products=products,
+        website_cart_products=[_serialize_website_product_cart_row(p) for p in products],
         website_public_shops=_public_storefront_shops(),
         website_product_categories=_website_catalog_categories(),
         is_live_public_website=_is_public_website_host_request(),
@@ -2354,6 +2776,16 @@ def _serialize_website_product_row(r: dict) -> dict:
         "on_sale": on_sale,
         "discount_percent": discount_pct,
         "discount_amount": round(was - lowest, 2) if on_sale else 0,
+    }
+
+
+def _serialize_website_product_cart_row(p: dict) -> dict:
+    """Minimal product payload for cart JSON (smaller inline / API responses)."""
+    return {
+        "id": int(p.get("id") or 0),
+        "name": (p.get("name") or "Product").strip() or "Product",
+        "price": float(p.get("price") or 0),
+        "image_url": (p.get("image_url") or "").strip(),
     }
 
 
@@ -3160,6 +3592,8 @@ def _load_company_identity_settings() -> dict:
         "company_phone": "",
         "company_facebook": "",
         "company_instagram": "",
+        "company_twitter": "",
+        "company_tiktok": "",
         "public_app_url": "",
         "company_location_name": "",
         "company_latitude": "",
@@ -4698,6 +5132,8 @@ def it_support_system_settings():
         company_phone = (request.form.get("company_phone") or "").strip()
         company_facebook = (request.form.get("company_facebook") or "").strip()
         company_instagram = (request.form.get("company_instagram") or "").strip()
+        company_twitter = (request.form.get("company_twitter") or "").strip()
+        company_tiktok = (request.form.get("company_tiktok") or "").strip()
         location_settings = _location_settings_from_form()
         public_app_url = _normalize_public_app_url((request.form.get("public_app_url") or "").strip())
         primary_color = (request.form.get("primary_color") or "#f97316").strip()
@@ -4750,6 +5186,8 @@ def it_support_system_settings():
                 "company_phone": company_phone,
                 "company_facebook": company_facebook,
                 "company_instagram": company_instagram,
+                "company_twitter": company_twitter,
+                "company_tiktok": company_tiktok,
                 **location_settings,
                 "public_app_url": public_app_url,
                 "primary_color": primary_color,
@@ -16474,6 +16912,8 @@ def shop_settings_company(shop_id: int):
                     "company_phone": (request.form.get("company_phone") or "").strip(),
                     "company_facebook": (request.form.get("company_facebook") or "").strip(),
                     "company_instagram": (request.form.get("company_instagram") or "").strip(),
+                    "company_twitter": (request.form.get("company_twitter") or "").strip(),
+                    "company_tiktok": (request.form.get("company_tiktok") or "").strip(),
                     **_location_settings_from_form(),
                 },
                 separators=(",", ":"),

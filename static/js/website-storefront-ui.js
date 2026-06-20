@@ -336,4 +336,106 @@
 
   applyCategoryFromUrl();
   applyFilters();
+
+  (function initContactDrawer() {
+    var contactDrawer = document.getElementById("wsf-contact-drawer");
+    var contactBackdrop = document.getElementById("wsf-contact-backdrop");
+    if (!contactDrawer) return;
+
+    function closeCartDrawer() {
+      var cartDrawer = document.getElementById("wsf-cart-drawer");
+      var cartBackdrop = document.getElementById("wsf-cart-backdrop");
+      if (cartDrawer) cartDrawer.classList.remove("is-open");
+      if (cartBackdrop) cartBackdrop.classList.remove("is-open");
+      document.body.classList.remove("wsf-cart-open");
+    }
+
+    function closeContactDrawer() {
+      contactDrawer.classList.remove("is-open");
+      if (contactBackdrop) contactBackdrop.classList.remove("is-open");
+      document.body.classList.remove("wsf-contact-open");
+      contactDrawer.setAttribute("aria-hidden", "true");
+      if (contactBackdrop) contactBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function openContactDrawer() {
+      closeCartDrawer();
+      contactDrawer.classList.add("is-open");
+      if (contactBackdrop) contactBackdrop.classList.add("is-open");
+      document.body.classList.add("wsf-contact-open");
+      contactDrawer.setAttribute("aria-hidden", "false");
+      if (contactBackdrop) contactBackdrop.setAttribute("aria-hidden", "false");
+    }
+
+    window.wsfCloseContactDrawer = closeContactDrawer;
+    window.wsfOpenContactDrawer = openContactDrawer;
+
+    root.addEventListener("click", function (e) {
+      if (e.target.closest("[data-wsf-open-contact]")) {
+        e.preventDefault();
+        openContactDrawer();
+        return;
+      }
+      if (e.target.closest("[data-wsf-close-contact]")) {
+        e.preventDefault();
+        closeContactDrawer();
+      }
+    });
+
+    if (contactBackdrop) {
+      contactBackdrop.addEventListener("click", closeContactDrawer);
+    }
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && contactDrawer.classList.contains("is-open")) {
+        closeContactDrawer();
+      }
+    });
+  })();
+
+  /* Premium: ambient scroll parallax */
+  (function initAmbientParallax() {
+    if (prefersReducedMotion) return;
+    var ambient = root.querySelector(".wsf-ambient");
+    if (!ambient) return;
+    var ticking = false;
+    window.addEventListener(
+      "scroll",
+      function () {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function () {
+          ambient.style.transform = "translate3d(0, " + window.scrollY * 0.12 + "px, 0)";
+          ticking = false;
+        });
+      },
+      { passive: true }
+    );
+  })();
+
+  /* Premium: subtle 3D tilt on cards (pointer devices, large screens) */
+  (function initCardTilt() {
+    if (prefersReducedMotion) return;
+    if (!window.matchMedia("(min-width: 768px) and (hover: hover) and (pointer: fine)").matches) return;
+
+    var tiltSelector = ".wsf-deal-card, .wsf-shop-card";
+    var maxTilt = 6;
+
+    root.querySelectorAll(tiltSelector).forEach(function (card) {
+      card.setAttribute("data-wsf-tilt", "1");
+
+      card.addEventListener("mousemove", function (e) {
+        var rect = card.getBoundingClientRect();
+        var px = (e.clientX - rect.left) / rect.width - 0.5;
+        var py = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.setProperty("--wsf-tilt-x", (-py * maxTilt).toFixed(2) + "deg");
+        card.style.setProperty("--wsf-tilt-y", (px * maxTilt).toFixed(2) + "deg");
+      });
+
+      card.addEventListener("mouseleave", function () {
+        card.style.removeProperty("--wsf-tilt-x");
+        card.style.removeProperty("--wsf-tilt-y");
+      });
+    });
+  })();
 })();
