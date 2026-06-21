@@ -367,8 +367,10 @@
       </div>
     </header>
 
-    {# Daily opening gate: admin/manager sets cash/M-Pesa + stock confirmation once per day #}
+    {# Daily opening gate: admin/manager sets cash/M-Pesa + stock confirmation once per day (POS only) #}
+    {% if is_shop_till_day_modal_page() %}
     {% include "partials/shop_day_opening_modal.html" %}
+    {% endif %}
 
     {# Compulsory-printing gate: modal appears when standard sale is blocked until printer is ready #}
     <div
@@ -1960,6 +1962,8 @@
   </div>
 
   {% include "partials/shop_stock_request_outcome_modal.html" %}
+  {% if is_shop_till_day_modal_page() %}
   {% include "partials/shop_day_closing_reminder_modal.html" %}
+  {% endif %}
   {% include "partials/shop_pos_scripts.html" %}
 {% endblock %}

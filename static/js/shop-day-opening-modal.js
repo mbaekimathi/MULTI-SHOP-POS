@@ -432,11 +432,11 @@
       }
     });
 
-    if (opts.autoInit !== false && boot.can_submit && boot.today_closed) {
+    if (opts.autoInit !== false && boot.auto_prompt === true && boot.can_submit && boot.today_closed) {
       setTimeout(function () {
         showModal({ force: true, step: "opening", reopen: true });
       }, opts.delayMs != null ? opts.delayMs : 350);
-    } else if (opts.autoInit !== false && needsGateModal(boot)) {
+    } else if (opts.autoInit !== false && boot.auto_prompt === true && needsGateModal(boot)) {
       setTimeout(function () {
         showModal();
       }, opts.delayMs != null ? opts.delayMs : 350);

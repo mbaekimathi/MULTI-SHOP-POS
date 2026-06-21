@@ -333,7 +333,7 @@
     </div>
   </div>
 
-  {% if report_is_single_day|default(false) %}
+  {% if report_is_single_day|default(false) and is_shop_till_day_modal_page() %}
     {% include "partials/shop_day_opening_modal.html" %}
     {% include "partials/shop_day_closing_reminder_modal.html" %}
     <script defer src="{{ url_for('static', filename='js/shop-day-opening-modal.js') }}?v=5"></script>
@@ -457,7 +457,7 @@
         window.alert("Closing balances cannot be opened right now. Refresh the page and try again.");
       }
 
-      {% if report_is_single_day|default(false) %}
+      {% if report_is_single_day|default(false) and is_shop_till_day_modal_page() %}
       document.addEventListener("DOMContentLoaded", function () {
         if (typeof window.initShopDayOpeningModal === "function") {
           window.__shopDayOpeningModal = window.initShopDayOpeningModal({

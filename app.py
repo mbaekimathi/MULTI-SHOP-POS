@@ -269,6 +269,13 @@ SHOP_DAY_OPENING_SUBMIT_ROLES = frozenset({"admin", "manager"})
 SHOP_DAY_CLOSING_SUBMIT_ROLES = frozenset(
     {"admin", "manager", "super_admin", "it_support", "company_manager"}
 )
+# Till opening/closing popups belong on POS + report only — not shop dashboard hub or employee portal pages.
+SHOP_TILL_DAY_MODAL_ENDPOINTS = frozenset({"shop_pos", "shop_report"})
+
+
+def _is_shop_till_day_modal_page() -> bool:
+    """True on shop till pages where opening/closing balance modals may render."""
+    return (request.endpoint or "") in SHOP_TILL_DAY_MODAL_ENDPOINTS
 
 
 def _session_shop_shell_role_key() -> str:
@@ -298,6 +305,12 @@ def _session_shop_shell_it_without_preview() -> bool:
         return False
     preview_raw = str(session.get("shop_role_preview") or "").strip().lower()
     return preview_raw not in SHOP_UI_PREVIEW_ROLE_SET
+
+
+@app.template_global()
+def is_shop_till_day_modal_page() -> bool:
+    """True when till opening/closing modals may appear (POS / shop report — not employee role hub pages)."""
+    return _is_shop_till_day_modal_page()
 
 
 @app.template_global()
@@ -3070,6 +3083,7 @@ def _shop_day_opening_boot_payload(shop: dict) -> dict:
         "sales_allowed": sales_allowed,
         "sales_blocked_message": sales_blocked_message,
         "can_submit": _shop_session_can_submit_day_opening(),
+        "auto_prompt": _is_shop_till_day_modal_page() and request.endpoint == "shop_pos",
         "requires_employee_code": True,
         "requires_stock_confirmation": _shop_day_opening_requires_stock_confirmation(shop),
         "inventory_mode": _pos_inventory_mode(shop),
@@ -15234,15 +15248,11 @@ def shop_dashboard(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
-    day_opening = _shop_day_opening_boot_payload(shop)
     return render_template(
         "shop_dashboard.html",
         shop=shop,
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
         pos_inventory_mode=_pos_inventory_mode(shop),
-        shop_day_opening_boot=day_opening,
-        shop_day_opening_api=url_for("shop_pos_day_opening_submit", shop_id=shop_id),
-        shop_day_closing_api=url_for("shop_pos_day_closing_submit", shop_id=shop_id),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
