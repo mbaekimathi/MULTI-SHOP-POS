@@ -1,0 +1,62 @@
+{% set f = analytics_filter or {} %}
+{% set fp = filter_prefix or 'cpf' %}
+{% set today = today_iso or f.single_day or '' %}
+<form
+  id="{{ filter_form_id or 'company-period-filter-form' }}"
+  method="get"
+  action="{{ filter_form_action }}"
+  class="no-print mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4"
+>
+  <div>
+    <label for="{{ fp }}-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Period</label>
+    <select id="{{ fp }}-filter-mode" name="mode" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+      <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+      <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
+      <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+      <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+    </select>
+  </div>
+  <div id="{{ fp }}-filter-single-day" {% if (f.mode or 'single_day') != 'single_day' %}class="hidden"{% endif %}>
+    <label for="{{ fp }}-filter-day" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date</label>
+    <input id="{{ fp }}-filter-day" type="date" name="single_day" value="{{ f.single_day or today }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+  </div>
+  <div id="{{ fp }}-filter-period-start" {% if (f.mode or '') != 'period' %}class="hidden"{% endif %}>
+    <label for="{{ fp }}-filter-start" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">From</label>
+    <input id="{{ fp }}-filter-start" type="date" name="start_date" value="{{ f.start_date or today }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+  </div>
+  <div id="{{ fp }}-filter-period-end" {% if (f.mode or '') != 'period' %}class="hidden"{% endif %}>
+    <label for="{{ fp }}-filter-end" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">To</label>
+    <input id="{{ fp }}-filter-end" type="date" name="end_date" value="{{ f.end_date or today }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+  </div>
+  <div id="{{ fp }}-filter-month" {% if (f.mode or '') != 'month' %}class="hidden"{% endif %}>
+    <label for="{{ fp }}-filter-month-input" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Month</label>
+    <input id="{{ fp }}-filter-month-input" type="month" name="month" value="{{ f.month or '' }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+  </div>
+  <div id="{{ fp }}-filter-year" {% if (f.mode or '') != 'year' %}class="hidden"{% endif %}>
+    <label for="{{ fp }}-filter-year-input" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Year</label>
+    <input id="{{ fp }}-filter-year-input" type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="min-h-[2.45rem] w-24 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+  </div>
+  {% if show_analytics_scope|default(false) %}
+    <div>
+      <label for="{{ fp }}-filter-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Receipts</label>
+      <select id="{{ fp }}-filter-scope" name="analytics_scope" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+        <option value="general" {% if (analytics_scope or 'general') != 'actual' %}selected{% endif %}>All marks</option>
+        <option value="actual" {% if (analytics_scope or 'general') == 'actual' %}selected{% endif %}>Confirmed only</option>
+      </select>
+    </div>
+  {% endif %}
+  {% if show_shop_filter|default(false) %}
+    <div>
+      <label for="{{ fp }}-filter-shop" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop</label>
+      <select id="{{ fp }}-filter-shop" name="shop_id" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+        <option value="">All shops</option>
+        {% for s in (shops or []) %}
+          <option value="{{ s.id }}" {% if shop_filter_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {% if show_today_link|default(false) and today and (f.mode or 'single_day') == 'single_day' and f.single_day != today %}
+    <a href="{{ today_link_url }}" class="btn-rc btn-rc-secondary min-h-[2.45rem] px-3 py-2 text-sm font-semibold">Today</a>
+  {% endif %}
+</form>

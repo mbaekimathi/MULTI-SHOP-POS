@@ -65,7 +65,7 @@
             </p>
           </header>
 
-          {% include "partials/flashes.html" %}
+          {% include "partials/auth_login_toast.html" %}
 
           {% if request.args.get('next') %}
             <p class="mb-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/70 px-4 py-3 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
@@ -82,6 +82,9 @@
           >
             {% if request.args.get('next') %}
               <input type="hidden" name="next" value="{{ request.args.get('next') }}" />
+            {% endif %}
+            {% if request.args.get('reason') == 'idle' %}
+              <input type="hidden" name="reason" value="idle" />
             {% endif %}
 
             <div class="myacct-field">
@@ -119,10 +122,21 @@
                   autocomplete="current-password"
                   autocapitalize="off"
                   spellcheck="false"
-                  inputmode="text"
+                  inputmode="numeric"
                   class="form-input-rich login-employee-input min-h-[48px] text-base sm:min-h-0 sm:text-[0.875rem]"
                   placeholder="Password"
+                  aria-describedby="password_hint"
                 />
+                <button
+                  type="button"
+                  class="login-kb-toggle js-login-kb-toggle min-h-[44px] min-w-[2.75rem] sm:min-h-0 sm:min-w-[2.35rem]"
+                  aria-controls="password"
+                  aria-label="Switch to letters keyboard"
+                  data-mode="numeric"
+                  title="Switch to letters keyboard"
+                >
+                  <span class="js-login-kb-label" aria-hidden="true">ABC</span>
+                </button>
                 <button
                   type="button"
                   class="toggle-password js-toggle-password min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
@@ -140,6 +154,7 @@
                   </svg>
                 </button>
               </div>
+              <p id="password_hint" class="myacct-field__hint">Numbers keyboard opens first. Tap <strong>ABC</strong> if your password includes letters.</p>
             </div>
 
             <label class="myacct-remember" for="employee_remember">
@@ -165,12 +180,8 @@
           <p class="myacct-frame__panel-foot myacct-frame__panel-foot--quiet">
             New employee?
             <a href="{{ url_for('employee_signup') }}">Create an account</a>
-            &nbsp;&middot;&nbsp; Forgot password?
-            {% if site_settings and site_settings.company_email %}
-              <a href="mailto:{{ site_settings.company_email }}">Contact support</a>
-            {% else %}
-              <a href="tel:{{ pub_phone_tel }}">{{ pub_phone_display }}</a>
-            {% endif %}
+            &nbsp;&middot;&nbsp;
+            <a href="{{ url_for('employee_reset_password') }}" id="forgot-password-link" class="js-forgot-password-link">Forgot password?</a>
           </p>
         </main>
       </article>
@@ -210,11 +221,50 @@
       });
 
       var employeeCodeInput = document.getElementById("employee_code");
+      var forgotLink = document.getElementById("forgot-password-link");
+      function syncForgotPasswordLink() {
+        if (!forgotLink) return;
+        var base = forgotLink.getAttribute("data-base-url");
+        if (!base) {
+          base = forgotLink.getAttribute("href").split("?")[0];
+          forgotLink.setAttribute("data-base-url", base);
+        }
+        var code = employeeCodeInput ? (employeeCodeInput.value || "").replace(/\D/g, "").slice(0, 6) : "";
+        forgotLink.href = code.length === 6 ? base + "?code=" + encodeURIComponent(code) : base;
+      }
       if (employeeCodeInput) {
         employeeCodeInput.addEventListener("input", function () {
           employeeCodeInput.value = (employeeCodeInput.value || "").replace(/\D/g, "").slice(0, 6);
+          syncForgotPasswordLink();
         });
+        syncForgotPasswordLink();
       }
+
+      var passwordInput = document.getElementById("password");
+      document.querySelectorAll(".js-login-kb-toggle").forEach(function (btn) {
+        var targetId = btn.getAttribute("aria-controls");
+        var input = targetId ? document.getElementById(targetId) : passwordInput;
+        var label = btn.querySelector(".js-login-kb-label");
+        if (!input) return;
+
+        btn.addEventListener("click", function () {
+          var numeric = (btn.getAttribute("data-mode") || "numeric") === "numeric";
+          if (numeric) {
+            input.setAttribute("inputmode", "text");
+            btn.setAttribute("data-mode", "text");
+            btn.setAttribute("aria-label", "Switch to numbers keyboard");
+            btn.setAttribute("title", "Switch to numbers keyboard");
+            if (label) label.textContent = "123";
+          } else {
+            input.setAttribute("inputmode", "numeric");
+            btn.setAttribute("data-mode", "numeric");
+            btn.setAttribute("aria-label", "Switch to letters keyboard");
+            btn.setAttribute("title", "Switch to letters keyboard");
+            if (label) label.textContent = "ABC";
+          }
+          input.focus();
+        });
+      });
     })();
   </script>
   <script src="{{ url_for('static', filename='js/password-toggle.js') }}" defer></script>

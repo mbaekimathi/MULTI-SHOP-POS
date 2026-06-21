@@ -1,0 +1,295 @@
+{% extends "shop_layout.html" %}
+{% block title %}Shop expenses — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop expenses{% endblock %}
+{% block shop_sidebar_links %}
+  {% include "partials/shop_dashboard_sidebar_nav.html" %}
+{% endblock %}
+{% block head %}
+  {{ super() }}
+  <style>
+    #shop-expenses-page .exp-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #shop-expenses-page .exp-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.85), rgba(239, 68, 68, 0.85));
+    }
+    #shop-expenses-page .exp-table-wrap {
+      max-height: min(65vh, 720px);
+      overflow: auto;
+    }
+    #shop-expenses-page .exp-suggest {
+      max-height: 10rem;
+      overflow: auto;
+    }
+    #shop-expenses-page .exp-pay-modal-backdrop {
+      background: rgba(0, 0, 0, 0.55);
+    }
+  </style>
+{% endblock %}
+{% block shop_content %}
+  {% set f = analytics_filter or {} %}
+  {% set rows = expense_rows or [] %}
+  <div id="shop-expenses-page" class="mx-auto max-w-7xl space-y-6">
+    <div class="exp-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-600/90 dark:text-amber-400/90">Shop · Expenses</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Shop expenditure</h2>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Stock purchases and operational expenses for this shop. Period:
+        <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+      </p>
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="exp-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total cost</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.total_cost or 0) }}</div>
+        </div>
+        <div class="exp-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Amount paid</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.amount_paid or 0) }}</div>
+        </div>
+        <div class="exp-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.balance or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ expense_totals.count or 0 }} line{{ '' if (expense_totals.count or 0) == 1 else 's' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Register expense</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Record a new operational expense for this shop.</p>
+        </div>
+        <button
+          type="button"
+          id="shop-expense-form-toggle"
+          class="btn-rc btn-rc-primary px-4 py-2 text-sm font-bold uppercase tracking-wider"
+          aria-expanded="false"
+          aria-controls="shop-expense-form-wrap"
+        >
+          New expense
+        </button>
+      </div>
+      <div id="shop-expense-form-wrap" class="mt-4 hidden">
+      <form id="shop-expense-form" method="post" action="{{ url_for('shop_expenses', shop_id=shop.id) }}" class="grid gap-3 border-t border-[rgb(var(--rc-border))] pt-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Category</label>
+          <input id="shop-expense-category" name="expense_category" list="shop-expense-category-list" required autocomplete="off" class="shop-exp-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="E.G. UTILITIES" />
+          <datalist id="shop-expense-category-list">
+            {% for c in (expense_categories or []) %}
+              <option value="{{ c.name }}"></option>
+            {% endfor %}
+          </datalist>
+        </div>
+        <div class="sm:col-span-2 relative">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense name</label>
+          <div class="flex">
+            <input id="shop-expense-name" name="expense_name" required autocomplete="off" class="shop-exp-upper min-w-0 flex-1 rounded-l-xl border border-r-0 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none focus:z-10" placeholder="SEARCH, PICK, OR TYPE NEW" />
+            <button type="button" id="shop-expense-list-toggle" class="flex shrink-0 items-center rounded-r-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 text-sm font-bold text-[rgb(var(--rc-muted))] outline-none hover:bg-[rgb(var(--rc-surface))]" aria-label="Show all expenses" title="Show all expenses">▾</button>
+          </div>
+          <div id="shop-expense-name-suggest" class="exp-suggest absolute z-20 mt-1 hidden w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
+          <input id="shop-expense-qty" name="qty" type="number" min="0.0001" step="any" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Unit price</label>
+          <input id="shop-expense-unit-price" name="unit_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total</label>
+          <div id="shop-expense-total" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">0.00</div>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Status</label>
+          <div class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold uppercase">Pending payment</div>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Supplier phone</label>
+          <input id="shop-expense-seller-phone" name="seller_phone" required autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" placeholder="E.G. +254712345678" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Supplier name</label>
+          <input id="shop-expense-seller-name" name="seller_name" required autocomplete="off" class="shop-exp-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="E.G. COLLINS MWANGI" />
+          <p id="shop-expense-seller-hint" class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]"></p>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Note (optional)</label>
+          <input name="note" class="shop-exp-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="OPTIONAL" />
+        </div>
+        <div class="sm:col-span-2 border-t border-[rgb(var(--rc-border))] pt-3">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee code</label>
+          <input name="employee_code" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required class="w-full max-w-xs rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm tracking-[0.14em] outline-none" placeholder="6-DIGIT CODE" />
+        </div>
+        <div class="sm:col-span-2 flex flex-wrap gap-2">
+          <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-bold uppercase tracking-wider">Save expense</button>
+          <button type="button" id="shop-expense-form-cancel" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-bold uppercase tracking-wider">Cancel</button>
+        </div>
+      </form>
+      </div>
+    </div>
+
+    <div class="exp-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h3>
+      <form method="get" action="{{ url_for('shop_expenses', shop_id=shop.id) }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period mode</label>
+          <select name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <option value="single_day" {% if f.mode == 'single_day' %}selected{% endif %}>Single day</option>
+            <option value="period" {% if f.mode == 'period' %}selected{% endif %}>Date range</option>
+            <option value="month" {% if f.mode == 'month' %}selected{% endif %}>Month</option>
+            <option value="year" {% if f.mode == 'year' %}selected{% endif %}>Year</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Day</label>
+          <input type="date" name="single_day" value="{{ f.single_day or '' }}" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+        </div>
+        <button type="submit" class="btn-rc btn-rc-secondary min-h-[2.55rem] px-4 py-2 text-sm font-semibold">Apply</button>
+      </form>
+    </div>
+
+    <div class="exp-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Expenditure lines</h3>
+      </div>
+      <div class="exp-table-wrap overflow-x-auto">
+        <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+          <thead class="sticky top-0 z-10 bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-3">When</th>
+              <th class="px-4 py-3">Type</th>
+              <th class="px-4 py-3">Category</th>
+              <th class="px-4 py-3">Name</th>
+              <th class="px-4 py-3">Supplier</th>
+              <th class="px-4 py-3 text-right">Qty</th>
+              <th class="px-4 py-3 text-right">Unit</th>
+              <th class="px-4 py-3 text-right">Total</th>
+              <th class="px-4 py-3 text-right">Paid</th>
+              <th class="px-4 py-3 text-right">Balance</th>
+              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3">By</th>
+              <th class="px-4 py-3">Pay</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for row in rows %}
+              {% set bal = row.balance if row.balance is not none else ((row.total_cost or 0) - (row.amount_paid or 0)) %}
+              <tr>
+                <td class="whitespace-nowrap px-4 py-3 text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ row.created_at or '—' }}</td>
+                <td class="px-4 py-3">
+                  {% if row.expense_kind == 'stock' %}
+                    <span class="inline-flex rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">Stock in</span>
+                  {% else %}
+                    <span class="inline-flex rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">Expense</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-xs font-semibold uppercase">{{ row.category or '—' }}</td>
+                <td class="px-4 py-3 font-medium uppercase">{{ row.name }}</td>
+                <td class="px-4 py-3">
+                  <div class="text-sm font-medium uppercase">{{ row.supplier_name or '—' }}</div>
+                  {% if row.seller_phone %}
+                    <div class="mt-0.5 text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ row.seller_phone }}</div>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ row.qty }}</td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.unit_price or row.buying_price or 0) }}</td>
+                <td class="px-4 py-3 text-right font-semibold tabular-nums text-amber-700 dark:text-amber-300">{{ "%.2f"|format(row.total_cost or 0) }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-emerald-700 dark:text-emerald-300">{{ "%.2f"|format(row.amount_paid or 0) }}</td>
+                <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ "%.2f"|format(bal or 0) }}</td>
+                <td class="px-4 py-3">
+                  {% if row.payment_status == 'paid' %}
+                    <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Paid</span>
+                  {% elif row.payment_status == 'partially_paid' %}
+                    <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Partial</span>
+                  {% else %}
+                    <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Pending</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">{{ row.created_by or '—' }}</td>
+                <td class="px-4 py-3">
+                  {% if row.expense_kind != 'stock' and (bal or 0) > 0.009 and row.payment_status != 'paid' %}
+                    <button
+                      type="button"
+                      class="js-shop-expense-pay inline-flex items-center rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
+                      data-expense-id="{{ row.id }}"
+                      data-expense-name="{{ row.name }}"
+                      data-total="{{ row.total_cost or 0 }}"
+                      data-paid="{{ row.amount_paid or 0 }}"
+                      data-balance="{{ bal or 0 }}"
+                    >
+                      Pay
+                    </button>
+                  {% else %}
+                    <span class="text-xs text-[rgb(var(--rc-muted))]">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="13" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No expenditure for this period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="shop-expense-pay-modal" class="fixed inset-0 z-[80] hidden" aria-hidden="true">
+    <div class="exp-pay-modal-backdrop absolute inset-0 backdrop-blur-[2px]"></div>
+    <div class="absolute inset-0 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+      <div class="relative w-full max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Record payment</h4>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Pay this expense partially or in full.</p>
+          </div>
+          <button type="button" id="shop-expense-pay-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs font-bold">Close</button>
+        </div>
+        <div class="mt-4 grid gap-2 text-sm">
+          <div><span class="text-[rgb(var(--rc-muted))]">Expense:</span> <span id="shop-expense-pay-name" class="font-semibold uppercase text-[rgb(var(--rc-page-fg))]"></span></div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total</div>
+              <div id="shop-expense-pay-total" class="mt-1 font-bold tabular-nums"></div>
+            </div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Paid</div>
+              <div id="shop-expense-pay-paid" class="mt-1 font-semibold tabular-nums text-emerald-700 dark:text-emerald-300"></div>
+            </div>
+            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Balance</div>
+              <div id="shop-expense-pay-balance" class="mt-1 font-bold tabular-nums text-amber-700 dark:text-amber-300"></div>
+            </div>
+          </div>
+        </div>
+        <form id="shop-expense-pay-form" class="mt-4">
+          <input type="hidden" id="shop-expense-pay-id" value="" />
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="shop-expense-pay-amount">Pay now (partial)</label>
+          <input id="shop-expense-pay-amount" name="additional_payment" type="number" min="0.01" step="0.01" autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm tabular-nums outline-none" placeholder="0.00" />
+          <p id="shop-expense-pay-msg" class="mt-2 hidden text-xs"></p>
+          <div class="mt-4 flex flex-wrap justify-end gap-2">
+            <button type="button" id="shop-expense-pay-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs font-bold uppercase tracking-wider">Cancel</button>
+            <button type="button" id="shop-expense-pay-full" class="btn-rc btn-rc-secondary px-3 py-2 text-xs font-bold uppercase tracking-wider">Pay full balance</button>
+            <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs font-bold uppercase tracking-wider">Save payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    window.__SHOP_EXPENSE_SEARCH_API = {{ url_for('shop_expenses_search_json', shop_id=shop.id)|tojson }};
+    window.__SHOP_EXPENSE_PAYMENT_API = {{ url_for('shop_expenses_payment_update', shop_id=shop.id, expense_id=0)|tojson }};
+    window.__SELLER_LOOKUP_API = {{ url_for('seller_lookup')|tojson }};
+  </script>
+  <script defer src="{{ url_for('static', filename='js/shop-expenses-form.js') }}?v=6"></script>
+{% endblock %}

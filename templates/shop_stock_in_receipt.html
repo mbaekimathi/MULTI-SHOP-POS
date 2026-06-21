@@ -253,3 +253,16 @@ FINAGRITECH SOLUTIONS</pre>
     </div>
   </div>
 {% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% if request.args.get('auto_print') in ('1', 'true', 'yes') %}
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        try { window.print(); } catch (e) {}
+      }, 250);
+    });
+  </script>
+  {% endif %}
+{% endblock %}

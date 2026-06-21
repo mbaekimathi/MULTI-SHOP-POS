@@ -1,0 +1,85 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% set ns = namespace(toast=[], idle=false, idle_minutes=employee_session_idle_minutes|default(5), inline=[]) %}
+  {% for category, message in messages %}
+    {% if category == 'idle_signout' %}
+      {% set ns.idle = true %}
+      {% set ns.idle_minutes = message %}
+    {% elif category in ['error', 'warning', 'login_welcome'] %}
+      {% set _ = ns.toast.append([category, message]) %}
+    {% else %}
+      {% set _ = ns.inline.append([category, message]) %}
+    {% endif %}
+  {% endfor %}
+
+  {% set show_idle_modal = ns.idle or (request.endpoint == 'employee_login' and request.args.get('reason') == 'idle') %}
+
+  {% if ns.toast or show_idle_modal %}
+    {% if ns.toast %}
+      <script type="application/json" id="auth-login-toast-data">{{ ns.toast | tojson }}</script>
+      <div id="auth-login-toast" class="auth-login-toast" aria-hidden="true" role="alertdialog" aria-live="assertive">
+        <div class="auth-login-toast__backdrop" aria-hidden="true"></div>
+        <div class="auth-login-toast__card">
+          <div class="auth-login-toast__icon" aria-hidden="true"></div>
+          <h3 class="auth-login-toast__title"></h3>
+          <p class="auth-login-toast__message"></p>
+          <div class="auth-login-toast__progress" aria-hidden="true">
+            <span class="auth-login-toast__progress-bar"></span>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if show_idle_modal %}
+      <div
+        id="auth-idle-signout-modal"
+        class="auth-login-toast auth-login-toast--idle auth-login-toast--manual is-visible"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="auth-idle-signout-title"
+        aria-describedby="auth-idle-signout-message"
+      >
+        <div class="auth-login-toast__backdrop" data-idle-signout-dismiss aria-hidden="true"></div>
+        <div class="auth-login-toast__card">
+          <div class="auth-login-toast__icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h3 id="auth-idle-signout-title" class="auth-login-toast__title">Signed out automatically</h3>
+          <p id="auth-idle-signout-message" class="auth-login-toast__message">
+            You were signed out after {{ ns.idle_minutes }} minutes of inactivity for your security.
+            {% if request.args.get('next') %}
+              Sign in again to return to the page you were on.
+            {% else %}
+              Sign in again to continue.
+            {% endif %}
+          </p>
+          <div class="auth-login-toast__actions">
+            <button type="button" class="auth-login-toast__dismiss" data-idle-signout-dismiss autofocus>
+              OK, got it
+            </button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth-login-toast.css') }}" />
+    <script src="{{ url_for('static', filename='js/auth-login-toast.js') }}" defer></script>
+  {% endif %}
+
+  {% if ns.inline %}
+    <ul class="mb-6 space-y-2" role="alert">
+      {% for category, message in ns.inline %}
+        <li
+          class="rounded-xl border px-4 py-3 text-sm
+          {% if category == 'error' %}border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-950/50 dark:text-red-200
+          {% elif category == 'success' %}border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-200
+          {% elif category == 'warning' %}border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-200
+          {% else %}border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200{% endif %}"
+        >
+          {{ message }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}

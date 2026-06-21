@@ -1,14 +1,14 @@
-{# Expects: shop, shop_settings_nav_active — one of: company | appearance | pos | receipt #}
+{# Expects: shop, shop_settings_nav_active — one of: shop | appearance | pos | receipt #}
 <p class="mt-2 shrink-0 px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Shop settings</p>
 <a
-  href="{{ url_for('shop_settings_company', shop_id=shop.id) }}"
-  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if shop_settings_nav_active == 'company' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
-  {% if shop_settings_nav_active == 'company' %}aria-current="page"{% endif %}
+  href="{{ url_for('shop_settings_shop', shop_id=shop.id) }}"
+  class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if shop_settings_nav_active == 'shop' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+  {% if shop_settings_nav_active == 'shop' %}aria-current="page"{% endif %}
 >
   <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M9 8h6m-6 4h6m-6 4h6M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16" />
   </svg>
-  Company settings
+  Shop settings
 </a>
 <a
   href="{{ url_for('shop_settings_appearance', shop_id=shop.id) }}"

@@ -96,6 +96,110 @@ ALLOWED_PROFILE_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 ALLOWED_APP_ICON_EXT = {"png", "jpg", "jpeg", "gif", "webp", "ico", "svg"}
 
 CODE_RE = re.compile(r"^\d{6}$")
+PASSWORD_DIGITS_RE = re.compile(r"^\d{6,32}$")
+PASSWORD_RESET_RE = re.compile(r"^.{6,128}$")
+RESET_CODE_RE = re.compile(r"^\d{6}$")
+
+SIGNUP_PHONE_COUNTRIES: tuple[dict, ...] = (
+    {
+        "code": "254",
+        "iso2": "ke",
+        "label": "Kenya",
+        "flag": "🇰🇪",
+        "placeholder": "712345678",
+        "hint": "Kenya: enter 07xxxxxxxx or 712345678 — saved as 2547xxxxxxxx.",
+    },
+    {
+        "code": "256",
+        "iso2": "ug",
+        "label": "Uganda",
+        "flag": "🇺🇬",
+        "placeholder": "712345678",
+        "hint": "Uganda: enter local number without +256.",
+    },
+    {
+        "code": "255",
+        "iso2": "tz",
+        "label": "Tanzania",
+        "flag": "🇹🇿",
+        "placeholder": "712345678",
+        "hint": "Tanzania: enter local number without +255.",
+    },
+    {
+        "code": "250",
+        "iso2": "rw",
+        "label": "Rwanda",
+        "flag": "🇷🇼",
+        "placeholder": "781234567",
+        "hint": "Rwanda: enter local number without +250.",
+    },
+    {
+        "code": "251",
+        "iso2": "et",
+        "label": "Ethiopia",
+        "flag": "🇪🇹",
+        "placeholder": "911234567",
+        "hint": "Ethiopia: enter local number without +251.",
+    },
+    {
+        "code": "211",
+        "iso2": "ss",
+        "label": "South Sudan",
+        "flag": "🇸🇸",
+        "placeholder": "912345678",
+        "hint": "South Sudan: enter local number without +211.",
+    },
+    {
+        "code": "243",
+        "iso2": "cd",
+        "label": "DR Congo",
+        "flag": "🇨🇩",
+        "placeholder": "812345678",
+        "hint": "DR Congo: enter local number without +243.",
+    },
+    {
+        "code": "27",
+        "iso2": "za",
+        "label": "South Africa",
+        "flag": "🇿🇦",
+        "placeholder": "821234567",
+        "hint": "South Africa: enter local number without +27.",
+    },
+    {
+        "code": "234",
+        "iso2": "ng",
+        "label": "Nigeria",
+        "flag": "🇳🇬",
+        "placeholder": "8012345678",
+        "hint": "Nigeria: enter local number without +234.",
+    },
+    {
+        "code": "44",
+        "iso2": "gb",
+        "label": "United Kingdom",
+        "flag": "🇬🇧",
+        "placeholder": "7123456789",
+        "hint": "UK: enter local number without +44.",
+    },
+    {
+        "code": "1",
+        "iso2": "us",
+        "label": "US / Canada",
+        "flag": "🇺🇸",
+        "placeholder": "2025550123",
+        "hint": "US/Canada: enter local number without +1.",
+    },
+)
+
+SIGNUP_EMAIL_DOMAINS: tuple[dict, ...] = (
+    {"value": "gmail.com", "brand": "gmail", "label": "Gmail", "hint": "Recommended — most staff use Gmail."},
+    {"value": "yahoo.com", "brand": "yahoo", "label": "Yahoo", "hint": "Yahoo Mail."},
+    {"value": "outlook.com", "brand": "outlook", "label": "Outlook", "hint": "Microsoft Outlook."},
+    {"value": "hotmail.com", "brand": "hotmail", "label": "Hotmail", "hint": "Hotmail / Outlook."},
+    {"value": "icloud.com", "brand": "icloud", "label": "iCloud", "hint": "Apple iCloud Mail."},
+    {"value": "live.com", "brand": "microsoft", "label": "Live", "hint": "Microsoft Live Mail."},
+    {"value": "__custom__", "brand": "custom", "label": "Other", "hint": "Enter your company or custom domain below."},
+)
 
 ROLE_LABELS = {
     "super_admin": "Super admin",
@@ -158,6 +262,7 @@ SHOP_SHELL_CAN_ROLES: dict[str, frozenset[str]] = {
     "receipt_mark": frozenset({"manager", "admin", "finance"}),
     "credit_payments": frozenset({"manager", "admin", "finance", "sales"}),
     "settings": frozenset({"manager", "admin"}),
+    "expenses": frozenset({"manager", "admin"}),
 }
 
 SHOP_DAY_OPENING_SUBMIT_ROLES = frozenset({"admin", "manager"})
@@ -264,6 +369,11 @@ _EMPLOYEE_IDLE_SKIP_ENDPOINTS = frozenset(
         "employee_login",
         "employee_logout",
         "employee_signup",
+        "employee_reset_password",
+        "api_reset_password_email_for_code",
+        "api_reset_password_verify_email",
+        "api_reset_password_send_code",
+        "api_reset_password_complete",
         "public_shop_login",
         "shop_login",
         "shop_logout",
@@ -310,25 +420,21 @@ def _enforce_employee_session_idle_timeout():
         or "application/json" in (request.headers.get("Accept") or "").lower()
     )
     if wants_json:
+        next_url = _request_continuation_url()
         return (
             jsonify(
                 {
                     "ok": False,
                     "error": f"Session expired after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
-                    "login_url": url_for("employee_login"),
+                    "login_url": _employee_login_url(next_url=next_url, reason="idle"),
                 }
             ),
             401,
         )
 
-    flash(
-        f"You were signed out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
-        "warning",
-    )
-    next_url = request.path if request.method == "GET" else ""
-    if _safe_login_next(next_url):
-        return redirect(url_for("employee_login", next=next_url))
-    return redirect(url_for("employee_login"))
+    flash(str(_EMPLOYEE_IDLE_MINUTES), "idle_signout")
+    next_url = _request_continuation_url()
+    return redirect(_employee_login_url(next_url=next_url, reason="idle"))
 
 
 @app.before_request
@@ -340,6 +446,30 @@ def _safe_login_next(next_url: str) -> bool:
     """Reject open redirects (``//evil``) while allowing same-origin paths."""
     u = (next_url or "").strip()
     return u.startswith("/") and not u.startswith("//")
+
+
+def _request_continuation_url() -> str:
+    """Same-origin path (+ query) for resuming after idle sign-out."""
+    if request.method != "GET":
+        return ""
+    path = (request.path or "").strip()
+    if not path.startswith("/"):
+        return ""
+    qs = (request.query_string or b"").decode("utf-8", errors="ignore").strip()
+    return f"{path}?{qs}" if qs else path
+
+
+def _employee_login_url(*, next_url: str = "", reason: str = "") -> str:
+    """Build employee login URL, optionally preserving continuation and idle reason."""
+    nxt = (next_url or "").strip()
+    idle = (reason or "").strip().lower() == "idle"
+    if _safe_login_next(nxt) and idle:
+        return url_for("employee_login", next=nxt, reason="idle")
+    if _safe_login_next(nxt):
+        return url_for("employee_login", next=nxt)
+    if idle:
+        return url_for("employee_login", reason="idle")
+    return url_for("employee_login")
 
 
 def _parse_next_shop_id(next_url: str) -> Optional[int]:
@@ -360,8 +490,11 @@ def _parse_next_shop_id(next_url: str) -> Optional[int]:
 def _redirect_login_preserving_next():
     """After failed POST /login, preserve optional continuation ``next`` query."""
     nxt = (request.form.get("next") or "").strip()
+    idle = (request.form.get("reason") or "").strip().lower() == "idle"
     if _safe_login_next(nxt):
-        return redirect(url_for("employee_login", next=nxt))
+        return redirect(_employee_login_url(next_url=nxt, reason="idle" if idle else ""))
+    if idle:
+        return redirect(_employee_login_url(reason="idle"))
     return redirect(url_for("employee_login"))
 
 
@@ -639,6 +772,17 @@ def _build_analytics_filter():
         "range_end_exclusive": range_end_exclusive,
         "range_label": range_label,
     }
+
+
+def _shop_report_live_enabled(analytics_filter: dict) -> bool:
+    """Live JSON refresh only when viewing today's single-day report."""
+    return _analytics_filter_is_today(analytics_filter)
+
+
+def _company_report_shop_filter_from_request() -> Optional[int]:
+    """Optional shop_id query param for company report / expenditure pages."""
+    shop_filter_arg = request.args.get("shop_id", type=int)
+    return shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
 
 
 def _analytics_filter_is_today(analytics_filter: dict) -> bool:
@@ -961,11 +1105,12 @@ def inject_site_settings():
 
 @app.context_processor
 def inject_employee_session_idle_config():
+    base = {"employee_session_idle_minutes": _EMPLOYEE_IDLE_MINUTES}
     if not session.get("employee_id") or _request_is_shop_branch_session_view():
-        return {"employee_session_idle_guard": False}
+        return {**base, "employee_session_idle_guard": False}
     return {
+        **base,
         "employee_session_idle_guard": True,
-        "employee_session_idle_minutes": _EMPLOYEE_IDLE_MINUTES,
         "employee_session_idle_warn_seconds": EMPLOYEE_SESSION_IDLE_WARN_SECONDS,
     }
 
@@ -1556,6 +1701,7 @@ def employee_login():
         # across browser restarts and short offline periods.
         remember = (request.form.get("remember_device") or "").strip().lower() in {"1", "on", "true", "yes"}
         session.permanent = remember
+        _flash_login_welcome(row.get("full_name") or "")
 
         if role_key in COMPANY_PORTAL_ROLES:
             if next_url.startswith("/") and not next_url.startswith("//"):
@@ -1624,10 +1770,179 @@ def employee_login():
     return render_template("login.html")
 
 
+@app.route("/reset-password", methods=["GET"])
+def employee_reset_password():
+    if session.get("employee_id"):
+        return _redirect_to_employee_dashboard()
+    prefill_code = (request.args.get("code") or "").strip()
+    if prefill_code and not CODE_RE.match(prefill_code):
+        prefill_code = ""
+    return render_template("reset_password.html", prefill_code=prefill_code)
+
+
+@app.route("/api/reset-password/email-for-code")
+def api_reset_password_email_for_code():
+    code = (request.args.get("code") or "").strip()
+    if not CODE_RE.match(code):
+        return jsonify({"ok": False, "email": None})
+    try:
+        from database import get_active_employee_email_for_code
+
+        email = get_active_employee_email_for_code(code)
+    except Exception:
+        email = None
+    if not email:
+        return jsonify({"ok": False, "email": None})
+    return jsonify({"ok": True, "email": email})
+
+
+@app.route("/api/reset-password/verify-email", methods=["POST"])
+def api_reset_password_verify_email():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or request.form.get("email") or "").strip().lower()
+    employee_code = (data.get("employee_code") or request.form.get("employee_code") or "").strip()
+    if not email or "@" not in email:
+        return jsonify({"ok": False, "registered": False, "error": "Enter a valid email address."}), 400
+    if employee_code and not CODE_RE.match(employee_code):
+        return jsonify({"ok": False, "registered": False, "error": "Employee code must be 6 digits."}), 400
+    try:
+        from database import get_active_employee_by_email, resolve_active_employee_for_password_reset
+
+        row = get_active_employee_by_email(email)
+        if not row:
+            return jsonify({"ok": True, "registered": False, "message": "This email is not registered on an active account."})
+        if employee_code:
+            matched = resolve_active_employee_for_password_reset(email, employee_code)
+            if not matched:
+                return jsonify(
+                    {
+                        "ok": True,
+                        "registered": True,
+                        "matched": False,
+                        "message": "This email is registered, but it does not match the employee code entered.",
+                    }
+                )
+        return jsonify(
+            {
+                "ok": True,
+                "registered": True,
+                "matched": True,
+                "full_name": (row.get("full_name") or "").strip(),
+                "message": "Email verified. You can send a reset verification code.",
+            }
+        )
+    except Exception:
+        return jsonify({"ok": False, "error": "Could not verify email right now."}), 500
+
+
+@app.route("/api/reset-password/send-code", methods=["POST"])
+def api_reset_password_send_code():
+    import secrets
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or request.form.get("email") or "").strip().lower()
+    employee_code = (data.get("employee_code") or request.form.get("employee_code") or "").strip()
+    if not email or "@" not in email:
+        return jsonify({"ok": False, "error": "Enter a valid email address."}), 400
+    if employee_code and not CODE_RE.match(employee_code):
+        return jsonify({"ok": False, "error": "Employee code must be 6 digits."}), 400
+    try:
+        from database import (
+            create_employee_password_reset,
+            recent_employee_password_reset_exists,
+            resolve_active_employee_for_password_reset,
+        )
+        from mail_service import is_mail_configured, queue_password_reset_email
+
+        row = resolve_active_employee_for_password_reset(email, employee_code or None)
+        if not row:
+            return jsonify({"ok": False, "error": "Email not found or does not match the employee code."}), 404
+        if not is_mail_configured():
+            return jsonify({"ok": False, "error": "Email is not configured on this system. Contact IT support."}), 503
+        if recent_employee_password_reset_exists(int(row["id"]), within_seconds=60):
+            return jsonify({"ok": False, "error": "Please wait a minute before requesting another code."}), 429
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        code_hash = generate_password_hash(code)
+        expires_at = datetime.now() + timedelta(minutes=15)
+        if not create_employee_password_reset(int(row["id"]), email, code_hash, expires_at):
+            return jsonify({"ok": False, "error": "Could not create reset code."}), 500
+
+        company = (_load_company_identity_settings().get("company_name") or "Point of Sale").strip()
+        queue_password_reset_email(
+            to_email=email,
+            full_name=(row.get("full_name") or "").strip(),
+            verification_code=code,
+            company_name=company,
+            login_url=_employee_portal_login_url_external(),
+        )
+        return jsonify({"ok": True, "message": f"Verification code sent to {email}."})
+    except Exception:
+        logger.exception("Failed to send password reset code for %s", email)
+        return jsonify({"ok": False, "error": "Could not send verification code."}), 500
+
+
+@app.route("/api/reset-password/complete", methods=["POST"])
+def api_reset_password_complete():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or request.form.get("email") or "").strip().lower()
+    employee_code = (data.get("employee_code") or request.form.get("employee_code") or "").strip()
+    verification_code = (data.get("verification_code") or request.form.get("verification_code") or "").strip()
+    password = data.get("password") or request.form.get("password") or ""
+    confirm = data.get("confirm_password") or request.form.get("confirm_password") or ""
+
+    if not email or "@" not in email:
+        return jsonify({"ok": False, "error": "Enter a valid email address."}), 400
+    if employee_code and not CODE_RE.match(employee_code):
+        return jsonify({"ok": False, "error": "Employee code must be 6 digits."}), 400
+    if not RESET_CODE_RE.match(verification_code):
+        return jsonify({"ok": False, "error": "Enter the 6-digit verification code from your email."}), 400
+    if not PASSWORD_RESET_RE.match(password):
+        return jsonify({"ok": False, "error": "Password must be at least 6 characters."}), 400
+    if password != confirm:
+        return jsonify({"ok": False, "error": "Passwords do not match."}), 400
+
+    try:
+        from database import (
+            mark_employee_password_reset_used,
+            resolve_active_employee_for_password_reset,
+            update_employee_password_hash,
+            verify_employee_password_reset_code,
+        )
+
+        row = resolve_active_employee_for_password_reset(email, employee_code or None)
+        if not row:
+            return jsonify({"ok": False, "error": "Email not found or does not match the employee code."}), 404
+
+        reset_id = verify_employee_password_reset_code(int(row["id"]), verification_code)
+        if not reset_id:
+            return jsonify({"ok": False, "error": "Invalid or expired verification code."}), 400
+
+        pwd_hash = generate_password_hash(password)
+        if not update_employee_password_hash(int(row["id"]), pwd_hash):
+            return jsonify({"ok": False, "error": "Could not update password."}), 500
+        mark_employee_password_reset_used(reset_id)
+        return jsonify({"ok": True, "message": "Password updated. You can sign in now.", "login_url": url_for("employee_login")})
+    except Exception:
+        logger.exception("Password reset complete failed for %s", email)
+        return jsonify({"ok": False, "error": "Could not reset password."}), 500
+
+
 @app.route("/logout", methods=["POST", "GET"])
 def employee_logout():
     had_employee = bool(session.get("employee_id"))
     idle_sign_out = (request.args.get("reason") or "").strip().lower() == "idle"
+    next_url = (request.args.get("next") or "").strip()
+    if idle_sign_out and not _safe_login_next(next_url):
+        ref = (request.referrer or "").strip()
+        if ref:
+            parsed = urlparse(ref)
+            candidate = parsed.path
+            if parsed.query:
+                candidate = f"{candidate}?{parsed.query}"
+            login_path = urlparse(url_for("employee_login")).path
+            if _safe_login_next(candidate) and candidate != login_path and not candidate.startswith("/logout"):
+                next_url = candidate
     if had_employee:
         _log_hr_activity_safe(
             "logout",
@@ -1647,13 +1962,12 @@ def employee_logout():
     session.pop("shop_role_preview", None)
     session.pop("employee_last_activity", None)
     if idle_sign_out:
-        flash(
-            f"You were signed out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
-            "warning",
-        )
+        _flash_idle_signout()
     else:
         flash("You have been signed out.", "success")
     if had_employee:
+        if idle_sign_out:
+            return redirect(_employee_login_url(next_url=next_url, reason="idle"))
         return redirect(url_for("employee_login"))
     return redirect(url_for("public_shop_login"))
 
@@ -1662,7 +1976,17 @@ def employee_logout():
 def employee_session_activity_ping():
     """Keep employee session alive after user confirms they are still present."""
     if not session.get("employee_id"):
-        return jsonify({"ok": False, "expired": True, "login_url": url_for("employee_login")}), 401
+        next_url = _request_continuation_url()
+        return (
+            jsonify(
+                {
+                    "ok": False,
+                    "expired": True,
+                    "login_url": _employee_login_url(next_url=next_url, reason="idle"),
+                }
+            ),
+            401,
+        )
     _touch_employee_session_activity()
     return jsonify(
         {
@@ -1673,6 +1997,115 @@ def employee_session_activity_ping():
     )
 
 
+def _compose_signup_phone(country_code: str, local_number: str) -> tuple[str, str | None]:
+    """Build E.164-style digits for employee signup (Kenya 254… preferred)."""
+    from daraja_api import normalize_msisdn
+
+    cc = re.sub(r"\D", "", (country_code or "").strip())
+    local_digits = re.sub(r"\D", "", (local_number or "").strip())
+    if not cc:
+        return "", "Select your country code."
+    if not local_digits:
+        return "", "Enter your phone number."
+
+    if cc == "254":
+        candidate = local_digits
+        if not candidate.startswith("254"):
+            if candidate.startswith("0") and len(candidate) >= 10:
+                candidate = "254" + candidate[1:11]
+            elif len(candidate) == 9:
+                candidate = "254" + candidate
+            else:
+                candidate = "254" + candidate.lstrip("0")
+        normalized = normalize_msisdn(candidate)
+        if not normalized or len(normalized) != 12 or not normalized.startswith("254"):
+            return "", "Kenya number: use 07xxxxxxxx or 712345678 (saved as 254…)."
+        return normalized, None
+
+    local_clean = local_digits[1:] if local_digits.startswith("0") else local_digits
+    if len(local_clean) < 6:
+        return "", "Enter a valid phone number for the selected country."
+    if len(local_clean) > 15:
+        return "", "Phone number is too long."
+    return cc + local_clean, None
+
+
+def _compose_signup_email(local_part: str, domain: str, custom_domain: str = "") -> tuple[str, str | None]:
+    """Build a full email from username + domain dropdown (Gmail default)."""
+    local = (local_part or "").strip().lower()
+    if not local:
+        return "", "Enter your email username (the part before @)."
+    if "@" in local:
+        if re.fullmatch(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", local):
+            return local, None
+        return "", "Enter a valid email address."
+
+    raw_domain = (custom_domain if domain == "__custom__" else domain).strip().lower().lstrip("@")
+    if not raw_domain:
+        return "", "Select an email provider or enter a custom domain."
+    if not re.fullmatch(r"^[a-z0-9.-]+\.[a-z]{2,}$", raw_domain):
+        return "", "Enter a valid domain (e.g. gmail.com or company.co.ke)."
+    return f"{local}@{raw_domain}", None
+
+
+def _employee_portal_login_url_external() -> str:
+    try:
+        return url_for("employee_login", _external=True)
+    except RuntimeError:
+        return "/login"
+
+
+def _flash_login_welcome(full_name: str) -> None:
+    name = (full_name or "").strip()
+    if name:
+        flash(name, "login_welcome")
+
+
+def _flash_idle_signout() -> None:
+    flash(str(_EMPLOYEE_IDLE_MINUTES), "idle_signout")
+
+
+def _notify_employee_signup_pending_email(full_name: str, email: str, employee_code: str) -> None:
+    try:
+        from mail_service import is_mail_configured, queue_signup_pending_email
+
+        if not is_mail_configured():
+            return
+        company = (_load_company_identity_settings().get("company_name") or "Point of Sale").strip()
+        queue_signup_pending_email(
+            to_email=email,
+            full_name=full_name,
+            employee_code=employee_code,
+            company_name=company,
+            login_url=_employee_portal_login_url_external(),
+        )
+    except Exception:
+        logger.exception("Could not queue signup pending email for %s", email)
+
+
+def _notify_employee_approved_email(emp: dict, role_key: str) -> None:
+    try:
+        from mail_service import is_mail_configured, queue_approval_email
+
+        if not is_mail_configured():
+            return
+        to_email = (emp.get("email") or "").strip()
+        if not to_email or "@" not in to_email:
+            return
+        company = (_load_company_identity_settings().get("company_name") or "Point of Sale").strip()
+        role_label = ROLE_LABELS.get((role_key or "").strip().lower(), role_key or "Employee")
+        queue_approval_email(
+            to_email=to_email,
+            full_name=(emp.get("full_name") or "").strip(),
+            employee_code=(emp.get("employee_code") or "").strip(),
+            role_label=role_label,
+            company_name=company,
+            login_url=_employee_portal_login_url_external(),
+        )
+    except Exception:
+        logger.exception("Could not queue approval email for employee id %s", emp.get("id"))
+
+
 @app.route("/signup", methods=["GET", "POST"])
 def employee_signup():
     if session.get("employee_id"):
@@ -1680,8 +2113,13 @@ def employee_signup():
 
     if request.method == "POST":
         full_name = (request.form.get("full_name") or "").strip().upper()
-        email = (request.form.get("email") or "").strip()
-        phone = (request.form.get("phone") or "").strip()
+        email_local = (request.form.get("email_local") or "").strip()
+        email_domain = (request.form.get("email_domain") or "gmail.com").strip()
+        email_domain_custom = (request.form.get("email_domain_custom") or "").strip()
+        email_fallback = (request.form.get("email") or "").strip()
+        phone_country = (request.form.get("phone_country") or "254").strip()
+        phone_local = (request.form.get("phone_local") or "").strip()
+        phone_fallback = (request.form.get("phone") or "").strip()
         code = (request.form.get("employee_code") or "").strip()
         password = request.form.get("password") or ""
         confirm = request.form.get("confirm_password") or ""
@@ -1689,14 +2127,30 @@ def employee_signup():
         errors = []
         if len(full_name) < 2:
             errors.append("Enter your full name.")
-        if not email or "@" not in email:
-            errors.append("Enter a valid email.")
-        if len(phone) < 8:
-            errors.append("Enter a valid phone number.")
+        email = ""
+        if email_local or email_domain_custom:
+            email, email_err = _compose_signup_email(email_local, email_domain, email_domain_custom)
+            if email_err:
+                errors.append(email_err)
+        else:
+            email = email_fallback.lower()
+            if not email or "@" not in email:
+                errors.append("Enter a valid email.")
+        phone = ""
+        if phone_local:
+            phone, phone_err = _compose_signup_phone(phone_country, phone_local)
+            if phone_err:
+                errors.append(phone_err)
+        else:
+            from daraja_api import normalize_msisdn
+
+            phone = normalize_msisdn(phone_fallback) or _normalize_storefront_phone(phone_fallback)
+            if len(phone) < 10:
+                errors.append("Enter a valid phone number.")
         if not CODE_RE.match(code):
             errors.append("Employee code must be exactly 6 digits.")
-        if len(password) < 6:
-            errors.append("Password must be at least 6 characters (numbers-only is allowed, e.g. 123456).")
+        if not PASSWORD_DIGITS_RE.match(password):
+            errors.append("Password must be at least 6 digits (numbers only).")
         if password != confirm:
             errors.append("Passwords do not match.")
 
@@ -1724,17 +2178,29 @@ def employee_signup():
 
             pwd_hash = generate_password_hash(password)
             create_employee_pending(full_name, email, phone, code, pwd_hash, profile_path)
+            _notify_employee_signup_pending_email(full_name, email, code)
         except Exception:
             flash("Could not complete registration. Check database settings or try again later.", "error")
             return redirect(url_for("employee_signup"))
 
-        flash(
-            "Registration submitted. Your status is pending approval — an administrator will activate your account.",
-            "success",
+        flash_msg = (
+            "Registration submitted. Your status is pending approval — an administrator will activate your account."
         )
+        try:
+            from mail_service import is_mail_configured
+
+            if is_mail_configured():
+                flash_msg += f" A confirmation email was sent to {email}."
+        except Exception:
+            pass
+        flash(flash_msg, "success")
         return redirect(url_for("employee_login"))
 
-    return render_template("signup.html")
+    return render_template(
+        "signup.html",
+        phone_countries=SIGNUP_PHONE_COUNTRIES,
+        email_domains=SIGNUP_EMAIL_DOMAINS,
+    )
 
 
 @app.route("/profile/settings", methods=["GET", "POST"])
@@ -2169,6 +2635,8 @@ def _normalize_opening_hours_data(data) -> dict:
     result = {"open_24_hours": open_24, "days": days_out}
     if _opening_hours_has_scheduled_days(result):
         result["open_24_hours"] = False
+    else:
+        result["open_24_hours"] = True
     return result
 
 
@@ -2196,8 +2664,8 @@ def _opening_hours_has_scheduled_days(hours: dict) -> bool:
 
 
 def _effective_open_24_hours_flag(hours: dict) -> bool:
-    """True only when explicitly 24/7 and no per-day open/close windows are configured."""
-    return bool(hours.get("open_24_hours")) and not _opening_hours_has_scheduled_days(hours)
+    """True when no per-day open/close windows are configured (defaults to 24/7)."""
+    return not _opening_hours_has_scheduled_days(hours)
 
 
 def _opening_hours_from_form(existing: dict | None = None) -> dict:
@@ -2355,10 +2823,10 @@ def _shop_opening_hours_status(shop: dict, at: datetime | None = None) -> dict:
     if not open_t or not close_t:
         return {
             **base,
-            "open_24_hours": False,
-            "is_open_now": False,
-            "status": "hours_not_set",
-            "message": f"Closed today — no opening hours set for {day_label}",
+            "open_24_hours": True,
+            "is_open_now": True,
+            "status": "open_24_day",
+            "message": f"Open 24 hours ({day_label})",
             "today_hours": today_hours,
         }
 
@@ -2415,32 +2883,53 @@ def _shop_opening_hours_status(shop: dict, at: datetime | None = None) -> dict:
     }
 
 
-def _shop_pos_sales_allowed(shop: dict) -> tuple[bool, str]:
-    status = _shop_opening_hours_status(shop)
-    if not status.get("is_open_now"):
-        return False, str(status.get("message") or "Shop is closed. Sales are not allowed right now.")
+def _shop_pos_till_allows_sales(shop: dict) -> tuple[bool, str]:
+    """Till open: today's opening submitted, not end-of-day closed, no pending prior closing."""
     from database import get_pending_shop_day_closing, get_shop_day_opening
 
     shop_id = int(shop.get("id") or 0)
-    if shop_id > 0:
-        pending = get_pending_shop_day_closing(shop_id)
-        if pending:
-            label = pending.get("label") or pending.get("business_date") or "a previous day"
-            return (
-                False,
-                f"Closing balances for {label} must be submitted before sales can start.",
-            )
-        today_opening = get_shop_day_opening(shop_id, date.today())
-        if not today_opening:
-            return (
-                False,
-                "Opening cash and M-Pesa balances must be set by a shop admin or manager before sales can start.",
-            )
-        if today_opening.get("closing_submitted_at"):
-            return (
-                False,
-                "Shop closed for today. Closing balances were submitted — sales resume after the next opening.",
-            )
+    if shop_id <= 0:
+        return True, ""
+    pending = get_pending_shop_day_closing(shop_id)
+    if pending:
+        label = pending.get("label") or pending.get("business_date") or "a previous day"
+        return (
+            False,
+            f"Closing balances for {label} must be submitted before sales can start.",
+        )
+    today_opening = get_shop_day_opening(shop_id, date.today())
+    if not today_opening:
+        return (
+            False,
+            "Opening cash and M-Pesa balances must be set by a shop admin or manager before sales can start.",
+        )
+    if today_opening.get("closing_submitted_at"):
+        return (
+            False,
+            "Shop closed for today. Closing balances were submitted — sales resume after the next opening.",
+        )
+    return True, ""
+
+
+def _shop_pos_schedule_allows_sales(shop: dict) -> tuple[bool, str]:
+    """Scheduled hours: no times configured = 24/7; set times apply for that day."""
+    hours = _effective_opening_hours_for_shop(shop)
+    if not _opening_hours_has_scheduled_days(hours):
+        return True, ""
+    status = _shop_opening_hours_status(shop)
+    if status.get("is_open_now"):
+        return True, ""
+    return False, str(status.get("message") or "Shop is closed outside opening hours.")
+
+
+def _shop_pos_sales_allowed(shop: dict) -> tuple[bool, str]:
+    """Sales allowed when till is open and (if hours are set) within today's schedule."""
+    ok, msg = _shop_pos_till_allows_sales(shop)
+    if not ok:
+        return False, msg
+    ok, msg = _shop_pos_schedule_allows_sales(shop)
+    if not ok:
+        return False, msg
     return True, ""
 
 
@@ -2558,6 +3047,7 @@ def _shop_day_opening_boot_payload(shop: dict) -> dict:
     opening_completed = record is not None
     today_closing_submitted = bool(record and record.get("closing_submitted_at"))
     ready_for_sales = opening_completed and not pending_closing and not today_closing_submitted
+    sales_allowed, sales_blocked_message = _shop_pos_sales_allowed(shop)
     closing_rec_out = None
     if today_closing_submitted and record:
         closing_rec_out = {
@@ -2572,8 +3062,10 @@ def _shop_day_opening_boot_payload(shop: dict) -> dict:
         "completed": opening_completed,
         "today_closed": today_closing_submitted,
         "ready_for_sales": ready_for_sales,
+        "sales_allowed": sales_allowed,
+        "sales_blocked_message": sales_blocked_message,
         "can_submit": _shop_session_can_submit_day_opening(),
-        "requires_employee_code": not bool(session.get("employee_id")),
+        "requires_employee_code": True,
         "requires_stock_confirmation": _shop_day_opening_requires_stock_confirmation(shop),
         "inventory_mode": _pos_inventory_mode(shop),
         "record": rec_out,
@@ -2695,30 +3187,36 @@ def _apply_shop_day_opening_or_reopen(
         employee_name=ename,
         employee_role=erole,
     )
+    if ok and record and record.get("closing_submitted_at"):
+        ok, err, record = reopen_shop_day_till(
+            shop_id,
+            date.today(),
+            opening_cash=opening_cash,
+            opening_mpesa=opening_mpesa,
+            stock_confirmed=stock_confirmed,
+            require_stock_confirmation=require_stock,
+            employee_id=eid,
+            employee_code=ecode,
+            employee_name=ename,
+            employee_role=erole,
+        )
+        return ok, err, record, True
     return ok, err, record, False
 
 
 def _resolve_day_opening_submitter(
     shop_id: int, employee_code: str
 ) -> Tuple[Optional[dict], Optional[str], int]:
-    uid = session.get("employee_id")
-    if uid:
-        try:
-            from database import get_employee_by_id
+    """Opening always requires a 6-digit code from an authorized role."""
+    code = (employee_code or "").strip()
+    if not re.fullmatch(r"\d{6}", code):
+        return (
+            None,
+            "Enter a manager or admin 6-digit code to open the shop.",
+            400,
+        )
 
-            row = get_employee_by_id(int(uid))
-        except Exception:
-            row = None
-        if not row:
-            return None, "Session employee not found.", 403
-        role = str(row.get("role") or "").strip().lower()
-        if role in COMPANY_PORTAL_ROLES:
-            return row, None, 200
-        if role not in SHOP_DAY_OPENING_SUBMIT_ROLES:
-            return None, "Only shop admin or manager can submit opening balances.", 403
-        return row, None, 200
-
-    row, err, status = _shop_pos_validate_employee_code(shop_id, employee_code)
+    row, err, status = _shop_pos_validate_employee_code(shop_id, code)
     if err:
         return None, err, status
     role = str(row.get("role") or "").strip().lower()
@@ -2767,6 +3265,7 @@ def _opening_hours_boot_payload(shop: dict) -> dict:
     return {
         **status,
         "open_24_hours": _effective_open_24_hours_flag(hours),
+        "schedule_enforced": _opening_hours_has_scheduled_days(hours),
         "days": hours.get("days") or _default_company_opening_hours()["days"],
     }
 
@@ -3687,6 +4186,61 @@ def _format_quotation_whatsapp_message(
     return "\n".join(parts)
 
 
+def _format_pos_walkin_quotation_whatsapp_message(
+    *,
+    quote_id: int,
+    customer_name: str,
+    lines: list,
+    total: float,
+    share_url: str = "",
+) -> str:
+    """Customer-facing WhatsApp body for a saved POS walk-in quotation."""
+    company = (_load_company_identity_settings().get("company_name") or "Our shop").strip()
+    name = (customer_name or "").strip()
+    parts = [
+        f"Hello {name or 'there'},",
+        "",
+        f"Thank you for visiting *{company}*. Here is your quotation #{quote_id}:",
+        "",
+        "*Items:*",
+    ]
+    for ln in lines or []:
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "Item").strip()
+        try:
+            qty = int(ln.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        try:
+            pr = float(ln.get("price") or 0)
+        except (TypeError, ValueError):
+            pr = 0.0
+        try:
+            tot = float(ln.get("total") if ln.get("total") is not None else pr * qty)
+        except (TypeError, ValueError):
+            tot = pr * qty
+        parts.append(f"• {nm} ×{qty} @ KES {pr:,.2f} = KES {tot:,.2f}")
+    parts.extend(
+        [
+            "",
+            f"*Estimated total: KES {float(total):,.2f}*",
+        ]
+    )
+    share = _ensure_clickable_public_url((share_url or "").strip())
+    if share:
+        parts.extend(
+            [
+                "",
+                "View your quotation on our website:",
+                "",
+                share,
+            ]
+        )
+    parts.extend(["", "Reply to confirm or ask any questions."])
+    return "\n".join(parts)
+
+
 def _quotation_whatsapp_links_for_row(q: dict, company_wa: str = "") -> dict:
     company_wa = company_wa or _company_whatsapp_phone()
     qid = int(q.get("id") or 0)
@@ -3725,6 +4279,8 @@ def _quotation_whatsapp_by_id(quotes: list) -> dict:
 _QUOTATION_SHARE_TOKEN_SALT = "quotation-share-v1"
 _QUOTATION_SHARE_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 3600
 _QUOTATION_SHARE_MAX_ITEMS = 50
+_POS_QUOTATION_SHARE_TOKEN_SALT = "pos-quotation-share-v1"
+_POS_QUOTATION_SHARE_TOKEN_MAX_AGE_SECONDS = 90 * 24 * 3600
 
 
 def _quotation_share_token_serializer() -> URLSafeTimedSerializer:
@@ -3777,13 +4333,63 @@ def _parse_quotation_share_token(token: str) -> list[int]:
 
 def _quotation_share_public_url(token: str) -> str:
     path = url_for("quotation_share_public", token=token, _external=False)
-    public_base = _public_share_base_url()
-    if public_base:
-        link = public_base.rstrip("/") + path
-        if link.lower().startswith("http://") and "ngrok" not in link.lower():
-            link = "https://" + link[7:]
-        return link
-    return url_for("quotation_share_public", token=token, _external=True)
+    return _ensure_clickable_public_url(_public_absolute_url(path))
+
+
+def _pos_quotation_share_token_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt=_POS_QUOTATION_SHARE_TOKEN_SALT)
+
+
+def _make_pos_quotation_share_token(*, quote_id: int, shop_id: int) -> str:
+    qid = int(quote_id)
+    sid = int(shop_id)
+    if qid <= 0 or sid <= 0:
+        raise ValueError("Invalid quotation reference.")
+    return _pos_quotation_share_token_serializer().dumps({"q": qid, "s": sid})
+
+
+def _parse_pos_quotation_share_token(token: str) -> tuple[int, int]:
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        raise ValueError("This quotation link is missing.")
+    try:
+        raw = _pos_quotation_share_token_serializer().loads(
+            raw_token, max_age=_POS_QUOTATION_SHARE_TOKEN_MAX_AGE_SECONDS
+        )
+    except SignatureExpired as exc:
+        raise ValueError("This quotation link has expired. Ask the shop for a new one.") from exc
+    except BadSignature as exc:
+        raise ValueError("This quotation link is invalid.") from exc
+    if not isinstance(raw, dict):
+        raise ValueError("This quotation link is invalid.")
+    try:
+        qid = int(raw.get("q") or 0)
+        sid = int(raw.get("s") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("This quotation link is invalid.") from exc
+    if qid <= 0 or sid <= 0:
+        raise ValueError("This quotation link is invalid.")
+    return qid, sid
+
+
+def _pos_quotation_share_public_url(token: str) -> str:
+    path = url_for("pos_quotation_share_public", token=token, _external=False)
+    return _ensure_clickable_public_url(_public_absolute_url(path))
+
+
+def _ensure_clickable_public_url(url: str) -> str:
+    """Absolute HTTPS URL suitable for WhatsApp link detection (when a public host is configured)."""
+    link = (url or "").strip()
+    if not link:
+        return ""
+    if not link.lower().startswith(("http://", "https://")):
+        link = _public_absolute_url(link if link.startswith("/") else f"/{link}")
+    if not link:
+        return ""
+    low = link.lower()
+    if low.startswith("http://") and "ngrok" not in low and "localhost" not in low and "127.0.0.1" not in low:
+        link = "https://" + link[7:]
+    return link
 
 
 def _quotation_share_items_for_public(item_ids: list[int]) -> list[dict]:
@@ -3846,7 +4452,6 @@ def _format_quotation_share_whatsapp_message(items: list[dict], share_url: str) 
         parts.append(f"*Estimated total: KES {total:,.2f}*")
         parts.append("")
     if share_url:
-        parts.append("View full quotation with images & details:")
         parts.append(share_url)
         parts.append("")
     parts.append("_Reply to confirm availability or place your order._")
@@ -3957,6 +4562,68 @@ def _format_customer_quotation_whatsapp_message(
     if share_url:
         parts.extend(["", f"View full quotation: {share_url}"])
     return "\n".join(parts).strip()
+
+
+def _pos_quote_lines_to_public_items(enriched_lines: list) -> list[dict]:
+    """Map stored POS quote lines to the public quotation page item shape."""
+    out: list[dict] = []
+    for ln in enriched_lines or []:
+        if not isinstance(ln, dict):
+            continue
+        nm = (ln.get("name") or "Item").strip()
+        try:
+            qty = int(ln.get("qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            qty = 1
+        try:
+            unit = float(ln.get("price") or 0)
+        except (TypeError, ValueError):
+            unit = 0.0
+        try:
+            line_total = float(ln.get("total") if ln.get("total") is not None else unit * qty)
+        except (TypeError, ValueError):
+            line_total = unit * qty
+        display_name = f"{nm} × {qty}" if qty != 1 else nm
+        out.append(
+            {
+                "name": display_name,
+                "category": (ln.get("category") or "").strip() or "General",
+                "description": (ln.get("description") or "").strip(),
+                "price": line_total,
+                "image_url": (ln.get("image_url") or "").strip(),
+            }
+        )
+    return out
+
+
+def _render_quotation_share_public_response(
+    *,
+    items: Optional[list] = None,
+    company_name: str = "",
+    company_logo_url: str = "",
+    total_amount: float = 0.0,
+    share_url: str = "",
+    generated_date: str = "",
+    whatsapp_contact_url: str = "",
+    error: Optional[str] = None,
+    http_status: int = 200,
+):
+    return (
+        render_template(
+            "quotation_share_public.html",
+            items=items or [],
+            company_name=company_name,
+            company_logo_url=company_logo_url,
+            total_amount=total_amount,
+            share_url=share_url,
+            generated_date=generated_date,
+            whatsapp_contact_url=whatsapp_contact_url,
+            error=error,
+        ),
+        http_status,
+    )
 
 
 def _quotation_leads_detail_context(quotes: list) -> tuple[dict, dict]:
@@ -10962,11 +11629,14 @@ def shop_pos_day_opening_submit(shop_id: int):
     return jsonify(
         {
             "ok": True,
-            "completed": True,
+            "completed": payload.get("completed") is True,
             "reopened": reopened,
             "ready_for_sales": payload.get("ready_for_sales"),
+            "sales_allowed": payload.get("sales_allowed"),
+            "sales_blocked_message": payload.get("sales_blocked_message"),
             "today_closed": payload.get("today_closed"),
             "pending_closing": payload.get("pending_closing"),
+            "closing_reminder": payload.get("closing_reminder"),
             "business_date": date.today().isoformat(),
             "record": rec_out,
         }
@@ -11056,6 +11726,8 @@ def shop_pos_day_closing_submit(shop_id: int):
             "record": rec_out,
             "pending_closing": payload.get("pending_closing"),
             "ready_for_sales": payload.get("ready_for_sales"),
+            "sales_allowed": payload.get("sales_allowed"),
+            "sales_blocked_message": payload.get("sales_blocked_message"),
             "today_closed": payload.get("today_closed"),
             "completed": payload.get("completed"),
         }
@@ -11157,15 +11829,7 @@ def shop_pos_stock_in(shop_id: int):
         flash(msg, "error")
         return redirect(url_for("shop_pos", shop_id=shop_id))
 
-    is_store_stock_mode = _pos_inventory_mode(shop) == "both"
-
-    item_id_raw = (request.form.get("item_id") or "").strip()
-    qty_raw = (request.form.get("qty") or "").strip()
-    buying_price_raw = (request.form.get("buying_price") or "").strip()
-    seller_phone = (request.form.get("seller_phone") or "").strip()
-    seller_name = (request.form.get("seller_name") or "").strip().upper()
-    payment_status = "pending_payment"
-    note = (request.form.get("note") or "").strip().upper()
+    entry_type = (request.form.get("entry_type") or "stock").strip().lower()
     employee_code = (request.form.get("employee_code") or "").strip()
 
     emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
@@ -11175,6 +11839,61 @@ def shop_pos_stock_in(shop_id: int):
         flash(emp_err, "error")
         return redirect(url_for("shop_pos", shop_id=shop_id))
     created_by_employee_id = int(emp_row["id"])
+
+    if entry_type == "expense":
+        expense_category = (request.form.get("expense_category") or "").strip().upper()
+        expense_name = (request.form.get("expense_name") or "").strip().upper()
+        qty_raw = (request.form.get("qty") or "").strip()
+        unit_price_raw = (request.form.get("unit_price") or request.form.get("buying_price") or "").strip()
+        note = (request.form.get("note") or "").strip().upper()
+        seller_phone = (request.form.get("seller_phone") or "").strip()
+        seller_name = (request.form.get("seller_name") or "").strip().upper()
+        try:
+            from database import init_operational_expense_tables, register_shop_operational_expense
+
+            init_operational_expense_tables()
+            ok, expense_id, err_msg = register_shop_operational_expense(
+                shop_id=shop_id,
+                category_name=expense_category,
+                expense_name=expense_name,
+                qty=qty_raw,
+                unit_price=unit_price_raw,
+                seller_phone=seller_phone,
+                supplier_name=seller_name,
+                note=note or None,
+                created_by_employee_id=created_by_employee_id,
+                payment_status="pending_payment",
+            )
+        except Exception:
+            ok = False
+            expense_id = None
+            err_msg = "Could not register expense."
+        if not ok:
+            if wants_json:
+                return jsonify({"ok": False, "error": err_msg or "Could not register expense."}), 400
+            flash(err_msg or "Could not register expense.", "error")
+        else:
+            if wants_json:
+                return jsonify(
+                    {
+                        "ok": True,
+                        "message": "Expense registered successfully.",
+                        "expense_id": expense_id,
+                        "entry_type": "expense",
+                    }
+                )
+            flash("Expense registered successfully.", "success")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
+
+    is_store_stock_mode = _pos_inventory_mode(shop) == "both"
+
+    item_id_raw = (request.form.get("item_id") or "").strip()
+    qty_raw = (request.form.get("qty") or "").strip()
+    buying_price_raw = (request.form.get("buying_price") or "").strip()
+    seller_phone = (request.form.get("seller_phone") or "").strip()
+    seller_name = (request.form.get("seller_name") or "").strip().upper()
+    payment_status = "pending_payment"
+    note = (request.form.get("note") or "").strip().upper()
 
     try:
         from database import normalize_stock_move_qty
@@ -11268,11 +11987,18 @@ def shop_pos_stock_in(shop_id: int):
             if tx_id:
                 if is_store_stock_mode:
                     receipt_url = url_for(
-                        "shop_stock_in_receipt", shop_id=shop_id, tx_id=tx_id, kind="store"
+                        "shop_stock_in_receipt",
+                        shop_id=shop_id,
+                        tx_id=tx_id,
+                        kind="store",
+                        auto_print=1,
                     )
                 else:
                     receipt_url = url_for(
-                        "shop_stock_in_receipt", shop_id=shop_id, tx_id=tx_id
+                        "shop_stock_in_receipt",
+                        shop_id=shop_id,
+                        tx_id=tx_id,
+                        auto_print=1,
                     )
             return jsonify(
                 {
@@ -12823,7 +13549,38 @@ def shop_pos_record_quote(shop_id: int):
         msg = err or "Could not save quotation."
         status = 400 if err else 500
         return jsonify({"ok": False, "error": msg}), status
-    return jsonify({"ok": True, "quote_id": qid})
+
+    customer_name = (data.get("customer_name") or "").strip()
+    customer_phone_raw = (data.get("customer_phone") or "").strip()
+    customer_phone = _normalize_whatsapp_phone(customer_phone_raw) if customer_phone_raw else ""
+    quote_lines = data.get("lines") if isinstance(data.get("lines"), list) else []
+    share_url = ""
+    try:
+        share_token = _make_pos_quotation_share_token(quote_id=int(qid), shop_id=int(shop_id))
+        share_url = _pos_quotation_share_public_url(share_token)
+    except ValueError:
+        share_url = ""
+    wa_url = ""
+    wa_text = ""
+    if customer_phone and len(customer_phone) >= 12:
+        wa_text = _format_pos_walkin_quotation_whatsapp_message(
+            quote_id=int(qid),
+            customer_name=customer_name,
+            lines=quote_lines,
+            total=total_amount,
+            share_url=share_url,
+        )
+        wa_url = _whatsapp_send_url(customer_phone, wa_text)
+
+    return jsonify(
+        {
+            "ok": True,
+            "quote_id": qid,
+            "share_url": share_url,
+            "whatsapp_url": wa_url,
+            "whatsapp_text": wa_text,
+        }
+    )
 
 
 def _parse_iso_date_query(s: Optional[str]) -> Optional[date]:
@@ -13033,17 +13790,17 @@ def api_it_support_quotation_share_link():
 
 @app.route("/quotation/share/<token>")
 def quotation_share_public(token: str):
-    """Public quotation page — image, name, description, and price for shared items."""
+    """Public quotation page — image, name, description, and price for shared items (no login)."""
     try:
         item_ids = _parse_quotation_share_token(token)
     except ValueError as exc:
-        return render_template("quotation_share_public.html", error=str(exc)), 400
+        return _render_quotation_share_public_response(error=str(exc), http_status=400)
     items = _quotation_share_items_for_public(item_ids)
     if not items:
-        return render_template(
-            "quotation_share_public.html",
+        return _render_quotation_share_public_response(
             error="These items are no longer available.",
-        ), 404
+            http_status=404,
+        )
     identity = _load_company_identity_settings()
     company = (identity.get("company_name") or "Our shop").strip()
     total = round(sum(float(i.get("price") or 0) for i in items), 2)
@@ -13057,13 +13814,75 @@ def quotation_share_public(token: str):
     generated_date = datetime.now().strftime("%d %b %Y")
     logo_path = (identity.get("app_icon") or "").strip()
     company_logo_url = _public_static_upload_url(logo_path) if logo_path else ""
-    return render_template(
-        "quotation_share_public.html",
+    return _render_quotation_share_public_response(
         items=items,
         company_name=company,
         company_logo_url=company_logo_url,
         total_amount=total,
         share_url=_quotation_share_public_url(token),
+        generated_date=generated_date,
+        whatsapp_contact_url=wa_contact_url,
+    )
+
+
+@app.route("/q/<token>")
+def pos_quotation_share_public(token: str):
+    """Public POS quotation page — saved quote lines, no employee login required."""
+    try:
+        quote_id, shop_id = _parse_pos_quotation_share_token(token)
+    except ValueError as exc:
+        return _render_quotation_share_public_response(error=str(exc), http_status=400)
+    try:
+        from database import get_shop_pos_quotation_by_id
+
+        quote = get_shop_pos_quotation_by_id(quote_id, shop_id=shop_id)
+    except Exception:
+        quote = None
+    if not quote:
+        return _render_quotation_share_public_response(
+            error="This quotation could not be found.",
+            http_status=404,
+        )
+    enriched = _enrich_quotation_lines_for_display(quote.get("lines") or [])
+    items = _pos_quote_lines_to_public_items(enriched)
+    if not items:
+        return _render_quotation_share_public_response(
+            error="This quotation has no items to display.",
+            http_status=404,
+        )
+    identity = _load_company_identity_settings()
+    company = (identity.get("company_name") or "Our shop").strip()
+    try:
+        total = float(quote.get("total_amount") or 0)
+    except (TypeError, ValueError):
+        total = round(sum(float(i.get("price") or 0) for i in items), 2)
+    company_phone = (identity.get("company_phone") or "").strip()
+    wa_contact_url = ""
+    if company_phone and _company_whatsapp_phone():
+        wa_contact_url = _whatsapp_send_url(
+            company_phone,
+            f"Hello {company}, I received quotation #{quote_id} and would like to discuss it.",
+        )
+    created = quote.get("created_at")
+    generated_date = ""
+    if created is not None:
+        try:
+            if hasattr(created, "strftime"):
+                generated_date = created.strftime("%d %b %Y")
+            else:
+                generated_date = datetime.strptime(str(created)[:10], "%Y-%m-%d").strftime("%d %b %Y")
+        except (TypeError, ValueError):
+            generated_date = ""
+    if not generated_date:
+        generated_date = datetime.now().strftime("%d %b %Y")
+    logo_path = (identity.get("app_icon") or "").strip()
+    company_logo_url = _public_static_upload_url(logo_path) if logo_path else ""
+    return _render_quotation_share_public_response(
+        items=items,
+        company_name=company,
+        company_logo_url=company_logo_url,
+        total_amount=total,
+        share_url=_pos_quotation_share_public_url(token),
         generated_date=generated_date,
         whatsapp_contact_url=wa_contact_url,
     )
@@ -14232,6 +15051,288 @@ def shop_dashboard(shop_id: int):
     )
 
 
+@app.route("/shops/<int:shop_id>/shop-expenses/search.json")
+def shop_expenses_search_json(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    kind = (request.args.get("kind") or "items").strip().lower()
+    q = (request.args.get("q") or "").strip()
+    category = (request.args.get("category") or "").strip()
+    category_id = request.args.get("category_id", type=int)
+    req_limit = request.args.get("limit", type=int)
+    try:
+        from database import init_operational_expense_tables, search_expense_catalog_items, search_expense_categories
+
+        init_operational_expense_tables()
+        if kind == "categories":
+            rows = search_expense_categories(q or None, limit=min(req_limit or 25, 200))
+            payload = [{"id": int(r["id"]), "name": r.get("name") or ""} for r in rows]
+        else:
+            rows = search_expense_catalog_items(
+                category_id=category_id,
+                category_name=category or None,
+                query=q or None,
+                limit=min(req_limit or 25, 100),
+            )
+            payload = [
+                {
+                    "id": int(r["id"]),
+                    "name": r.get("name") or "",
+                    "category_id": int(r.get("category_id") or 0),
+                    "category_name": r.get("category_name") or "",
+                }
+                for r in rows
+            ]
+    except Exception:
+        payload = []
+    return jsonify({"ok": True, "results": payload})
+
+
+@app.route("/shops/<int:shop_id>/shop-expenses", methods=["GET", "POST"])
+def shop_expenses(shop_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not shop_shell_can("expenses"):
+        flash("You do not have access to shop expenses.", "error")
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
+
+    if request.method == "POST":
+        employee_code = (request.form.get("employee_code") or "").strip()
+        emp_row, emp_err, emp_status = _shop_pos_validate_employee_code(shop_id, employee_code)
+        if emp_err:
+            flash(emp_err, "error")
+            return redirect(url_for("shop_expenses", shop_id=shop_id))
+        try:
+            from database import init_operational_expense_tables, register_shop_operational_expense
+
+            init_operational_expense_tables()
+            ok, _, err_msg = register_shop_operational_expense(
+                shop_id=shop_id,
+                category_name=(request.form.get("expense_category") or "").strip().upper(),
+                expense_name=(request.form.get("expense_name") or "").strip().upper(),
+                qty=(request.form.get("qty") or "").strip(),
+                unit_price=(request.form.get("unit_price") or "").strip(),
+                seller_phone=(request.form.get("seller_phone") or "").strip(),
+                supplier_name=(request.form.get("seller_name") or "").strip().upper(),
+                note=(request.form.get("note") or "").strip().upper() or None,
+                created_by_employee_id=int(emp_row["id"]),
+                payment_status="pending_payment",
+            )
+        except Exception:
+            ok = False
+            err_msg = "Could not register expense."
+        flash(
+            "Expense registered." if ok else (err_msg or "Could not register expense."),
+            "success" if ok else "error",
+        )
+        return redirect(url_for("shop_expenses", shop_id=shop_id))
+
+    analytics_filter = _build_analytics_filter()
+    expense_rows: list = []
+    expense_totals = {"total_cost": 0.0, "amount_paid": 0.0, "balance": 0.0, "count": 0}
+    categories: list = []
+    try:
+        from database import (
+            init_operational_expense_tables,
+            list_shop_operational_expenses,
+            list_shop_stock_purchases,
+            search_expense_categories,
+        )
+
+        init_operational_expense_tables()
+        op_rows = list_shop_operational_expenses(
+            shop_id=shop_id, analytics_filter=analytics_filter, limit=8000
+        ) or []
+        stock_rows = list_shop_stock_purchases(
+            shop_id=shop_id, analytics_filter=analytics_filter, limit=8000
+        ) or []
+        expense_rows = op_rows + stock_rows
+        expense_rows.sort(
+            key=lambda r: (str(r.get("created_at_iso") or r.get("created_at") or ""), int(r.get("id") or 0)),
+            reverse=True,
+        )
+        categories = search_expense_categories(limit=200) or []
+        expense_totals["total_cost"] = sum(float(r.get("total_cost") or 0) for r in expense_rows)
+        expense_totals["amount_paid"] = sum(float(r.get("amount_paid") or 0) for r in expense_rows)
+        expense_totals["balance"] = sum(float(r.get("balance") or 0) for r in expense_rows)
+        expense_totals["count"] = len(expense_rows)
+    except Exception:
+        logger.exception("shop_expenses list failed shop_id=%s", shop_id)
+
+    return render_template(
+        "shop_expenses.html",
+        shop=shop,
+        analytics_filter=analytics_filter,
+        expense_rows=expense_rows,
+        expense_totals=expense_totals,
+        expense_categories=categories,
+        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/shop-expenses/<int:expense_id>/payment", methods=["POST"])
+def shop_expenses_payment_update(shop_id: int, expense_id: int):
+    """Record partial or full payment against a shop operational expense."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    if not shop_shell_can("expenses"):
+        return jsonify({"ok": False, "error": "You do not have access to shop expenses."}), 403
+
+    wants_json = _request_wants_json()
+    data = request.get_json(force=True, silent=True) if wants_json else None
+    if not isinstance(data, dict):
+        data = request.form
+
+    pay_mode = (data.get("pay_mode") or "").strip().lower()
+    add_raw = (data.get("additional_payment") or "").strip()
+    amount_raw = (data.get("amount_paid") or "").strip()
+
+    try:
+        from database import init_operational_expense_tables, update_shop_operational_expense_payment
+
+        init_operational_expense_tables()
+        if pay_mode == "full":
+            from database import get_cursor
+
+            with get_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT total_amount, COALESCE(amount_paid, 0) AS amount_paid
+                    FROM shop_operational_expenses
+                    WHERE id=%s AND shop_id=%s
+                    LIMIT 1
+                    """,
+                    (int(expense_id), int(shop_id)),
+                )
+                exp_row = cur.fetchone()
+            if not exp_row:
+                return jsonify({"ok": False, "error": "Expense not found."}), 404
+            total = round(float(exp_row.get("total_amount") or 0), 2)
+            row = update_shop_operational_expense_payment(
+                shop_id, expense_id, amount_paid=total
+            )
+        elif add_raw != "":
+            try:
+                additional = float(add_raw)
+            except Exception:
+                return jsonify({"ok": False, "error": "Invalid payment amount."}), 400
+            if additional <= 0:
+                return jsonify({"ok": False, "error": "Payment amount must be greater than zero."}), 400
+            row = update_shop_operational_expense_payment(
+                shop_id, expense_id, additional_payment=additional
+            )
+        elif amount_raw != "":
+            try:
+                amount_paid = float(amount_raw)
+            except Exception:
+                return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
+            if amount_paid < 0:
+                return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
+            row = update_shop_operational_expense_payment(
+                shop_id, expense_id, amount_paid=amount_paid
+            )
+        else:
+            return jsonify({"ok": False, "error": "Enter a payment amount."}), 400
+    except Exception:
+        logger.exception("shop_expenses_payment_update failed shop_id=%s expense_id=%s", shop_id, expense_id)
+        return jsonify({"ok": False, "error": "Could not update payment."}), 500
+
+    if not row:
+        return jsonify({"ok": False, "error": "Expense not found."}), 404
+    return jsonify({"ok": True, "row": row})
+
+
+@app.route(
+    "/it_support/company-operational-expenses/<int:shop_id>/<int:expense_id>/payment",
+    methods=["POST"],
+)
+@login_required
+def it_support_company_operational_expense_payment(shop_id: int, expense_id: int):
+    """Record partial or full payment against a shop operational expense (company portal)."""
+    _it_support_only()
+    data = request.get_json(force=True, silent=True) if _request_wants_json() else None
+    if not isinstance(data, dict):
+        data = request.form
+
+    pay_mode = (data.get("pay_mode") or "").strip().lower()
+    add_raw = (data.get("additional_payment") or "").strip()
+    amount_raw = (data.get("amount_paid") or "").strip()
+
+    try:
+        sid = int(shop_id)
+        eid = int(expense_id)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid expense reference."}), 400
+    if sid <= 0 or eid <= 0:
+        return jsonify({"ok": False, "error": "Invalid expense reference."}), 400
+
+    try:
+        from database import init_operational_expense_tables, update_shop_operational_expense_payment
+
+        init_operational_expense_tables()
+        if pay_mode == "full":
+            from database import get_cursor
+
+            with get_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT total_amount, COALESCE(amount_paid, 0) AS amount_paid
+                    FROM shop_operational_expenses
+                    WHERE id=%s AND shop_id=%s
+                    LIMIT 1
+                    """,
+                    (eid, sid),
+                )
+                exp_row = cur.fetchone()
+            if not exp_row:
+                return jsonify({"ok": False, "error": "Expense not found."}), 404
+            total = round(float(exp_row.get("total_amount") or 0), 2)
+            row = update_shop_operational_expense_payment(sid, eid, amount_paid=total)
+        elif add_raw != "":
+            try:
+                additional = float(add_raw)
+            except Exception:
+                return jsonify({"ok": False, "error": "Invalid payment amount."}), 400
+            if additional <= 0:
+                return jsonify({"ok": False, "error": "Payment amount must be greater than zero."}), 400
+            row = update_shop_operational_expense_payment(
+                sid, eid, additional_payment=additional
+            )
+        elif amount_raw != "":
+            try:
+                amount_paid = float(amount_raw)
+            except Exception:
+                return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
+            if amount_paid < 0:
+                return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
+            row = update_shop_operational_expense_payment(sid, eid, amount_paid=amount_paid)
+        else:
+            return jsonify({"ok": False, "error": "Enter a payment amount."}), 400
+    except Exception:
+        logger.exception(
+            "it_support_company_operational_expense_payment failed shop_id=%s expense_id=%s",
+            shop_id,
+            expense_id,
+        )
+        return jsonify({"ok": False, "error": "Could not update payment."}), 500
+
+    if not row:
+        return jsonify({"ok": False, "error": "Expense not found."}), 404
+    return jsonify({"ok": True, "row": row})
+
+
 @app.route("/shops/<int:shop_id>/shop-report")
 def shop_report(shop_id: int):
     """Single-shop daily report: till balances, revenue vs expense, and items sold."""
@@ -14257,7 +15358,25 @@ def shop_report(shop_id: int):
         "cash_revenue": 0.0,
         "mpesa_revenue": 0.0,
         "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
+        "collected_revenue": 0.0,
         "net_profit": 0.0,
+        "stock_cost_sold": 0.0,
+        "stock_cost_stock_out": 0.0,
+        "stock_cost_total": 0.0,
+        "stock_cost_sale_only": 0.0,
+        "stock_cost_credit_total": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_cogs_sale": 0.0,
+        "accrual_cogs_credit": 0.0,
+        "accrual_cogs_stock_out": 0.0,
+        "accrual_gross_profit": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_operating_expenses": 0.0,
+        "estimated_sale_gross_profit": 0.0,
         "items": [],
     }
     try:
@@ -14340,7 +15459,7 @@ def shop_report(shop_id: int):
         expenditure_rows=report_data.get("expenditure_rows") or [],
         report_share_url=share_url,
         report_json_url=report_json_url,
-        report_live_enabled=_analytics_filter_is_today(analytics_filter),
+        report_live_enabled=_shop_report_live_enabled(analytics_filter),
         report_period_label=_shop_report_period_label(analytics_filter),
         report_today_iso=date.today().isoformat(),
         report_business_date=report_business_date,
@@ -14386,9 +15505,30 @@ def shop_report_json(shop_id: int):
         "cash_revenue": 0.0,
         "mpesa_revenue": 0.0,
         "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
+        "collected_revenue": 0.0,
         "net_profit": 0.0,
+        "stock_cost_sold": 0.0,
+        "stock_cost_stock_out": 0.0,
+        "stock_cost_total": 0.0,
+        "stock_cost_sale_only": 0.0,
+        "stock_cost_credit_total": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_cogs_sale": 0.0,
+        "accrual_cogs_credit": 0.0,
+        "accrual_cogs_stock_out": 0.0,
+        "accrual_gross_profit": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_operating_expenses": 0.0,
+        "estimated_sale_gross_profit": 0.0,
         "items": [],
         "items_sold": [],
+        "items_sold_sale": [],
+        "items_sold_credit": [],
+        "expenditure_rows": [],
         "till_summary": {},
     }
     try:
@@ -14406,7 +15546,7 @@ def shop_report_json(shop_id: int):
             "ok": True,
             "report": report_data,
             "generated_at": datetime.now().strftime("%d %b %Y %H:%M"),
-            "live_enabled": _analytics_filter_is_today(analytics_filter),
+            "live_enabled": _shop_report_live_enabled(analytics_filter),
         }
     )
 
@@ -18232,8 +19372,8 @@ def shop_settings_appearance(shop_id: int):
     return render_template("shop_settings_appearance.html", shop=shop, **_shop_settings_template_extra(shop))
 
 
-@app.route("/shops/<int:shop_id>/shop-settings/company", methods=["GET", "POST"])
-def shop_settings_company(shop_id: int):
+@app.route("/shops/<int:shop_id>/shop-settings/shop", methods=["GET", "POST"])
+def shop_settings_shop(shop_id: int):
     shop = _get_shop_or_404(shop_id)
     gate = _require_shop_access(shop)
     if gate is not None:
@@ -18254,7 +19394,7 @@ def shop_settings_company(shop_id: int):
                 saved = _save_branding_upload(logo_file)
                 if saved is None:
                     flash("Shop logo must be PNG, JPG, GIF, WebP, ICO, or SVG.", "error")
-                    return redirect(url_for("shop_settings_company", shop_id=shop["id"]))
+                    return redirect(url_for("shop_settings_shop", shop_id=shop["id"]))
                 logo_path = saved
                 update_logo = True
         elif not payload:
@@ -18272,11 +19412,11 @@ def shop_settings_company(shop_id: int):
         except Exception:
             ok = False
         flash(
-            "Company settings updated." if ok else "Could not update company settings.",
+            "Shop settings updated." if ok else "Could not update shop settings.",
             "success" if ok else "error",
         )
-        return redirect(url_for("shop_settings_company", shop_id=shop["id"]))
-    return render_template("shop_settings_company.html", shop=shop, **_shop_settings_template_extra(shop))
+        return redirect(url_for("shop_settings_shop", shop_id=shop["id"]))
+    return render_template("shop_settings_shop.html", shop=shop, **_shop_settings_template_extra(shop))
 
 
 @app.route("/shops/<int:shop_id>/shop-settings/pos-printing", methods=["GET", "POST"])
@@ -19276,15 +20416,46 @@ def it_support_company_report():
     _it_support_only()
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
+    shop_filter_id = _company_report_shop_filter_from_request()
+    shops: list = []
+    shop_filter_name = ""
+    try:
+        from database import list_shops
+
+        shops = list_shops(limit=500) or []
+        if shop_filter_id:
+            shop_filter_name = next(
+                (
+                    (s.get("shop_name") or "").strip()
+                    for s in shops
+                    if int(s.get("id") or 0) == int(shop_filter_id)
+                ),
+                "",
+            )
+    except Exception:
+        shops = []
     report_data = {
         "total_revenue": 0.0,
         "sale_revenue": 0.0,
         "credit_revenue": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
         "cash_revenue": 0.0,
         "mpesa_revenue": 0.0,
+        "collected_revenue": 0.0,
         "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
         "net_profit": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_cogs_sale": 0.0,
+        "accrual_cogs_credit": 0.0,
+        "accrual_cogs_stock_out": 0.0,
+        "accrual_gross_profit": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_operating_expenses": 0.0,
         "items": [],
+        "expenditure_rows": [],
     }
     try:
         from database import get_company_report
@@ -19292,6 +20463,7 @@ def it_support_company_report():
         report_data = get_company_report(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
+            shop_id=shop_filter_id,
         )
     except Exception:
         logger.exception("it_support_company_report failed")
@@ -19323,12 +20495,19 @@ def it_support_company_report():
         report_data=report_data,
         item_rows=report_data.get("items") or [],
         items_sold_rows=report_data.get("items_sold") or [],
+        expenditure_rows=report_data.get("expenditure_rows") or [],
         report_share_url=share_url,
         report_json_url=report_json_url,
-        report_live_enabled=_analytics_filter_is_today(analytics_filter),
+        report_live_enabled=_shop_report_live_enabled(analytics_filter),
         report_company_name=company_name,
         report_should_print=report_should_print,
         report_generated_at=report_generated_at,
+        report_period_label=_shop_report_period_label(analytics_filter),
+        report_is_single_day=(analytics_filter.get("mode") or "single_day") == "single_day",
+        report_today_iso=date.today().isoformat(),
+        shops=shops,
+        shop_filter_id=shop_filter_id or 0,
+        shop_filter_name=shop_filter_name,
     )
 
 
@@ -19339,16 +20518,32 @@ def it_support_company_report_json():
     _it_support_only()
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
+    shop_filter_id = _company_report_shop_filter_from_request()
     report_data = {
         "total_revenue": 0.0,
         "sale_revenue": 0.0,
         "credit_revenue": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
         "cash_revenue": 0.0,
         "mpesa_revenue": 0.0,
+        "collected_revenue": 0.0,
         "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
         "net_profit": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_cogs_sale": 0.0,
+        "accrual_cogs_credit": 0.0,
+        "accrual_cogs_stock_out": 0.0,
+        "accrual_gross_profit": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_operating_expenses": 0.0,
         "items": [],
         "items_sold": [],
+        "items_sold_sale": [],
+        "items_sold_credit": [],
+        "expenditure_rows": [],
         "till_summary": {},
     }
     try:
@@ -19357,6 +20552,7 @@ def it_support_company_report_json():
         report_data = get_company_report(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
+            shop_id=shop_filter_id,
         )
     except Exception:
         logger.exception("it_support_company_report_json failed")
@@ -19365,7 +20561,7 @@ def it_support_company_report_json():
             "ok": True,
             "report": report_data,
             "generated_at": datetime.now().strftime("%d %b %Y %H:%M"),
-            "live_enabled": _analytics_filter_is_today(analytics_filter),
+            "live_enabled": _shop_report_live_enabled(analytics_filter),
         }
     )
 
@@ -19377,6 +20573,7 @@ def it_support_company_report_pdf():
     _it_support_only()
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
+    shop_filter_id = _company_report_shop_filter_from_request()
     report_data = {
         "total_revenue": 0.0,
         "sale_revenue": 0.0,
@@ -19393,6 +20590,7 @@ def it_support_company_report_pdf():
         report_data = get_company_report(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
+            shop_id=shop_filter_id,
         )
     except Exception:
         logger.exception("it_support_company_report_pdf failed")
@@ -19542,6 +20740,55 @@ def it_support_accounts_expenses():
         mpesa_payout=_daraja_expenses_mpesa_context(
             url_for("daraja_mpesa_stk_callback", _external=True)
         ),
+    )
+
+
+@app.route("/it_support/company-operational-expenses", methods=["GET", "POST"])
+@login_required
+def it_support_company_operational_expenses():
+    """Company-wide expenditure across all shops (stock, operational, stock out)."""
+    _it_support_only()
+    from database import (
+        _income_row_created_iso,
+        _sum_shop_expenditure_totals,
+        list_company_expenditure_for_report,
+        list_shops,
+    )
+
+    analytics_filter = _build_analytics_filter()
+    shop_filter_arg = request.args.get("shop_id", type=int)
+    shop_filter_id = shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
+    expense_rows: list = []
+    expense_totals = {"total_cost": 0.0, "amount_paid": 0.0, "balance": 0.0, "count": 0}
+    shops = []
+    try:
+        shops = list_shops(limit=500) or []
+        expense_rows = list_company_expenditure_for_report(
+            analytics_filter=analytics_filter,
+            shop_id=shop_filter_id,
+        ) or []
+        for row in expense_rows:
+            row["created_at_iso"] = _income_row_created_iso(row.get("created_at"))
+        totals = _sum_shop_expenditure_totals(expense_rows)
+        expense_totals["total_cost"] = totals["total_expenditure"]
+        expense_totals["amount_paid"] = totals["paid_expenditure"]
+        expense_totals["balance"] = totals["balance_expenditure"]
+        expense_totals["count"] = len(expense_rows)
+    except Exception:
+        logger.exception("it_support_company_operational_expenses list failed")
+        try:
+            shops = list_shops(limit=500) or []
+        except Exception:
+            shops = []
+
+    return render_template(
+        "it_support_company_operational_expenses.html",
+        analytics_filter=analytics_filter,
+        expense_rows=expense_rows,
+        expense_totals=expense_totals,
+        shops=shops,
+        shop_filter_id=shop_filter_id or 0,
+        report_today_iso=date.today().isoformat(),
     )
 
 
@@ -20194,8 +21441,9 @@ def it_support_employee_approve(emp_id: int):
         except (TypeError, ValueError):
             continue
     try:
-        from database import approve_employee, get_hr_employee_shop_link_mode
+        from database import approve_employee, get_employee_by_id, get_hr_employee_shop_link_mode
 
+        emp_row = get_employee_by_id(emp_id)
         ok = approve_employee(
             emp_id,
             role=role,
@@ -20204,6 +21452,7 @@ def it_support_employee_approve(emp_id: int):
         )
     except Exception:
         ok = False
+        emp_row = None
     if ok:
         _log_hr_activity_safe(
             "approve",
@@ -20211,7 +21460,18 @@ def it_support_employee_approve(emp_id: int):
             target_id=int(emp_id),
             description=f"Approved employee #{emp_id} as {role or 'employee'}",
         )
-    flash("Employee approved." if ok else "Could not approve employee. Check role/shop selection.", "success" if ok else "error")
+        if emp_row:
+            _notify_employee_approved_email(emp_row, role)
+    flash_msg = "Employee approved."
+    if ok:
+        try:
+            from mail_service import is_mail_configured
+
+            if is_mail_configured() and emp_row and (emp_row.get("email") or "").strip():
+                flash_msg += f" Approval email sent to {emp_row.get('email')}."
+        except Exception:
+            pass
+    flash(flash_msg if ok else "Could not approve employee. Check role/shop selection.", "success" if ok else "error")
     return redirect(url_for("it_support_hr_management"))
 
 

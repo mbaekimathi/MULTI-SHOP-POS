@@ -24,6 +24,17 @@
   </a>
 
   <a
+    href="{{ url_for('it_support_company_operational_expenses') }}"
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_company_operational_expenses' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+    {% if request.endpoint == 'it_support_company_operational_expenses' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9.414a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006 9.586V7" />
+    </svg>
+    company expenses
+  </a>
+
+  <a
     href="{{ url_for('it_support_company_report') }}"
     class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_company_report' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
     {% if request.endpoint == 'it_support_company_report' %}aria-current="page"{% endif %}

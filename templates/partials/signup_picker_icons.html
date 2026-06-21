@@ -1,0 +1,34 @@
+{# Brand / flag icons for signup pickers. #}
+{% macro signup_email_brand(brand) %}
+  {% if brand == 'gmail' %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M5.5 7.5 12 12.2l6.5-4.7V18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7.5z"/><path fill="#34A853" d="M5.5 7.5 12 12.2 18.5 7.5H6a1 1 0 0 0-1 0z"/><path fill="#FBBC05" d="M12 12.2 5.5 7.5V6a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v1.5L12 12.2z"/><path fill="#4285F4" d="M18.5 7.5 12 12.2v6.8h5.5a1 1 0 0 0 1-1V7.5z"/></svg>
+  {% elif brand == 'yahoo' %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#6001D2"/><path fill="#fff" d="M7.2 7.5h2.2l1.8 4.6 1.8-4.6h2.1l-3.1 7.2h-1.7L7.2 7.5zm8.8 0h2v7.2h-2V7.5z"/></svg>
+  {% elif brand == 'outlook' %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#0078D4"/><path fill="#fff" d="M5 8.5h8.5a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5H5V8.5zm2 2v3h6.5v-3H7zm9.5-1.5h2v7h-2v-7z"/></svg>
+  {% elif brand == 'hotmail' %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#0072C6"/><path fill="#fff" d="M6 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6V8zm1.5 2v3H13v-3H7.5zm8-1.5h1.5v7H15.5v-7z"/></svg>
+  {% elif brand == 'icloud' %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#3B82F6"/><path fill="#fff" d="M16.5 11.2a3.4 3.4 0 0 0-3.1-2 3.6 3.6 0 0 0-3.4 2.1A2.8 2.8 0 0 0 8 10.5 3 3 0 0 0 5 13.5 3.2 3.2 0 0 0 8.2 16.5h7.8a2.7 2.7 0 0 0 2.5-2.8 2.6 2.6 0 0 0-2-2.5z"/></svg>
+  {% elif brand == 'microsoft' %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" fill="#F25022"/><rect x="13" y="4" width="7" height="7" fill="#7FBA00"/><rect x="4" y="13" width="7" height="7" fill="#00A4EF"/><rect x="13" y="13" width="7" height="7" fill="#FFB900"/></svg>
+  {% else %}
+    <svg class="su-brand-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#64748b"/><path fill="#fff" d="M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm-.5 2h1v5.5l3.2 1.9-.5.9-3.7-2.2V8z"/></svg>
+  {% endif %}
+{% endmacro %}
+
+{% macro signup_country_flag(iso2, emoji) %}
+  <span class="su-flag" data-emoji="{{ emoji }}">
+    <img
+      src="https://flagcdn.com/w40/{{ iso2 }}.png"
+      srcset="https://flagcdn.com/w80/{{ iso2 }}.png 2x"
+      width="22"
+      height="16"
+      alt=""
+      class="su-flag__img"
+      loading="lazy"
+      decoding="async"
+    />
+    <span class="su-flag__emoji" aria-hidden="true">{{ emoji }}</span>
+  </span>
+{% endmacro %}

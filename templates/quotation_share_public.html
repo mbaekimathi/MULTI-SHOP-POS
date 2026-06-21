@@ -1,9 +1,9 @@
-{% extends "base.html" %}
+{% extends "marketing/base_storefront.html" %}
 {% block title %}{% if error %}Quotation unavailable{% else %}Quotation — {{ company_name }}{% endif %}{% endblock %}
-{% block head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=3" />
+{% block extra_head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=4" />
 {% endblock %}
-{% block body %}
+{% block content %}
   <div class="qsp-page">
     {% if error %}
       <div class="qsp-wrap">
@@ -58,7 +58,6 @@
         <section class="qsp-items" aria-label="Quoted products">
           <h2 class="qsp-section-title">Products</h2>
 
-          {# Mobile + tablet card layout #}
           <div class="qsp-cards">
             {% for item in items %}
               <article class="qsp-card">
@@ -85,14 +84,13 @@
             {% endfor %}
           </div>
 
-          {# Desktop table layout #}
           <div class="qsp-table-wrap">
             <table class="qsp-table">
               <thead>
                 <tr>
                   <th scope="col">Product</th>
                   <th scope="col" class="qsp-th-category">Category</th>
-                  <th scope="col" class="qsp-th-price">Price (KES)</th>
+                  <th scope="col" class="qsp-th-price">Line total (KES)</th>
                 </tr>
               </thead>
               <tbody>

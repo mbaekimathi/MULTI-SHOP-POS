@@ -24,9 +24,30 @@
     var closingApi = opts.closingApi || "";
 
     function syncReadyState() {
+      if (typeof window.syncPosTillReadyState === "function") {
+        window.syncPosTillReadyState();
+        return;
+      }
       boot.ready_for_sales = !!boot.completed && !hasPendingClosing(boot) && !boot.today_closed;
     }
-    syncReadyState();
+
+    function applyTillOpenState(j) {
+      j = j || {};
+      if (j.pending_closing !== undefined) boot.pending_closing = j.pending_closing;
+      if (j.record) boot.record = j.record;
+      if (j.closing_reminder) boot.closing_reminder = j.closing_reminder;
+      if (j.reopened === true || j.ready_for_sales === true || j.completed === true) {
+        boot.completed = true;
+        boot.today_closed = false;
+      } else {
+        if (j.completed === true || (j.ok && j.completed !== false)) boot.completed = true;
+        if (typeof j.today_closed === "boolean") boot.today_closed = j.today_closed;
+        else boot.today_closed = j.today_closed === true;
+      }
+      if (typeof j.sales_allowed === "boolean") boot.sales_allowed = j.sales_allowed;
+      if (j.sales_blocked_message) boot.sales_blocked_message = j.sales_blocked_message;
+      syncReadyState();
+    }
 
     var onComplete = typeof opts.onComplete === "function" ? opts.onComplete : function () {};
 
@@ -47,7 +68,11 @@
       el.textContent = text;
       el.className =
         "text-sm font-semibold " +
-        (kind === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400");
+        (kind === "ok"
+          ? "text-emerald-600 dark:text-emerald-400"
+          : kind === "muted"
+            ? "text-[rgb(var(--rc-muted))]"
+            : "text-rose-600 dark:text-rose-400");
     }
 
     function setClosingMsg(text, kind) {
@@ -183,6 +208,8 @@
 
     var closingSubmitInFlight = false;
     var closingLastAutoCode = "";
+    var openingSubmitInFlight = false;
+    var openingLastAutoCode = "";
 
     function readClosingEmployeeCode(codeEl) {
       var code = String((codeEl && codeEl.value) || "").replace(/\D/g, "").slice(0, 6);
@@ -253,12 +280,11 @@
           var j = res.body || {};
           if (!j.ok) throw new Error(j.error || "Could not save closing balances.");
           boot.pending_closing = j.pending_closing || null;
-          boot.ready_for_sales = j.ready_for_sales === true;
           boot.today_closed = j.today_closed === true;
           syncReadyState();
           setClosingMsg("Closing balances saved.", "ok");
           closingLastAutoCode = "";
-          if (boot.completed && boot.ready_for_sales) {
+          if (boot.ready_for_sales) {
             finishAll();
             return;
           }
@@ -285,8 +311,15 @@
         });
     }
 
-    function submitOpeningForm(ev) {
+    function readOpeningEmployeeCode(codeEl) {
+      var code = String((codeEl && codeEl.value) || "").replace(/\D/g, "").slice(0, 6);
+      if (codeEl) codeEl.value = code;
+      return code;
+    }
+
+    function submitOpeningForm(ev, autoFromCode) {
       if (ev && ev.preventDefault) ev.preventDefault();
+      if (openingSubmitInFlight) return;
       if (hasPendingClosing(boot)) {
         setOpeningMsg("Submit the previous day's closing balances first.", "error");
         updatePanels();
@@ -302,28 +335,29 @@
       var mpesa = parseFloat((mpesaEl && mpesaEl.value) || "0");
       if (isNaN(cash) || cash < 0 || isNaN(mpesa) || mpesa < 0) {
         setOpeningMsg("Enter valid opening cash and M-Pesa amounts (0 is allowed).", "error");
+        if (autoFromCode) openingLastAutoCode = "";
         return;
       }
       var needStock = boot.requires_stock_confirmation !== false;
       if (needStock && (!stockEl || !stockEl.checked)) {
         setOpeningMsg("Confirm that shop stock is up to date.", "error");
+        if (autoFromCode) openingLastAutoCode = "";
+        return;
+      }
+      var code = readOpeningEmployeeCode(codeEl);
+      if (!/^\d{6}$/.test(code)) {
+        setOpeningMsg("Enter a manager or admin 6-digit code to open the shop.", "error");
         return;
       }
       var payload = {
         opening_cash: cash,
         opening_mpesa: mpesa,
         stock_confirmed: needStock ? true : false,
+        employee_code: code,
       };
-      if (boot.requires_employee_code) {
-        var code = String((codeEl && codeEl.value) || "").trim();
-        if (!/^\d{6}$/.test(code)) {
-          setOpeningMsg("Enter your 6-digit employee code.", "error");
-          return;
-        }
-        payload.employee_code = code;
-      }
+      openingSubmitInFlight = true;
       if (btn) btn.disabled = true;
-      setOpeningMsg("", "");
+      setOpeningMsg(autoFromCode ? "Verifying code and saving opening…" : "", autoFromCode ? "muted" : "");
       fetch(openingApi, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
@@ -342,19 +376,17 @@
         .then(function (res) {
           var j = res.body || {};
           if (!j.ok) throw new Error(j.error || "Could not save opening balances.");
-          boot.record = j.record || null;
-          boot.completed = true;
-          boot.pending_closing = j.pending_closing || null;
-          boot.ready_for_sales = j.ready_for_sales === true;
-          boot.today_closed = j.today_closed === true;
-          syncReadyState();
+          applyTillOpenState(j);
+          openingLastAutoCode = "";
           setOpeningMsg(j.reopened ? "Shop reopened — sales can continue." : "Shop opening saved for today.", "ok");
           finishAll();
         })
         .catch(function (err) {
+          openingLastAutoCode = "";
           setOpeningMsg(String((err && err.message) || "Could not save opening balances."), "error");
         })
         .finally(function () {
+          openingSubmitInFlight = false;
           if (btn) btn.disabled = false;
         });
     }
@@ -376,7 +408,21 @@
       });
     }
     var openingForm = document.getElementById("pos-day-opening-form");
-    if (openingForm) openingForm.addEventListener("submit", submitOpeningForm);
+    if (openingForm) {
+      openingForm.addEventListener("submit", function (ev) {
+        submitOpeningForm(ev, false);
+      });
+    }
+    var openingCodeInput = document.getElementById("pos-day-opening-employee-code");
+    if (openingCodeInput) {
+      openingCodeInput.addEventListener("input", function () {
+        var raw = readOpeningEmployeeCode(openingCodeInput);
+        if (!/^\d{6}$/.test(raw)) return;
+        if (raw === openingLastAutoCode) return;
+        openingLastAutoCode = raw;
+        submitOpeningForm(null, true);
+      });
+    }
 
     document.addEventListener("keydown", function (ev) {
       if (!needsGateModal(boot)) return;
@@ -386,7 +432,11 @@
       }
     });
 
-    if (opts.autoInit !== false && needsGateModal(boot)) {
+    if (opts.autoInit !== false && boot.can_submit && boot.today_closed) {
+      setTimeout(function () {
+        showModal({ force: true, step: "opening", reopen: true });
+      }, opts.delayMs != null ? opts.delayMs : 350);
+    } else if (opts.autoInit !== false && needsGateModal(boot)) {
       setTimeout(function () {
         showModal();
       }, opts.delayMs != null ? opts.delayMs : 350);

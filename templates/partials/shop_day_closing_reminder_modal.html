@@ -1,9 +1,10 @@
 {# Close shop — floating dialog (POS header, shop report). #}
+{% set _shop_display_name = shop.shop_name if shop is defined and shop.shop_name else 'Shop' %}
 <style>
   .shop-day-closing-reminder {
     position: fixed;
     inset: 0;
-    z-index: 110;
+    z-index: 501;
     display: none;
     align-items: center;
     justify-content: center;
@@ -104,6 +105,7 @@
           </span>
           <div class="min-w-0 flex-1">
             <p class="text-[10px] font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">End of day</p>
+            <p id="shop-day-closing-reminder-shop-name" class="mt-1 truncate text-sm font-bold text-[rgb(var(--rc-page-fg))]">{{ _shop_display_name }}</p>
             <h2 id="shop-day-closing-reminder-title" class="mt-1 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">
               Close shop
             </h2>

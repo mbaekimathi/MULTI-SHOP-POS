@@ -216,6 +216,9 @@
       </div>
 
       <div class="company-opening-hours-schedule mt-3 {% if open_24_hours %}hidden{% endif %}">
+        <p class="mx-3 mb-2 text-xs text-[rgb(var(--rc-muted))]">
+          Days without open and close times are treated as open 24 hours. Check <strong>Closed</strong> to shut a day entirely.
+        </p>
         <div class="border-t border-[rgb(var(--rc-border))]">
           {% for day_key, day_label in company_weekdays %}
             {% set row = hours_days[day_key] if hours_days else {} %}
@@ -231,7 +234,7 @@
                   {% elif day_open and day_close %}
                     {{ day_open }} – {{ day_close }}
                   {% else %}
-                    Set open and close times
+                    Open 24 hours
                   {% endif %}
                 </span>
               </div>
@@ -306,7 +309,7 @@
         row.classList.remove("is-closed");
         var openVal = openInput ? openInput.value : "";
         var closeVal = closeInput ? closeInput.value : "";
-        summary.textContent = (openVal && closeVal) ? (openVal + " – " + closeVal) : "Set open and close times";
+        summary.textContent = (openVal && closeVal) ? (openVal + " – " + closeVal) : "Open 24 hours";
       }
 
       function syncCustomLock() {

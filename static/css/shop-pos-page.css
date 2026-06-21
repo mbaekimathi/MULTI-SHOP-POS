@@ -3105,22 +3105,7 @@
       opacity: 0.38;
       filter: grayscale(0.35);
     }
-    /* Compulsory printer notice (above cart; printer setup rises above when connecting) */
-    #pos-compulsory-printer-modal-backdrop {
-      z-index: 85;
-    }
-    #pos-compulsory-printer-modal {
-      z-index: 86;
-    }
-    body.pos-compulsory-setup-open #pos-compulsory-printer-modal,
-    body.pos-compulsory-setup-open #pos-compulsory-printer-modal-backdrop {
-      visibility: hidden !important;
-      pointer-events: none !important;
-    }
-    body.pos-compulsory-setup-open #pos-printer-dialog,
-    body.pos-compulsory-setup-open #pos-printer-backdrop {
-      z-index: 92 !important;
-    }
+    /* Compulsory printer notice — z-index handled by .pos-overlay-root */
     /* Cart drawer: form labels + helper copy readable on dark panels */
     #pos-cart-drawer label {
       color: rgb(var(--rc-page-fg)) !important;
@@ -3846,4 +3831,86 @@
         opacity: 1;
         transform: translateY(0) scale(1);
       }
+    }
+
+    /* Overlay portal — dialogs float above POS catalog, header, and FABs */
+    .pos-overlay-root {
+      position: relative;
+      z-index: 500;
+      pointer-events: none;
+    }
+    /* Only visible overlays capture clicks — never blanket auto on all portal children (cart backdrop stays inset-0 when closed). */
+    .pos-overlay-root > .hidden,
+    .pos-overlay-root > [hidden] {
+      pointer-events: none !important;
+    }
+    #pos-cart-backdrop:not(.is-visible) {
+      pointer-events: none !important;
+    }
+    #pos-cart-drawer:not(.is-open) {
+      pointer-events: none !important;
+    }
+    .shop-day-closing-reminder:not(.is-open) {
+      pointer-events: none !important;
+    }
+    .pos-overlay-root #pos-day-opening-modal-backdrop:not(.hidden),
+    .pos-overlay-root .shop-day-opening-backdrop:not(.hidden),
+    .pos-overlay-root #pos-day-opening-modal:not(.hidden),
+    .pos-overlay-root .shop-day-opening-modal:not(.hidden),
+    .pos-overlay-root #pos-compulsory-printer-modal-backdrop:not(.hidden),
+    .pos-overlay-root #pos-compulsory-printer-modal:not(.hidden),
+    .pos-overlay-root #pos-cart-backdrop.is-visible,
+    .pos-overlay-root #pos-cart-drawer.is-open,
+    .pos-overlay-root #pos-printer-backdrop:not(.hidden),
+    .pos-overlay-root #pos-printer-dialog:not(.hidden),
+    .pos-overlay-root #pos-hold-modal:not(.hidden),
+    .pos-overlay-root #pos-hold-void-modal:not(.hidden),
+    .pos-overlay-root #pos-hold-saved-modal:not(.hidden),
+    .pos-overlay-root #pos-stockin-modal:not(.hidden),
+    .pos-overlay-root #pos-refill-portions-modal:not(.hidden),
+    .pos-overlay-root #pos-receipts-modal:not(.hidden),
+    .pos-overlay-root #pos-incoming-sr-modal:not(.hidden),
+    .pos-overlay-root #shop-sr-outcome-modal:not(.hidden),
+    .pos-overlay-root #shop-day-closing-reminder-modal.is-open,
+    .pos-overlay-root .shop-day-closing-reminder.is-open {
+      pointer-events: auto;
+    }
+    .pos-overlay-root #pos-day-opening-modal-backdrop,
+    .pos-overlay-root .shop-day-opening-backdrop,
+    .pos-overlay-root #pos-compulsory-printer-modal-backdrop,
+    .pos-overlay-root #pos-cart-backdrop,
+    .pos-overlay-root #pos-printer-backdrop,
+    .pos-overlay-root #shop-sr-outcome-backdrop {
+      z-index: 500 !important;
+    }
+    .pos-overlay-root #pos-day-opening-modal,
+    .pos-overlay-root .shop-day-opening-modal,
+    .pos-overlay-root #pos-compulsory-printer-modal,
+    .pos-overlay-root #pos-cart-drawer,
+    .pos-overlay-root #pos-printer-dialog,
+    .pos-overlay-root #pos-hold-modal,
+    .pos-overlay-root #pos-hold-void-modal,
+    .pos-overlay-root #pos-hold-saved-modal,
+    .pos-overlay-root #pos-stockin-modal,
+    .pos-overlay-root #pos-refill-portions-modal,
+    .pos-overlay-root #pos-receipts-modal,
+    .pos-overlay-root #pos-incoming-sr-modal,
+    .pos-overlay-root #shop-sr-outcome-modal,
+    .pos-overlay-root .shop-day-closing-reminder {
+      z-index: 501 !important;
+    }
+    .pos-overlay-root #pos-toast {
+      z-index: 510 !important;
+    }
+    .pos-overlay-root #pos-sync-toast {
+      z-index: 512 !important;
+    }
+    body.pos-compulsory-setup-open #pos-overlay-root #pos-compulsory-printer-modal,
+    body.pos-compulsory-setup-open #pos-overlay-root #pos-compulsory-printer-modal-backdrop {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    body.pos-compulsory-setup-open #pos-overlay-root #pos-printer-dialog,
+    body.pos-compulsory-setup-open #pos-overlay-root #pos-printer-backdrop {
+      z-index: 520 !important;
     }

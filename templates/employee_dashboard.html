@@ -4,6 +4,34 @@
 {% block sidebar_links %}
   {% include "partials/it_support_portal_sidebar_nav.html" %}
 {% endblock %}
+{% block employee_sidebar_util_links %}
+  {% if portal_employee and portal_employee.role_key in ('it_support', 'super_admin', 'company_manager') %}
+    <div class="mt-2 flex shrink-0 flex-col gap-1 border-t border-[rgb(var(--rc-border))] pt-2">
+      <a
+        href="{{ url_for('it_support_system_settings', tab='company') }}"
+        class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() == 'company' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+        {% if request.endpoint == 'it_support_system_settings' and (request.args.get('tab') or '').lower() == 'company' %}aria-current="page"{% endif %}
+      >
+        <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M9 8h6m-6 4h6m-6 4h6M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16" />
+        </svg>
+        Company settings
+      </a>
+      <a
+        href="{{ portal_employee.profile_settings_url }}"
+        class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'employee_profile_settings' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+        {% if request.endpoint == 'employee_profile_settings' %}aria-current="page"{% endif %}
+      >
+        <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        My settings
+      </a>
+    </div>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
 {% block employee_content %}
   {% if portal_employee and portal_employee.role_key in ('it_support', 'super_admin', 'company_manager') %}
     <div class="mx-auto max-w-4xl space-y-6">
@@ -34,6 +62,13 @@
         >
           <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">System settings</p>
           <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Company profile, POS, receipts, theme, and website.</p>
+        </a>
+        <a
+          href="{{ url_for('it_support_company_operational_expenses') }}"
+          class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 transition hover:border-[rgb(var(--rc-primary))]/40 hover:bg-[rgb(var(--rc-surface-2))]"
+        >
+          <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Company expenses</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Operational (non-stock) expenses across all shops.</p>
         </a>
         <a
           href="{{ url_for('it_support_analytics') }}"

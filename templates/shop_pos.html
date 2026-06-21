@@ -2,12 +2,12 @@
 {% block title %}Shop POS — {{ shop.shop_name }}{% endblock %}
 
 {% block head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-page.css') }}?v=2" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-page.css') }}?v=3" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-pro.css') }}?v=10" />
 {% endblock %}
 
 {% block body %}
-  <div class="pos-surface-page pos-ui-pro relative isolate flex min-h-screen flex-col overflow-x-hidden">
+  <div class="pos-surface-page pos-ui-pro relative flex min-h-screen flex-col overflow-x-hidden">
     <div class="pos-page-atmosphere pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
       <div class="pos-page-atmosphere__base"></div>
       <div class="pos-page-atmosphere__orb pos-page-atmosphere__orb--a"></div>
@@ -358,7 +358,7 @@
             <p id="pos-shop-closed-banner-msg" class="mt-1 text-xs font-semibold">
               {{ shop_opening_hours_status.message if shop_opening_hours_status else 'Sales are not allowed right now.' }}
             </p>
-            <p class="mt-1 text-[10px] leading-snug text-rose-900/80 dark:text-rose-100/80">You can view items in the catalog. Checkout, held orders, and quotations stay disabled until opening hours.</p>
+            <p class="mt-1 text-[10px] leading-snug text-rose-900/80 dark:text-rose-100/80">Outside scheduled opening hours — browse only until the shop opens.</p>
           </div>
           <div
             id="pos-day-opening-pending-banner"
@@ -971,6 +971,20 @@
           <div id="pos-quotation-row" class="space-y-1">
             <input type="checkbox" id="pos-quote-only" class="hidden" />
             <p class="text-[10px] text-[rgb(var(--rc-muted))]">Quote only (no stock change).</p>
+            <label
+              id="pos-quote-whatsapp-row"
+              class="hidden mt-2 flex cursor-pointer items-start gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-2.5 py-2"
+            >
+              <input
+                type="checkbox"
+                id="pos-quote-whatsapp-share"
+                class="mt-0.5 h-4 w-4 shrink-0 rounded border-[rgb(var(--rc-border))] text-emerald-600 focus:ring-emerald-500/30"
+              />
+              <span class="text-[10px] leading-snug text-[rgb(var(--rc-page-fg))]">
+                <span class="font-bold text-emerald-800 dark:text-emerald-200">Share on WhatsApp</span>
+                instead of printing after authorization. Customer phone is required.
+              </span>
+            </label>
           </div>
           </div>
           <div id="pos-sale-payment-section" class="space-y-2 border-t border-[rgb(var(--rc-border))]/70 pt-2.5 mt-2.5">
@@ -1576,18 +1590,33 @@
       <div class="w-full max-w-2xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
         <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
           <div>
-            <h3 class="text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Buy and stock in item</h3>
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Search an item live or pick from list, then fill stock-in details.</p>
+            <h3 id="pos-stockin-title" class="text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Buy and stock in item</h3>
+            <p id="pos-stockin-subtitle" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Search an item live or pick from list, then fill stock-in details.</p>
           </div>
           <button type="button" id="pos-stockin-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold">Close</button>
         </div>
         <form id="pos-stockin-form" method="post" action="{{ url_for('shop_pos_stock_in', shop_id=shop.id) }}" class="grid gap-3 p-4 sm:grid-cols-2">
+          <input type="hidden" name="entry_type" id="pos-stockin-entry-type" value="stock" />
+          <div class="sm:col-span-2">
+            <p class="mb-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Entry type</p>
+            <div class="flex flex-wrap gap-2">
+              <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-xs font-bold uppercase tracking-wider has-[:checked]:border-[rgb(var(--rc-primary))]/50 has-[:checked]:bg-[rgb(var(--rc-primary))]/10">
+                <input type="radio" name="pos_stockin_type_pick" value="stock" checked class="pos-stockin-type-radio" />
+                Stock in item
+              </label>
+              <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-xs font-bold uppercase tracking-wider has-[:checked]:border-[rgb(var(--rc-primary))]/50 has-[:checked]:bg-[rgb(var(--rc-primary))]/10">
+                <input type="radio" name="pos_stockin_type_pick" value="expense" class="pos-stockin-type-radio" />
+                Register expense
+              </label>
+            </div>
+          </div>
           {% if is_store_stock_mode %}
             <div class="sm:col-span-2 rounded-xl border border-[rgb(var(--rc-primary))]/30 bg-[rgb(var(--rc-primary))]/5 px-3 py-2 text-[11px] font-semibold text-[rgb(var(--rc-page-fg))]">
               <span class="uppercase tracking-wider text-[rgb(var(--rc-muted))]">Both mode:</span>
               showing registered <strong>store stock items</strong>. These shelf SKUs are tracked separately and do not appear on the POS selling grid.
             </div>
           {% endif %}
+          <div id="pos-stockin-stock-fields" class="contents">
           <div class="sm:col-span-2">
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search item</label>
             <input id="pos-stockin-search" type="search" placeholder="Search by name or category..." class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
@@ -1596,7 +1625,7 @@
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               {% if is_store_stock_mode %}Store stock item{% else %}Item{% endif %}
             </label>
-            <select id="pos-stockin-item-id" name="item_id" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <select id="pos-stockin-item-id" name="item_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
               <option value="">
                 {% if is_store_stock_mode %}Select store stock item{% else %}Select item{% endif %}
               </option>
@@ -1613,22 +1642,61 @@
               <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]">No registered store stock items yet for this shop. Register from IT support → Register stock item.</p>
             {% endif %}
           </div>
+          <div class="pos-stockin-qty-price-row contents">
           <div>
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
-            <input name="qty" type="number" min="0.0001" step="any" inputmode="decimal" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
+            <input id="pos-stockin-qty" name="qty" type="number" min="0.0001" step="any" inputmode="decimal" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Buying price</label>
-            <input name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+            <label id="pos-stockin-price-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Buying price</label>
+            <input id="pos-stockin-buying-price" name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+            <input id="pos-stockin-unit-price" name="unit_price" type="hidden" value="" />
           </div>
+          <div id="pos-stockin-total-wrap" class="hidden">
+            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total</label>
+            <div id="pos-stockin-total-display" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">0.00</div>
+          </div>
+          </div>
+          </div>
+          <div id="pos-stockin-expense-fields" class="contents hidden">
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense category</label>
+              <input id="pos-stockin-expense-category" name="expense_category" list="pos-stockin-expense-category-list" autocomplete="off" class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="E.G. UTILITIES" />
+              <datalist id="pos-stockin-expense-category-list"></datalist>
+            </div>
+            <div class="sm:col-span-2 relative">
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense name</label>
+              <div class="flex">
+                <input id="pos-stockin-expense-name" name="expense_name" autocomplete="off" class="pos-stockin-upper min-w-0 flex-1 rounded-l-xl border border-r-0 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none focus:z-10" placeholder="SEARCH, PICK, OR TYPE NEW" />
+                <button type="button" id="pos-stockin-expense-list-toggle" class="flex shrink-0 items-center rounded-r-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 text-sm font-bold text-[rgb(var(--rc-muted))] outline-none hover:bg-[rgb(var(--rc-surface))]" aria-label="Show all expenses" title="Show all expenses">▾</button>
+              </div>
+              <div id="pos-stockin-expense-name-suggest" class="absolute z-20 mt-1 hidden max-h-48 w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
+            </div>
+            <div class="pos-stockin-expense-qty-price-row contents">
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
+              <input id="pos-stockin-expense-qty" type="number" min="0.0001" step="any" inputmode="decimal" required class="pos-stockin-expense-qty-sync w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Unit price</label>
+              <input id="pos-stockin-expense-unit-price-input" type="number" min="0" step="0.01" required class="pos-stockin-expense-price-sync w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total</label>
+              <div id="pos-stockin-expense-total-display" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">0.00</div>
+            </div>
+            </div>
+          </div>
+          <div id="pos-stockin-seller-fields" class="contents">
           <div>
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller phone</label>
+            <label id="pos-stockin-seller-phone-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller phone</label>
             <input id="pos-stockin-seller-phone" name="seller_phone" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="E.G. +254712345678" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller name</label>
-            <input id="pos-stockin-seller-name" name="seller_name" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. COLLINS MWANGI" />
+            <label id="pos-stockin-seller-name-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller name</label>
+            <input id="pos-stockin-seller-name" name="seller_name" required class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. COLLINS MWANGI" />
             <p id="pos-stockin-seller-hint" class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]"></p>
+          </div>
           </div>
           <div>
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Payment status</label>
@@ -1637,7 +1705,7 @@
           </div>
           <div class="sm:col-span-2">
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Notes (optional)</label>
-            <input name="note" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="OPTIONAL NOTES" />
+            <input name="note" class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="OPTIONAL NOTES" />
           </div>
           <div class="sm:col-span-2">
             <div id="pos-stockin-feedback" class="hidden rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-200"></div>

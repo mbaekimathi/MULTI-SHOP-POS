@@ -4,8 +4,8 @@
   <div class="border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-primary))]/10 via-transparent to-transparent px-4 py-4 sm:px-5">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Till &amp; summary</h3>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Opening from start-of-day · closing = opening + collected on receipts</p>
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">All shops · summary</h3>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Combined opening/closing till balances and profit across every branch</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         {% if report_live_enabled %}
@@ -13,56 +13,19 @@
         {% endif %}
       </div>
     </div>
-
-    {% if report_is_single_day|default(false) %}
-      <div class="no-print mt-4 flex flex-wrap items-center gap-2 border-t border-[rgb(var(--rc-border))]/70 pt-4">
-        {% if report_show_opening_link|default(false) %}
-          <button
-            id="shop-report-submit-opening-btn"
-            type="button"
-            class="btn-rc btn-rc-primary min-h-[2.45rem] px-4 py-2 text-sm font-semibold"
-          >
-            Set opening balances
-          </button>
-        {% elif report_business_date == report_today_iso %}
-          <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">
-            Opening recorded
-          </span>
-        {% endif %}
-
-        {% if report_show_closing_link|default(false) %}
-          <button
-            id="shop-report-submit-closing-btn"
-            type="button"
-            class="btn-rc btn-rc-secondary min-h-[2.45rem] px-4 py-2 text-sm font-semibold"
-            {% if not report_closing_ctx %}title="Set opening balances for this day first"{% endif %}
-          >
-            Submit closing balances
-          </button>
-        {% elif report_closing_submitted|default(false) %}
-          <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 ring-1 ring-indigo-400/25 dark:text-indigo-300">
-            Closing recorded
-          </span>
-        {% endif %}
-
-        {% if not report_show_opening_link|default(false) and not report_show_closing_link|default(false) and not report_closing_submitted|default(false) and report_business_date != report_today_iso %}
-          <span class="text-xs text-[rgb(var(--rc-muted))]">Till actions apply to today&apos;s report only.</span>
-        {% endif %}
-      </div>
-    {% endif %}
   </div>
 
   <div class="space-y-4 p-4 sm:p-5">
     {% set gross = (rd.accrual_gross_profit or 0)|float %}
     {% set net = (rd.accrual_net_profit or 0)|float %}
     <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-primary))]/8 via-[rgb(var(--rc-surface-2))]/80 to-[rgb(var(--rc-surface-2))]/50 px-4 py-4 sm:px-5">
-      <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Profit overview · {{ report_period_label or 'This period' }}</p>
+      <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Profit overview · {{ report_period_label or 'This period' }} · all shops</p>
       <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Four steps: sales → stock cost → gross profit → net profit (accrual — not when cash was collected)</p>
       <div class="mt-4 grid gap-4 sm:grid-cols-3">
         <div>
           <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">1 · Total sales</div>
           <div class="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="total_revenue">{{ "%.2f"|format(rd.total_revenue or 0) }}</div>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Cash sales + credit sales</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Cash sales + credit sales (all shops)</p>
         </div>
         <div class="border-[rgb(var(--rc-border))]/70 sm:border-l sm:pl-4">
           <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">2 · Stock cost (COGS)</div>
@@ -85,7 +48,7 @@
         <div>
           <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">4 · Net profit</div>
           <div class="mt-1 text-2xl font-extrabold tabular-nums {% if net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_net_profit" data-report-live-signed="1">{{ "%.2f"|format(net) }}</div>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">What is left after paying for stock sold <em>and</em> running the shop this period</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">What is left after stock sold <em>and</em> running all shops this period</p>
 
           <div class="mt-3 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/80 px-3 py-2.5">
             <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">How it is calculated</p>
@@ -101,15 +64,15 @@
           </div>
 
           <ul class="mt-2 list-inside list-disc space-y-1 text-xs text-[rgb(var(--rc-muted))]">
-            <li><span class="font-semibold text-[rgb(var(--rc-page-fg))]/85">Running costs</span> = stock purchases + shop bills from the expenditure table (paid or still owed).</li>
+            <li><span class="font-semibold text-[rgb(var(--rc-page-fg))]/85">Running costs</span> = stock purchases + bills from the expenditure table (paid or still owed).</li>
             <li>Stock removed or wasted is not counted again here — it is already in step 2.</li>
           </ul>
         </div>
 
         <div class="rounded-xl border border-sky-400/35 bg-sky-500/[0.06] px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
           <div class="min-w-0">
-            <div class="text-[10px] font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200">Cash collected · till</div>
-            <p class="mt-1 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">This is <span class="font-semibold text-[rgb(var(--rc-page-fg))]/85">not</span> the same as net profit. It is money actually received in the drawer today (cash, M-Pesa, and credit payments).</p>
+            <div class="text-[10px] font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200">Cash collected · all tills</div>
+            <p class="mt-1 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">This is <span class="font-semibold text-[rgb(var(--rc-page-fg))]/85">not</span> the same as net profit. It is money actually received at all shops (cash, M-Pesa, and credit payments).</p>
           </div>
           <div class="mt-3 shrink-0 sm:mt-0 sm:text-right">
             <div class="text-2xl font-extrabold tabular-nums text-sky-700 dark:text-sky-300" data-report-live="collected_revenue">{{ "%.2f"|format(rd.collected_revenue or 0) }}</div>
@@ -121,17 +84,7 @@
 
     <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-3">
-        <div class="flex flex-wrap items-start justify-between gap-2">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Till balances</div>
-          <div class="flex flex-wrap items-center gap-2">
-            {% if report_show_opening_link|default(false) %}
-              <button type="button" data-shop-report-open-opening class="no-print text-xs font-bold text-[rgb(var(--rc-primary))] underline underline-offset-2 hover:opacity-80">Set opening</button>
-            {% endif %}
-            {% if report_show_closing_link|default(false) %}
-              <button type="button" data-shop-report-open-closing class="no-print text-xs font-bold text-indigo-600 underline underline-offset-2 hover:opacity-80 dark:text-indigo-400">Submit closing</button>
-            {% endif %}
-          </div>
-        </div>
+        <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Till balances · all shops</div>
         <div class="mt-3 space-y-2.5">
           <div>
             <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening</div>

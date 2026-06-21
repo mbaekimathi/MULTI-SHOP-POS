@@ -211,6 +211,95 @@ def _analytics_business_date_where(analytics_filter: dict, column: str = "busine
     return "1=1", []
 
 
+def _resolve_credit_payment_status(*, amount: float, amount_paid: float) -> str:
+    """Map credit line totals to paid / partially_paid / not_paid."""
+    total = round(float(amount or 0), 2)
+    paid = round(float(amount_paid or 0), 2)
+    remaining = round(max(0.0, total - paid), 2)
+    if remaining <= 0.009:
+        return "paid"
+    if paid > 0.009:
+        return "partially_paid"
+    return "not_paid"
+
+
+def _credit_stock_cost_for_payment(
+    credit_stock_cost_full: float, credit_amount: float, credit_paid_amount: float
+) -> float:
+    """Count FIFO buying price on credit lines only for paid (or partially paid) amounts."""
+    full = round(float(credit_stock_cost_full or 0), 2)
+    amount = round(float(credit_amount or 0), 2)
+    paid = round(float(credit_paid_amount or 0), 2)
+    if full <= 0 or amount <= 0.009 or paid <= 0.009:
+        return 0.0
+    ratio = min(1.0, paid / amount)
+    return round(full * ratio, 2)
+
+
+def _build_report_items_sold_lists(items: list) -> dict:
+    """Split sold items into cash-sale and credit lists with payment status."""
+    sale_rows: list = []
+    credit_rows: list = []
+    for i in items or []:
+        stock_sold = int(i.get("stock_sold") or 0)
+        revenue = float(i.get("revenue") or 0)
+        if stock_sold <= 0 and revenue <= 0:
+            continue
+        base = {
+            "item_id": i.get("item_id"),
+            "name": i.get("name"),
+            "category": i.get("category"),
+        }
+        sale_qty = int(i.get("sale_qty") or 0)
+        sale_amount = round(float(i.get("sale_amount") or 0), 2)
+        sale_stock_cost = round(float(i.get("sale_stock_cost") or 0), 2)
+        if sale_qty > 0 or sale_amount > 0:
+            sale_rows.append(
+                {
+                    **base,
+                    "qty": sale_qty,
+                    "amount": sale_amount,
+                    "stock_cost": sale_stock_cost,
+                    "payment_status": "paid",
+                }
+            )
+        credit_qty = int(i.get("credit_qty") or 0)
+        credit_amount = round(float(i.get("credit_amount") or 0), 2)
+        credit_stock_cost = round(float(i.get("credit_stock_cost") or 0), 2)
+        credit_stock_cost_full = round(
+            float(i.get("credit_stock_cost_full") or i.get("credit_stock_cost") or 0), 2
+        )
+        if credit_qty > 0 or credit_amount > 0:
+            credit_paid = round(float(i.get("credit_paid_amount") or 0), 2)
+            credit_rows.append(
+                {
+                    **base,
+                    "qty": credit_qty,
+                    "amount": credit_amount,
+                    "stock_cost": credit_stock_cost_full,
+                    "stock_cost_paid": credit_stock_cost,
+                    "amount_paid": credit_paid,
+                    "balance": round(max(0.0, credit_amount - credit_paid), 2),
+                    "payment_status": _resolve_credit_payment_status(
+                        amount=credit_amount, amount_paid=credit_paid
+                    ),
+                }
+            )
+    sale_rows.sort(key=lambda x: (-float(x.get("amount") or 0), x.get("name") or ""))
+    credit_rows.sort(key=lambda x: (-float(x.get("amount") or 0), x.get("name") or ""))
+    combined = [
+        i
+        for i in (items or [])
+        if int(i.get("stock_sold") or 0) > 0 or float(i.get("revenue") or 0) > 0
+    ]
+    combined.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
+    return {
+        "items_sold": combined,
+        "items_sold_sale": sale_rows,
+        "items_sold_credit": credit_rows,
+    }
+
+
 def _enrich_period_report_financials(out: dict) -> dict:
     """Add till opening/closing balances and a sold-items list to period reports."""
     opening_cash = float(out.get("opening_cash_total") or 0)
@@ -225,14 +314,14 @@ def _enrich_period_report_financials(out: dict) -> dict:
         "closing_mpesa": round(opening_mpesa + mpesa_revenue, 2),
         "closing_total": round(opening_cash + opening_mpesa + cash_revenue + mpesa_revenue, 2),
     }
-    items = list(out.get("items") or [])
-    sold = [
-        i
-        for i in items
-        if int(i.get("stock_sold") or 0) > 0 or float(i.get("revenue") or 0) > 0
-    ]
-    sold.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
-    out["items_sold"] = sold
+    if out.get("items_sold_sale") is None and out.get("items_sold_credit") is None:
+        sold_lists = _build_report_items_sold_lists(list(out.get("items") or []))
+        out["items_sold"] = sold_lists["items_sold"]
+        out["items_sold_sale"] = sold_lists["items_sold_sale"]
+        out["items_sold_credit"] = sold_lists["items_sold_credit"]
+    elif out.get("items_sold") is None:
+        combined = list(out.get("items_sold_sale") or []) + list(out.get("items_sold_credit") or [])
+        out["items_sold"] = combined
     return out
 
 
@@ -467,6 +556,32 @@ def init_employees_table():
         return True
     except pymysql.Error as e:
         logger.warning("Could not init employees: %s", e)
+        return False
+
+
+def init_employee_password_resets_table():
+    """One-time password reset verification codes for active employees."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS employee_password_resets (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id INT NOT NULL,
+        email VARCHAR(190) NOT NULL,
+        code_hash VARCHAR(255) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used_at DATETIME NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_epr_employee (employee_id),
+        KEY idx_epr_expires (expires_at),
+        CONSTRAINT fk_epr_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table employee_password_resets is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init employee_password_resets: %s", e)
         return False
 
 
@@ -768,6 +883,12 @@ def save_shop_day_opening(
 
     existing = get_shop_day_opening(sid, biz)
     if existing:
+        if existing.get("closing_submitted_at"):
+            return (
+                False,
+                "Shop is closed for today. Submit opening balances with a manager or admin code to reopen.",
+                None,
+            )
         return True, None, existing
 
     if require_stock_confirmation and not stock_confirmed:
@@ -1185,75 +1306,1286 @@ def list_shop_day_openings_for_report(
         return []
 
 
-def list_shop_expenditure_for_report(shop_id: int, analytics_filter: dict) -> list:
-    """Manual stock purchases (expenditure) for one shop in the analytics period."""
+def _stock_out_expenditure_payment(total_cost: float, refunded: bool, refund_amount) -> dict:
+    """Map manual stock-out refund fields to expenditure payment status."""
+    total = round(float(total_cost or 0), 2)
+    if not refunded or total <= 0:
+        return {
+            "payment_status": "paid",
+            "amount_paid": total,
+            "balance": 0.0,
+            "refund_amount": 0.0,
+        }
+    try:
+        refund = round(float(refund_amount or 0), 2)
+    except Exception:
+        refund = 0.0
+    refund = max(0.0, min(refund, total))
+    if refund >= total - 0.009:
+        return {
+            "payment_status": "cancelled_out",
+            "amount_paid": 0.0,
+            "balance": 0.0,
+            "refund_amount": refund,
+        }
+    if refund > 0.009:
+        net = round(total - refund, 2)
+        return {
+            "payment_status": "partially_refunded",
+            "amount_paid": net,
+            "balance": refund,
+            "refund_amount": refund,
+        }
+    return {
+        "payment_status": "paid",
+        "amount_paid": total,
+        "balance": 0.0,
+        "refund_amount": 0.0,
+    }
+
+
+def _serialize_shop_stock_out_expenditure_row(r: dict) -> dict:
+    try:
+        qty = float(r.get("qty") or 0)
+    except Exception:
+        qty = 0.0
+    try:
+        total = round(float(r.get("cost_total") or 0), 2)
+    except Exception:
+        total = 0.0
+    if total <= 0 and qty > 0:
+        try:
+            unit_fallback = float(r.get("buying_price") or 0)
+        except Exception:
+            unit_fallback = 0.0
+        total = round(qty * unit_fallback, 2)
+    unit = round(total / qty, 2) if qty > 0 else round(float(r.get("buying_price") or 0), 2)
+    refunded = int(r.get("refunded") or 0) == 1
+    pay = _stock_out_expenditure_payment(total, refunded, r.get("refund_amount"))
+    reason = (r.get("reason") or "").strip().upper() or "STOCK OUT"
+    created = r.get("created_at")
+    if hasattr(created, "strftime"):
+        created_out = created.strftime("%d %b %Y %H:%M")
+        created_iso = created.strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        created_out = str(created or "")
+        created_iso = created_out
+    moved_by = (r.get("created_by") or "").strip()
+    return {
+        "id": int(r.get("id") or 0),
+        "shop_id": int(r.get("shop_id") or 0),
+        "category": reason.title(),
+        "name": (r.get("item_name") or "").strip() or f"Item #{r.get('item_id') or ''}",
+        "qty": qty,
+        "unit_price": unit,
+        "buying_price": unit,
+        "total_cost": total,
+        "payment_status": pay["payment_status"],
+        "amount_paid": pay["amount_paid"],
+        "balance": pay["balance"],
+        "refund_amount": pay["refund_amount"],
+        "note": (r.get("note") or "").strip(),
+        "supplier_name": moved_by,
+        "supplier": moved_by or reason.title(),
+        "created_by": moved_by,
+        "created_at": created_out,
+        "created_at_iso": created_iso,
+        "expense_kind": "stock_out",
+        "stock_out_reason": reason,
+        "shop_name": (r.get("shop_name") or "").strip(),
+    }
+
+
+def list_shop_stock_outs_for_report(shop_id: int, analytics_filter: dict, limit: int = 5000) -> list:
+    """Manual stock-out rows (return / waste / display) for shop expenditure report."""
     try:
         sid = int(shop_id)
     except Exception:
         return []
     if sid <= 0:
         return []
-    sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
-    sst_where = f"({sst_where}) AND sst.shop_id = %s AND sst.direction = 'in' AND sst.source = 'manual'"
-    params = list(sst_params) + [sid]
+    init_shop_stock_transactions_table()
+    if not column_exists("shop_stock_transactions", "cost_total"):
+        return []
+    lim = max(1, min(int(limit or 5000), 8000))
+    where, params = _analytics_where_clause(analytics_filter or {}, "sst")
+    where = (
+        f"({where}) AND sst.shop_id = %s AND sst.direction = 'out' AND sst.source = 'manual' "
+        f"AND UPPER(COALESCE(sst.reason, '')) IN ('RETURN', 'WASTE', 'DISPLAY')"
+    )
+    params = list(params) + [sid]
     sql = f"""
     SELECT
         sst.id,
-        sst.created_at,
+        sst.shop_id,
         sst.item_id,
-        i.name AS item_name,
-        i.category,
         sst.qty,
         sst.buying_price,
-        sst.place_brought_from,
-        sst.payment_status,
-        sst.amount_paid,
+        sst.cost_total,
+        sst.reason,
+        sst.refunded,
+        sst.refund_amount,
+        sst.note,
+        sst.created_at,
+        i.name AS item_name,
+        i.category,
         COALESCE(e.full_name, '') AS created_by
     FROM shop_stock_transactions sst
     JOIN items i ON i.id = sst.item_id
     LEFT JOIN employees e ON e.id = sst.created_by_employee_id
-    WHERE {sst_where}
+    WHERE {where}
     ORDER BY sst.created_at DESC, sst.id DESC
+    LIMIT %s
     """
+    params.append(lim)
     try:
         with get_cursor() as cur:
             cur.execute(sql, tuple(params))
             rows = cur.fetchall() or []
+        return [_serialize_shop_stock_out_expenditure_row(dict(r)) for r in rows]
     except pymysql.Error as e:
-        logger.warning("list_shop_expenditure_for_report failed shop=%s: %s", sid, e)
+        logger.warning("list_shop_stock_outs_for_report failed shop=%s: %s", sid, e)
         return []
-    out = []
-    for r in rows:
+
+
+def list_shop_expenditure_for_report(shop_id: int, analytics_filter: dict) -> list:
+    """Stock purchases and operational expenses for one shop in the analytics period."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return []
+    if sid <= 0:
+        return []
+    out: list = []
+    for r in list_shop_stock_purchases(shop_id=sid, analytics_filter=analytics_filter, limit=5000):
+        row = dict(r)
+        row["buying_price"] = round(float(row.get("unit_price") or row.get("buying_price") or 0), 2)
+        row["supplier"] = (row.get("supplier_name") or "—").strip() or "—"
+        row["expense_kind"] = "stock"
+        out.append(row)
+    op_rows = list_shop_operational_expenses_for_report(sid, analytics_filter)
+    for r in op_rows:
+        r["supplier"] = (r.get("supplier_name") or r.get("supplier") or "—").strip() or "—"
+    out.extend(op_rows)
+    out.extend(list_shop_stock_outs_for_report(sid, analytics_filter))
+    out.sort(
+        key=lambda x: (str(x.get("created_at_iso") or x.get("created_at") or ""), int(x.get("id") or 0)),
+        reverse=True,
+    )
+    return out
+
+
+def _sum_shop_expenditure_totals(expenditure_rows: list) -> dict:
+    """Aggregate total, paid, and balance from expenditure line rows."""
+    total = 0.0
+    paid = 0.0
+    for r in expenditure_rows or []:
+        ps = (r.get("payment_status") or "pending_payment").strip().lower()
+        kind = (r.get("expense_kind") or "").strip().lower()
         try:
-            qty = float(r.get("qty") or 0)
+            row_total = float(r.get("total_cost") or r.get("total_amount") or 0)
         except Exception:
-            qty = 0.0
+            row_total = 0.0
         try:
-            unit = float(r.get("buying_price") or 0)
+            row_paid = float(r.get("amount_paid") or 0)
         except Exception:
-            unit = 0.0
-        total_cost = round(qty * unit, 2)
-        created = r.get("created_at")
-        if hasattr(created, "strftime"):
-            created_out = created.strftime("%d %b %Y %H:%M")
+            row_paid = 0.0
+        if ps == "cancelled_out":
+            continue
+        if kind == "stock_out":
+            total += row_total
+            paid += row_paid
         else:
-            created_out = str(created or "")
-        out.append(
-            {
-                "id": int(r.get("id") or 0),
-                "created_at": created_out,
-                "item_id": int(r.get("item_id") or 0),
-                "name": (r.get("item_name") or "").strip() or f"Item #{r.get('item_id')}",
-                "category": (r.get("category") or "").strip(),
-                "qty": qty,
-                "buying_price": round(unit, 2),
-                "total_cost": total_cost,
-                "supplier": (r.get("place_brought_from") or "").strip() or "—",
-                "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
-                "amount_paid": round(float(r.get("amount_paid") or 0), 2),
-                "created_by": (r.get("created_by") or "").strip(),
-            }
+            total += row_total
+            paid += row_paid
+    total = round(total, 2)
+    paid = round(paid, 2)
+    return {
+        "total_expenditure": total,
+        "paid_expenditure": paid,
+        "balance_expenditure": round(max(0.0, total - paid), 2),
+    }
+
+
+def _sum_accrual_operating_expenses(expenditure_rows: list) -> float:
+    """Stock purchases + operational bills for accrual net profit (excludes stock-out COGS)."""
+    total = 0.0
+    for r in expenditure_rows or []:
+        ps = (r.get("payment_status") or "pending_payment").strip().lower()
+        kind = (r.get("expense_kind") or "").strip().lower()
+        if ps == "cancelled_out" or kind == "stock_out":
+            continue
+        try:
+            total += float(r.get("total_cost") or r.get("total_amount") or 0)
+        except Exception:
+            pass
+    return round(total, 2)
+
+
+def _apply_shop_report_accrual_summary(out: dict, *, stock_cost_stock_out: float) -> dict:
+    """Compute accrual profit metrics with an explicit, reconcilable COGS breakdown."""
+    items = list(out.get("items") or [])
+    sale_only = round(sum(float(i.get("sale_stock_cost") or 0) for i in items), 2)
+    credit_full = round(sum(float(i.get("credit_stock_cost_full") or 0) for i in items), 2)
+    paid_credit_cost = round(sum(float(i.get("credit_stock_cost") or 0) for i in items), 2)
+    stock_out_cost = round(float(stock_cost_stock_out or 0), 2)
+
+    out["stock_cost_sale_only"] = sale_only
+    out["stock_cost_credit_total"] = credit_full
+    out["stock_cost_stock_out"] = stock_out_cost
+    out["stock_cost_sold"] = round(sale_only + paid_credit_cost, 2)
+    out["stock_cost_total"] = round(out["stock_cost_sold"] + stock_out_cost, 2)
+    out["estimated_sale_gross_profit"] = round(float(out.get("sale_revenue") or 0) - sale_only, 2)
+
+    cogs_sale = sale_only
+    cogs_credit = credit_full
+    cogs_stock_out = stock_out_cost
+    accrual_cogs = round(cogs_sale + cogs_credit + cogs_stock_out, 2)
+    accrual_revenue = round(float(out.get("total_revenue") or 0), 2)
+    accrual_gross = round(accrual_revenue - accrual_cogs, 2)
+    accrual_operating = _sum_accrual_operating_expenses(out.get("expenditure_rows") or [])
+    accrual_net = round(accrual_gross - accrual_operating, 2)
+
+    out["accrual_cogs"] = accrual_cogs
+    out["accrual_cogs_sale"] = cogs_sale
+    out["accrual_cogs_credit"] = cogs_credit
+    out["accrual_cogs_stock_out"] = cogs_stock_out
+    out["accrual_gross_profit"] = accrual_gross
+    out["accrual_operating_expenses"] = accrual_operating
+    out["accrual_net_profit"] = accrual_net
+    return out
+
+
+def _serialize_company_warehouse_stock_expenditure_row(r: dict) -> dict:
+    try:
+        qty = float(r.get("qty") or 0)
+    except Exception:
+        qty = 0.0
+    try:
+        unit = float(r.get("buying_price") or 0)
+    except Exception:
+        unit = 0.0
+    total = round(qty * unit, 2)
+    amount_paid = round(float(r.get("amount_paid") or 0), 2)
+    created = r.get("created_at")
+    if hasattr(created, "strftime"):
+        created_out = created.strftime("%d %b %Y %H:%M")
+        created_iso = created.strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        created_out = str(created or "")
+        created_iso = created_out
+    supplier = (r.get("seller_name") or "").strip() or "—"
+    return {
+        "id": int(r.get("tx_id") or 0),
+        "shop_id": 0,
+        "shop_name": "Company warehouse",
+        "name": (r.get("item_name") or "").strip(),
+        "category": "",
+        "qty": qty,
+        "unit_price": round(unit, 2),
+        "buying_price": round(unit, 2),
+        "total_cost": total,
+        "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
+        "amount_paid": amount_paid,
+        "balance": round(max(0.0, total - amount_paid), 2),
+        "supplier": supplier,
+        "supplier_name": supplier,
+        "created_by": (r.get("moved_by") or "").strip(),
+        "created_at": created_out,
+        "created_at_iso": created_iso,
+        "expense_kind": "stock",
+        "stock_source": "company",
+    }
+
+
+def _merge_company_sold_item_rows(target: dict, row: dict, *, credit: bool) -> dict:
+    merged = dict(target)
+    for key in ("qty", "amount", "stock_cost", "amount_paid", "stock_cost_paid", "balance"):
+        merged[key] = round(float(merged.get(key) or 0) + float(row.get(key) or 0), 2)
+    if credit:
+        merged["payment_status"] = _resolve_credit_payment_status(
+            amount=merged.get("amount"),
+            amount_paid=merged.get("amount_paid"),
         )
+    return merged
+
+
+def _aggregate_company_financials_from_shops(
+    out: dict,
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    shop_id: Optional[int] = None,
+) -> dict:
+    """Sum FIFO COGS and sold-item lists across shops; reconcile accrual net from expenditure rows."""
+    shop_rows = list_shops(limit=500) or []
+    if shop_id is not None:
+        try:
+            sid_filter = int(shop_id)
+        except Exception:
+            sid_filter = 0
+        if sid_filter > 0:
+            shop_rows = [s for s in shop_rows if int(s.get("id") or 0) == sid_filter]
+
+    cogs_keys = (
+        "accrual_cogs",
+        "accrual_cogs_sale",
+        "accrual_cogs_credit",
+        "accrual_cogs_stock_out",
+        "stock_cost_sold",
+        "stock_cost_stock_out",
+        "stock_cost_total",
+        "stock_cost_sale_only",
+        "stock_cost_credit_total",
+        "estimated_sale_gross_profit",
+    )
+    for key in cogs_keys:
+        out[key] = 0.0
+
+    sale_merge: dict = {}
+    credit_merge: dict = {}
+    for shop in shop_rows:
+        try:
+            sid = int(shop.get("id") or 0)
+        except Exception:
+            continue
+        if sid <= 0:
+            continue
+        sr = get_shop_report(sid, analytics_filter, analytics_scope)
+        for key in cogs_keys:
+            out[key] = round(float(out.get(key) or 0) + float(sr.get(key) or 0), 2)
+        for row in sr.get("items_sold_sale") or []:
+            merge_key = (row.get("item_id"), (row.get("name") or "").strip().lower())
+            if merge_key in sale_merge:
+                sale_merge[merge_key] = _merge_company_sold_item_rows(sale_merge[merge_key], row, credit=False)
+            else:
+                sale_merge[merge_key] = dict(row)
+        for row in sr.get("items_sold_credit") or []:
+            merge_key = (row.get("item_id"), (row.get("name") or "").strip().lower())
+            if merge_key in credit_merge:
+                credit_merge[merge_key] = _merge_company_sold_item_rows(credit_merge[merge_key], row, credit=True)
+            else:
+                credit_merge[merge_key] = dict(row)
+
+    sale_rows = list(sale_merge.values())
+    credit_rows = list(credit_merge.values())
+    sale_rows.sort(key=lambda x: (-float(x.get("amount") or 0), x.get("name") or ""))
+    credit_rows.sort(key=lambda x: (-float(x.get("amount") or 0), x.get("name") or ""))
+    out["items_sold_sale"] = sale_rows
+    out["items_sold_credit"] = credit_rows
+    out["items_sold"] = sale_rows + credit_rows
+
+    accrual_revenue = round(float(out.get("total_revenue") or 0), 2)
+    accrual_cogs = round(float(out.get("accrual_cogs") or 0), 2)
+    accrual_gross = round(accrual_revenue - accrual_cogs, 2)
+    accrual_operating = _sum_accrual_operating_expenses(out.get("expenditure_rows") or [])
+    out["accrual_gross_profit"] = accrual_gross
+    out["accrual_operating_expenses"] = accrual_operating
+    out["accrual_net_profit"] = round(accrual_gross - accrual_operating, 2)
+    out["net_profit"] = round(
+        float(out.get("sale_revenue") or 0)
+        + float(out.get("paid_credit") or 0)
+        - float(out.get("paid_expenditure") or 0)
+        - float(out.get("unpaid_credit") or 0),
+        2,
+    )
+    return out
+
+
+def _normalize_expense_label(raw: Optional[str]) -> str:
+    return re.sub(r"\s+", " ", (raw or "").strip().upper())
+
+
+def _operational_expense_settled_clause(alias: str = "soe") -> str:
+    """Operational expenses included in company/period reports (partial or full payment)."""
+    a = (alias or "soe").strip() or "soe"
+    return (
+        f"LOWER(COALESCE({a}.payment_status, 'pending_payment')) "
+        f"IN ('partially_paid', 'paid')"
+    )
+
+
+def init_operational_expense_tables() -> bool:
+    """Expense categories, catalog names, and shop operational expense records."""
+    sql_categories = """
+    CREATE TABLE IF NOT EXISTS expense_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_expense_category_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    sql_catalog = """
+    CREATE TABLE IF NOT EXISTS expense_catalog_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        category_id INT NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_expense_catalog_cat_name (category_id, name),
+        KEY idx_expense_catalog_cat (category_id),
+        CONSTRAINT fk_expense_catalog_category
+            FOREIGN KEY (category_id) REFERENCES expense_categories(id)
+            ON DELETE RESTRICT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    sql_expenses = """
+    CREATE TABLE IF NOT EXISTS shop_operational_expenses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NOT NULL,
+        category_id INT NOT NULL,
+        expense_catalog_id INT NOT NULL,
+        category_name VARCHAR(120) NOT NULL,
+        expense_name VARCHAR(200) NOT NULL,
+        qty DECIMAL(18,4) NOT NULL,
+        unit_price DECIMAL(18,2) NOT NULL,
+        total_amount DECIMAL(18,2) NOT NULL,
+        payment_status VARCHAR(32) NOT NULL DEFAULT 'pending_payment',
+        amount_paid DECIMAL(18,2) NOT NULL DEFAULT 0,
+        note TEXT NULL,
+        supplier_name VARCHAR(255) NULL,
+        seller_phone VARCHAR(40) NULL,
+        created_by_employee_id INT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_shop_op_exp_shop (shop_id),
+        KEY idx_shop_op_exp_created (created_at),
+        KEY idx_shop_op_exp_category (category_id),
+        CONSTRAINT fk_shop_op_exp_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE RESTRICT,
+        CONSTRAINT fk_shop_op_exp_category FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE RESTRICT,
+        CONSTRAINT fk_shop_op_exp_catalog FOREIGN KEY (expense_catalog_id) REFERENCES expense_catalog_items(id) ON DELETE RESTRICT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql_categories)
+            cur.execute(sql_catalog)
+            cur.execute(sql_expenses)
+            if not column_exists("shop_operational_expenses", "supplier_name"):
+                cur.execute(
+                    "ALTER TABLE shop_operational_expenses "
+                    "ADD COLUMN supplier_name VARCHAR(255) NULL AFTER note"
+                )
+            if not column_exists("shop_operational_expenses", "seller_phone"):
+                cur.execute(
+                    "ALTER TABLE shop_operational_expenses "
+                    "ADD COLUMN seller_phone VARCHAR(40) NULL AFTER supplier_name"
+                )
+        return True
+    except pymysql.Error as e:
+        logger.warning("init_operational_expense_tables failed: %s", e)
+        return False
+
+
+def get_or_create_expense_category(name: str) -> Optional[int]:
+    label = _normalize_expense_label(name)
+    if not label:
+        return None
+    init_operational_expense_tables()
+    with get_cursor(commit=True) as cur:
+        cur.execute("SELECT id FROM expense_categories WHERE name=%s LIMIT 1", (label,))
+        row = cur.fetchone()
+        if row:
+            return int(row["id"])
+        cur.execute("INSERT INTO expense_categories (name) VALUES (%s)", (label,))
+        return int(cur.lastrowid)
+
+
+def get_or_create_expense_catalog_item(category_id: int, name: str) -> Optional[int]:
+    try:
+        cid = int(category_id)
+    except Exception:
+        return None
+    if cid <= 0:
+        return None
+    label = _normalize_expense_label(name)
+    if not label:
+        return None
+    init_operational_expense_tables()
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            "SELECT id FROM expense_catalog_items WHERE category_id=%s AND name=%s LIMIT 1",
+            (cid, label),
+        )
+        row = cur.fetchone()
+        if row:
+            return int(row["id"])
+        cur.execute(
+            "INSERT INTO expense_catalog_items (category_id, name) VALUES (%s, %s)",
+            (cid, label),
+        )
+        return int(cur.lastrowid)
+
+
+def search_expense_categories(query: Optional[str] = None, limit: int = 20) -> list:
+    init_operational_expense_tables()
+    lim = max(1, min(int(limit or 20), 100))
+    q = _normalize_expense_label(query)
+    if q:
+        like = f"%{q}%"
+        sql = "SELECT id, name FROM expense_categories WHERE name LIKE %s ORDER BY name ASC LIMIT %s"
+        params = (like, lim)
+    else:
+        sql = "SELECT id, name FROM expense_categories ORDER BY name ASC LIMIT %s"
+        params = (lim,)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, params)
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def search_expense_catalog_items(
+    category_id: Optional[int] = None,
+    category_name: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = 20,
+) -> list:
+    init_operational_expense_tables()
+    lim = max(1, min(int(limit or 20), 100))
+    q = _normalize_expense_label(query)
+    clauses = ["1=1"]
+    params: list = []
+    if category_id is not None:
+        try:
+            cid = int(category_id)
+        except Exception:
+            cid = 0
+        if cid > 0:
+            clauses.append("eci.category_id = %s")
+            params.append(cid)
+    elif category_name:
+        cat = _normalize_expense_label(category_name)
+        if cat:
+            clauses.append("ec.name = %s")
+            params.append(cat)
+    if q:
+        clauses.append("eci.name LIKE %s")
+        params.append(f"%{q}%")
+    sql = f"""
+    SELECT eci.id, eci.name, eci.category_id, ec.name AS category_name
+    FROM expense_catalog_items eci
+    JOIN expense_categories ec ON ec.id = eci.category_id
+    WHERE {' AND '.join(clauses)}
+    ORDER BY eci.name ASC
+    LIMIT %s
+    """
+    params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
+def register_shop_operational_expense(
+    *,
+    shop_id: int,
+    category_name: str,
+    expense_name: str,
+    qty,
+    unit_price,
+    seller_phone: Optional[str] = None,
+    supplier_name: Optional[str] = None,
+    note: Optional[str] = None,
+    created_by_employee_id: Optional[int] = None,
+    payment_status: str = "pending_payment",
+) -> tuple[bool, Optional[int], Optional[str]]:
+    """Register a non-stock shop expense. Creates category/catalog entries when new."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return False, None, "Invalid shop."
+    if sid <= 0:
+        return False, None, "Invalid shop."
+    cat_label = _normalize_expense_label(category_name)
+    name_label = _normalize_expense_label(expense_name)
+    if not cat_label:
+        return False, None, "Expense category is required."
+    if not name_label:
+        return False, None, "Expense name is required."
+    n = normalize_stock_move_qty(qty)
+    if n is None:
+        return False, None, "Quantity must be greater than zero."
+    try:
+        if isinstance(unit_price, str):
+            s = unit_price.strip().replace("\u00a0", "").replace(" ", "")
+            if "," in s and "." not in s:
+                s = s.replace(",", ".")
+            unit = float(s)
+        else:
+            unit = float(unit_price)
+        if not math.isfinite(unit) or unit < 0:
+            raise ValueError()
+    except Exception:
+        return False, None, "Unit price must be a valid number."
+    total = round(float(n) * unit, 2)
+    payment_status = (payment_status or "pending_payment").strip().lower()
+    if payment_status not in {"pending_payment", "partially_paid", "paid"}:
+        payment_status = "pending_payment"
+    note_clean = _normalize_expense_label(note) if (note or "").strip() else None
+
+    resolved_name, resolved_phone = resolve_seller_name_and_phone(
+        seller_phone=seller_phone or "",
+        seller_name=supplier_name or "",
+    )
+    if not resolved_name or not resolved_phone:
+        return False, None, "Supplier phone must be valid. If new, provide supplier name to register."
+
+    init_operational_expense_tables()
+    category_id = get_or_create_expense_category(cat_label)
+    if not category_id:
+        return False, None, "Could not save expense category."
+    catalog_id = get_or_create_expense_catalog_item(category_id, name_label)
+    if not catalog_id:
+        return False, None, "Could not save expense name."
+
+    sql = """
+    INSERT INTO shop_operational_expenses
+        (shop_id, category_id, expense_catalog_id, category_name, expense_name,
+         qty, unit_price, total_amount, payment_status, amount_paid, note,
+         supplier_name, seller_phone, created_by_employee_id)
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,0,%s,%s,%s,%s)
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                sql,
+                (
+                    sid,
+                    int(category_id),
+                    int(catalog_id),
+                    cat_label,
+                    name_label,
+                    n,
+                    round(unit, 2),
+                    total,
+                    payment_status,
+                    note_clean,
+                    resolved_name,
+                    resolved_phone,
+                    int(created_by_employee_id) if created_by_employee_id else None,
+                ),
+            )
+            return True, int(cur.lastrowid), None
+    except pymysql.Error as e:
+        logger.warning("register_shop_operational_expense failed shop=%s: %s", sid, e)
+        return False, None, "Could not register expense."
+
+
+def update_shop_operational_expense_payment(
+    shop_id: int,
+    expense_id: int,
+    amount_paid: Optional[float] = None,
+    *,
+    additional_payment: Optional[float] = None,
+) -> Optional[dict]:
+    """Update amount paid and payment status for one shop operational expense."""
+    try:
+        sid = int(shop_id)
+        eid = int(expense_id)
+    except Exception:
+        return None
+    if sid <= 0 or eid <= 0:
+        return None
+    init_operational_expense_tables()
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            SELECT id, shop_id, total_amount, COALESCE(amount_paid, 0) AS amount_paid
+            FROM shop_operational_expenses
+            WHERE id=%s AND shop_id=%s
+            FOR UPDATE
+            """,
+            (eid, sid),
+        )
+        row = cur.fetchone() or {}
+        if not row:
+            return None
+        total_cost = round(float(row.get("total_amount") or 0), 2)
+        current_paid = round(float(row.get("amount_paid") or 0), 2)
+
+        if additional_payment is not None:
+            try:
+                add = round(float(additional_payment), 2)
+            except Exception:
+                return None
+            if add < 0:
+                return None
+            new_paid = round(current_paid + add, 2)
+        else:
+            try:
+                new_paid = round(float(amount_paid or 0), 2)
+            except Exception:
+                return None
+            if new_paid < 0:
+                return None
+
+        if total_cost <= 0:
+            status = "paid"
+        elif new_paid <= 0:
+            status = "pending_payment"
+        elif new_paid < total_cost:
+            status = "partially_paid"
+        else:
+            status = "paid"
+        cur.execute(
+            """
+            UPDATE shop_operational_expenses
+            SET amount_paid=%s, payment_status=%s
+            WHERE id=%s AND shop_id=%s
+            """,
+            (new_paid, status, eid, sid),
+        )
+        return {
+            "id": eid,
+            "shop_id": sid,
+            "total_cost": total_cost,
+            "amount_paid": new_paid,
+            "balance": round(max(0.0, total_cost - new_paid), 2),
+            "payment_status": status,
+        }
+
+
+def _serialize_operational_expense_row(r: dict) -> dict:
+    try:
+        qty = float(r.get("qty") or 0)
+    except Exception:
+        qty = 0.0
+    try:
+        unit = float(r.get("unit_price") or 0)
+    except Exception:
+        unit = 0.0
+    total = round(float(r.get("total_amount") or qty * unit), 2)
+    created = r.get("created_at")
+    if hasattr(created, "strftime"):
+        created_out = created.strftime("%d %b %Y %H:%M")
+        created_iso = created.strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        created_out = str(created or "")
+        created_iso = created_out
+    return {
+        "id": int(r.get("id") or 0),
+        "shop_id": int(r.get("shop_id") or 0),
+        "shop_name": (r.get("shop_name") or "").strip(),
+        "shop_code": (r.get("shop_code") or "").strip(),
+        "category_id": int(r.get("category_id") or 0),
+        "expense_catalog_id": int(r.get("expense_catalog_id") or 0),
+        "category": (r.get("category_name") or "").strip(),
+        "name": (r.get("expense_name") or "").strip(),
+        "qty": qty,
+        "unit_price": round(unit, 2),
+        "total_cost": total,
+        "total_amount": total,
+        "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
+        "amount_paid": round(float(r.get("amount_paid") or 0), 2),
+        "balance": round(max(0.0, total - float(r.get("amount_paid") or 0)), 2),
+        "note": (r.get("note") or "").strip(),
+        "supplier_name": (r.get("supplier_name") or "").strip(),
+        "seller_phone": (r.get("seller_phone") or "").strip(),
+        "created_by": (r.get("created_by") or "").strip(),
+        "created_by_employee_id": int(r.get("created_by_employee_id") or 0) or None,
+        "created_at": created_out,
+        "created_at_iso": created_iso,
+        "expense_kind": "operational",
+        "supplier": (r.get("supplier_name") or "").strip() or "—",
+        "buying_price": round(unit, 2),
+    }
+
+
+def list_shop_operational_expenses_for_report(shop_id: int, analytics_filter: dict) -> list:
+    rows = list_shop_operational_expenses(shop_id=shop_id, analytics_filter=analytics_filter, limit=5000)
+    return [
+        {
+            **r,
+            "expense_kind": "operational",
+            "supplier": (r.get("supplier_name") or "—").strip() or "—",
+            "buying_price": r.get("unit_price"),
+        }
+        for r in rows
+    ]
+
+
+def list_shop_operational_expenses(
+    *,
+    shop_id: int,
+    analytics_filter: Optional[dict] = None,
+    limit: int = 500,
+) -> list:
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return []
+    if sid <= 0:
+        return []
+    init_operational_expense_tables()
+    lim = max(1, min(int(limit or 500), 8000))
+    where, params = _analytics_where_clause(analytics_filter or {}, "soe")
+    where = f"({where}) AND soe.shop_id = %s"
+    params = list(params) + [sid]
+    sql = f"""
+    SELECT
+        soe.*,
+        COALESCE(e.full_name, '') AS created_by
+    FROM shop_operational_expenses soe
+    LEFT JOIN employees e ON e.id = soe.created_by_employee_id
+    WHERE {where}
+    ORDER BY soe.created_at DESC, soe.id DESC
+    LIMIT %s
+    """
+    params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        return [_serialize_operational_expense_row(r) for r in rows]
+    except pymysql.Error as e:
+        logger.warning("list_shop_operational_expenses failed shop=%s: %s", sid, e)
+        return []
+
+
+def _serialize_shop_stock_purchase_row(r: dict) -> dict:
+    try:
+        qty = float(r.get("qty") or 0)
+    except Exception:
+        qty = 0.0
+    try:
+        unit = float(r.get("buying_price") or 0)
+    except Exception:
+        unit = 0.0
+    total = round(qty * unit, 2)
+    amount_paid = round(float(r.get("amount_paid") or 0), 2)
+    created = r.get("created_at")
+    if hasattr(created, "strftime"):
+        created_out = created.strftime("%d %b %Y %H:%M")
+        created_iso = created.strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        created_out = str(created or "")
+        created_iso = created_out
+    supplier_name = (r.get("place_brought_from") or "").strip()
+    seller_phone = (r.get("seller_phone") or "").strip()
+    return {
+        "id": int(r.get("id") or 0),
+        "shop_id": int(r.get("shop_id") or 0),
+        "category": (r.get("category") or "").strip(),
+        "name": (r.get("item_name") or "").strip() or f"Item #{r.get('item_id') or r.get('store_stock_item_id') or ''}",
+        "qty": qty,
+        "unit_price": round(unit, 2),
+        "buying_price": round(unit, 2),
+        "total_cost": total,
+        "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
+        "amount_paid": amount_paid,
+        "balance": round(max(0.0, total - amount_paid), 2),
+        "note": (r.get("note") or "").strip(),
+        "supplier_name": supplier_name,
+        "seller_phone": seller_phone,
+        "supplier": supplier_name or "—",
+        "created_by": (r.get("created_by") or "").strip(),
+        "created_at": created_out,
+        "created_at_iso": created_iso,
+        "expense_kind": "stock",
+        "stock_source": (r.get("stock_source") or "shop").strip(),
+        "shop_name": (r.get("shop_name") or "").strip(),
+    }
+
+
+def list_shop_stock_purchases(
+    *,
+    shop_id: int,
+    analytics_filter: Optional[dict] = None,
+    limit: int = 8000,
+) -> list:
+    """Manual stock-in purchases for one shop (catalog + store stock in both mode)."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return []
+    if sid <= 0:
+        return []
+    init_shop_stock_transactions_table()
+    init_store_stock_transactions_table()
+    lim = max(1, min(int(limit or 8000), 8000))
+    out: list = []
+
+    where, params = _analytics_where_clause(analytics_filter or {}, "sst")
+    where = f"({where}) AND sst.shop_id = %s AND sst.direction = 'in' AND sst.source = 'manual'"
+    params = list(params) + [sid]
+    sql_shop = f"""
+    SELECT
+        sst.id,
+        sst.shop_id,
+        sst.item_id,
+        sst.qty,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at,
+        i.name AS item_name,
+        i.category,
+        COALESCE(e.full_name, '') AS created_by,
+        'shop' AS stock_source
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {where}
+    ORDER BY sst.created_at DESC, sst.id DESC
+    LIMIT %s
+    """
+    params_shop = list(params) + [lim]
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_shop, tuple(params_shop))
+            rows = cur.fetchall() or []
+        out.extend(_serialize_shop_stock_purchase_row(dict(r)) for r in rows)
+    except pymysql.Error as e:
+        logger.warning("list_shop_stock_purchases shop items failed shop=%s: %s", sid, e)
+
+    where2, params2 = _analytics_where_clause(analytics_filter or {}, "sst")
+    where2 = f"({where2}) AND sst.shop_id = %s AND sst.direction = 'in'"
+    params2 = list(params2) + [sid]
+    sql_store = f"""
+    SELECT
+        sst.id,
+        sst.shop_id,
+        sst.store_stock_item_id,
+        sst.qty,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at,
+        ssi.name AS item_name,
+        ssi.category,
+        COALESCE(e.full_name, '') AS created_by,
+        'store' AS stock_source
+    FROM store_stock_transactions sst
+    JOIN store_stock_items ssi ON ssi.id = sst.store_stock_item_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {where2}
+    ORDER BY sst.created_at DESC, sst.id DESC
+    LIMIT %s
+    """
+    params_store = list(params2) + [lim]
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_store, tuple(params_store))
+            rows = cur.fetchall() or []
+        out.extend(_serialize_shop_stock_purchase_row(dict(r)) for r in rows)
+    except pymysql.Error as e:
+        logger.warning("list_shop_stock_purchases store items failed shop=%s: %s", sid, e)
+
+    out.sort(key=lambda x: (str(x.get("created_at_iso") or ""), int(x.get("id") or 0)), reverse=True)
+    return out[:lim]
+
+
+def list_company_operational_expenses(
+    *,
+    analytics_filter: Optional[dict] = None,
+    shop_id: Optional[int] = None,
+    limit: int = 8000,
+    settled_only: bool = False,
+) -> list:
+    init_operational_expense_tables()
+    lim = max(1, min(int(limit or 8000), 8000))
+    where, params = _analytics_where_clause(analytics_filter or {}, "soe")
+    if settled_only:
+        where = f"({where}) AND {_operational_expense_settled_clause('soe')}"
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except Exception:
+            sid = 0
+        if sid > 0:
+            where = f"({where}) AND soe.shop_id = %s"
+            params = list(params) + [sid]
+    sql = f"""
+    SELECT
+        soe.*,
+        COALESCE(e.full_name, '') AS created_by,
+        s.shop_name,
+        s.shop_code
+    FROM shop_operational_expenses soe
+    JOIN shops s ON s.id = soe.shop_id
+    LEFT JOIN employees e ON e.id = soe.created_by_employee_id
+    WHERE {where}
+    ORDER BY soe.created_at DESC, soe.id DESC
+    LIMIT %s
+    """
+    params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        return [_serialize_operational_expense_row(r) for r in rows]
+    except pymysql.Error as e:
+        logger.warning("list_company_operational_expenses failed: %s", e)
+        return []
+
+
+def sum_shop_operational_expenses(shop_id: int, analytics_filter: dict) -> float:
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return 0.0
+    if sid <= 0:
+        return 0.0
+    init_operational_expense_tables()
+    where, params = _analytics_where_clause(analytics_filter, "soe")
+    where = f"({where}) AND soe.shop_id = %s"
+    params = list(params) + [sid]
+    sql = f"SELECT COALESCE(SUM(soe.total_amount), 0) AS total FROM shop_operational_expenses soe WHERE {where}"
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone() or {}
+        return round(float(row.get("total") or 0), 2)
+    except pymysql.Error:
+        return 0.0
+
+
+def sum_company_operational_expenses(analytics_filter: dict, shop_id: Optional[int] = None) -> float:
+    """Sum amount paid on settled (partially paid or paid) operational expenses."""
+    init_operational_expense_tables()
+    where, params = _analytics_where_clause(analytics_filter, "soe")
+    where = f"({where}) AND {_operational_expense_settled_clause('soe')}"
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except Exception:
+            sid = 0
+        if sid > 0:
+            where = f"({where}) AND soe.shop_id = %s"
+            params = list(params) + [sid]
+    sql = f"SELECT COALESCE(SUM(soe.amount_paid), 0) AS total FROM shop_operational_expenses soe WHERE {where}"
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone() or {}
+        return round(float(row.get("total") or 0), 2)
+    except pymysql.Error:
+        return 0.0
+
+
+def list_company_operational_expenses_for_report(
+    analytics_filter: Optional[dict] = None,
+    shop_id: Optional[int] = None,
+    limit: int = 5000,
+) -> list:
+    """Settled operational expenses (partially paid or paid) for company period report."""
+    return list_company_operational_expenses(
+        analytics_filter=analytics_filter,
+        shop_id=shop_id,
+        limit=limit,
+        settled_only=True,
+    )
+
+
+def _expenditure_shop_sql_filter(shop_filter: Optional[int], alias: str = "sst") -> tuple:
+    """Optional shop_id constraint for company-wide expenditure bulk queries."""
+    if shop_filter is not None:
+        try:
+            sid = int(shop_filter)
+        except Exception:
+            sid = 0
+        if sid > 0:
+            a = (alias or "sst").strip() or "sst"
+            return f" AND {a}.shop_id = %s", [sid]
+    return "", []
+
+
+def _list_company_shop_stock_purchases_bulk(
+    analytics_filter: dict,
+    shop_filter: Optional[int] = None,
+    limit: int = 8000,
+) -> list:
+    """Manual stock-in purchases across shops (or one shop) in a single round-trip."""
+    af = analytics_filter or {}
+    init_shop_stock_transactions_table()
+    init_store_stock_transactions_table()
+    lim = max(1, min(int(limit or 8000), 8000))
+    out: list = []
+
+    where, params = _analytics_where_clause(af, "sst")
+    shop_clause, shop_params = _expenditure_shop_sql_filter(shop_filter, "sst")
+    where = f"({where}) AND sst.direction = 'in' AND sst.source = 'manual'{shop_clause}"
+    params = list(params) + list(shop_params)
+    sql_shop = f"""
+    SELECT
+        sst.id,
+        sst.shop_id,
+        sst.item_id,
+        sst.qty,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at,
+        i.name AS item_name,
+        i.category,
+        COALESCE(e.full_name, '') AS created_by,
+        COALESCE(sh.shop_name, '') AS shop_name,
+        'shop' AS stock_source
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    JOIN shops sh ON sh.id = sst.shop_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {where}
+    ORDER BY sst.created_at DESC, sst.id DESC
+    LIMIT %s
+    """
+    params_shop = list(params) + [lim]
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_shop, tuple(params_shop))
+            rows = cur.fetchall() or []
+        out.extend(_serialize_shop_stock_purchase_row(dict(r)) for r in rows)
+    except pymysql.Error as e:
+        logger.warning("_list_company_shop_stock_purchases_bulk catalog failed: %s", e)
+
+    where2, params2 = _analytics_where_clause(af, "sst")
+    shop_clause2, shop_params2 = _expenditure_shop_sql_filter(shop_filter, "sst")
+    where2 = f"({where2}) AND sst.direction = 'in'{shop_clause2}"
+    params2 = list(params2) + list(shop_params2)
+    sql_store = f"""
+    SELECT
+        sst.id,
+        sst.shop_id,
+        sst.store_stock_item_id,
+        sst.qty,
+        sst.buying_price,
+        sst.place_brought_from,
+        sst.seller_phone,
+        sst.payment_status,
+        sst.amount_paid,
+        sst.note,
+        sst.created_at,
+        ssi.name AS item_name,
+        ssi.category,
+        COALESCE(e.full_name, '') AS created_by,
+        COALESCE(sh.shop_name, '') AS shop_name,
+        'store' AS stock_source
+    FROM store_stock_transactions sst
+    JOIN store_stock_items ssi ON ssi.id = sst.store_stock_item_id
+    JOIN shops sh ON sh.id = sst.shop_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {where2}
+    ORDER BY sst.created_at DESC, sst.id DESC
+    LIMIT %s
+    """
+    params_store = list(params2) + [lim]
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql_store, tuple(params_store))
+            rows = cur.fetchall() or []
+        out.extend(_serialize_shop_stock_purchase_row(dict(r)) for r in rows)
+    except pymysql.Error as e:
+        logger.warning("_list_company_shop_stock_purchases_bulk store failed: %s", e)
+
+    out.sort(key=lambda x: (str(x.get("created_at_iso") or ""), int(x.get("id") or 0)), reverse=True)
+    return out[:lim]
+
+
+def _list_company_shop_stock_outs_bulk(
+    analytics_filter: dict,
+    shop_filter: Optional[int] = None,
+    limit: int = 8000,
+) -> list:
+    """Manual stock-out rows across shops (or one shop) in a single query."""
+    init_shop_stock_transactions_table()
+    if not column_exists("shop_stock_transactions", "cost_total"):
+        return []
+    af = analytics_filter or {}
+    lim = max(1, min(int(limit or 8000), 8000))
+    where, params = _analytics_where_clause(af, "sst")
+    shop_clause, shop_params = _expenditure_shop_sql_filter(shop_filter, "sst")
+    where = (
+        f"({where}) AND sst.direction = 'out' AND sst.source = 'manual' "
+        f"AND UPPER(COALESCE(sst.reason, '')) IN ('RETURN', 'WASTE', 'DISPLAY'){shop_clause}"
+    )
+    params = list(params) + list(shop_params)
+    sql = f"""
+    SELECT
+        sst.id,
+        sst.shop_id,
+        sst.item_id,
+        sst.qty,
+        sst.buying_price,
+        sst.cost_total,
+        sst.reason,
+        sst.refunded,
+        sst.refund_amount,
+        sst.note,
+        sst.created_at,
+        i.name AS item_name,
+        i.category,
+        COALESCE(e.full_name, '') AS created_by,
+        COALESCE(sh.shop_name, '') AS shop_name
+    FROM shop_stock_transactions sst
+    JOIN items i ON i.id = sst.item_id
+    JOIN shops sh ON sh.id = sst.shop_id
+    LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    WHERE {where}
+    ORDER BY sst.created_at DESC, sst.id DESC
+    LIMIT %s
+    """
+    params.append(lim)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        return [_serialize_shop_stock_out_expenditure_row(dict(r)) for r in rows]
+    except pymysql.Error as e:
+        logger.warning("_list_company_shop_stock_outs_bulk failed: %s", e)
+        return []
+
+
+def list_company_expenditure_for_report(analytics_filter: dict, shop_id: Optional[int] = None) -> list:
+    """All expenditure across company warehouse and shops (stock, operational, stock out)."""
+    af = analytics_filter or {}
+    out: list = []
+    shop_filter: Optional[int] = None
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except Exception:
+            sid = 0
+        if sid > 0:
+            shop_filter = sid
+
+    if shop_filter is None:
+        for r in list_company_supplier_stock_ins(analytics_filter=af, shop_id=None, limit=5000) or []:
+            scope = str(r.get("tx_scope") or "").strip().lower()
+            if scope != "company" and int(r.get("shop_id") or 0) != 0:
+                continue
+            out.append(_serialize_company_warehouse_stock_expenditure_row(dict(r)))
+
+    for row in _list_company_shop_stock_purchases_bulk(af, shop_filter=shop_filter, limit=8000):
+        item = dict(row)
+        if not (item.get("shop_name") or "").strip():
+            sid = int(item.get("shop_id") or 0)
+            item["shop_name"] = f"Shop #{sid}" if sid > 0 else "—"
+        out.append(item)
+
+    for row in list_company_operational_expenses(
+        analytics_filter=af,
+        shop_id=shop_filter,
+        limit=8000,
+        settled_only=False,
+    ):
+        out.append(dict(row))
+
+    out.extend(_list_company_shop_stock_outs_bulk(af, shop_filter=shop_filter, limit=8000))
+
+    out.sort(
+        key=lambda x: (str(x.get("created_at_iso") or x.get("created_at") or ""), int(x.get("id") or 0)),
+        reverse=True,
+    )
     return out
 
 
@@ -7338,6 +8670,9 @@ def pos_held_order_save(
                             int(employee_id) if employee_id is not None else None,
                         ),
                     )
+                    _shop_fifo_after_stock_out(
+                        cur, int(shop_id), iid, qshop, int(cur.lastrowid or 0)
+                    )
             elif mode in ("kitchen", "both"):
                 for d in delta_lines:
                     iid = int(d["id"])
@@ -7406,6 +8741,9 @@ def pos_held_order_save(
                             note,
                             appr_note_uid,
                         ),
+                    )
+                    _shop_fifo_after_stock_restore(
+                        cur, int(shop_id), iid, qret, int(cur.lastrowid or 0)
                     )
             elif reduction_lines and mode in ("kitchen", "both"):
                 for d in reduction_lines:
@@ -7983,6 +9321,51 @@ def list_shop_pos_quotations(
     return out
 
 
+def get_shop_pos_quotation_by_id(quote_id: int, shop_id: Optional[int] = None) -> Optional[dict]:
+    """Load one POS quotation row for public share pages."""
+    try:
+        qid = int(quote_id)
+    except (TypeError, ValueError):
+        return None
+    if qid <= 0:
+        return None
+    clauses = ["id=%s"]
+    params: list = [qid]
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except (TypeError, ValueError):
+            return None
+        if sid > 0:
+            clauses.append("shop_id=%s")
+            params.append(sid)
+    sql = f"""
+    SELECT id, shop_id, quote_basis, quote_channel, customer_name, customer_phone, customer_notes,
+           total_amount, item_count, lines_json, employee_id, employee_code, employee_name, created_at
+    FROM shop_pos_quotations
+    WHERE {" AND ".join(clauses)}
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone()
+    except pymysql.Error:
+        return None
+    if not row:
+        return None
+    rr = dict(row)
+    raw = rr.get("lines_json") or "[]"
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        rr["lines"] = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        rr["lines"] = []
+    rr.pop("lines_json", None)
+    return rr
+
+
 def list_all_pos_quotations_for_it(
     limit: int = 2000,
     date_from: Optional[str] = None,
@@ -8379,6 +9762,9 @@ def create_shop_pos_sale(
                             note,
                             int(employee_id) if employee_id is not None else None,
                         ),
+                    )
+                    _shop_fifo_after_stock_out(
+                        cur, int(shop_id), int(iid), qshop, int(cur.lastrowid or 0)
                     )
                 elif mode in ("kitchen", "both"):
                     qk = int(q)
@@ -11788,6 +13174,517 @@ def init_shop_stock_transactions_table():
         return False
 
 
+_shop_fifo_schema_ready = False
+
+
+def ensure_shop_stock_fifo_schema() -> bool:
+    """Cost layers + FIFO consumption audit for shop inventory COGS."""
+    global _shop_fifo_schema_ready
+    if _shop_fifo_schema_ready:
+        return True
+    init_shop_stock_transactions_table()
+    layers_sql = """
+    CREATE TABLE IF NOT EXISTS shop_stock_cost_layers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NOT NULL,
+        item_id INT NOT NULL,
+        source_transaction_id INT NULL,
+        qty_remaining DECIMAL(18,4) NOT NULL,
+        unit_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_sscl_shop_item (shop_id, item_id, created_at, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    cons_sql = """
+    CREATE TABLE IF NOT EXISTS shop_stock_fifo_consumptions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NOT NULL,
+        item_id INT NOT NULL,
+        layer_id INT NOT NULL,
+        out_transaction_id INT NOT NULL,
+        qty DECIMAL(18,4) NOT NULL,
+        unit_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        line_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_ssfc_out (out_transaction_id),
+        KEY idx_ssfc_shop_item (shop_id, item_id, created_at, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(layers_sql)
+            cur.execute(cons_sql)
+            if not column_exists("shop_stock_transactions", "cost_total"):
+                cur.execute(
+                    "ALTER TABLE shop_stock_transactions ADD COLUMN cost_total DECIMAL(12,2) NULL AFTER buying_price"
+                )
+        _shop_fifo_schema_ready = True
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not ensure shop stock FIFO schema: %s", e)
+        return False
+
+
+def _shop_fifo_default_unit_cost(cur, shop_id: int, item_id: int) -> float:
+    cur.execute(
+        """
+        SELECT buying_price
+        FROM shop_stock_transactions
+        WHERE shop_id=%s AND item_id=%s AND direction='in'
+          AND buying_price IS NOT NULL AND buying_price > 0
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (int(shop_id), int(item_id)),
+    )
+    row = cur.fetchone() or {}
+    try:
+        return round(float(row.get("buying_price") or 0), 2)
+    except Exception:
+        return 0.0
+
+
+def _shop_fifo_add_layer(
+    cur,
+    shop_id: int,
+    item_id: int,
+    qty,
+    unit_cost,
+    source_transaction_id: Optional[int] = None,
+) -> Optional[int]:
+    q = round(float(qty), STOCK_QTY_DECIMAL_PLACES)
+    if q <= 0:
+        return None
+    uc = round(float(unit_cost or 0), 2)
+    cur.execute(
+        """
+        INSERT INTO shop_stock_cost_layers
+            (shop_id, item_id, source_transaction_id, qty_remaining, unit_cost)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (int(shop_id), int(item_id), source_transaction_id, q, uc),
+    )
+    return int(cur.lastrowid or 0) or None
+
+
+def _shop_fifo_consume(cur, shop_id: int, item_id: int, qty) -> dict:
+    need = round(float(qty), STOCK_QTY_DECIMAL_PLACES)
+    if need <= 0:
+        return {"total_cost": 0.0, "avg_unit_cost": 0.0, "consumptions": []}
+    cur.execute(
+        """
+        SELECT id, qty_remaining, unit_cost
+        FROM shop_stock_cost_layers
+        WHERE shop_id=%s AND item_id=%s AND qty_remaining > 0
+        ORDER BY created_at ASC, id ASC
+        FOR UPDATE
+        """,
+        (int(shop_id), int(item_id)),
+    )
+    layers = cur.fetchall() or []
+    remaining = need
+    total_cost = 0.0
+    consumptions: list = []
+    for layer in layers:
+        if remaining <= 1e-12:
+            break
+        lid = int(layer["id"])
+        avail = round(float(layer.get("qty_remaining") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if avail <= 0:
+            continue
+        take = min(remaining, avail)
+        unit = round(float(layer.get("unit_cost") or 0), 2)
+        line_cost = round(take * unit, 2)
+        new_rem = round(avail - take, STOCK_QTY_DECIMAL_PLACES)
+        cur.execute(
+            "UPDATE shop_stock_cost_layers SET qty_remaining=%s WHERE id=%s",
+            (new_rem, lid),
+        )
+        total_cost += line_cost
+        consumptions.append(
+            {"layer_id": lid, "qty": take, "unit_cost": unit, "line_cost": line_cost}
+        )
+        remaining = round(remaining - take, STOCK_QTY_DECIMAL_PLACES)
+    if remaining > 1e-12:
+        uc = _shop_fifo_default_unit_cost(cur, int(shop_id), int(item_id))
+        total_cost += round(remaining * uc, 2)
+    total_cost = round(total_cost, 2)
+    avg = round(total_cost / need, 2) if need > 0 else 0.0
+    return {"total_cost": total_cost, "avg_unit_cost": avg, "consumptions": consumptions}
+
+
+def _shop_fifo_record_consumptions(
+    cur, shop_id: int, item_id: int, out_transaction_id: int, consumptions: list
+) -> None:
+    for c in consumptions or []:
+        cur.execute(
+            """
+            INSERT INTO shop_stock_fifo_consumptions
+                (shop_id, item_id, layer_id, out_transaction_id, qty, unit_cost, line_cost)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                int(shop_id),
+                int(item_id),
+                int(c["layer_id"]),
+                int(out_transaction_id),
+                round(float(c["qty"]), STOCK_QTY_DECIMAL_PLACES),
+                round(float(c["unit_cost"]), 2),
+                round(float(c["line_cost"]), 2),
+            ),
+        )
+
+
+def _shop_fifo_restore_qty(cur, shop_id: int, item_id: int, qty) -> float:
+    """Reverse recent FIFO consumptions (e.g. held-order qty reduction)."""
+    need = round(float(qty), STOCK_QTY_DECIMAL_PLACES)
+    if need <= 0:
+        return 0.0
+    cur.execute(
+        """
+        SELECT c.id, c.layer_id, c.qty, c.unit_cost, c.line_cost
+        FROM shop_stock_fifo_consumptions c
+        WHERE c.shop_id=%s AND c.item_id=%s AND c.qty > 0
+        ORDER BY c.created_at DESC, c.id DESC
+        FOR UPDATE
+        """,
+        (int(shop_id), int(item_id)),
+    )
+    rows = cur.fetchall() or []
+    remaining = need
+    total_cost = 0.0
+    for row in rows:
+        if remaining <= 1e-12:
+            break
+        avail = round(float(row.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if avail <= 0:
+            continue
+        take = min(remaining, avail)
+        unit = round(float(row.get("unit_cost") or 0), 2)
+        line_cost = round(take * unit, 2)
+        lid = int(row["layer_id"])
+        cur.execute(
+            """
+            UPDATE shop_stock_cost_layers
+            SET qty_remaining = qty_remaining + %s
+            WHERE id=%s
+            """,
+            (take, lid),
+        )
+        new_cq = round(avail - take, STOCK_QTY_DECIMAL_PLACES)
+        cid = int(row["id"])
+        if new_cq <= 1e-12:
+            cur.execute("DELETE FROM shop_stock_fifo_consumptions WHERE id=%s", (cid,))
+        else:
+            cur.execute(
+                """
+                UPDATE shop_stock_fifo_consumptions
+                SET qty=%s, line_cost=%s
+                WHERE id=%s
+                """,
+                (new_cq, round(new_cq * unit, 2), cid),
+            )
+        total_cost += line_cost
+        remaining = round(remaining - take, STOCK_QTY_DECIMAL_PLACES)
+    if remaining > 1e-12:
+        uc = _shop_fifo_default_unit_cost(cur, int(shop_id), int(item_id))
+        _shop_fifo_add_layer(cur, int(shop_id), int(item_id), remaining, uc, None)
+        total_cost += round(remaining * uc, 2)
+    return round(total_cost, 2)
+
+
+def _shop_fifo_backfill_shop_layers(cur, shop_id: Optional[int] = None) -> None:
+    params: list = []
+    shop_clause = ""
+    if shop_id is not None:
+        shop_clause = " AND si.shop_id=%s"
+        params.append(int(shop_id))
+    cur.execute(
+        f"""
+        SELECT si.shop_id, si.item_id, si.shop_stock_qty,
+               COALESCE(SUM(l.qty_remaining), 0) AS layer_qty
+        FROM shop_items si
+        LEFT JOIN shop_stock_cost_layers l
+          ON l.shop_id = si.shop_id AND l.item_id = si.item_id
+        WHERE si.shop_stock_qty > 0{shop_clause}
+        GROUP BY si.shop_id, si.item_id, si.shop_stock_qty
+        HAVING si.shop_stock_qty > COALESCE(SUM(l.qty_remaining), 0) + 0.0001
+        """,
+        tuple(params),
+    )
+    for row in cur.fetchall() or []:
+        sid = int(row.get("shop_id") or 0)
+        iid = int(row.get("item_id") or 0)
+        if sid <= 0 or iid <= 0:
+            continue
+        shop_qty = round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        layer_qty = round(float(row.get("layer_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        diff = round(shop_qty - layer_qty, STOCK_QTY_DECIMAL_PLACES)
+        if diff <= 0:
+            continue
+        uc = _shop_fifo_default_unit_cost(cur, sid, iid)
+        _shop_fifo_add_layer(cur, sid, iid, diff, uc, None)
+
+
+def _shop_fifo_after_stock_out(cur, shop_id: int, item_id: int, qty, out_tx_id: int) -> dict:
+    if not ensure_shop_stock_fifo_schema() or not column_exists("shop_stock_transactions", "cost_total"):
+        return {"total_cost": 0.0, "avg_unit_cost": 0.0}
+    info = _shop_fifo_consume(cur, int(shop_id), int(item_id), qty)
+    if int(out_tx_id or 0) > 0:
+        _shop_fifo_record_consumptions(
+            cur, int(shop_id), int(item_id), int(out_tx_id), info.get("consumptions") or []
+        )
+        cur.execute(
+            """
+            UPDATE shop_stock_transactions
+            SET cost_total=%s, buying_price=%s
+            WHERE id=%s
+            """,
+            (
+                round(float(info.get("total_cost") or 0), 2),
+                round(float(info.get("avg_unit_cost") or 0), 2),
+                int(out_tx_id),
+            ),
+        )
+    return info
+
+
+def _shop_fifo_after_stock_in(
+    cur, shop_id: int, item_id: int, qty, unit_cost, in_tx_id: int
+) -> None:
+    if not ensure_shop_stock_fifo_schema():
+        return
+    uc = round(float(unit_cost or 0), 2)
+    q = round(float(qty), STOCK_QTY_DECIMAL_PLACES)
+    if q <= 0:
+        return
+    _shop_fifo_add_layer(cur, int(shop_id), int(item_id), q, uc, int(in_tx_id) if in_tx_id else None)
+    if column_exists("shop_stock_transactions", "cost_total") and int(in_tx_id or 0) > 0:
+        cur.execute(
+            """
+            UPDATE shop_stock_transactions
+            SET cost_total=%s, buying_price=%s
+            WHERE id=%s
+            """,
+            (round(q * uc, 2), uc, int(in_tx_id)),
+        )
+
+
+def _shop_fifo_after_stock_restore(cur, shop_id: int, item_id: int, qty, in_tx_id: int) -> None:
+    if not ensure_shop_stock_fifo_schema():
+        return
+    restored_cost = _shop_fifo_restore_qty(cur, int(shop_id), int(item_id), qty)
+    if column_exists("shop_stock_transactions", "cost_total") and int(in_tx_id or 0) > 0:
+        cur.execute(
+            "UPDATE shop_stock_transactions SET cost_total=%s WHERE id=%s",
+            (round(restored_cost, 2), int(in_tx_id)),
+        )
+
+
+def backfill_shop_stock_fifo_layers(shop_id: Optional[int] = None) -> bool:
+    """Seed cost layers for on-hand stock that predates FIFO tracking."""
+    if not ensure_shop_stock_fifo_schema():
+        return False
+    try:
+        with get_cursor(commit=True) as cur:
+            _shop_fifo_backfill_shop_layers(cur, shop_id=shop_id)
+        return True
+    except pymysql.Error as e:
+        logger.warning("backfill_shop_stock_fifo_layers failed: %s", e)
+        return False
+
+
+def _shop_fifo_replay_unit_cost_for_in(tx: dict, last_unit_cost: float) -> float:
+    """Resolve purchase unit cost for a stock-in row during historical replay."""
+    try:
+        bp = float(tx.get("buying_price") or 0)
+    except Exception:
+        bp = 0.0
+    if bp > 0:
+        return round(bp, 2)
+    try:
+        ct = float(tx.get("cost_total") or 0)
+        q = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+    except Exception:
+        ct = 0.0
+        q = 0.0
+    if ct > 0 and q > 0:
+        return round(ct / q, 2)
+    return round(float(last_unit_cost or 0), 2)
+
+
+def _shop_fifo_replay_item_pair(cur, shop_id: int, item_id: int) -> dict:
+    """Replay FIFO for one shop/item from all stock transactions (oldest first)."""
+    cur.execute(
+        """
+        SELECT id, direction, qty, buying_price, cost_total, reason
+        FROM shop_stock_transactions
+        WHERE shop_id=%s AND item_id=%s
+        ORDER BY created_at ASC, id ASC
+        """,
+        (int(shop_id), int(item_id)),
+    )
+    rows = cur.fetchall() or []
+    stats = {
+        "transactions": len(rows),
+        "ins": 0,
+        "outs": 0,
+        "outs_costed": 0,
+        "out_cost_total": 0.0,
+    }
+    if not rows:
+        return stats
+    last_unit_cost = 0.0
+    for tx in rows:
+        tx_id = int(tx.get("id") or 0)
+        direction = (tx.get("direction") or "").strip().lower()
+        reason = (tx.get("reason") or "").strip().upper()
+        qty = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        if qty <= 0 or tx_id <= 0:
+            continue
+        if direction == "in":
+            stats["ins"] += 1
+            if reason == "POS_HOLD_RET":
+                restored = _shop_fifo_restore_qty(cur, int(shop_id), int(item_id), qty)
+                if column_exists("shop_stock_transactions", "cost_total"):
+                    cur.execute(
+                        "UPDATE shop_stock_transactions SET cost_total=%s WHERE id=%s",
+                        (round(restored, 2), tx_id),
+                    )
+                continue
+            unit_cost = _shop_fifo_replay_unit_cost_for_in(tx, last_unit_cost)
+            if unit_cost > 0:
+                last_unit_cost = unit_cost
+            _shop_fifo_add_layer(cur, int(shop_id), int(item_id), qty, unit_cost, tx_id)
+            if column_exists("shop_stock_transactions", "cost_total"):
+                cur.execute(
+                    """
+                    UPDATE shop_stock_transactions
+                    SET cost_total=%s, buying_price=%s
+                    WHERE id=%s
+                    """,
+                    (round(qty * unit_cost, 2), unit_cost, tx_id),
+                )
+        elif direction == "out":
+            stats["outs"] += 1
+            info = _shop_fifo_consume(cur, int(shop_id), int(item_id), qty)
+            _shop_fifo_record_consumptions(
+                cur,
+                int(shop_id),
+                int(item_id),
+                tx_id,
+                info.get("consumptions") or [],
+            )
+            total_cost = round(float(info.get("total_cost") or 0), 2)
+            avg_unit = round(float(info.get("avg_unit_cost") or 0), 2)
+            if column_exists("shop_stock_transactions", "cost_total"):
+                cur.execute(
+                    """
+                    UPDATE shop_stock_transactions
+                    SET cost_total=%s, buying_price=%s
+                    WHERE id=%s
+                    """,
+                    (total_cost, avg_unit, tx_id),
+                )
+            stats["outs_costed"] += 1
+            stats["out_cost_total"] = round(stats["out_cost_total"] + total_cost, 2)
+    return stats
+
+
+def backfill_shop_stock_fifo_historical_cogs(
+    shop_id: Optional[int] = None,
+    *,
+    clear_existing: bool = True,
+) -> dict:
+    """
+    One-time replay of all shop stock movements to assign FIFO ``cost_total`` on
+    historical outs (POS, held orders, manual stock out, transfers, etc.).
+    """
+    out = {
+        "ok": False,
+        "shop_id": int(shop_id) if shop_id is not None else None,
+        "pairs": 0,
+        "transactions": 0,
+        "outs": 0,
+        "outs_costed": 0,
+        "out_cost_total": 0.0,
+        "error": None,
+    }
+    if not ensure_shop_stock_fifo_schema():
+        out["error"] = "FIFO schema not ready"
+        return out
+    try:
+        with get_cursor(commit=True) as cur:
+            if clear_existing:
+                if shop_id is not None:
+                    cur.execute(
+                        "DELETE FROM shop_stock_fifo_consumptions WHERE shop_id=%s",
+                        (int(shop_id),),
+                    )
+                    cur.execute(
+                        "DELETE FROM shop_stock_cost_layers WHERE shop_id=%s",
+                        (int(shop_id),),
+                    )
+                else:
+                    cur.execute("DELETE FROM shop_stock_fifo_consumptions")
+                    cur.execute("DELETE FROM shop_stock_cost_layers")
+
+            pair_sql = """
+            SELECT DISTINCT shop_id, item_id
+            FROM shop_stock_transactions
+            """
+            pair_params: list = []
+            if shop_id is not None:
+                pair_sql += " WHERE shop_id=%s"
+                pair_params.append(int(shop_id))
+            pair_sql += " ORDER BY shop_id ASC, item_id ASC"
+            cur.execute(pair_sql, tuple(pair_params))
+            pairs = cur.fetchall() or []
+
+            for pair in pairs:
+                sid = int(pair.get("shop_id") or 0)
+                iid = int(pair.get("item_id") or 0)
+                if sid <= 0 or iid <= 0:
+                    continue
+                st = _shop_fifo_replay_item_pair(cur, sid, iid)
+                out["pairs"] += 1
+                out["transactions"] += int(st.get("transactions") or 0)
+                out["outs"] += int(st.get("outs") or 0)
+                out["outs_costed"] += int(st.get("outs_costed") or 0)
+                out["out_cost_total"] = round(
+                    float(out["out_cost_total"]) + float(st.get("out_cost_total") or 0), 2
+                )
+        out["ok"] = True
+        logger.info(
+            "Historical FIFO COGS backfill complete shop_id=%s pairs=%s outs=%s cost=%.2f",
+            shop_id,
+            out["pairs"],
+            out["outs_costed"],
+            out["out_cost_total"],
+        )
+    except pymysql.Error as e:
+        out["error"] = str(e)
+        logger.warning("backfill_shop_stock_fifo_historical_cogs failed: %s", e)
+    return out
+
+
+def ensure_shop_stock_fifo_historical_cogs_backfill() -> bool:
+    """Run historical FIFO COGS replay once per deployment (site setting gate)."""
+    settings = get_site_settings(["shop_fifo_historical_cogs_v1"])
+    if (settings.get("shop_fifo_historical_cogs_v1") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "done",
+    ):
+        return True
+    result = backfill_shop_stock_fifo_historical_cogs(clear_existing=True)
+    if not result.get("ok"):
+        return False
+    set_site_settings({"shop_fifo_historical_cogs_v1": "done"})
+    return True
+
+
 def ensure_shop_items_for_shop(shop_id: int):
     """Seed shop_items for every catalog item; defaults follow company active + stock flags."""
     sid = int(shop_id)
@@ -13730,16 +15627,36 @@ def _report_item_had_period_activity(
     return bool(stock_in or stock_out or stock_sold or abs(float(revenue or 0)) > 1e-9)
 
 
-def get_company_report(analytics_filter: dict, analytics_scope: str = "general"):
+def get_company_report(
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    shop_id: Optional[int] = None,
+):
     """Company-wide period report: revenue, expenditure, and per-item stock + sales."""
     af = analytics_filter or {}
+    shop_filter: Optional[int] = None
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except Exception:
+            sid = 0
+        if sid > 0:
+            shop_filter = sid
+
     range_end = (af.get("range_end_exclusive") or "").strip()
     st_where, st_params = _analytics_where_clause(af, "st")
     sst_where, sst_params = _analytics_where_clause(af, "sst")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
     sale_range_where, sale_range_params = _analytics_where_clause(af, "s")
-    sale_where = f"{sale_range_where} AND {scope_where}"
-    sale_params = list(sale_range_params) + list(scope_params)
+    if shop_filter is not None:
+        sale_where = f"s.shop_id=%s AND {sale_range_where} AND {scope_where}"
+        sale_params = [shop_filter] + list(sale_range_params) + list(scope_params)
+        sst_where = f"({sst_where}) AND sst.shop_id=%s"
+        sst_params = list(sst_params) + [shop_filter]
+        st_where = f"({st_where}) AND 1=0"
+    else:
+        sale_where = f"{sale_range_where} AND {scope_where}"
+        sale_params = list(sale_range_params) + list(scope_params)
 
     movement_sql = f"""
     SELECT
@@ -13808,6 +15725,7 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
         COALESCE(SUM(CASE WHEN s.sale_type IN ('sale', 'credit') THEN s.total_amount ELSE 0 END), 0) AS total_revenue,
         COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN s.total_amount ELSE 0 END), 0) AS sale_revenue,
         COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN s.total_amount ELSE 0 END), 0) AS credit_revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN COALESCE(s.credit_paid_amount, 0) ELSE 0 END), 0) AS paid_credit,
         COALESCE(SUM(s.cash_amount), 0) AS cash_revenue,
         COALESCE(SUM(s.mpesa_amount), 0) AS mpesa_revenue
     FROM shop_pos_sales s
@@ -13835,28 +15753,69 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
     ) z ON z.mid = sst.id
     GROUP BY sst.item_id
     """
-    current_stock_sql = """
-    SELECT
-        i.id AS item_id,
-        i.category,
-        i.name,
-        COALESCE(i.stock_qty, 0) AS company_stock_qty,
-        COALESCE(SUM(si.shop_stock_qty), 0) AS shop_stock_qty
-    FROM items i
-    LEFT JOIN shop_items si ON si.item_id = i.id
-    WHERE i.status = 'active'
-    GROUP BY i.id, i.category, i.name, i.stock_qty
-    ORDER BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') ASC, i.name ASC
-    """
+    ending_shop_params: list = [range_end]
+    if shop_filter is not None:
+        ending_shop_sql = """
+        SELECT sst.item_id, CAST(sst.shop_stock_after AS SIGNED) AS qty
+        FROM shop_stock_transactions sst
+        INNER JOIN (
+            SELECT item_id, MAX(id) AS mid
+            FROM shop_stock_transactions
+            WHERE shop_id = %s AND created_at < %s
+            GROUP BY item_id
+        ) z ON z.mid = sst.id
+        """
+        ending_shop_params = [shop_filter, range_end]
+
+    if shop_filter is not None:
+        current_stock_sql = """
+        SELECT
+            si.item_id,
+            i.category,
+            i.name,
+            0 AS company_stock_qty,
+            COALESCE(si.shop_stock_qty, 0) AS shop_stock_qty
+        FROM shop_items si
+        JOIN items i ON i.id = si.item_id
+        WHERE si.shop_id = %s AND i.status = 'active'
+        ORDER BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') ASC, i.name ASC
+        """
+    else:
+        current_stock_sql = """
+        SELECT
+            i.id AS item_id,
+            i.category,
+            i.name,
+            COALESCE(i.stock_qty, 0) AS company_stock_qty,
+            COALESCE(SUM(si.shop_stock_qty), 0) AS shop_stock_qty
+        FROM items i
+        LEFT JOIN shop_items si ON si.item_id = i.id
+        WHERE i.status = 'active'
+        GROUP BY i.id, i.category, i.name, i.stock_qty
+        ORDER BY COALESCE(NULLIF(TRIM(i.category), ''), 'Uncategorized') ASC, i.name ASC
+        """
 
     out = {
         "total_revenue": 0.0,
         "sale_revenue": 0.0,
         "credit_revenue": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
         "cash_revenue": 0.0,
         "mpesa_revenue": 0.0,
+        "collected_revenue": 0.0,
         "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
         "net_profit": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_cogs_sale": 0.0,
+        "accrual_cogs_credit": 0.0,
+        "accrual_cogs_stock_out": 0.0,
+        "accrual_gross_profit": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_operating_expenses": 0.0,
+        "shop_filter_id": shop_filter,
         "items": [],
     }
     movement_map: dict = {}
@@ -13871,12 +15830,17 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
             out["total_revenue"] = float(rt.get("total_revenue") or 0)
             out["sale_revenue"] = float(rt.get("sale_revenue") or 0)
             out["credit_revenue"] = float(rt.get("credit_revenue") or 0)
+            out["paid_credit"] = round(float(rt.get("paid_credit") or 0), 2)
             out["cash_revenue"] = float(rt.get("cash_revenue") or 0)
             out["mpesa_revenue"] = float(rt.get("mpesa_revenue") or 0)
-
-            cur.execute(expenditure_sql, tuple(st_params + sst_params))
-            et = cur.fetchone() or {}
-            out["total_expenditure"] = float(et.get("total_expenditure") or 0)
+            out["unpaid_credit"] = round(
+                max(0.0, float(out.get("credit_revenue") or 0) - float(out.get("paid_credit") or 0)),
+                2,
+            )
+            out["collected_revenue"] = round(
+                float(out.get("sale_revenue") or 0) + float(out.get("paid_credit") or 0),
+                2,
+            )
 
             cur.execute(movement_sql, tuple(st_params + sst_params))
             for r in cur.fetchall() or []:
@@ -13918,31 +15882,38 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
                 }
 
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_end):
-                cur.execute(ending_company_sql, (range_end,))
+                if shop_filter is None:
+                    cur.execute(ending_company_sql, (range_end,))
+                    for r in cur.fetchall() or []:
+                        try:
+                            iid = int(r.get("item_id") or 0)
+                        except Exception:
+                            continue
+                        if iid > 0:
+                            ending_map.setdefault(iid, {"company": 0, "shop": 0})
+                            ending_map[iid]["company"] = int(r.get("qty") or 0)
+                cur.execute(ending_shop_sql, tuple(ending_shop_params))
                 for r in cur.fetchall() or []:
                     try:
                         iid = int(r.get("item_id") or 0)
                     except Exception:
                         continue
-                    if iid > 0:
-                        ending_map.setdefault(iid, {"company": 0, "shop": 0})
-                        ending_map[iid]["company"] = int(r.get("qty") or 0)
-                cur.execute(ending_shop_sql, (range_end,))
-                for r in cur.fetchall() or []:
-                    try:
-                        iid = int(r.get("item_id") or 0)
-                    except Exception:
+                    if iid <= 0:
                         continue
-                    if iid > 0:
+                    if shop_filter is not None:
+                        ending_map[iid] = int(r.get("qty") or 0)
+                    else:
                         ending_map.setdefault(iid, {"company": 0, "shop": 0})
                         ending_map[iid]["shop"] = int(r.get("qty") or 0)
 
-            cur.execute(current_stock_sql)
+            if shop_filter is not None:
+                cur.execute(current_stock_sql, (shop_filter,))
+            else:
+                cur.execute(current_stock_sql)
             catalog_rows = cur.fetchall() or []
     except pymysql.Error:
         return out
 
-    out["net_profit"] = round(out["total_revenue"] - out["total_expenditure"], 2)
     catalog_by_id = _report_catalog_by_item_id(catalog_rows)
     affected_ids = set(movement_map.keys()) | set(sales_map.keys())
     missing_meta = _report_fetch_item_meta_by_ids(
@@ -13961,12 +15932,17 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
             continue
         company_qty = int(r.get("company_stock_qty") or 0)
         shop_qty = int(r.get("shop_stock_qty") or 0)
-        current_total = company_qty + shop_qty
-        end_parts = ending_map.get(iid)
-        if end_parts:
-            ending_stock = int(end_parts.get("company") or 0) + int(end_parts.get("shop") or 0)
+        if shop_filter is not None:
+            ending_stock = ending_map.get(iid, shop_qty)
+            if not isinstance(ending_stock, int):
+                ending_stock = int(ending_stock or shop_qty)
         else:
-            ending_stock = current_total
+            current_total = company_qty + shop_qty
+            end_parts = ending_map.get(iid)
+            if end_parts:
+                ending_stock = int(end_parts.get("company") or 0) + int(end_parts.get("shop") or 0)
+            else:
+                ending_stock = current_total
         starting_stock = ending_stock - stock_in + stock_out
         items_out.append(
             {
@@ -13984,7 +15960,7 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
 
     items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
     out["items"] = items_out
-    openings = list_shop_day_openings_for_report(af)
+    openings = list_shop_day_openings_for_report(af, shop_id=shop_filter)
     out["shop_openings"] = openings
     out["opening_cash_total"] = round(
         sum(float(o.get("opening_cash") or 0) for o in openings), 2
@@ -13992,6 +15968,12 @@ def get_company_report(analytics_filter: dict, analytics_scope: str = "general")
     out["opening_mpesa_total"] = round(
         sum(float(o.get("opening_mpesa") or 0) for o in openings), 2
     )
+    out["expenditure_rows"] = list_company_expenditure_for_report(af, shop_id=shop_filter)
+    exp_totals = _sum_shop_expenditure_totals(out["expenditure_rows"])
+    out["total_expenditure"] = exp_totals["total_expenditure"]
+    out["paid_expenditure"] = exp_totals["paid_expenditure"]
+    out["balance_expenditure"] = exp_totals["balance_expenditure"]
+    _aggregate_company_financials_from_shops(out, af, analytics_scope, shop_id=shop_filter)
     return _enrich_period_report_financials(out)
 
 
@@ -14042,17 +16024,60 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     GROUP BY sst.item_id
     """
 
-    expenditure_sql = f"""
-    SELECT COALESCE(SUM(sst.qty * COALESCE(sst.buying_price, 0)), 0) AS total_expenditure
-    FROM shop_stock_transactions sst
-    WHERE {sst_where} AND sst.direction = 'in' AND sst.source = 'manual'
-    """
+    cost_map: dict = {}
+    fifo_stock_out_cost = 0.0
+    if column_exists("shop_stock_transactions", "cost_total"):
+        cost_sql = f"""
+        SELECT
+            sst.item_id,
+            COALESCE(SUM(
+                CASE
+                    WHEN sst.direction = 'out'
+                     AND UPPER(COALESCE(sst.reason, '')) IN ('POS', 'POS_HOLD')
+                    THEN COALESCE(sst.cost_total, 0)
+                    ELSE 0
+                END
+            ), 0) AS pos_out_cost,
+            COALESCE(SUM(
+                CASE
+                    WHEN sst.direction = 'in'
+                     AND UPPER(COALESCE(sst.reason, '')) = 'POS_HOLD_RET'
+                    THEN COALESCE(sst.cost_total, 0)
+                    ELSE 0
+                END
+            ), 0) AS hold_ret_cost,
+            COALESCE(SUM(
+                CASE
+                    WHEN sst.direction = 'out'
+                     AND sst.source = 'manual'
+                     AND UPPER(COALESCE(sst.reason, '')) IN ('RETURN', 'WASTE', 'DISPLAY')
+                    THEN COALESCE(sst.cost_total, 0)
+                    ELSE 0
+                END
+            ), 0) AS manual_out_cost
+        FROM shop_stock_transactions sst
+        WHERE {sst_where}
+        GROUP BY sst.item_id
+        """
+
+    expenditure_sql = None
 
     sales_by_id_sql = f"""
     SELECT
         si.item_id AS item_id,
         COALESCE(SUM(si.qty), 0) AS stock_sold,
-        COALESCE(SUM(si.line_total), 0) AS revenue
+        COALESCE(SUM(si.line_total), 0) AS revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN si.qty ELSE 0 END), 0) AS sale_qty,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN si.qty ELSE 0 END), 0) AS credit_qty,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN si.line_total ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN si.line_total ELSE 0 END), 0) AS credit_amount,
+        COALESCE(SUM(
+            CASE
+                WHEN s.sale_type = 'credit' AND COALESCE(s.total_amount, 0) > 0 THEN
+                    si.line_total * COALESCE(s.credit_paid_amount, 0) / s.total_amount
+                ELSE 0
+            END
+        ), 0) AS credit_paid_amount
     FROM shop_pos_sale_items si
     JOIN shop_pos_sales s ON s.id = si.sale_id
     WHERE {sale_where} AND si.item_id IS NOT NULL AND si.item_id > 0
@@ -14072,7 +16097,18 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     SELECT
         im.id AS item_id,
         COALESCE(SUM(si.qty), 0) AS stock_sold,
-        COALESCE(SUM(si.line_total), 0) AS revenue
+        COALESCE(SUM(si.line_total), 0) AS revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN si.qty ELSE 0 END), 0) AS sale_qty,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN si.qty ELSE 0 END), 0) AS credit_qty,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN si.line_total ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN si.line_total ELSE 0 END), 0) AS credit_amount,
+        COALESCE(SUM(
+            CASE
+                WHEN s.sale_type = 'credit' AND COALESCE(s.total_amount, 0) > 0 THEN
+                    si.line_total * COALESCE(s.credit_paid_amount, 0) / s.total_amount
+                ELSE 0
+            END
+        ), 0) AS credit_paid_amount
     FROM shop_pos_sale_items si
     JOIN shop_pos_sales s ON s.id = si.sale_id
     {join_name_catalog}
@@ -14085,6 +16121,7 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
         COALESCE(SUM(CASE WHEN s.sale_type IN ('sale', 'credit') THEN s.total_amount ELSE 0 END), 0) AS total_revenue,
         COALESCE(SUM(CASE WHEN s.sale_type = 'sale' THEN s.total_amount ELSE 0 END), 0) AS sale_revenue,
         COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN s.total_amount ELSE 0 END), 0) AS credit_revenue,
+        COALESCE(SUM(CASE WHEN s.sale_type = 'credit' THEN COALESCE(s.credit_paid_amount, 0) ELSE 0 END), 0) AS paid_credit,
         COALESCE(SUM(s.cash_amount), 0) AS cash_revenue,
         COALESCE(SUM(s.mpesa_amount), 0) AS mpesa_revenue
     FROM shop_pos_sales s
@@ -14117,10 +16154,27 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
         "total_revenue": 0.0,
         "sale_revenue": 0.0,
         "credit_revenue": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
         "cash_revenue": 0.0,
         "mpesa_revenue": 0.0,
         "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
         "net_profit": 0.0,
+        "stock_cost_sold": 0.0,
+        "stock_cost_stock_out": 0.0,
+        "stock_cost_total": 0.0,
+        "stock_cost_sale_only": 0.0,
+        "stock_cost_credit_total": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_cogs_sale": 0.0,
+        "accrual_cogs_credit": 0.0,
+        "accrual_cogs_stock_out": 0.0,
+        "accrual_gross_profit": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_operating_expenses": 0.0,
+        "estimated_sale_gross_profit": 0.0,
         "items": [],
     }
     movement_map: dict = {}
@@ -14135,12 +16189,9 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
             out["total_revenue"] = float(rt.get("total_revenue") or 0)
             out["sale_revenue"] = float(rt.get("sale_revenue") or 0)
             out["credit_revenue"] = float(rt.get("credit_revenue") or 0)
+            out["paid_credit"] = round(float(rt.get("paid_credit") or 0), 2)
             out["cash_revenue"] = float(rt.get("cash_revenue") or 0)
             out["mpesa_revenue"] = float(rt.get("mpesa_revenue") or 0)
-
-            cur.execute(expenditure_sql, tuple(sst_params))
-            et = cur.fetchone() or {}
-            out["total_expenditure"] = float(et.get("total_expenditure") or 0)
 
             cur.execute(movement_sql, tuple(sst_params))
             for r in cur.fetchall() or []:
@@ -14154,6 +16205,26 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
                         "stock_out": int(r.get("stock_out") or 0),
                     }
 
+            if column_exists("shop_stock_transactions", "cost_total"):
+                cur.execute(cost_sql, tuple(sst_params))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid <= 0:
+                        continue
+                    pos_out = round(float(r.get("pos_out_cost") or 0), 2)
+                    hold_ret = round(float(r.get("hold_ret_cost") or 0), 2)
+                    manual_out = round(float(r.get("manual_out_cost") or 0), 2)
+                    sold_cost = round(max(0.0, pos_out - hold_ret), 2)
+                    cost_map[iid] = {
+                        "sold_cost": sold_cost,
+                        "manual_out_cost": manual_out,
+                        "total_cost": round(sold_cost + manual_out, 2),
+                    }
+                    fifo_stock_out_cost += manual_out
+
             cur.execute(sales_by_id_sql, tuple(sale_params))
             for r in cur.fetchall() or []:
                 try:
@@ -14165,6 +16236,11 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
                 sales_map[iid] = {
                     "stock_sold": int(r.get("stock_sold") or 0),
                     "revenue": float(r.get("revenue") or 0),
+                    "sale_qty": int(r.get("sale_qty") or 0),
+                    "credit_qty": int(r.get("credit_qty") or 0),
+                    "sale_amount": float(r.get("sale_amount") or 0),
+                    "credit_amount": float(r.get("credit_amount") or 0),
+                    "credit_paid_amount": float(r.get("credit_paid_amount") or 0),
                 }
 
             cur.execute(sales_by_name_sql, tuple(sale_params))
@@ -14175,10 +16251,24 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
                     continue
                 if iid <= 0:
                     continue
-                prev = sales_map.get(iid) or {"stock_sold": 0, "revenue": 0.0}
+                prev = sales_map.get(iid) or {
+                    "stock_sold": 0,
+                    "revenue": 0.0,
+                    "sale_qty": 0,
+                    "credit_qty": 0,
+                    "sale_amount": 0.0,
+                    "credit_amount": 0.0,
+                    "credit_paid_amount": 0.0,
+                }
                 sales_map[iid] = {
                     "stock_sold": int(prev["stock_sold"]) + int(r.get("stock_sold") or 0),
                     "revenue": float(prev["revenue"]) + float(r.get("revenue") or 0),
+                    "sale_qty": int(prev["sale_qty"]) + int(r.get("sale_qty") or 0),
+                    "credit_qty": int(prev["credit_qty"]) + int(r.get("credit_qty") or 0),
+                    "sale_amount": float(prev["sale_amount"]) + float(r.get("sale_amount") or 0),
+                    "credit_amount": float(prev["credit_amount"]) + float(r.get("credit_amount") or 0),
+                    "credit_paid_amount": float(prev["credit_paid_amount"])
+                    + float(r.get("credit_paid_amount") or 0),
                 }
 
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_end):
@@ -14196,7 +16286,22 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     except pymysql.Error:
         return out
 
-    out["net_profit"] = round(out["total_revenue"] - out["total_expenditure"], 2)
+    out["expenditure_rows"] = list_shop_expenditure_for_report(sid, af)
+    exp_totals = _sum_shop_expenditure_totals(out["expenditure_rows"])
+    out["total_expenditure"] = exp_totals["total_expenditure"]
+    out["paid_expenditure"] = exp_totals["paid_expenditure"]
+    out["balance_expenditure"] = exp_totals["balance_expenditure"]
+    credit_rev = float(out.get("credit_revenue") or 0)
+    paid_cr = float(out.get("paid_credit") or 0)
+    out["unpaid_credit"] = round(max(0.0, credit_rev - paid_cr), 2)
+    out["collected_revenue"] = round(float(out.get("sale_revenue") or 0) + paid_cr, 2)
+    out["net_profit"] = round(
+        float(out.get("sale_revenue") or 0)
+        + paid_cr
+        - float(out.get("paid_expenditure") or 0)
+        - out["unpaid_credit"],
+        2,
+    )
     catalog_by_id = _report_catalog_by_item_id(catalog_rows)
     affected_ids = set(movement_map.keys()) | set(sales_map.keys())
     missing_meta = _report_fetch_item_meta_by_ids(
@@ -14206,7 +16311,15 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     for iid in affected_ids:
         r = catalog_by_id.get(iid) or missing_meta.get(iid) or {}
         mv = movement_map.get(iid) or {"stock_in": 0, "stock_out": 0}
-        sl = sales_map.get(iid) or {"stock_sold": 0, "revenue": 0.0}
+        sl = sales_map.get(iid) or {
+            "stock_sold": 0,
+            "revenue": 0.0,
+            "sale_qty": 0,
+            "credit_qty": 0,
+            "sale_amount": 0.0,
+            "credit_amount": 0.0,
+            "credit_paid_amount": 0.0,
+        }
         stock_in = int(mv["stock_in"])
         stock_out = int(mv["stock_out"])
         stock_sold = int(sl["stock_sold"])
@@ -14216,6 +16329,24 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
         shop_qty = int(r.get("shop_stock_qty") or 0)
         ending_stock = ending_map.get(iid, shop_qty)
         starting_stock = ending_stock - stock_in + stock_out
+        cost_row = cost_map.get(iid) or {}
+        item_sold_cost = round(float(cost_row.get("sold_cost") or 0), 2)
+        item_manual_out_cost = round(float(cost_row.get("manual_out_cost") or 0), 2)
+        item_total_cost = round(float(cost_row.get("total_cost") or 0), 2)
+        sale_qty_i = int(sl.get("sale_qty") or 0)
+        credit_qty_i = int(sl.get("credit_qty") or 0)
+        sold_qty_total = sale_qty_i + credit_qty_i
+        if sold_qty_total > 0 and item_sold_cost > 0:
+            sale_stock_cost = round(item_sold_cost * sale_qty_i / sold_qty_total, 2)
+            credit_stock_cost_full = round(item_sold_cost - sale_stock_cost, 2)
+        else:
+            sale_stock_cost = 0.0
+            credit_stock_cost_full = 0.0
+        credit_amount_f = round(float(sl.get("credit_amount") or 0), 2)
+        credit_paid_f = round(float(sl.get("credit_paid_amount") or 0), 2)
+        credit_stock_cost = _credit_stock_cost_for_payment(
+            credit_stock_cost_full, credit_amount_f, credit_paid_f
+        )
         items_out.append(
             {
                 "item_id": iid,
@@ -14227,11 +16358,23 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
                 "stock_out": stock_out,
                 "stock_sold": stock_sold,
                 "revenue": round(revenue, 2),
+                "sale_qty": sale_qty_i,
+                "credit_qty": credit_qty_i,
+                "sale_amount": round(float(sl.get("sale_amount") or 0), 2),
+                "credit_amount": round(float(sl.get("credit_amount") or 0), 2),
+                "credit_paid_amount": round(float(sl.get("credit_paid_amount") or 0), 2),
+                "stock_cost_sold": item_sold_cost,
+                "stock_cost_stock_out": item_manual_out_cost,
+                "stock_cost_total": item_total_cost,
+                "sale_stock_cost": sale_stock_cost,
+                "credit_stock_cost": credit_stock_cost,
+                "credit_stock_cost_full": credit_stock_cost_full,
             }
         )
 
     items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
     out["items"] = items_out
+    _apply_shop_report_accrual_summary(out, stock_cost_stock_out=fifo_stock_out_cost)
     openings = list_shop_day_openings_for_report(af, shop_id=sid)
     out["shop_openings"] = openings
     out["opening_cash_total"] = round(
@@ -14240,7 +16383,6 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     out["opening_mpesa_total"] = round(
         sum(float(o.get("opening_mpesa") or 0) for o in openings), 2
     )
-    out["expenditure_rows"] = list_shop_expenditure_for_report(sid, af)
     return _enrich_period_report_financials(out)
 
 
@@ -14788,6 +16930,10 @@ def shop_request_stock_from_company(
                     created_by_employee_id,
                 ),
             )
+        in_tx_id = int(cur.lastrowid or 0)
+        unit_cost = _shop_fifo_default_unit_cost(cur, int(shop_id), int(item_id))
+        if in_tx_id > 0:
+            _shop_fifo_after_stock_in(cur, int(shop_id), int(item_id), n, unit_cost, in_tx_id)
         return True
 
     if cur is not None:
@@ -14905,6 +17051,9 @@ def shop_return_stock_to_company(
                     created_by_employee_id,
                 ),
             )
+        out_tx_id = int(cur.lastrowid or 0)
+        if out_tx_id > 0:
+            _shop_fifo_after_stock_out(cur, int(shop_id), int(item_id), n, out_tx_id)
         return True
 
     if cur is not None:
@@ -15004,6 +17153,9 @@ def shop_manual_stock_in(
                 created_by_employee_id,
             ),
         )
+        _shop_fifo_after_stock_in(
+            cur, int(shop_id), int(item_id), n, buying_price, int(cur.lastrowid or 0)
+        )
         return True
 
 
@@ -15073,6 +17225,9 @@ def shop_manual_stock_out(
                 note or None,
                 created_by_employee_id,
             ),
+        )
+        _shop_fifo_after_stock_out(
+            cur, int(shop_id), int(item_id), n, int(cur.lastrowid or 0)
         )
         return True
 
@@ -15170,6 +17325,10 @@ def shop_transfer_stock_between_shops(
                     created_by_employee_id,
                 ),
             )
+        xfer_cost = _shop_fifo_after_stock_out(
+            cur, int(from_shop_id), int(item_id), n, int(cur.lastrowid or 0)
+        )
+        xfer_unit = round(float(xfer_cost.get("avg_unit_cost") or 0), 2)
         # Record IN transaction for destination shop.
         if has_sr:
             cur.execute(
@@ -15209,6 +17368,11 @@ def shop_transfer_stock_between_shops(
                     note or None,
                     created_by_employee_id,
                 ),
+            )
+        in_tx_id = int(cur.lastrowid or 0)
+        if in_tx_id > 0:
+            _shop_fifo_after_stock_in(
+                cur, int(to_shop_id), int(item_id), n, xfer_unit, in_tx_id
             )
         return True
 
@@ -16437,6 +18601,7 @@ def list_stock_request_events_export(*, request_id: Optional[int] = None, limit:
 _EXPECTED_SCHEMA_TABLES = (
     "contact_messages",
     "employees",
+    "employee_password_resets",
     "employee_shop_access",
     "employee_payroll",
     "employee_payroll_advances",
@@ -16486,6 +18651,7 @@ def init_schema() -> bool:
         return False
     ok_contact = init_contact_table()
     ok_employees = init_employees_table()
+    ok_employee_password_resets = init_employee_password_resets_table()
     ok_employee_payroll = init_employee_payroll_table()
     ok_employee_payroll_advances = init_employee_payroll_advances_table()
     ok_settings = init_site_settings_table()
@@ -16498,6 +18664,7 @@ def init_schema() -> bool:
     ok_store_stock_transactions = init_store_stock_transactions_table()
     ok_shop_kitchen_portions = ensure_shop_kitchen_portions_schema()
     ok_shop_stock = init_shop_stock_transactions_table()
+    ok_shop_fifo = ensure_shop_stock_fifo_schema()
     ok_shop_printer = init_shop_printer_settings_table()
     ok_shop_print_agent = init_shop_print_agent_jobs_table()
     ok_shop_customers = init_shop_customers_table()
@@ -16516,6 +18683,7 @@ def init_schema() -> bool:
     steps_ok = (
         ok_contact
         and ok_employees
+        and ok_employee_password_resets
         and ok_employee_payroll
         and ok_employee_payroll_advances
         and ok_settings
@@ -16528,6 +18696,7 @@ def init_schema() -> bool:
         and ok_store_stock_transactions
         and ok_shop_kitchen_portions
         and ok_shop_stock
+        and ok_shop_fifo
         and ok_shop_printer
         and ok_shop_print_agent
         and ok_shop_customers
@@ -16548,6 +18717,7 @@ def init_schema() -> bool:
         logger.warning("Database schema initialization did not complete successfully.")
         return False
     ensure_stock_qty_decimal_schema()
+    ensure_shop_stock_fifo_historical_cogs_backfill()
     if not verify_database_schema_integrity():
         return False
     logger.info("Database schema is up to date.")
@@ -16590,6 +18760,128 @@ def get_employee_by_code(code: str):
             return cur.fetchone()
     except pymysql.Error:
         return None
+
+
+def get_active_employee_by_email(email: str):
+    sql = """
+    SELECT id, full_name, email, phone, employee_code, status
+    FROM employees
+    WHERE LOWER(email) = LOWER(%s) AND status = 'active'
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, ((email or "").strip(),))
+            return cur.fetchone()
+    except pymysql.Error:
+        return None
+
+
+def get_active_employee_email_for_code(code: str) -> Optional[str]:
+    row = get_employee_by_code((code or "").strip())
+    if not row or (row.get("status") or "") != "active":
+        return None
+    return (row.get("email") or "").strip() or None
+
+
+def resolve_active_employee_for_password_reset(email: str, employee_code: Optional[str] = None):
+    """Match active employee by email; if code is given it must match the same account."""
+    em = (email or "").strip()
+    if not em or "@" not in em:
+        return None
+    row = get_active_employee_by_email(em)
+    if not row:
+        return None
+    code = (employee_code or "").strip()
+    if code:
+        if not re.fullmatch(r"\d{6}", code):
+            return None
+        if (row.get("employee_code") or "").strip() != code:
+            return None
+    return row
+
+
+def create_employee_password_reset(employee_id: int, email: str, code_hash: str, expires_at: datetime) -> bool:
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE employee_password_resets SET used_at = NOW() "
+                "WHERE employee_id = %s AND used_at IS NULL",
+                (int(employee_id),),
+            )
+            cur.execute(
+                """
+                INSERT INTO employee_password_resets (employee_id, email, code_hash, expires_at)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (int(employee_id), (email or "").strip(), code_hash, expires_at),
+            )
+        return True
+    except pymysql.Error:
+        return False
+
+
+def recent_employee_password_reset_exists(employee_id: int, within_seconds: int = 60) -> bool:
+    sql = """
+    SELECT 1 FROM employee_password_resets
+    WHERE employee_id = %s AND created_at >= (NOW() - INTERVAL %s SECOND)
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(employee_id), int(within_seconds)))
+            return cur.fetchone() is not None
+    except pymysql.Error:
+        return False
+
+
+def verify_employee_password_reset_code(employee_id: int, code: str) -> Optional[int]:
+    from werkzeug.security import check_password_hash
+
+    raw = (code or "").strip()
+    if not re.fullmatch(r"\d{6}", raw):
+        return None
+    sql = """
+    SELECT id, code_hash
+    FROM employee_password_resets
+    WHERE employee_id = %s AND used_at IS NULL AND expires_at > NOW()
+    ORDER BY id DESC
+    LIMIT 5
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(employee_id),))
+            rows = cur.fetchall() or []
+        for row in rows:
+            if check_password_hash(row.get("code_hash") or "", raw):
+                return int(row["id"])
+        return None
+    except pymysql.Error:
+        return None
+
+
+def mark_employee_password_reset_used(reset_id: int) -> bool:
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE employee_password_resets SET used_at = NOW() WHERE id = %s",
+                (int(reset_id),),
+            )
+        return True
+    except pymysql.Error:
+        return False
+
+
+def update_employee_password_hash(employee_id: int, password_hash: str) -> bool:
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE employees SET password_hash = %s WHERE id = %s AND status = 'active'",
+                (password_hash, int(employee_id)),
+            )
+            return cur.rowcount > 0
+    except pymysql.Error:
+        return False
 
 
 def get_employee_by_code_for_pos_auth(code: str):

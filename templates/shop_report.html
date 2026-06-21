@@ -40,12 +40,13 @@
       #shop-report-page .sr-table-wrap { max-height: none !important; overflow: visible !important; }
     }
   </style>
-  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=3" defer></script>
+  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=22" defer></script>
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set rd = report_data or {} %}
-  {% set sold_rows = items_sold_rows or [] %}
+  {% set sold_sale_rows = rd.items_sold_sale or [] %}
+  {% set sold_credit_rows = rd.items_sold_credit or [] %}
   {% set period_label = report_period_label or 'Today' %}
   {% set today_iso = report_today_iso or '' %}
   <div id="shop-report-page" class="mx-auto max-w-5xl space-y-5">
@@ -54,8 +55,11 @@
         <h1 class="text-xl font-bold text-black">{{ shop.shop_name }}</h1>
         <p class="text-sm text-black">Shop report · {{ period_label }}</p>
         <p class="mt-2 text-xs text-black">
-          Revenue {{ "%.2f"|format(rd.total_revenue or 0) }}
-          · Net {{ "%.2f"|format(rd.net_profit or 0) }}
+          Sales {{ "%.2f"|format(rd.total_revenue or 0) }}
+          · COGS {{ "%.2f"|format(rd.accrual_cogs or 0) }}
+          · Gross {{ "%.2f"|format(rd.accrual_gross_profit or 0) }}
+          · Net {{ "%.2f"|format(rd.accrual_net_profit or 0) }}
+          · Collected {{ "%.2f"|format(rd.collected_revenue or 0) }}
           · Closing cash {{ "%.2f"|format((rd.till_summary or {}).closing_cash or 0) }}
           · Closing M-Pesa {{ "%.2f"|format((rd.till_summary or {}).closing_mpesa or 0) }}
         </p>
@@ -127,9 +131,13 @@
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Expenditure</h3>
-              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Manual stock purchases at this shop</p>
+              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Stock purchases, stock outs, and operational expenses at this shop</p>
               <p class="mt-1 text-base font-extrabold tabular-nums text-amber-600 dark:text-amber-400">
                 Total <span data-report-live="total_expenditure">{{ "%.2f"|format(rd.total_expenditure or 0) }}</span>
+                <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
+                Paid <span class="text-emerald-600 dark:text-emerald-400" data-report-live="paid_expenditure">{{ "%.2f"|format(rd.paid_expenditure or 0) }}</span>
+                <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
+                Balance <span data-report-live="balance_expenditure">{{ "%.2f"|format(rd.balance_expenditure or 0) }}</span>
               </p>
             </div>
             <input id="report-expenditure-search" type="search" autocomplete="off" placeholder="Search expenditure…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
@@ -139,18 +147,37 @@
           <table id="report-expenditure-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
+                <th class="px-4 py-3">Type</th>
                 <th class="px-4 py-3">When</th>
                 <th class="px-4 py-3">Item</th>
-                <th class="px-4 py-3">Supplier</th>
+                <th class="px-4 py-3">Supplier / By</th>
                 <th class="px-4 py-3 text-right">Qty</th>
                 <th class="px-4 py-3 text-right">Unit cost</th>
                 <th class="px-4 py-3 text-right">Total</th>
+                <th class="px-4 py-3 text-right">Balance</th>
               </tr>
             </thead>
             <tbody id="report-expenditure-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
               {% set exp_rows = expenditure_rows or [] %}
               {% for row in exp_rows %}
-                <tr class="exp-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or '') ~ ' ' ~ (row.supplier or ''))|lower }}">
+                {% set bal = row.balance if row.balance is not none else ((row.total_cost or 0) - (row.amount_paid or 0)) %}
+                {% set ps = (row.payment_status or 'pending_payment')|lower %}
+                {% set kind_label = 'Expense' if row.expense_kind == 'operational' else ('Stock out' if row.expense_kind == 'stock_out' else 'Stock') %}
+                <tr class="exp-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or '') ~ ' ' ~ (row.supplier or '') ~ ' ' ~ (row.expense_kind or '') ~ ' ' ~ ps)|lower }}">
+                  <td class="px-4 py-3">
+                    <div class="text-[10px] font-bold uppercase text-[rgb(var(--rc-page-fg))]">{{ kind_label }}</div>
+                    {% if ps == 'paid' %}
+                      <span class="mt-1 inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Paid</span>
+                    {% elif ps == 'partially_paid' %}
+                      <span class="mt-1 inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Partial</span>
+                    {% elif ps == 'partially_refunded' %}
+                      <span class="mt-1 inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Partially refunded</span>
+                    {% elif ps == 'cancelled_out' %}
+                      <span class="mt-1 inline-flex rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Cancelled out</span>
+                    {% else %}
+                      <span class="mt-1 inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Pending</span>
+                    {% endif %}
+                  </td>
                   <td class="whitespace-nowrap px-4 py-3 text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ row.created_at or '—' }}</td>
                   <td class="px-4 py-3">
                     <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
@@ -160,9 +187,12 @@
                   <td class="px-4 py-3 text-right tabular-nums">{{ row.qty }}</td>
                   <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.buying_price or 0) }}</td>
                   <td class="px-4 py-3 text-right font-semibold tabular-nums text-amber-700 dark:text-amber-300">{{ "%.2f"|format(row.total_cost or 0) }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums {% if ps == 'partially_refunded' %}text-sky-700 dark:text-sky-300{% elif ps in ['paid', 'partially_paid'] and (bal or 0) > 0.009 %}text-amber-700 dark:text-amber-300{% elif ps == 'pending_payment' %}text-rose-700 dark:text-rose-300{% else %}text-[rgb(var(--rc-muted))]{% endif %}">
+                    {% if ps == 'partially_refunded' %}{{ "%.2f"|format(bal or 0) }}{% elif ps in ['paid', 'partially_paid', 'pending_payment'] %}{{ "%.2f"|format(bal or 0) }}{% else %}—{% endif %}
+                  </td>
                 </tr>
               {% else %}
-                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No stock purchases recorded for this period.</td></tr>
+                <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No expenditure recorded for this period.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -173,33 +203,97 @@
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Items sold</h3>
-              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Products with sales in this period</p>
+              <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Items sold on credit</h3>
+              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Products sold on customer credit in this period</p>
+              <p class="mt-1 text-base font-extrabold tabular-nums text-sky-600 dark:text-sky-400">
+                Total <span data-report-live="credit_revenue">{{ "%.2f"|format(rd.credit_revenue or 0) }}</span>
+                <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
+                Buying price <span class="text-violet-700 dark:text-violet-300" data-report-live="stock_cost_credit_total">{{ "%.2f"|format(rd.stock_cost_credit_total or 0) }}</span>
+              </p>
             </div>
-            <input id="report-items-sold-search" type="search" autocomplete="off" placeholder="Search…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
+            <input id="report-items-credit-search" type="search" autocomplete="off" placeholder="Search credit items…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
           </div>
         </div>
         <div class="sr-table-wrap overflow-x-auto">
-          <table id="report-items-sold-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+          <table id="report-items-credit-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
                 <th class="px-4 py-3">Item</th>
                 <th class="px-4 py-3 text-right">Qty</th>
-                <th class="px-4 py-3 text-right">Revenue</th>
+                <th class="px-4 py-3 text-right">Amount</th>
+                <th class="px-4 py-3 text-right">Stock buying price</th>
+                <th class="px-4 py-3">Payment status</th>
               </tr>
             </thead>
-            <tbody id="report-items-sold-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-              {% for row in sold_rows %}
-                <tr class="cr-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or ''))|lower }}">
+            <tbody id="report-items-credit-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in sold_credit_rows %}
+                {% set ps = (row.payment_status or 'not_paid')|lower %}
+                <tr class="cr-credit-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or '') ~ ' ' ~ ps)|lower }}">
                   <td class="px-4 py-3">
                     <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
                     {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
                   </td>
-                  <td class="px-4 py-3 text-right tabular-nums">{{ row.stock_sold or 0 }}</td>
-                  <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ "%.2f"|format(row.revenue or 0) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.qty or 0 }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums text-sky-700 dark:text-sky-300">{{ "%.2f"|format(row.amount or 0) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums text-violet-700 dark:text-violet-300">{{ "%.2f"|format(row.stock_cost or 0) }}</td>
+                  <td class="px-4 py-3">
+                    {% if ps == 'paid' %}
+                      <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Paid</span>
+                    {% elif ps == 'partially_paid' %}
+                      <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Partial</span>
+                    {% else %}
+                      <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Not paid</span>
+                    {% endif %}
+                  </td>
                 </tr>
               {% else %}
-                <tr><td colspan="3" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No items sold for this period yet.</td></tr>
+                <tr><td colspan="5" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No credit sales for this period yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+        <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Items sold on sale</h3>
+              <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Cash and M-Pesa sales in this period</p>
+              <p class="mt-1 text-base font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                Total <span data-report-live="sale_revenue">{{ "%.2f"|format(rd.sale_revenue or 0) }}</span>
+              </p>
+            </div>
+            <input id="report-items-sale-search" type="search" autocomplete="off" placeholder="Search sale items…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
+          </div>
+        </div>
+        <div class="sr-table-wrap overflow-x-auto">
+          <table id="report-items-sale-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+            <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-4 py-3">Item</th>
+                <th class="px-4 py-3 text-right">Qty</th>
+                <th class="px-4 py-3 text-right">Amount</th>
+                <th class="px-4 py-3 text-right">Stock buying price</th>
+                <th class="px-4 py-3">Payment status</th>
+              </tr>
+            </thead>
+            <tbody id="report-items-sale-body" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for row in sold_sale_rows %}
+                <tr class="cr-sale-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or ''))|lower }}">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
+                    {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
+                  </td>
+                  <td class="px-4 py-3 text-right tabular-nums">{{ row.qty or 0 }}</td>
+                  <td class="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{{ "%.2f"|format(row.amount or 0) }}</td>
+                  <td class="px-4 py-3 text-right tabular-nums text-violet-700 dark:text-violet-300">{{ "%.2f"|format(row.stock_cost or 0) }}</td>
+                  <td class="px-4 py-3">
+                    <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Paid</span>
+                  </td>
+                </tr>
+              {% else %}
+                <tr><td colspan="5" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No cash sales for this period yet.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -260,12 +354,24 @@
         });
       }
 
-      var soldSearch = document.getElementById("report-items-sold-search");
-      var soldTable = document.getElementById("report-items-sold-table");
-      if (soldSearch && soldTable) {
-        soldSearch.addEventListener("input", function () {
-          var q = (soldSearch.value || "").trim().toLowerCase();
-          soldTable.querySelectorAll(".cr-row").forEach(function (tr) {
+      var soldCreditSearch = document.getElementById("report-items-credit-search");
+      var soldCreditTable = document.getElementById("report-items-credit-table");
+      if (soldCreditSearch && soldCreditTable) {
+        soldCreditSearch.addEventListener("input", function () {
+          var q = (soldCreditSearch.value || "").trim().toLowerCase();
+          soldCreditTable.querySelectorAll(".cr-credit-row").forEach(function (tr) {
+            var hay = tr.getAttribute("data-search") || "";
+            tr.classList.toggle("hidden", q.length > 0 && hay.indexOf(q) === -1);
+          });
+        });
+      }
+
+      var soldSaleSearch = document.getElementById("report-items-sale-search");
+      var soldSaleTable = document.getElementById("report-items-sale-table");
+      if (soldSaleSearch && soldSaleTable) {
+        soldSaleSearch.addEventListener("input", function () {
+          var q = (soldSaleSearch.value || "").trim().toLowerCase();
+          soldSaleTable.querySelectorAll(".cr-sale-row").forEach(function (tr) {
             var hay = tr.getAttribute("data-search") || "";
             tr.classList.toggle("hidden", q.length > 0 && hay.indexOf(q) === -1);
           });

@@ -36,6 +36,30 @@
     }
   }
 
+  function currentReturnUrl() {
+    var path = window.location.pathname || "";
+    var search = window.location.search || "";
+    var url = path + search;
+    if (!url || !url.startsWith("/") || url.startsWith("//")) return "";
+    if (path === "/login" || path === "/logout") return "";
+    return url;
+  }
+
+  function appendQuery(url, key, value) {
+    if (!url || !key || value === undefined || value === null || value === "") return url;
+    var sep = url.indexOf("?") >= 0 ? "&" : "?";
+    return url + sep + encodeURIComponent(key) + "=" + encodeURIComponent(value);
+  }
+
+  function loginUrlWithContinuation(baseUrl, data) {
+    var url = (data && data.login_url) || baseUrl || "/login";
+    if (url.indexOf("next=") >= 0) return url;
+    var returnUrl = currentReturnUrl();
+    if (!returnUrl) return appendQuery(url, "reason", "idle");
+    url = appendQuery(url, "next", returnUrl);
+    return appendQuery(url, "reason", "idle");
+  }
+
   function pingServer() {
     if (!pingUrl) return Promise.resolve({ ok: true });
     return fetch(pingUrl, {
@@ -53,13 +77,16 @@
   }
 
   function redirectExpired(data) {
-    window.location.href = (data && data.login_url) || loginUrl;
+    window.location.href = loginUrlWithContinuation(loginUrl, data);
   }
 
   function doLogout() {
     if (signingOut) return;
     signingOut = true;
-    window.location.href = logoutUrl || loginUrl;
+    var url = logoutUrl || loginUrl;
+    var returnUrl = currentReturnUrl();
+    if (returnUrl) url = appendQuery(url, "next", returnUrl);
+    window.location.href = url;
   }
 
   function markActive(fromUser) {

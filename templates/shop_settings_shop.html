@@ -1,6 +1,6 @@
 {% extends "shop_layout.html" %}
-{% block title %}Company settings — {{ shop.shop_name }}{% endblock %}
-{% block shop_page_title %}Company settings{% endblock %}
+{% block title %}Shop settings — {{ shop.shop_name }}{% endblock %}
+{% block shop_page_title %}Shop settings{% endblock %}
 {% block head %}
   {% include "partials/shop_settings_switch_styles.html" %}
   <style>
@@ -66,15 +66,15 @@
   </style>
 {% endblock %}
 {% block shop_sidebar_links %}
-  {% set shop_settings_nav_active = 'company' %}
+  {% set shop_settings_nav_active = 'shop' %}
   {% include "partials/shop_settings_nav.html" %}
 {% endblock %}
 {% block shop_content %}
   {% set cs = company_settings %}
-  <form method="post" action="{{ url_for('shop_settings_company', shop_id=shop.id) }}" enctype="multipart/form-data" class="space-y-6">
+  <form method="post" action="{{ url_for('shop_settings_shop', shop_id=shop.id) }}" enctype="multipart/form-data" class="space-y-6">
     <div class="shop-co-card p-5 sm:p-6">
       <div class="border-b border-[rgb(var(--rc-border))] pb-5">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</h2>
+        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop settings</h2>
         <p class="mt-1 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">
           Identity, contact details, location, and opening hours for <strong class="font-medium text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</strong>.
           Matches company defaults unless you customize below.
@@ -182,7 +182,7 @@
 
       <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
         <p class="text-xs text-[rgb(var(--rc-muted))]">Changes apply to this shop only when customization is enabled.</p>
-        <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save company settings</button>
+        <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save shop settings</button>
       </div>
     </div>
   </form>

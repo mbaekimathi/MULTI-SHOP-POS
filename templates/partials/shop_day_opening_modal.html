@@ -1,8 +1,9 @@
 {# Mandatory start-of-day popup for shop admin/manager — closing (if pending) then opening. #}
-<div id="pos-day-opening-modal-backdrop" class="shop-day-opening-backdrop fixed inset-0 z-[100] hidden bg-slate-950/80 backdrop-blur-sm" aria-hidden="true"></div>
+{% set _shop_display_name = shop.shop_name if shop is defined and shop.shop_name else 'Shop' %}
+<div id="pos-day-opening-modal-backdrop" class="shop-day-opening-backdrop pos-overlay-backdrop fixed inset-0 z-[500] hidden bg-slate-950/80 backdrop-blur-sm" aria-hidden="true"></div>
 <div
   id="pos-day-opening-modal"
-  class="shop-day-opening-modal fixed inset-0 z-[101] hidden flex items-center justify-center p-4 sm:p-6"
+  class="shop-day-opening-modal pos-overlay-dialog fixed inset-0 z-[501] hidden flex items-center justify-center p-4 sm:p-6"
   role="dialog"
   aria-modal="true"
   aria-labelledby="pos-day-opening-modal-title"
@@ -13,6 +14,7 @@
       <div class="h-1.5 shrink-0 bg-gradient-to-r from-rose-500 via-amber-500 to-orange-500" aria-hidden="true"></div>
       <div class="border-b border-[rgb(var(--rc-border))]/80 bg-gradient-to-b from-rose-500/[0.08] to-transparent px-4 py-4 sm:px-5">
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-rose-600/95 dark:text-rose-400/95">Step 1 of 2 · Required</p>
+        <p id="pos-day-closing-shop-name" class="mt-1 truncate text-sm font-bold text-[rgb(var(--rc-page-fg))]">{{ _shop_display_name }}</p>
         <h2 id="pos-day-closing-modal-title" class="mt-1 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">Yesterday&apos;s closing balances</h2>
         <p id="pos-day-closing-modal-desc" class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
           Enter closing cash and M-Pesa in the till for the previous business day before setting today&apos;s opening balances.
@@ -78,6 +80,7 @@
       <div class="h-1.5 shrink-0 bg-gradient-to-r from-amber-500 via-emerald-500 to-sky-500" aria-hidden="true"></div>
       <div class="border-b border-[rgb(var(--rc-border))]/80 bg-gradient-to-b from-amber-500/[0.08] to-transparent px-4 py-4 sm:px-5">
         <p id="pos-day-opening-step-label" class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600/95 dark:text-amber-400/95">Start of day · Required</p>
+        <p id="pos-day-opening-shop-name" class="mt-1 truncate text-sm font-bold text-[rgb(var(--rc-page-fg))]">{{ _shop_display_name }}</p>
         <h2 id="pos-day-opening-modal-title" class="mt-1 text-lg font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-xl">Shop opening balances</h2>
         {% set _need_stock_confirm = shop_day_opening_boot.requires_stock_confirmation if shop_day_opening_boot and shop_day_opening_boot.requires_stock_confirmation is defined else ((pos_inventory_mode|default('')) in ('shop', 'both')) %}
         <p id="pos-day-opening-modal-desc" class="mt-2 text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
@@ -139,9 +142,9 @@
           {% endif %}
         </div>
         {% endif %}
-        <div id="pos-day-opening-code-wrap" class="{% if shop_day_opening_boot and not shop_day_opening_boot.requires_employee_code %}hidden {% endif %}">
+        <div id="pos-day-opening-code-wrap">
           <label class="block">
-            <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Your 6-digit code</span>
+            <span class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Manager / admin 6-digit code</span>
             <input
               id="pos-day-opening-employee-code"
               name="employee_code"
@@ -154,6 +157,7 @@
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm font-semibold tracking-[0.2em] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25"
             />
           </label>
+          <p class="mt-2 text-[11px] leading-relaxed text-[rgb(var(--rc-muted))]">Saving starts automatically when a valid manager or admin code is entered.</p>
         </div>
         <p id="pos-day-opening-msg" class="hidden text-sm font-semibold"></p>
         <button id="pos-day-opening-submit" type="submit" class="btn-rc btn-rc-primary w-full min-h-[2.85rem] text-sm font-bold">
