@@ -39,6 +39,10 @@
   var QR_ESC_POS_API = BOOT.apis.printerQrEscpos;
   var NETWORK_ESC_POS_API = BOOT.apis.printerSendEscpos;
   var PRINTER_LS_KEY = "richcom-shop-pos-printer-local-" + SHOP_ID;
+  var _printerProfileMem = null;
+  var _printerProfileFetchedAt = 0;
+  var _printerProfileInflight = null;
+  var PRINTER_PROFILE_STALE_MS = 90000;
   window.POS_PRINTING = BOOT.printing;
   (function () {
     var p = window.POS_PRINTING;
@@ -950,7 +954,6 @@ var saleType = "sale";
       });
       var stockInOpenBtn = document.getElementById("pos-buy-open");
       var stockInCloseBtn = document.getElementById("pos-stockin-close");
-      var stockInCancelBtn = document.getElementById("pos-stockin-cancel");
       var stockInBackdrop = document.getElementById("pos-stockin-backdrop");
       var stockInSearch = document.getElementById("pos-stockin-search");
       var stockInSelect = document.getElementById("pos-stockin-item-id");
@@ -959,7 +962,8 @@ var saleType = "sale";
       var stockInSellerName = document.getElementById("pos-stockin-seller-name");
       var stockInSellerHint = document.getElementById("pos-stockin-seller-hint");
       var stockInFeedback = document.getElementById("pos-stockin-feedback");
-      var stockInPrintBtn = document.getElementById("pos-stockin-print");
+      var stockInPrintReceiptCheck = document.getElementById("pos-stockin-print-receipt");
+      var stockInPrintReceiptRow = document.getElementById("pos-stockin-print-receipt-row");
       var stockInAuthCode = document.getElementById("pos-stockin-auth-code");
       var stockInAuthStatus = document.getElementById("pos-stockin-auth-status");
       var stockInAuthorizedEmployee = null;
@@ -1297,6 +1301,7 @@ var saleType = "sale";
         stockInAuthorizedEmployee = null;
         stockInLastSixCode = "";
         clearTimeout(stockInAuthSixTimer);
+        if (stockInPrintReceiptCheck) stockInPrintReceiptCheck.checked = true;
         if (stockInAuthCode) {
           stockInAuthCode.value = "";
           stockInAuthCode.disabled = false;
@@ -1495,7 +1500,6 @@ var saleType = "sale";
         });
       }
       if (stockInCloseBtn) stockInCloseBtn.addEventListener("click", function () { setStockInModalOpen(false); });
-      if (stockInCancelBtn) stockInCancelBtn.addEventListener("click", function () { setStockInModalOpen(false); });
       if (stockInBackdrop) stockInBackdrop.addEventListener("click", function () { setStockInModalOpen(false); });
       if (stockInAuthCode) {
         stockInAuthCode.addEventListener("input", onStockInAuthCodeInput);
@@ -1523,17 +1527,16 @@ var saleType = "sale";
           sellerLookupTimer = setTimeout(lookupSellerByPhone, 220);
         });
       }
-      if (stockInPrintBtn) {
-        stockInPrintBtn.addEventListener("click", function () {
-          if (!stockInReceiptUrl) return;
-          triggerStockInReceiptPrint();
-        });
-      }
       function stockInReceiptPrintUrl(rawUrl) {
         var url = String(rawUrl || "").trim();
         if (!url) return "";
-        if (url.indexOf("auto_print=") >= 0) return url;
-        return url + (url.indexOf("?") >= 0 ? "&" : "?") + "auto_print=1";
+        if (url.indexOf("embed=") < 0) {
+          url += (url.indexOf("?") >= 0 ? "&" : "?") + "embed=1";
+        }
+        if (url.indexOf("auto_print=") < 0) {
+          url += (url.indexOf("?") >= 0 ? "&" : "?") + "auto_print=1";
+        }
+        return url;
       }
 
       function triggerStockInReceiptPrint() {
@@ -1563,7 +1566,6 @@ var saleType = "sale";
             stockInFeedback.classList.add("hidden");
             stockInFeedback.textContent = "";
           }
-          if (stockInPrintBtn) stockInPrintBtn.classList.add("hidden");
           syncStockInQtyPriceToSubmit();
           var fd = new FormData(stockInForm);
           if (stockInEntryType === "expense") {
@@ -1590,23 +1592,25 @@ var saleType = "sale";
             .then(function (r) { return r.json().catch(function () { return {}; }); })
             .then(function (j) {
               if (!j || !j.ok) throw new Error((j && j.error) || "Could not save entry.");
-              if (stockInFeedback) {
-                stockInFeedback.textContent =
-                  j.message ||
-                  (j.entry_type === "expense"
-                    ? "Expense registered successfully."
-                    : "Item stocked in successfully.");
-                stockInFeedback.classList.remove("hidden");
-              }
-              stockInReceiptUrl = j.entry_type === "expense" ? "" : (j.receipt_url || "").trim();
-              if (stockInReceiptUrl && stockInPrintBtn) stockInPrintBtn.classList.remove("hidden");
+              var successMsg =
+                j.message ||
+                (j.entry_type === "expense"
+                  ? "Expense registered successfully."
+                  : "Item stocked in successfully.");
+              stockInReceiptUrl = (j.receipt_url || "").trim();
+              var shouldPrintStockInReceipt =
+                !!stockInReceiptUrl &&
+                stockInPrintReceiptCheck &&
+                stockInPrintReceiptCheck.checked;
               stockInForm.reset();
               setStockInEntryType("stock");
               Array.prototype.forEach.call(stockInTypeRadios || [], function (radio) {
                 radio.checked = radio.value === "stock";
               });
               resetStockInEmployeeAuth();
-              if (stockInReceiptUrl) {
+              setStockInModalOpen(false);
+              if (typeof showToast === "function") showToast(successMsg);
+              if (shouldPrintStockInReceipt) {
                 setTimeout(function () { triggerStockInReceiptPrint(); }, 80);
               }
               if (typeof window.refreshPosCatalogStock === "function") {
@@ -1649,6 +1653,10 @@ var saleType = "sale";
                   }
                   stockInForm.reset();
                   resetStockInEmployeeAuth();
+                  setStockInModalOpen(false);
+                  if (typeof showToast === "function") {
+                    showToast("Stock-in queued offline — will sync when online.");
+                  }
                   updateOfflineSyncBadge();
                 });
               }
@@ -3507,10 +3515,10 @@ var saleType = "sale";
             if (closedMsg) closedMsg.textContent = posTillBlockedMessage();
           }
         }
-        var closeShopBtn = document.getElementById("pos-close-shop-open");
-        var closeShopLink = document.getElementById("pos-close-shop-link");
-        var openShopBtn = document.getElementById("pos-open-shop-open");
-        var openShopLink = document.getElementById("pos-open-shop-link");
+        var closeShopBtn = document.getElementById("pos-close-shop-link");
+        var closeShopLink = closeShopBtn;
+        var openShopBtn = document.getElementById("pos-open-shop-link");
+        var openShopLink = openShopBtn;
         var showClose = canShowCloseShopButton();
         var showOpen = canShowOpenShopButton();
         if (closeShopBtn) closeShopBtn.classList.toggle("hidden", !showClose);
@@ -3526,12 +3534,14 @@ var saleType = "sale";
       function canShowCloseShopButton() {
         if (posTodayClosed()) return false;
         var cr = POS_DAY_CLOSING_REMINDER || {};
-        return !!cr.can_close_today;
+        if (!cr.can_submit) return false;
+        return !!POS_DAY_OPENING.completed;
       }
 
       function canShowOpenShopButton() {
         if (!posTodayClosed()) return false;
-        return !!POS_DAY_OPENING.can_submit;
+        var cr = POS_DAY_CLOSING_REMINDER || {};
+        return !!(POS_DAY_OPENING.can_submit || cr.can_submit);
       }
 
       function openCloseShopModal() {
@@ -5238,6 +5248,7 @@ var saleType = "sale";
         }
         authVerifyInFlight = true;
         if (verifyBtn) verifyBtn.disabled = true;
+        prefetchSavedPrinterProfile();
         var cachedPreview = employeeAuthCacheFindByCode(raw);
         setAuthStatus(
           cachedPreview
@@ -5263,11 +5274,12 @@ var saleType = "sale";
             lastVerifiedAuthCode = raw;
             setAuthStatus("Authorized: " + ((authorizedEmployee && authorizedEmployee.full_name) || "Employee"), "ok");
             updateProceedState();
-            maybeRegisterCustomerAfterAuth().then(function () {
-              if (load().length > 0) {
-                proceedSale();
-              }
-            });
+            maybeRegisterCustomerAfterAuth();
+            prefetchSavedPrinterProfile();
+            warmBluetoothPrinterIfSaved();
+            if (load().length > 0) {
+              proceedSale();
+            }
           })
           .catch(function (e) {
             if (looksLikeOfflineNetworkError(e)) {
@@ -5277,9 +5289,9 @@ var saleType = "sale";
                 lastVerifiedAuthCode = raw;
                 setAuthStatus("Authorized offline: " + (cached.full_name || "Employee"), "ok");
                 updateProceedState();
-                maybeRegisterCustomerAfterAuth().then(function () {
-                  if (load().length > 0) proceedSale();
-                });
+                maybeRegisterCustomerAfterAuth();
+                warmBluetoothPrinterIfSaved();
+                if (load().length > 0) proceedSale();
                 return;
               }
               authorizedEmployee = null;
@@ -5408,27 +5420,28 @@ var saleType = "sale";
               var qid = res && !res.queued && res.quote_id;
               var quotePrintRef =
                 res && res.queued && res.quote_print_ref ? res.quote_print_ref : qid != null ? qid : "";
-              return runConfiguredPrinterAction(
+              fireCheckoutPrint(
                 makeReceiptPayload(lines, mode, { isQuotation: true, quoteId: quotePrintRef })
-              ).catch(function () {}).then(function () {
-                return res;
-              });
+              );
+              return res;
             });
           }
           return commitSaleWithOfflineFallback(lines, mode).then(function (res) {
             var persistedReceiptNo = (res && res.receipt_number) ? String(res.receipt_number) : "";
             /* Explicit variants = IT / shop “Receipts to print per sale” (customer ± company ± cashier). */
             var salePrintOpts = { receiptVariants: receiptVariantsForCheckout() };
-            return runConfiguredPrinterAction(
+            fireCheckoutPrint(
               makeReceiptPayload(lines, mode, { persistedReceiptNo: persistedReceiptNo }),
               salePrintOpts
-            ).catch(function () {}).then(function () { return res; });
+            );
+            return res;
           });
         }
-        maybeRegisterCustomerAfterAuth()
-          .then(function () {
-            return doCheckoutAfterSave();
-          })
+        function fireCheckoutPrint(payload, printOpts) {
+          runConfiguredPrinterAction(payload, printOpts || {}).catch(function () {});
+        }
+        maybeRegisterCustomerAfterAuth();
+        doCheckoutAfterSave()
           .then(function (checkoutResult) {
             try {
               if (typeof window.__posOnSaleFinalized === "function") {
@@ -5656,9 +5669,13 @@ var saleType = "sale";
           mergeReceiptSeqMaxFromReceiptString((res && res.receipt_number) || "");
           try {
             if (typeof window.refreshPosCatalogStock === "function") {
-              window.refreshPosCatalogStock();
+              setTimeout(function () {
+                try {
+                  window.refreshPosCatalogStock();
+                } catch (eStockRf) {}
+              }, 0);
             }
-          } catch (eStockRf) {}
+          } catch (eStockRfWrap) {}
           return {
             queued: false,
             receipt_number: (res && res.receipt_number) ? String(res.receipt_number) : "",
@@ -6261,6 +6278,42 @@ var saleType = "sale";
         }
       }
 
+      /** Item header with Qty only (stock transfer delivery notes). */
+      function thermalTransferItemHeaderLine(W) {
+        var qtyW = 4;
+        var right = " " + "Qty".padStart(qtyW, " ");
+        var nameW = W - right.length;
+        if (nameW < 6) nameW = 6;
+        return ("Item" + " ".repeat(nameW)).slice(0, nameW) + right;
+      }
+
+      /** Item rows with Qty only — no amount column (stock transfer). */
+      function thermalTransferItemLines(l, W) {
+        var qtyW = 4;
+        var qty = fmtQty((l && l.qty) != null ? l.qty : 0);
+        var right = " " + qty.padStart(qtyW, " ");
+        var nameW = W - right.length;
+        if (nameW < 6) nameW = 6;
+        var rawName = String((l && l.name) || "Item");
+        var out = [];
+        var idx = 0;
+        while (idx < rawName.length) {
+          var take = Math.min(nameW, rawName.length - idx);
+          var chunk = rawName.slice(idx, idx + take);
+          idx += take;
+          var isLast = idx >= rawName.length;
+          if (isLast) {
+            out.push((chunk + " ".repeat(nameW)).slice(0, nameW) + right);
+          } else {
+            out.push(chunk);
+          }
+        }
+        if (!out.length) {
+          out.push((" ".repeat(nameW) + right).slice(0, W));
+        }
+        return out;
+      }
+
       /** Monospace item rows: name (wrapped) with Qty / Amt right-aligned on the last name line. */
       function thermalItemHeaderLine(W) {
         var qtyW = 4;
@@ -6279,6 +6332,19 @@ var saleType = "sale";
         var valMax = Math.max(8, W - left.length);
         var val = value.length > valMax ? value.slice(0, valMax - 1) + "\u2026" : value;
         return left + val.padStart(valMax, " ");
+      }
+
+      /** Delivered-by line; blank name prints an underscore line for manual signing. */
+      function thermalDeliveredByLine(name, W) {
+        var label = "DELIVERED BY";
+        var left = label + " ";
+        var val = String(name || "").trim();
+        var valMax = Math.max(8, W - left.length);
+        if (val) {
+          var shown = val.length > valMax ? val.slice(0, valMax - 1) + "\u2026" : val;
+          return left + shown.padStart(valMax, " ");
+        }
+        return left + "_".repeat(valMax);
       }
 
       function thermalItemLines(l, W) {
@@ -6398,6 +6464,13 @@ var saleType = "sale";
         return s;
       }
 
+      /** Stock transfer / delivery note receipts (approve incoming request). */
+      function isStockTransferReceipt(payload) {
+        return String((payload && payload.mode) || "")
+          .trim()
+          .toLowerCase() === "stock transfer";
+      }
+
       /** Thermal browser print: structured layout (brand + meta + monospace items + HTML totals). */
       function buildThermalReceiptPlainHtml(payload, variant) {
         variant = variant || "customer";
@@ -6455,6 +6528,8 @@ var saleType = "sale";
             ".receipt-thermal-reprint{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #f59e0b;background:#fffbeb;text-align:center}" +
             ".receipt-thermal-reprint__title{display:block;font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#92400e}" +
             ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:9.5px;color:#b45309}" +
+            ".receipt-thermal-stock-transfer__title{margin:0 0 2px;font-size:11px;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:#0f172a}" +
+            ".receipt-thermal-stock-transfer__sub{margin:0;font-size:9.5px;font-weight:700;line-height:1.25;color:#1e3a8a;text-transform:none}" +
             "pre.receipt{margin:0;width:100%;max-width:100%;font-family:'Cascadia Mono','Courier New',Consolas,'Liberation Mono',monospace;font-size:9.5px;font-weight:700;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;overflow:visible;color:#000}" +
             "pre.receipt--meta,pre.receipt--payment,pre.receipt--totals{margin:0;padding:0.8mm 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:700}" +
             "pre.receipt--items{margin:0;padding:0.8mm 0 0;border-top:1px solid #000}" +
@@ -6495,6 +6570,15 @@ var saleType = "sale";
           } else if (isCashier) {
             badge = '<p class="receipt-thermal-badge receipt-thermal-badge--cashier">Cashier copy</p>';
           }
+          if (isStockTransferReceipt(payload)) {
+            return (
+              '<header class="receipt-thermal-brand">' +
+              badge +
+              '<p class="receipt-thermal-stock-transfer__title"><strong>DELIVERY NOTE</strong></p>' +
+              "</header>" +
+              '<div class="receipt-thermal-rule" role="presentation"></div>'
+            );
+          }
           var shop = receiptEsc(String(payload.shopName || "Point of Sale"));
           var co = (payload.companyName || "").trim();
           var coHtml = co ? '<p class="receipt-thermal-company">' + receiptEsc(co) + "</p>" : "";
@@ -6519,24 +6603,46 @@ var saleType = "sale";
           if (showCustomerBlock) {
             var modeStr = String(payload.mode || "");
             var isCredit = modeStr.toLowerCase().indexOf("credit") !== -1;
-            if (modeStr && (isCredit || payload.isQuotation)) {
+            if (modeStr && (isCredit || payload.isQuotation) && !isStockTransferReceipt(payload)) {
               metaLines.push(thermalMetaLabelLine("MODE", modeStr, W));
             }
             var dueT = (payload.creditDueDate || "").trim();
             if (dueT && isCredit) {
               metaLines.push(thermalMetaLabelLine("DUE", dueT, W));
             }
-            var buyer =
-              String(payload.customerName || "").trim() +
-              (String(payload.customerPhone || "").trim() ? " · " + String(payload.customerPhone).trim() : "");
-            metaLines.push(thermalMetaLabelLine("BUYER", buyer || "—", W));
+            if (isStockTransferReceipt(payload)) {
+              metaLines.push(
+                thermalMetaLabelLine(
+                  "TO",
+                  String(payload.transferToShop || payload.customerName || "—").trim(),
+                  W
+                )
+              );
+            } else {
+              var buyer =
+                String(payload.customerName || "").trim() +
+                (String(payload.customerPhone || "").trim() ? " · " + String(payload.customerPhone).trim() : "");
+              metaLines.push(thermalMetaLabelLine("BUYER", buyer || "—", W));
+            }
           }
           if (isCompany) {
             metaLines.push(
               thermalMetaLabelLine("STAFF", String(payload.employeeName || "").trim() || "—", W)
             );
+            if (isStockTransferReceipt(payload)) {
+              metaLines.push(
+                thermalMetaLabelLine(
+                  "TO",
+                  String(payload.transferToShop || payload.customerName || "—").trim(),
+                  W
+                )
+              );
+            }
           } else if (S.show_server) {
             metaLines.push(thermalMetaLabelLine("STAFF", payload.employeeName, W));
+          }
+          if (isStockTransferReceipt(payload)) {
+            metaLines.push(thermalDeliveredByLine(payload.deliveredBy, W));
           }
           if (!metaLines.length) return "";
           return (
@@ -6673,7 +6779,7 @@ var saleType = "sale";
 
         /* ── Company copy: monospace body (no prices), after brand. ── */
         if (isCompany) {
-          L(thermalPlainCenter("Items sold", W));
+          L(thermalPlainCenter(isStockTransferReceipt(payload) ? "Items transferred" : "Items sold", W));
           L(sep);
           (payload.lines || []).forEach(function (l) {
             var name = String((l && l.name) || "Item");
@@ -6707,17 +6813,28 @@ var saleType = "sale";
 
         /* ── Customer / cashier: hybrid layout. ── */
         lines.length = 0;
-        L(thermalItemHeaderLine(W));
-        L(sep);
-        (payload.lines || []).forEach(function (l) {
-          thermalItemLines(l, W).forEach(function (row) {
-            L(row);
+        if (isStockTransferReceipt(payload)) {
+          L(thermalTransferItemHeaderLine(W));
+          L(sep);
+          (payload.lines || []).forEach(function (l) {
+            thermalTransferItemLines(l, W).forEach(function (row) {
+              L(row);
+            });
           });
-        });
+        } else {
+          L(thermalItemHeaderLine(W));
+          L(sep);
+          (payload.lines || []).forEach(function (l) {
+            thermalItemLines(l, W).forEach(function (row) {
+              L(row);
+            });
+          });
+        }
 
         var itemsPlain = lines.join("\n");
         var rollCss = rollWmm === 58 ? "58mm" : "80mm";
         var thermalStyles = buildThermalReceiptStyles(rollCss, rollWmm, baseFont);
+        var transferReceipt = isStockTransferReceipt(payload);
 
         return (
           "<!doctype html><html><head><meta charset='utf-8'><title>Receipt</title>" +
@@ -6736,8 +6853,8 @@ var saleType = "sale";
           '<pre class="receipt receipt--items">' +
           receiptEsc(itemsPlain) +
           "</pre>" +
-          totalsPlainPreHtml() +
-          paymentPlainPreHtml() +
+          (transferReceipt ? "" : totalsPlainPreHtml()) +
+          (transferReceipt ? "" : paymentPlainPreHtml()) +
           footerHtmlBlock() +
           qrHtml +
           "<pre class=\"receipt receipt--tail\">" +
@@ -6875,14 +6992,22 @@ var saleType = "sale";
         pushBytes([ESC, 0x40]);
         charSizeNormal();
         pushBytes([ESC, 0x61, 0x01]);
-        charSizeTitle();
-        boldOn();
-        pushLn(String(payload.shopName || "Point of Sale"));
-        boldOff();
-        charSizeNormal();
+        if (isStockTransferReceipt(payload)) {
+          charSizeTitle();
+          boldOn();
+          pushLn("DELIVERY NOTE");
+          boldOff();
+          charSizeNormal();
+        } else {
+          charSizeTitle();
+          boldOn();
+          pushLn(String(payload.shopName || "Point of Sale"));
+          boldOff();
+          charSizeNormal();
+        }
         pushBytes([ESC, 0x61, 0x00]);
 
-        if ((payload.companyName || "").trim()) {
+        if (!isStockTransferReceipt(payload) && (payload.companyName || "").trim()) {
           pushBytes([ESC, 0x61, 0x01]);
           charSizeSubtitle();
           pushLn(String(payload.companyName).slice(0, W + 8));
@@ -6959,18 +7084,36 @@ var saleType = "sale";
         pushLn("Receipt: " + String(payload.receiptNo || ""));
         if (S.show_datetime || isCompany) pushLn("Date: " + String(payload.printedAt || ""));
         if (!isCompany) {
-          pushLn("Type: " + String(payload.mode || ""));
+          if (!isStockTransferReceipt(payload)) {
+            pushLn("Type: " + String(payload.mode || ""));
+          }
           var dueE = (payload.creditDueDate || "").trim();
           if (dueE && String(payload.mode || "").toLowerCase().indexOf("credit") !== -1) {
             pushLn("Pay by: " + dueE);
           }
-          pushLn("Customer: " + String(payload.customerName || ""));
-          pushLn("Phone: " + String(payload.customerPhone || ""));
+          if (isStockTransferReceipt(payload)) {
+            pushLn(
+              "To: " +
+                String(payload.transferToShop || payload.customerName || "").trim()
+            );
+          } else {
+            pushLn("Customer: " + String(payload.customerName || ""));
+            pushLn("Phone: " + String(payload.customerPhone || ""));
+          }
         }
         if (isCompany) {
           pushLn("Served by: " + (String(payload.employeeName || "").trim() || "—"));
+          if (isStockTransferReceipt(payload)) {
+            pushLn(
+              "To: " +
+                String(payload.transferToShop || payload.customerName || "").trim()
+            );
+          }
         } else if (S.show_server) {
           pushLn("Served by: " + String(payload.employeeName || ""));
+        }
+        if (isStockTransferReceipt(payload)) {
+          pushLn(thermalDeliveredByLine(payload.deliveredBy, W));
         }
         boldOff();
         sep();
@@ -6978,12 +7121,21 @@ var saleType = "sale";
         var nameMax = Math.max(12, W - 4);
         if (isCompany) {
           if (S.bold_headers) boldOn();
-          pushLn("Items sold");
+          pushLn(isStockTransferReceipt(payload) ? "Items transferred" : "Items sold");
           if (S.bold_headers) boldOff();
           (payload.lines || []).forEach(function (l) {
             var name = String((l && l.name) || "Item");
             if (l && l.discounted) name = name + " (DISCOUNTED)";
             pushLn(name.slice(0, nameMax) + "  x" + fmtQty((l && l.qty) || 0));
+          });
+        } else if (isStockTransferReceipt(payload)) {
+          if (S.bold_headers) boldOn();
+          pushLn(thermalTransferItemHeaderLine(W));
+          if (S.bold_headers) boldOff();
+          (payload.lines || []).forEach(function (l) {
+            thermalTransferItemLines(l, W).forEach(function (row) {
+              pushLn(row);
+            });
           });
         } else if (showPrices) {
           if (S.bold_headers) boldOn();
@@ -7017,17 +7169,17 @@ var saleType = "sale";
           }
         }
 
-        if (showPrices) {
+        if (showPrices && !isStockTransferReceipt(payload)) {
           var payTypeEsc = String(payload.paymentTypeLabel || "").trim();
           var pdEsc = (payload.paymentDetailText || "").trim();
           if (payTypeEsc || pdEsc) {
-          sep();
-          if (payTypeEsc) {
-            boldOn();
-            pushLn(payTypeEsc);
-            boldOff();
-          }
-          if (pdEsc) pdEsc.split(/\r?\n/).forEach(function (ln) { pushLn(ln.slice(0, W + 8)); });
+            sep();
+            if (payTypeEsc) {
+              boldOn();
+              pushLn(payTypeEsc);
+              boldOff();
+            }
+            if (pdEsc) pdEsc.split(/\r?\n/).forEach(function (ln) { pushLn(ln.slice(0, W + 8)); });
           }
         }
 
@@ -7155,55 +7307,105 @@ var saleType = "sale";
         }
       }
 
-      /** Server is source of truth; cache in localStorage only mirrors GET /printer for this shop. */
-      function loadSavedPrinterProfile() {
-        return fetch(PRINTER_API, { credentials: "same-origin", headers: { Accept: "application/json" } })
+      function applyPrinterProfileFromServerJson(j) {
+        var sid = j && j.shop_id != null ? Number(j.shop_id) : Number(SHOP_ID);
+        if (!j || Number(sid) !== Number(SHOP_ID)) {
+          try {
+            localStorage.removeItem(PRINTER_LS_KEY);
+          } catch (e0) {}
+          _printerProfileMem = null;
+          _printerProfileFetchedAt = 0;
+          return null;
+        }
+        if (!j.ok) {
+          var cached = offlinePrinterProfileFromCache();
+          if (cached) _printerProfileMem = cached;
+          return cached;
+        }
+        var serverP = j.printer || null;
+        if (
+          serverP &&
+          typeof window.posPrinterTypeAllowed === "function" &&
+          !window.posPrinterTypeAllowed(null, String(serverP.printer_type || "").toLowerCase())
+        ) {
+          serverP = null;
+        }
+        if (!serverP && j && j.stale_printer) {
+          try {
+            localStorage.removeItem(PRINTER_LS_KEY);
+          } catch (eStale) {}
+        }
+        if (serverP) {
+          var fp = printerProfileFingerprint(serverP);
+          _printerProfileMem = serverP;
+          _printerProfileFetchedAt = Date.now();
+          try {
+            localStorage.setItem(
+              PRINTER_LS_KEY,
+              JSON.stringify(Object.assign({}, serverP, { shop_id: SHOP_ID, printer_fingerprint: fp }))
+            );
+          } catch (e1) {}
+          return serverP;
+        }
+        _printerProfileMem = null;
+        _printerProfileFetchedAt = Date.now();
+        try {
+          localStorage.removeItem(PRINTER_LS_KEY);
+        } catch (e2) {}
+        return null;
+      }
+
+      function fetchPrinterProfileFromServer() {
+        if (_printerProfileInflight) return _printerProfileInflight;
+        _printerProfileInflight = fetch(PRINTER_API, {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
           .then(function (r) {
             return r.json();
           })
           .then(function (j) {
-            var sid = j && j.shop_id != null ? Number(j.shop_id) : Number(SHOP_ID);
-            if (!j || Number(sid) !== Number(SHOP_ID)) {
-              try {
-                localStorage.removeItem(PRINTER_LS_KEY);
-              } catch (e0) {}
-              return null;
-            }
-            if (!j.ok) {
-              return offlinePrinterProfileFromCache();
-            }
-            var serverP = j.printer || null;
-            if (
-              serverP &&
-              typeof window.posPrinterTypeAllowed === "function" &&
-              !window.posPrinterTypeAllowed(null, String(serverP.printer_type || "").toLowerCase())
-            ) {
-              serverP = null;
-            }
-            if (!serverP && j && j.stale_printer) {
-              try {
-                localStorage.removeItem(PRINTER_LS_KEY);
-              } catch (eStale) {}
-            }
-            if (serverP) {
-              var fp = printerProfileFingerprint(serverP);
-              try {
-                localStorage.setItem(
-                  PRINTER_LS_KEY,
-                  JSON.stringify(Object.assign({}, serverP, { shop_id: SHOP_ID, printer_fingerprint: fp }))
-                );
-              } catch (e1) {}
-              return serverP;
-            }
-            try {
-              localStorage.removeItem(PRINTER_LS_KEY);
-            } catch (e2) {}
-            return null;
+            return applyPrinterProfileFromServerJson(j);
           })
           .catch(function () {
-            return offlinePrinterProfileFromCache();
+            var fallback = offlinePrinterProfileFromCache();
+            if (fallback) _printerProfileMem = fallback;
+            return fallback;
+          })
+          .finally(function () {
+            _printerProfileInflight = null;
           });
+        return _printerProfileInflight;
       }
+
+      function prefetchSavedPrinterProfile() {
+        var cached = _printerProfileMem || offlinePrinterProfileFromCache();
+        if (cached) _printerProfileMem = cached;
+        return fetchPrinterProfileFromServer().catch(function () {
+          return _printerProfileMem || null;
+        });
+      }
+
+      /** Server is source of truth; returns cached profile immediately when available (stale-while-revalidate). */
+      function loadSavedPrinterProfile(opts) {
+        opts = opts || {};
+        var cached = _printerProfileMem;
+        if (!cached) {
+          cached = offlinePrinterProfileFromCache();
+          if (cached) _printerProfileMem = cached;
+        }
+        var age = _printerProfileFetchedAt ? Date.now() - _printerProfileFetchedAt : Infinity;
+        if (!opts.forceRefresh && cached && age > PRINTER_PROFILE_STALE_MS && !_printerProfileInflight) {
+          fetchPrinterProfileFromServer().catch(function () {});
+        }
+        if (cached && !opts.forceRefresh) {
+          return Promise.resolve(cached);
+        }
+        return fetchPrinterProfileFromServer();
+      }
+
+      window.__posApplyPrinterProfileJson = applyPrinterProfileFromServerJson;
+      window.__posPrefetchPrinterProfile = prefetchSavedPrinterProfile;
 
       /** Simple Bluetooth session model for web apps. */
       var posBtPinnedDevice = null;
@@ -7385,6 +7587,24 @@ var saleType = "sale";
         });
       }
 
+      /** Keep BLE GATT linked during the shift so checkout print skips reconnect latency. */
+      function warmBluetoothPrinterIfSaved() {
+        if (!window.isSecureContext || !navigator.bluetooth) return Promise.resolve();
+        var cached = _printerProfileMem || offlinePrinterProfileFromCache();
+        if (!cached || String(cached.printer_type || "").toLowerCase() !== "bluetooth") {
+          return Promise.resolve();
+        }
+        if (posBtBusy) return Promise.resolve();
+        if (posBtPinnedDevice && posBtPinnedDevice.gatt && posBtPinnedDevice.gatt.connected) {
+          return Promise.resolve();
+        }
+        var cfg = normalizePrinterConfig(cached.config);
+        if (!cfg || !cfg.bluetoothId) return Promise.resolve();
+        return getBluetoothDeviceForEscPos(cfg).catch(function () {});
+      }
+
+      window.__posWarmBluetoothPrinter = warmBluetoothPrinterIfSaved;
+
       function pickWritableCharacteristic(svc) {
         return svc.getCharacteristics().then(function (chars) {
           var list = (chars || []).slice().sort(function (a, b) {
@@ -7552,11 +7772,6 @@ var saleType = "sale";
             function sendVariant(i) {
               if (i >= variants.length) return Promise.resolve();
               var variant = variants[i];
-              var S = receiptSettings();
-              var qrTxt =
-                variant !== "company" && receiptQrEnabled(S)
-                  ? buildReceiptQrPayloadStringEscPos(payload, S)
-                  : "";
               function writeBytes(qrRaster) {
                 var bytes = buildEscPosReceiptBytes(payload, variant, qrRaster);
                 return writeEscPosToCharacteristic(ch, bytes).then(function () {
@@ -7565,25 +7780,9 @@ var saleType = "sale";
                   });
                 });
               }
-              if (!qrTxt) {
-                return writeBytes();
-              }
-              return fetch(QR_ESC_POS_API, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "Content-Type": "application/json", Accept: "application/octet-stream" },
-                body: JSON.stringify({ text: qrTxt }),
-              })
-                .then(function (r) {
-                  if (!r.ok) throw new Error("qr");
-                  return r.arrayBuffer();
-                })
-                .then(function (ab) {
-                  return writeBytes(new Uint8Array(ab));
-                })
-                .catch(function () {
-                  return writeBytes();
-                });
+              return resolveQrRasterForEscPos(payload, variant, printOpts).then(function (qrRaster) {
+                return writeBytes(qrRaster);
+              });
             }
             return sendVariant(0);
           })
@@ -7650,6 +7849,59 @@ var saleType = "sale";
         return btoa(s);
       }
 
+      function fetchReceiptQrRasterFromServer(qrTxt) {
+        return fetch(QR_ESC_POS_API, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/octet-stream" },
+          body: JSON.stringify({ text: qrTxt }),
+        })
+          .then(function (r) {
+            if (!r.ok) throw new Error("qr");
+            return r.arrayBuffer();
+          })
+          .then(function (ab) {
+            return ab ? new Uint8Array(ab) : null;
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+
+      function prefetchReceiptQrRaster(payload, printOpts) {
+        printOpts = printOpts || {};
+        var S = receiptSettings();
+        if (!receiptQrEnabled(S)) return Promise.resolve(null);
+        var variants =
+          Array.isArray(printOpts.receiptVariants) && printOpts.receiptVariants.length
+            ? printOpts.receiptVariants
+            : receiptVariantsForCheckout();
+        var needsQr = false;
+        for (var qi = 0; qi < variants.length; qi++) {
+          if (variants[qi] !== "company") {
+            needsQr = true;
+            break;
+          }
+        }
+        if (!needsQr) return Promise.resolve(null);
+        var qrTxt = buildReceiptQrPayloadStringEscPos(payload, S);
+        if (!qrTxt) return Promise.resolve(null);
+        return fetchReceiptQrRasterFromServer(qrTxt);
+      }
+
+      function resolveQrRasterForEscPos(payload, variant, printOpts) {
+        var S = receiptSettings();
+        var qrTxt =
+          variant !== "company" && receiptQrEnabled(S)
+            ? buildReceiptQrPayloadStringEscPos(payload, S)
+            : "";
+        if (!qrTxt) return Promise.resolve(null);
+        if (printOpts && printOpts.qrRasterCache) {
+          return Promise.resolve(printOpts.qrRasterCache);
+        }
+        return fetchReceiptQrRasterFromServer(qrTxt);
+      }
+
       /** Server opens TCP to the shop’s saved network printer (browser cannot). Retries once on failure. */
       function sendEscPosToSavedNetworkPrinter(bytes, attempt) {
         attempt = attempt || 0;
@@ -7682,11 +7934,6 @@ var saleType = "sale";
         function sendVariant(i) {
           if (i >= variants.length) return Promise.resolve();
           var variant = variants[i];
-          var S = receiptSettings();
-          var qrTxt =
-            variant !== "company" && receiptQrEnabled(S)
-              ? buildReceiptQrPayloadStringEscPos(payload, S)
-              : "";
           function writeBytes(qrRaster) {
             var bytes = buildEscPosReceiptBytes(payload, variant, qrRaster);
             return sendEscPosToSavedNetworkPrinter(bytes).then(function () {
@@ -7695,25 +7942,9 @@ var saleType = "sale";
               });
             });
           }
-          if (!qrTxt) {
-            return writeBytes();
-          }
-          return fetch(QR_ESC_POS_API, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "Content-Type": "application/json", Accept: "application/octet-stream" },
-            body: JSON.stringify({ text: qrTxt }),
-          })
-            .then(function (r) {
-              if (!r.ok) throw new Error("qr");
-              return r.arrayBuffer();
-            })
-            .then(function (ab) {
-              return writeBytes(new Uint8Array(ab));
-            })
-            .catch(function () {
-              return writeBytes();
-            });
+          return resolveQrRasterForEscPos(payload, variant, printOpts).then(function (qrRaster) {
+            return writeBytes(qrRaster);
+          });
         }
         return sendVariant(0).catch(function (e) {
           setAuthStatus((e && e.message) ? e.message : "Network thermal print failed.", "error");
@@ -7874,11 +8105,6 @@ var saleType = "sale";
                 function drainVariant(i) {
                   if (i >= variants.length) return cleanup();
                   var variant = variants[i];
-                  var S = receiptSettings();
-                  var qrTxt =
-                    variant !== "company" && receiptQrEnabled(S)
-                      ? buildReceiptQrPayloadStringEscPos(payload, S)
-                      : "";
                   function writeBytes(qrRaster) {
                     var bytes = buildEscPosReceiptBytes(payload, variant, qrRaster);
                     return writeUsbBulkOut(device, picked.endpointNumber, bytes).then(function () {
@@ -7887,23 +8113,9 @@ var saleType = "sale";
                       });
                     });
                   }
-                  if (!qrTxt) return writeBytes();
-                  return fetch(QR_ESC_POS_API, {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: { "Content-Type": "application/json", Accept: "application/octet-stream" },
-                    body: JSON.stringify({ text: qrTxt }),
-                  })
-                    .then(function (r) {
-                      if (!r.ok) throw new Error("qr");
-                      return r.arrayBuffer();
-                    })
-                    .then(function (ab) {
-                      return writeBytes(new Uint8Array(ab));
-                    })
-                    .catch(function () {
-                      return writeBytes();
-                    });
+                  return resolveQrRasterForEscPos(payload, variant, printOpts).then(function (qrRaster) {
+                    return writeBytes(qrRaster);
+                  });
                 }
                 return drainVariant(0).catch(function (e) {
                   return cleanup().then(function () {
@@ -8413,7 +8625,14 @@ var saleType = "sale";
       function runConfiguredPrinterAction(payload, printOpts) {
         printOpts = printOpts || {};
         var pp = window.POS_PRINTING || {};
-        return loadSavedPrinterProfile().then(function (saved) {
+        return Promise.all([
+          loadSavedPrinterProfile(),
+          prefetchReceiptQrRaster(payload, printOpts),
+        ]).then(function (results) {
+          var saved = results[0];
+          var mergedPrintOpts = Object.assign({}, printOpts);
+          if (results[1]) mergedPrintOpts.qrRasterCache = results[1];
+          printOpts = mergedPrintOpts;
           var pt = saved ? String(saved.printer_type || "").toLowerCase() : "";
           /* Optional printing: checkout works without a saved profile; still offer OS/browser thermal print when allowed. */
           if (!printingCompulsoryOnSaleEnabled() && (!saved || !pt)) {
@@ -8483,6 +8702,13 @@ var saleType = "sale";
           return fallbackBrowserOrBluetooth();
         });
       }
+
+      /** Same print path as POS checkout (ESC/POS + browser thermal fallback, IT receipt copy count). */
+      window.__posPrintReceiptLikeCheckout = function (payload) {
+        return runConfiguredPrinterAction(payload, {
+          receiptVariants: receiptVariantsForCheckout(),
+        }).catch(function () {});
+      };
 
       document.addEventListener("click", function (e) {
         var btn = e.target.closest(".pos-qty-btn");
@@ -9574,6 +9800,20 @@ var saleType = "sale";
       schedulePosIdleWork(function () {
         syncLocalReceiptSeqFromServerQuiet();
       }, 600);
+      schedulePosIdleWork(function () {
+        prefetchSavedPrinterProfile();
+        warmBluetoothPrinterIfSaved();
+      }, 800);
+      (function preloadReceiptLogoAsset() {
+        var site = BOOT.site || window.POS_SITE || {};
+        var logoUrl = String(site.receipt_logo_url || site.app_icon_url || "").trim();
+        if (!logoUrl) return;
+        try {
+          var img = new Image();
+          img.decoding = "async";
+          img.src = logoUrl;
+        } catch (eLogo) {}
+      })();
       window.addEventListener("online", function () {
         refreshEmployeeAuthCacheFromServer();
         syncLocalReceiptSeqFromServerQuiet();
@@ -9808,8 +10048,8 @@ var saleType = "sale";
           },
         });
       }
-      var closeShopBtn = document.getElementById("pos-close-shop-open");
-      var closeShopLink = document.getElementById("pos-close-shop-link");
+      var closeShopBtn = document.getElementById("pos-close-shop-link");
+      var closeShopLink = closeShopBtn;
       [closeShopBtn, closeShopLink].forEach(function (el) {
         if (!el) return;
         el.addEventListener("click", function (ev) {
@@ -9817,8 +10057,8 @@ var saleType = "sale";
           openCloseShopModal();
         });
       });
-      var openShopBtn = document.getElementById("pos-open-shop-open");
-      var openShopLink = document.getElementById("pos-open-shop-link");
+      var openShopBtn = document.getElementById("pos-open-shop-link");
+      var openShopLink = openShopBtn;
       [openShopBtn, openShopLink].forEach(function (el) {
         if (!el) return;
         el.addEventListener("click", function (ev) {

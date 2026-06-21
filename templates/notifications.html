@@ -63,7 +63,7 @@
           <p class="text-[10px] font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-primary))]">Company portal</p>
           <h2 class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))] sm:text-2xl">Notifications</h2>
           <p class="mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-            Review stock requests across all shops, approve company transfers, and catch up on system alerts.
+            Approve pending stock requests across shops, then review approved or declined outcomes.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -72,7 +72,7 @@
             {{ pending_n }} pending
           </span>
           <span class="inline-flex items-center gap-2 rounded-full border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-xs font-bold text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
-            {{ notif_n }} notification{% if notif_n != 1 %}s{% endif %}
+            {{ notif_n }} outcome{% if notif_n != 1 %}s{% endif %}
           </span>
         </div>
       </div>
@@ -82,7 +82,7 @@
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-5 py-4">
         <div>
           <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Requests awaiting approval</h3>
-          <p class="text-xs text-[rgb(var(--rc-muted))]">Stock transfers and returns needing action</p>
+          <p class="text-xs text-[rgb(var(--rc-muted))]">Pending stock requests you can approve or decline</p>
         </div>
         {% if pending_n > 0 %}
           <span class="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-200 ring-1 ring-amber-400/25">
@@ -93,8 +93,8 @@
 
       {% if not stock_requests %}
         <div class="px-5 py-10 text-center">
-          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No stock requests yet.</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Requests from shops or directed to company inventory will appear here.</p>
+          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No requests awaiting approval.</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Pending company transfers and return requests will appear here.</p>
         </div>
       {% else %}
         <div class="overflow-x-auto">
@@ -138,7 +138,7 @@
                   <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
                   <td>
                     <div class="cn-actions">
-                      {% if st == 'pending' and r.can_review %}
+                      {% if r.can_review %}
                         {% if not r.can_approve_now %}
                           <span class="text-[10px] font-bold uppercase tracking-wide text-rose-300" title="Not enough stock at source">Low stock</span>
                         {% endif %}
@@ -148,10 +148,6 @@
                         <form method="post" action="{{ url_for('reject_stock_request', request_id=r.id) }}" onsubmit="return confirm('Cancel this stock request? The requesting shop will be notified.');">
                           <button type="submit" class="btn-rc btn-rc-danger px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">Decline</button>
                         </form>
-                      {% elif st == 'pending' %}
-                        <span class="text-xs text-amber-200/90">Awaiting supplier</span>
-                      {% elif r.review_note %}
-                        <span class="text-xs text-[rgb(var(--rc-muted))]">{{ r.review_note }}</span>
                       {% else %}
                         <span class="text-xs text-[rgb(var(--rc-muted))]">—</span>
                       {% endif %}
@@ -169,14 +165,14 @@
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-5 py-4">
         <div>
           <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Notifications</h3>
-          <p class="text-xs text-[rgb(var(--rc-muted))]">Updates on requests, transfers and outcomes</p>
+          <p class="text-xs text-[rgb(var(--rc-muted))]">Approved, declined and expired request outcomes</p>
         </div>
       </div>
 
       {% if not notifications %}
         <div class="px-5 py-10 text-center">
-          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No notifications yet.</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Alerts about stock requests and transfers will show here.</p>
+          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No outcomes yet.</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Approved, declined and expired request updates will show here.</p>
         </div>
       {% else %}
         <div class="overflow-x-auto">

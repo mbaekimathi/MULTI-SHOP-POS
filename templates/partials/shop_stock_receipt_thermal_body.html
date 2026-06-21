@@ -1,0 +1,115 @@
+{# Thermal receipt body — purchase invoice or delivery note #}
+{% set S = pos_receipt_settings or {} %}
+{% set r = receipt or {} %}
+{% set dt_short = (r.created_at|string)[:22] if r.created_at else '—' %}
+{% set total_str = "%.2f"|format(r.total_cost or 0) %}
+{% set qty_str = (r.qty or 0) | string %}
+{% set price_str = "%.2f"|format(r.buying_price or 0) %}
+{% set is_stock_transfer = (receipt_kind or '')|lower == 'stock transfer' %}
+{% set is_expense = (receipt_kind or '')|lower == 'operational expense' %}
+{% set note_text = (r.note or '')|trim %}
+{% set supplier_name = (r.place_brought_from or '—')|trim %}
+{% set supplier_phone = (r.seller_phone or '—')|trim %}
+{% set receipt_logo = '' %}
+{% if S.show_logo %}
+  {% if shop.shop_logo %}
+    {% set receipt_logo = url_for('static', filename=shop.shop_logo) %}
+  {% elif site_settings and site_settings.app_icon %}
+    {% set receipt_logo = url_for('static', filename=site_settings.app_icon) %}
+  {% else %}
+    {% set receipt_logo = url_for('static', filename='app-icon.svg') %}
+  {% endif %}
+{% endif %}
+{% set qr_on = S.receipt_qr_enabled | default(false) %}
+{% set qm = (S.receipt_qr_mode or 'receipt_details') | string | trim %}
+{% set qr_site = (S.receipt_qr_website_url or '') | trim %}
+
+<div class="receipt-thermal">
+  <div class="receipt-thermal-accent" aria-hidden="true"></div>
+
+  {% if receipt_logo %}
+    <div class="receipt-logo-row">
+      <img src="{{ receipt_logo }}" alt="" />
+    </div>
+  {% endif %}
+
+  <header class="receipt-thermal-brand">
+    {% if is_stock_transfer %}
+      <p class="receipt-thermal-stock-transfer__title"><strong>DELIVERY NOTE</strong></p>
+    {% elif is_expense %}
+      <p class="receipt-thermal-invoice__title"><strong>EXPENSE RECEIPT</strong></p>
+      <p class="receipt-thermal-invoice__sub">Non-stock operational expense</p>
+      <h1 class="receipt-thermal-shopname">{{ shop.shop_name }}</h1>
+    {% else %}
+      <p class="receipt-thermal-invoice__title"><strong>PURCHASE INVOICE</strong></p>
+      <p class="receipt-thermal-invoice__sub">For company payment to supplier</p>
+      <h1 class="receipt-thermal-shopname">{{ shop.shop_name }}</h1>
+    {% endif %}
+    {% if site_settings and site_settings.company_name %}
+      <p class="receipt-thermal-company">{{ site_settings.company_name }}</p>
+    {% endif %}
+  </header>
+  <div class="receipt-thermal-rule" role="presentation"></div>
+
+  {% if (S.show_address and r.shop_location) or (S.show_contact and site_settings and (site_settings.company_phone or site_settings.company_email)) %}
+    <div class="receipt-thermal-contact">
+      {% if S.show_address and r.shop_location %}
+        <p class="receipt-thermal-mut">{{ r.shop_location }}</p>
+      {% endif %}
+      {% if S.show_contact and site_settings and (site_settings.company_phone or site_settings.company_email) %}
+        <p class="receipt-thermal-mut">
+          {{ site_settings.company_phone or '' }}{% if site_settings.company_phone and site_settings.company_email %} · {% endif %}{{ site_settings.company_email or '' }}
+        </p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if S.receipt_header %}
+    <div class="receipt-thermal-customhdr">{{ S.receipt_header }}</div>
+  {% endif %}
+
+  <pre class="receipt receipt--meta">{% if is_stock_transfer %}TX        #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+{% elif is_expense %}EXPENSE   #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+CATEGORY  {{ r.category_name or '—' }}
+SUPPLIER  {{ supplier_name }}
+PHONE     {{ supplier_phone }}
+{% if S.show_server %}RECORDED  {{ r.served_by or '—' }}
+{% endif %}{% else %}INVOICE   #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+SUPPLIER  {{ supplier_name }}
+PHONE     {{ supplier_phone }}
+{% if S.show_server %}RECORDED  {{ r.served_by or '—' }}
+{% endif %}{% endif %}{% if is_stock_transfer %}TO        {{ r.place_brought_from or '—' }}
+{% if S.show_server %}STAFF     {{ r.served_by or '—' }}
+{% endif %}DELIVERED BY {% if r.delivered_by %}{{ r.delivered_by }}{% else %}_________________________{% endif %}
+{% endif %}</pre>
+
+  {% if is_stock_transfer %}
+  <pre class="receipt receipt--items">{{ r.item_name }}
+QTY       {{ qty_str }}</pre>
+  {% else %}
+  <pre class="receipt receipt--items">Item              Qty   Rate      Amt
+----------------------------------------
+{{ r.item_name }}
+                  {{ qty_str }}  {{ price_str }}  {{ total_str }}</pre>
+
+  <pre class="receipt receipt--totals">AMOUNT DUE        {{ total_str }}</pre>
+
+  <pre class="receipt receipt--note">NOTE      {% if note_text %}{{ note_text }}{% else %}_________________________{% endif %}</pre>
+  {% endif %}
+
+  {% if qr_on %}
+    {% set qr_payload = qr_site if (qm == 'website' and qr_site) else request.url %}
+    <div class="receipt-qr">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data={{ qr_payload|urlencode }}" alt="" width="96" height="96" />
+      <p class="receipt-qr-caption">{% if qm == 'website' and qr_site %}Scan for link{% else %}Scan for receipt details{% endif %}</p>
+    </div>
+  {% endif %}
+
+  {% if S.receipt_footer %}
+    <footer class="receipt-thermal-footer">{{ S.receipt_footer }}</footer>
+  {% endif %}
+
+  <pre class="receipt receipt--tail">{% if is_stock_transfer %}Thank you{% elif is_expense %}Keep for company records{% else %}Pay supplier per company policy{% endif %}
+BUILT & MAINTAINED BY
+FINAGRITECH SOLUTIONS</pre>
+</div>

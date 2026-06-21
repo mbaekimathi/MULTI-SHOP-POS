@@ -1823,6 +1823,21 @@
     .pos-header-close-shop-link.hidden {
       display: none;
     }
+    .pos-header-close-shop-link--toolbar {
+      min-height: 2.75rem;
+      padding: 0 0.75rem;
+      font-size: 0.6875rem;
+      white-space: nowrap;
+      scroll-snap-align: center;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    @media (min-width: 768px) {
+      .pos-header-close-shop-link--toolbar {
+        min-height: 2.25rem;
+        padding: 0 0.65rem;
+      }
+    }
     .pos-header-brand__badge {
       display: inline-flex;
       align-items: center;

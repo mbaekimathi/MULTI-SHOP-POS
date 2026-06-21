@@ -1,161 +1,187 @@
 {% set rd = report_data or {} %}
 {% set till = rd.till_summary or {} %}
+{% set allow_credit = pos_allow_credit_sale|default(rd.pos_allow_credit_sale|default(true)) %}
+{% set inv_mode = pos_inventory_mode|default(rd.pos_inventory_mode|default('shop')) %}
+{% set shelf_cost_only = rd.stock_cost_shelf_only|default(inv_mode in ['kitchen', 'both']) %}
+{% set net = (rd.accrual_net_profit or 0)|float %}
+{% set net_collected = (rd.accrual_net_profit_collected or 0)|float %}
+{% set collected_in = (rd.summary_collected_revenue or rd.collected_revenue or 0)|float %}
+{% set rev_total = (rd.summary_revenue_total or 0)|float %}
+{% set exp_total = (rd.summary_expenditure_total or 0)|float %}
+{% set stock_total = (rd.accrual_cogs or 0)|float %}
+{% set kitchen_cogs = (rd.accrual_cogs_kitchen_portions or 0)|float %}
+{% set summary_scope = shop_filter_name if shop_filter_name else 'All shops' %}
 <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-  <div class="border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-primary))]/10 via-transparent to-transparent px-4 py-4 sm:px-5">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">All shops · summary</h3>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Combined opening/closing till balances and profit across every branch</p>
+  <div class="border-b border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-primary))]/10 via-transparent to-transparent px-3 py-2.5 sm:px-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div class="min-w-0">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Daily summary</h3>
+        <p class="text-[11px] text-[rgb(var(--rc-muted))]">{{ summary_scope }} · {{ report_period_label or 'This period' }}</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         {% if report_live_enabled %}
-          <p id="report-live-badge" class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Live · refreshes every 45s</p>
+          <p id="report-live-badge" class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Live · 45s</p>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="space-y-4 p-4 sm:p-5">
-    {% set gross = (rd.accrual_gross_profit or 0)|float %}
-    {% set net = (rd.accrual_net_profit or 0)|float %}
-    <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-gradient-to-r from-[rgb(var(--rc-primary))]/8 via-[rgb(var(--rc-surface-2))]/80 to-[rgb(var(--rc-surface-2))]/50 px-4 py-4 sm:px-5">
-      <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Profit overview · {{ report_period_label or 'This period' }} · all shops</p>
-      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Four steps: sales → stock cost → gross profit → net profit (accrual — not when cash was collected)</p>
-      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+  <div class="space-y-3 p-3 sm:p-4">
+    <div class="grid gap-2 sm:grid-cols-2">
+      <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/60 px-3 py-2.5">
         <div>
-          <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">1 · Total sales</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="total_revenue">{{ "%.2f"|format(rd.total_revenue or 0) }}</div>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Cash sales + credit sales (all shops)</p>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Net profit</p>
+          <p class="text-[10px] text-[rgb(var(--rc-muted))]">All sales − owed (incl. unpaid credit) − stock cost</p>
         </div>
-        <div class="border-[rgb(var(--rc-border))]/70 sm:border-l sm:pl-4">
-          <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">2 · Stock cost (COGS)</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs">{{ "%.2f"|format(rd.accrual_cogs or 0) }}</div>
-          <p class="mt-1 text-xs tabular-nums text-[rgb(var(--rc-muted))]">
-            Cash sales <span data-report-live="accrual_cogs_sale">{{ "%.2f"|format(rd.accrual_cogs_sale or 0) }}</span>
-            <span class="mx-1">+</span>
-            Credit sales <span data-report-live="accrual_cogs_credit">{{ "%.2f"|format(rd.accrual_cogs_credit or 0) }}</span>
-            <span class="mx-1">+</span>
-            Stock out <span data-report-live="accrual_cogs_stock_out">{{ "%.2f"|format(rd.accrual_cogs_stock_out or 0) }}</span>
+        <p class="text-xl font-extrabold tabular-nums sm:text-2xl {% if net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_net_profit" data-report-live-signed="1">{{ "%.2f"|format(net) }}</p>
+      </div>
+      <div class="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/[0.07] px-3 py-2.5">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-200">Net profit · collected</p>
+          <p class="text-[10px] text-[rgb(var(--rc-muted))]">
+            <span data-report-live="summary_collected_revenue">{{ "%.2f"|format(collected_in) }}</span>
+            collected − owed (incl. unpaid credit) − stock cost
           </p>
         </div>
-        <div class="border-[rgb(var(--rc-border))]/70 sm:border-l sm:pl-4 sm:text-right">
-          <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">3 · Gross profit</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums {% if gross >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_gross_profit" data-report-live-signed="1">{{ "%.2f"|format(gross) }}</div>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Total sales − stock cost</p>
-        </div>
-      </div>
-      <div class="mt-4 space-y-4 border-t border-[rgb(var(--rc-border))]/70 pt-4">
-        <div>
-          <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">4 · Net profit</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums {% if net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_net_profit" data-report-live-signed="1">{{ "%.2f"|format(net) }}</div>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">What is left after stock sold <em>and</em> running all shops this period</p>
-
-          <div class="mt-3 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/80 px-3 py-2.5">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">How it is calculated</p>
-            <div class="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm tabular-nums">
-              <span class="text-[rgb(var(--rc-muted))]">Gross profit</span>
-              <span class="font-bold {% if gross >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_gross_profit" data-report-live-signed="1">{{ "%.2f"|format(gross) }}</span>
-              <span class="font-semibold text-[rgb(var(--rc-muted))]">−</span>
-              <span class="text-[rgb(var(--rc-muted))]">Running costs</span>
-              <span class="font-bold text-amber-700 dark:text-amber-300" data-report-live="accrual_operating_expenses">{{ "%.2f"|format(rd.accrual_operating_expenses or 0) }}</span>
-              <span class="font-semibold text-[rgb(var(--rc-muted))]">=</span>
-              <span class="font-bold {% if net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_net_profit" data-report-live-signed="1">{{ "%.2f"|format(net) }}</span>
-            </div>
-          </div>
-
-          <ul class="mt-2 list-inside list-disc space-y-1 text-xs text-[rgb(var(--rc-muted))]">
-            <li><span class="font-semibold text-[rgb(var(--rc-page-fg))]/85">Running costs</span> = stock purchases + bills from the expenditure table (paid or still owed).</li>
-            <li>Stock removed or wasted is not counted again here — it is already in step 2.</li>
-          </ul>
-        </div>
-
-        <div class="rounded-xl border border-sky-400/35 bg-sky-500/[0.06] px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
-          <div class="min-w-0">
-            <div class="text-[10px] font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200">Cash collected · all tills</div>
-            <p class="mt-1 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">This is <span class="font-semibold text-[rgb(var(--rc-page-fg))]/85">not</span> the same as net profit. It is money actually received at all shops (cash, M-Pesa, and credit payments).</p>
-          </div>
-          <div class="mt-3 shrink-0 sm:mt-0 sm:text-right">
-            <div class="text-2xl font-extrabold tabular-nums text-sky-700 dark:text-sky-300" data-report-live="collected_revenue">{{ "%.2f"|format(rd.collected_revenue or 0) }}</div>
-            <p class="mt-0.5 text-[11px] text-[rgb(var(--rc-muted))]">Unpaid credit sales are in step 1, not here until paid</p>
-          </div>
-        </div>
+        <p class="text-xl font-extrabold tabular-nums sm:text-2xl {% if net_collected >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_net_profit_collected" data-report-live-signed="1">{{ "%.2f"|format(net_collected) }}</p>
       </div>
     </div>
 
-    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-3">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Till balances · all shops</div>
-        <div class="mt-3 space-y-2.5">
+    <div class="grid gap-3 lg:grid-cols-3">
+      <article class="rounded-xl border border-emerald-400/35 bg-gradient-to-br from-emerald-500/[0.12] via-emerald-500/[0.04] to-transparent p-3.5 sm:p-4">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </span>
           <div>
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Opening</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums">
-              Cash <span data-report-live="opening_cash">{{ "%.2f"|format(till.opening_cash or 0) }}</span>
-              <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
-              M-Pesa <span class="text-emerald-600 dark:text-emerald-400" data-report-live="opening_mpesa">{{ "%.2f"|format(till.opening_mpesa or 0) }}</span>
-            </div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Closing</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums">
-              Cash <span data-report-live="closing_cash">{{ "%.2f"|format(till.closing_cash or 0) }}</span>
-              <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
-              M-Pesa <span class="text-emerald-600 dark:text-emerald-400" data-report-live="closing_mpesa">{{ "%.2f"|format(till.closing_mpesa or 0) }}</span>
-            </div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-200">Revenue</h4>
+            <p class="text-[10px] text-[rgb(var(--rc-muted))]">Money received</p>
           </div>
         </div>
-      </div>
+        <p class="mt-3 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="summary_revenue_total">{{ "%.2f"|format(rev_total) }}</p>
+        <ul class="mt-3 space-y-1.5 text-[11px]">
+          <li class="flex items-baseline justify-between gap-2 border-b border-emerald-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Cash &amp; M-Pesa</span>
+            <span class="font-bold tabular-nums text-emerald-700 dark:text-emerald-300" data-report-live="summary_cash_mpesa">{{ "%.2f"|format(rd.summary_cash_mpesa or 0) }}</span>
+          </li>
+          {% if allow_credit %}
+          <li class="flex items-baseline justify-between gap-2">
+            <span class="text-[rgb(var(--rc-muted))]">Credits paid</span>
+            <span class="font-bold tabular-nums text-emerald-700 dark:text-emerald-300" data-report-live="paid_credit">{{ "%.2f"|format(rd.paid_credit or 0) }}</span>
+          </li>
+          {% endif %}
+        </ul>
+        {% if allow_credit %}
+        <p class="mt-2.5 border-t border-emerald-400/20 pt-2 text-[10px] tabular-nums text-[rgb(var(--rc-muted))]">
+          All sales incl. credit
+          <span class="font-bold text-emerald-700 dark:text-emerald-300" data-report-live="total_revenue">{{ "%.2f"|format(rd.total_revenue or 0) }}</span>
+        </p>
+        {% endif %}
+      </article>
 
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-3">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Sales &amp; collected</div>
-        <div class="mt-3 space-y-2.5">
+      <article class="rounded-xl border border-rose-400/35 bg-gradient-to-br from-rose-500/[0.12] via-rose-500/[0.04] to-transparent p-3.5 sm:p-4">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/20 text-rose-700 dark:text-rose-300" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4M12 16h.01"/></svg>
+          </span>
           <div>
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Sales revenue</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="sale_revenue">{{ "%.2f"|format(rd.sale_revenue or 0) }}</div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash · M-Pesa collected</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums">
-              Cash <span data-report-live="cash_revenue">{{ "%.2f"|format(rd.cash_revenue or 0) }}</span>
-              <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
-              M-Pesa <span class="text-emerald-600 dark:text-emerald-400" data-report-live="mpesa_revenue">{{ "%.2f"|format(rd.mpesa_revenue or 0) }}</span>
-            </div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Paid expenditure</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-amber-600 dark:text-amber-400" data-report-live="paid_expenditure">{{ "%.2f"|format(rd.paid_expenditure or 0) }}</div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Paid credit</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-sky-600 dark:text-sky-400" data-report-live="paid_credit">{{ "%.2f"|format(rd.paid_credit or 0) }}</div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cash sales · buying price</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_sale">{{ "%.2f"|format(rd.accrual_cogs_sale or 0) }}</div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Credit sales · buying price</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_credit">{{ "%.2f"|format(rd.accrual_cogs_credit or 0) }}</div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Stock out · buying price</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_stock_out">{{ "%.2f"|format(rd.accrual_cogs_stock_out or 0) }}</div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-rose-800 dark:text-rose-200">Expenditure</h4>
+            <p class="text-[10px] text-[rgb(var(--rc-muted))]">Paid &amp; still owed</p>
           </div>
         </div>
-      </div>
+        <p class="mt-3 text-2xl font-extrabold tabular-nums text-rose-600 dark:text-rose-400" data-report-live="summary_expenditure_total">{{ "%.2f"|format(exp_total) }}</p>
+        <ul class="mt-3 space-y-1.5 text-[11px]">
+          <li class="flex items-baseline justify-between gap-2 border-b border-rose-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Paid stock</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="paid_stock_expenditure">{{ "%.2f"|format(rd.paid_stock_expenditure or 0) }}</span>
+          </li>
+          <li class="flex items-baseline justify-between gap-2 border-b border-rose-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Paid bills</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="paid_bills_expenditure">{{ "%.2f"|format(rd.paid_bills_expenditure or 0) }}</span>
+          </li>
+          <li class="flex items-baseline justify-between gap-2 border-b border-rose-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Opening balance</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="opening_balance_expense">{{ "%.2f"|format(rd.opening_balance_expense or till.opening_total or 0) }}</span>
+          </li>
+          {% if allow_credit %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-rose-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Unpaid credit</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="unpaid_credit">{{ "%.2f"|format(rd.unpaid_credit or 0) }}</span>
+          </li>
+          {% endif %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-rose-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Unpaid stock</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="unpaid_stock_expenditure">{{ "%.2f"|format(rd.unpaid_stock_expenditure or 0) }}</span>
+          </li>
+          {% if inv_mode in ['kitchen', 'both'] or (rd.shelf_stock_out_expenditure or 0)|float > 0 %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-rose-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Shelf stock out</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="shelf_stock_out_expenditure">{{ "%.2f"|format(rd.shelf_stock_out_expenditure or 0) }}</span>
+          </li>
+          {% endif %}
+          <li class="flex items-baseline justify-between gap-2">
+            <span class="text-[rgb(var(--rc-muted))]">Unpaid bills</span>
+            <span class="font-bold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="unpaid_bills_expenditure">{{ "%.2f"|format(rd.unpaid_bills_expenditure or 0) }}</span>
+          </li>
+        </ul>
+      </article>
 
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-3 py-3 sm:col-span-2 lg:col-span-1">
-        <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Credit &amp; unpaid</div>
-        <div class="mt-3 space-y-2.5">
+      <article class="rounded-xl border border-violet-400/35 bg-gradient-to-br from-violet-500/[0.12] via-violet-500/[0.04] to-transparent p-3.5 sm:p-4">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/20 text-violet-700 dark:text-violet-300" aria-hidden="true">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </span>
           <div>
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Unpaid credit</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="unpaid_credit">{{ "%.2f"|format(rd.unpaid_credit or 0) }}</div>
-          </div>
-          <div class="border-t border-[rgb(var(--rc-border))]/70 pt-2.5">
-            <div class="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Unpaid expenditure</div>
-            <div class="mt-0.5 text-base font-extrabold tabular-nums text-rose-700 dark:text-rose-300" data-report-live="balance_expenditure">{{ "%.2f"|format(rd.balance_expenditure or 0) }}</div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-violet-800 dark:text-violet-200">Stock cost</h4>
+            <p class="text-[10px] text-[rgb(var(--rc-muted))]">Deducted from net profit</p>
           </div>
         </div>
-      </div>
+        <p class="mt-3 text-2xl font-extrabold tabular-nums text-violet-600 dark:text-violet-400" data-report-live="accrual_cogs">{{ "%.2f"|format(stock_total) }}</p>
+        <ul class="mt-3 space-y-1.5 text-[11px]">
+          {% if not shelf_cost_only %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-violet-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Cash sales</span>
+            <span class="font-bold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_sale">{{ "%.2f"|format(rd.accrual_cogs_sale or 0) }}</span>
+          </li>
+          {% if allow_credit %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-violet-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Credit sales</span>
+            <span class="font-bold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_credit">{{ "%.2f"|format(rd.accrual_cogs_credit or 0) }}</span>
+          </li>
+          {% endif %}
+          {% elif inv_mode in ['kitchen', 'both'] %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-violet-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">{% if inv_mode == 'kitchen' %}Portions sold{% else %}Kitchen portions{% endif %}</span>
+            <span class="font-bold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_kitchen_portions">{{ "%.2f"|format(kitchen_cogs) }}</span>
+          </li>
+          {% if (rd.accrual_cogs_shop_mode_sales or 0)|float > 0 %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-violet-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Shelf sales (legacy)</span>
+            <span class="font-bold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_shop_mode_sales">{{ "%.2f"|format(rd.accrual_cogs_shop_mode_sales or 0) }}</span>
+          </li>
+          {% endif %}
+          {% elif kitchen_cogs > 0 %}
+          <li class="flex items-baseline justify-between gap-2 border-b border-violet-400/15 pb-1.5">
+            <span class="text-[rgb(var(--rc-muted))]">Kitchen portions</span>
+            <span class="font-bold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_kitchen_portions">{{ "%.2f"|format(kitchen_cogs) }}</span>
+          </li>
+          {% endif %}
+          {% if not shelf_cost_only or inv_mode == 'shop' %}
+          <li class="flex items-baseline justify-between gap-2{% if not shelf_cost_only %} border-b border-violet-400/15 pb-1.5{% endif %}">
+            <span class="text-[rgb(var(--rc-muted))]">{% if shelf_cost_only %}Shelf stock out{% else %}Stock out{% endif %}</span>
+            <span class="font-bold tabular-nums text-violet-700 dark:text-violet-300" data-report-live="accrual_cogs_stock_out">{{ "%.2f"|format(rd.accrual_cogs_stock_out or 0) }}</span>
+          </li>
+          {% endif %}
+        </ul>
+      </article>
     </div>
+
+    {% if report_is_single_day|default(false) %}
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border border-sky-400/25 bg-sky-500/[0.05] px-3 py-2 text-[10px] tabular-nums text-[rgb(var(--rc-muted))]">
+        <span class="font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200">Till · {{ summary_scope }}</span>
+        <span>Opening <span class="font-bold text-[rgb(var(--rc-page-fg))]" data-report-live="opening_cash">{{ "%.2f"|format(till.opening_cash or 0) }}</span> cash · <span class="font-bold text-emerald-600 dark:text-emerald-400" data-report-live="opening_mpesa">{{ "%.2f"|format(till.opening_mpesa or 0) }}</span> M-Pesa</span>
+        <span>Closing <span class="font-bold text-[rgb(var(--rc-page-fg))]" data-report-live="closing_cash">{{ "%.2f"|format(till.closing_cash or 0) }}</span> cash · <span class="font-bold text-emerald-600 dark:text-emerald-400" data-report-live="closing_mpesa">{{ "%.2f"|format(till.closing_mpesa or 0) }}</span> M-Pesa</span>
+      </div>
+    {% endif %}
   </div>
 </section>

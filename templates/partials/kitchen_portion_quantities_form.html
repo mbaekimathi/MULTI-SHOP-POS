@@ -9,6 +9,7 @@
         <tr>
           <th class="px-4 py-3">Item</th>
           <th class="px-4 py-3 text-right">Kitchen portions</th>
+          <th class="px-4 py-3 text-right">Est. production price</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
@@ -16,6 +17,7 @@
           <tr>
             <td class="px-4 py-2.5 font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</td>
             <td class="px-4 py-2.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ row.portions_remaining }}</td>
+            <td class="px-4 py-2.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(row.estimated_production_price or 0) }}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -32,6 +34,7 @@
           <tr>
             <th class="px-4 py-3">Item</th>
             <th class="px-4 py-3 text-right">Portions (add / reduce)</th>
+            <th class="px-4 py-3 text-right">Est. production price</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
@@ -61,11 +64,26 @@
                   >+</button>
                 </div>
               </td>
+              <td class="px-4 py-2.5">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputmode="decimal"
+                  name="prod_price_{{ row.id }}"
+                  value="{{ "%.2f"|format(row.estimated_production_price or 0) }}"
+                  title="Estimated cost per portion — used as buying price in shop report stock cost"
+                  class="js-prod-price-input ml-auto block w-[6.5rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-right tabular-nums text-[rgb(var(--rc-page-fg))] outline-none"
+                />
+              </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    <p class="text-[11px] text-[rgb(var(--rc-muted))]">
+      <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Est. production price</strong> is the cost per portion used in the shop report stock-cost card when POS is in kitchen or both mode.
+    </p>
     <div class="flex flex-wrap gap-3">
       <button type="submit" class="btn-rc btn-rc-primary px-5 py-2 text-sm font-semibold">{{ submit_label or "Save portions" }}</button>
     </div>

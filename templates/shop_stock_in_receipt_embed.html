@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{% if (receipt_kind or '')|lower == 'stock transfer' %}Delivery note{% elif (receipt_kind or '')|lower == 'operational expense' %}Expense receipt{% else %}Purchase invoice{% endif %}</title>
+  {% include 'partials/shop_stock_receipt_thermal_styles.html' %}
+</head>
+<body>
+  {% include 'partials/shop_stock_receipt_thermal_body.html' %}
+  {% if request.args.get('auto_print') in ('1', 'true', 'yes') %}
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        try { window.print(); } catch (e) {}
+      }, 300);
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

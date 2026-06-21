@@ -38,31 +38,42 @@
       }
       #shop-report-page .sr-print-header { display: block !important; }
       #shop-report-page .sr-table-wrap { max-height: none !important; overflow: visible !important; }
+      #shop-report-page details > summary { display: none; }
+      #shop-report-page details > :not(summary) { display: block !important; }
     }
   </style>
-  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=22" defer></script>
+  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=23" defer></script>
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set rd = report_data or {} %}
   {% set sold_sale_rows = rd.items_sold_sale or [] %}
   {% set sold_credit_rows = rd.items_sold_credit or [] %}
+  {% set inv_mode = pos_inventory_mode|default(rd.pos_inventory_mode|default('shop')) %}
+  {% set portion_buy_label = 'Est. production price' if inv_mode in ['kitchen', 'both'] else 'Stock buying price' %}
+  {% set inv_mode_labels = {'shop': 'Shop stock', 'kitchen': 'Kitchen portions', 'both': 'Kitchen + shelf', 'none': 'No inventory'} %}
+  {% set inv_mode_label = inv_mode_labels.get(inv_mode, inv_mode|title) %}
   {% set period_label = report_period_label or 'Today' %}
   {% set today_iso = report_today_iso or '' %}
   <div id="shop-report-page" class="mx-auto max-w-5xl space-y-5">
     <div id="shop-report-print" class="space-y-5">
       <div class="sr-print-header mb-4 border-b border-black pb-3">
         <h1 class="text-xl font-bold text-black">{{ shop.shop_name }}</h1>
-        <p class="text-sm text-black">Shop report · {{ period_label }}</p>
+        <p class="text-sm text-black">Shop report · {{ period_label }} · POS: {{ inv_mode_label }}</p>
         <p class="mt-2 text-xs text-black">
-          Sales {{ "%.2f"|format(rd.total_revenue or 0) }}
-          · COGS {{ "%.2f"|format(rd.accrual_cogs or 0) }}
-          · Gross {{ "%.2f"|format(rd.accrual_gross_profit or 0) }}
-          · Net {{ "%.2f"|format(rd.accrual_net_profit or 0) }}
-          · Collected {{ "%.2f"|format(rd.collected_revenue or 0) }}
-          · Closing cash {{ "%.2f"|format((rd.till_summary or {}).closing_cash or 0) }}
-          · Closing M-Pesa {{ "%.2f"|format((rd.till_summary or {}).closing_mpesa or 0) }}
+          Revenue collected {{ "%.2f"|format(rd.summary_collected_revenue or rd.collected_revenue or 0) }}
+          · Expenditure {{ "%.2f"|format(rd.summary_expenditure_total or 0) }}
+          · Stock cost {{ "%.2f"|format(rd.accrual_cogs or 0) }}
+          · Net profit {{ "%.2f"|format(rd.accrual_net_profit or 0) }}
+          · Net collected {{ "%.2f"|format(rd.accrual_net_profit_collected or 0) }}
         </p>
+        {% if inv_mode in ['kitchen', 'both'] %}
+        <p class="mt-1 text-[10px] text-black">Stock cost uses est. production price on kitchen portions{% if inv_mode == 'both' %} · shelf stock-out is expenditure{% endif %}.</p>
+        {% elif inv_mode == 'shop' %}
+        <p class="mt-1 text-[10px] text-black">Stock cost uses shelf FIFO buying price on sales plus manual stock-out.</p>
+        {% elif inv_mode == 'none' %}
+        <p class="mt-1 text-[10px] text-black">POS does not deduct inventory; stock cost is manual stock-out only.</p>
+        {% endif %}
       </div>
 
       <div class="sr-card no-print rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
@@ -73,6 +84,9 @@
             <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
               <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ period_label }}</span>
               {% if report_generated_at %} · updated {{ report_generated_at }}{% endif %}
+            </p>
+            <p class="mt-2">
+              <span class="inline-flex items-center rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700 ring-1 ring-indigo-400/25 dark:text-indigo-300">POS · {{ inv_mode_label }}</span>
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -125,6 +139,21 @@
       </div>
 
       {% include "partials/shop_report_daily_summary.html" %}
+
+      <div id="shop-report-portion-warnings" class="{% if not rd.kitchen_portion_cost_warnings %}hidden{% endif %} rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))]">
+      {% if rd.kitchen_portion_cost_warnings %}
+        <p class="font-semibold text-amber-800 dark:text-amber-200">Missing est. production price</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">These items sold on kitchen portions but have no buying price — stock cost may be understated. Set prices on the kitchen portions page.</p>
+        <ul class="mt-2 list-inside list-disc text-xs">
+          {% for w in rd.kitchen_portion_cost_warnings[:8] %}
+            <li>{{ w.name }} · {{ w.portions_sold }} portion(s)</li>
+          {% endfor %}
+          {% if rd.kitchen_portion_cost_warnings|length > 8 %}
+            <li class="list-none text-[rgb(var(--rc-muted))]">…and {{ rd.kitchen_portion_cost_warnings|length - 8 }} more</li>
+          {% endif %}
+        </ul>
+      {% endif %}
+      </div>
 
       <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
@@ -199,6 +228,7 @@
         </div>
       </div>
 
+      {% if pos_allow_credit_sale|default(true) %}
       <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
           <div class="flex flex-wrap items-end justify-between gap-3">
@@ -208,7 +238,7 @@
               <p class="mt-1 text-base font-extrabold tabular-nums text-sky-600 dark:text-sky-400">
                 Total <span data-report-live="credit_revenue">{{ "%.2f"|format(rd.credit_revenue or 0) }}</span>
                 <span class="mx-1 font-normal text-[rgb(var(--rc-muted))]">·</span>
-                Buying price <span class="text-violet-700 dark:text-violet-300" data-report-live="stock_cost_credit_total">{{ "%.2f"|format(rd.stock_cost_credit_total or 0) }}</span>
+                {{ portion_buy_label }} <span class="text-violet-700 dark:text-violet-300" data-report-live="stock_cost_credit_total">{{ "%.2f"|format(rd.stock_cost_credit_total or 0) }}</span>
               </p>
             </div>
             <input id="report-items-credit-search" type="search" autocomplete="off" placeholder="Search credit items…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
@@ -221,7 +251,7 @@
                 <th class="px-4 py-3">Item</th>
                 <th class="px-4 py-3 text-right">Qty</th>
                 <th class="px-4 py-3 text-right">Amount</th>
-                <th class="px-4 py-3 text-right">Stock buying price</th>
+                <th class="px-4 py-3 text-right">{{ portion_buy_label }}</th>
                 <th class="px-4 py-3">Payment status</th>
               </tr>
             </thead>
@@ -253,6 +283,7 @@
           </table>
         </div>
       </div>
+      {% endif %}
 
       <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
@@ -274,7 +305,7 @@
                 <th class="px-4 py-3">Item</th>
                 <th class="px-4 py-3 text-right">Qty</th>
                 <th class="px-4 py-3 text-right">Amount</th>
-                <th class="px-4 py-3 text-right">Stock buying price</th>
+                <th class="px-4 py-3 text-right">{{ portion_buy_label }}</th>
                 <th class="px-4 py-3">Payment status</th>
               </tr>
             </thead>

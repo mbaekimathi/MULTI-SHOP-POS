@@ -3,6 +3,9 @@
 {% set sv = shop_view or 'revenue' %}
 {% set _anav = analytics_nav or {} %}
 {% set shop_portal = shop_portal|default(false) %}
+{% set _inv = pos_inventory_mode|default(svd.pos_inventory_mode|default('shop')) %}
+{% set _inv_labels = {'shop': 'Shop stock', 'kitchen': 'Kitchen portions', 'both': 'Kitchen + shelf', 'none': 'No inventory'} %}
+{% set _inv_label = _inv_labels.get(_inv, _inv|title) %}
 {% set ns = namespace(shop_label='') %}
 {% if shop_portal and shop is defined %}
   {% set ns.shop_label = shop.shop_name %}
@@ -55,6 +58,17 @@
       <span class="rev-panel__count" id="rev-shop-view-label">{{ sv|replace('_', ' ')|title }} · {{ f.range_label or analytics_filter.range_label or '' }}</span>
     </div>
   </section>
+
+  {% if shop_portal and shop is defined %}
+  <p class="rev-shop-banner" role="note">
+    POS inventory: <strong>{{ _inv_label }}</strong>
+    {% if _inv in ['kitchen', 'both'] %}
+      · Item est. production cost shown on item analytics
+      · <a href="{{ url_for('shop_kitchen_portions', shop_id=shop.id) }}" class="font-medium underline-offset-2 hover:underline">Kitchen portions</a>
+    {% endif %}
+    · <a href="{{ url_for('shop_report', shop_id=shop.id, mode='single_day', single_day=(analytics_filter.single_day if analytics_filter is defined else '')) }}" class="font-medium underline-offset-2 hover:underline">Shop report</a> for full profit summary
+  </p>
+  {% endif %}
 
   {% if sv == 'revenue' %}
     {% set sale = svd.sale or {} %}
@@ -131,13 +145,16 @@
       {% if not svd.top_items %}<p class="rev-empty">No item sales for this period.</p>{% else %}
       <div class="rev-scroll rev-scroll--hint">
         <table class="rev-data rev-data--wide">
-          <thead><tr><th scope="col">Item</th><th scope="col" class="num">Qty sold</th><th scope="col" class="num">Revenue</th><th scope="col" class="num">Sale lines</th></tr></thead>
+          <thead><tr><th scope="col">Item</th><th scope="col" class="num">Qty sold</th><th scope="col" class="num">Revenue</th>{% if _inv in ['kitchen', 'both'] %}<th scope="col" class="num">Est. prod. cost</th>{% endif %}<th scope="col" class="num">Sale lines</th></tr></thead>
           <tbody>
             {% for r in svd.top_items %}
             <tr>
               <td class="cell-strong">{{ r.item_name }}</td>
               <td class="num cell-strong">{{ r.qty_sold or 0 }}</td>
               <td class="num cell-sale">{{ "%.2f"|format(r.revenue or 0) }}</td>
+              {% if _inv in ['kitchen', 'both'] %}
+              <td class="num cell-muted">{{ "%.2f"|format(r.portion_cost or 0) }}</td>
+              {% endif %}
               <td class="num cell-muted">{{ r.sale_lines or 0 }}</td>
             </tr>
             {% endfor %}

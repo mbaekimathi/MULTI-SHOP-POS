@@ -1622,6 +1622,12 @@ var dlg = document.getElementById("pos-printer-dialog");
             return r.json();
           })
           .then(function (j) {
+            if (typeof window.__posApplyPrinterProfileJson === "function") {
+              window.__posApplyPrinterProfileJson(j);
+            }
+            if (typeof window.__posWarmBluetoothPrinter === "function") {
+              window.__posWarmBluetoothPrinter();
+            }
             var p = j && j.ok ? j.printer : null;
             var stale = j && j.ok && j.stale_printer ? j.stale_printer : null;
             var activeRow = p && savedPrinterTypeAllowed(p) ? p : null;

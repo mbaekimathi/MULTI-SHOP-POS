@@ -1288,21 +1288,24 @@ def _notify_new_shop_stock_request(
 
 @app.context_processor
 def inject_notification_context():
-    if request.endpoint == "shop_pos":
-        return {"notification_count": 0, "notifications_url": None, "notification_scope": None}
-
     uid = session.get("employee_id")
     if not uid:
-        return {"notification_count": 0, "notifications_url": None, "notification_scope": None}
+        return {"notification_count": 0, "notifications_url": None, "notification_scope": None, "notification_bell_popup": False}
     role_key = (session.get("employee_role") or "employee").strip().lower()
     shop_id = _effective_viewer_shop_id(role_key)
+    if request.endpoint == "shop_pos":
+        try:
+            pos_sid = request.view_args.get("shop_id") if request.view_args else None
+            if pos_sid is not None:
+                shop_id = int(pos_sid)
+        except Exception:
+            pass
     try:
-        from database import count_notifications_for_session
+        from database import count_pending_stock_requests_for_session
 
-        notification_count = count_notifications_for_session(
-            employee_id=int(uid),
-            shop_id=int(shop_id) if shop_id else None,
+        notification_count = count_pending_stock_requests_for_session(
             role_key=role_key,
+            viewer_shop_id=int(shop_id) if shop_id else None,
         )
     except Exception:
         notification_count = 0
@@ -1310,10 +1313,12 @@ def inject_notification_context():
         url_for("shop_notifications", shop_id=int(shop_id)) if shop_id else url_for("notifications")
     )
     notification_scope = f"shop-{int(shop_id)}" if shop_id else "portal"
+    notification_bell_popup = request.endpoint == "shop_pos"
     return {
         "notification_count": int(notification_count or 0),
         "notifications_url": notifications_url,
         "notification_scope": notification_scope,
+        "notification_bell_popup": notification_bell_popup,
     }
 
 
@@ -6770,13 +6775,19 @@ def _it_support_kitchen_portion_matrix(shops: list) -> dict:
                     "name": name,
                     "sort_key": (cat, name.upper()),
                     "portions": {},
+                    "production_prices": {},
                 }
             item_map[iid]["portions"][sid] = int(r.get("portions_remaining") or 0)
+            item_map[iid]["production_prices"][sid] = round(
+                float(r.get("estimated_production_price") or 0), 2
+            )
 
     for data in item_map.values():
         for sid in shop_ids:
             if sid not in data["portions"]:
                 data["portions"][sid] = None
+            if sid not in data["production_prices"]:
+                data["production_prices"][sid] = None
 
     matrix_rows = sorted(item_map.values(), key=lambda x: x["sort_key"])
 
@@ -6821,20 +6832,34 @@ def it_support_kitchen_portions_save():
 
     saved = 0
     try:
+        portion_vals: Dict[tuple, int] = {}
+        price_vals: Dict[tuple, float] = {}
         for key, raw in request.form.items():
             m = re.match(r"^p_(\d+)_(\d+)$", key)
-            if not m:
+            if m:
+                portion_vals[(int(m.group(1)), int(m.group(2)))] = int(str(raw or "").strip() or "0")
                 continue
-            shop_id = int(m.group(1))
-            item_id = int(m.group(2))
+            m2 = re.match(r"^pp_(\d+)_(\d+)$", key)
+            if m2:
+                try:
+                    price_vals[(int(m2.group(1)), int(m2.group(2)))] = round(
+                        float(str(raw or "").strip() or "0"), 2
+                    )
+                except (TypeError, ValueError):
+                    price_vals[(int(m2.group(1)), int(m2.group(2)))] = 0.0
+        keys = set(portion_vals.keys()) | set(price_vals.keys())
+        for shop_id, item_id in keys:
             shop = _get_shop_or_404(shop_id)
             if _pos_inventory_mode(shop) not in ("kitchen", "both"):
                 continue
             try:
-                q = int(str(raw or "").strip() or "0")
+                q = int(portion_vals.get((shop_id, item_id), 0))
             except (TypeError, ValueError):
                 q = 0
-            if upsert_shop_kitchen_portion_qty(shop_id, item_id, q):
+            price = price_vals.get((shop_id, item_id), 0.0)
+            if upsert_shop_kitchen_portion_qty(
+                shop_id, item_id, q, estimated_production_price=price
+            ):
                 saved += 1
         if saved:
             flash("Kitchen portions updated.", "success")
@@ -7015,6 +7040,16 @@ def _request_wants_json() -> bool:
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("Accept") or "").lower()
     )
+
+
+def _request_data_str(data, key: str) -> str:
+    """Coerce a form or JSON request field to a stripped string."""
+    val = data.get(key)
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val.strip()
+    return str(val).strip()
 
 
 def _it_support_or_super_admin_only():
@@ -11874,12 +11909,22 @@ def shop_pos_stock_in(shop_id: int):
             flash(err_msg or "Could not register expense.", "error")
         else:
             if wants_json:
+                receipt_url = None
+                if expense_id:
+                    receipt_url = url_for(
+                        "shop_stock_in_receipt",
+                        shop_id=shop_id,
+                        tx_id=expense_id,
+                        kind="expense",
+                        auto_print=1,
+                    )
                 return jsonify(
                     {
                         "ok": True,
                         "message": "Expense registered successfully.",
                         "expense_id": expense_id,
                         "entry_type": "expense",
+                        "receipt_url": receipt_url,
                     }
                 )
             flash("Expense registered successfully.", "success")
@@ -11991,6 +12036,7 @@ def shop_pos_stock_in(shop_id: int):
                         shop_id=shop_id,
                         tx_id=tx_id,
                         kind="store",
+                        embed=1,
                         auto_print=1,
                     )
                 else:
@@ -11998,6 +12044,7 @@ def shop_pos_stock_in(shop_id: int):
                         "shop_stock_in_receipt",
                         shop_id=shop_id,
                         tx_id=tx_id,
+                        embed=1,
                         auto_print=1,
                     )
             return jsonify(
@@ -12019,25 +12066,63 @@ def shop_stock_in_receipt(shop_id: int, tx_id: int):
     if gate is not None:
         return gate
     kind = (request.args.get("kind") or "").strip().lower()
+    receipt_kind_label = (request.args.get("receipt_kind") or "").strip()
     try:
         if kind == "store":
             from database import get_shop_store_stock_in_receipt_row
 
             receipt = get_shop_store_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+            if not receipt_kind_label:
+                receipt_kind_label = "Purchase invoice"
+        elif kind == "expense":
+            from database import get_shop_operational_expense_receipt_row
+
+            receipt = get_shop_operational_expense_receipt_row(
+                shop_id=shop_id,
+                expense_id=tx_id,
+            )
+            if not receipt_kind_label:
+                receipt_kind_label = "Operational expense"
         else:
             from database import get_shop_stock_in_receipt_row
 
             receipt = get_shop_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+            if not receipt_kind_label:
+                receipt_kind_label = "Purchase invoice"
     except Exception:
         receipt = None
     if not receipt:
-        flash("Stock-in receipt not found.", "error")
+        if request.args.get("embed") in ("1", "true", "yes"):
+            return ("Receipt not found.", 404)
+        flash("Receipt not found.", "error")
+        if kind == "expense":
+            return redirect(url_for("shop_expenses", shop_id=shop_id))
         return redirect(url_for("shop_stock_management", shop_id=shop_id, view="manual"))
+    embed_kind_kw = {"kind": kind} if kind in ("store", "expense") else {}
+    receipt_ctx = {
+        "shop": shop,
+        "receipt": receipt,
+        "receipt_kind": receipt_kind_label,
+        "pos_receipt_settings": _effective_receipt_settings_for_shop(shop),
+        "embed_print_url": url_for(
+            "shop_stock_in_receipt",
+            shop_id=shop_id,
+            tx_id=tx_id,
+            embed=1,
+            auto_print=1,
+            **embed_kind_kw,
+        ),
+    }
+    use_embed = request.args.get("embed") in ("1", "true", "yes") or request.args.get("auto_print") in (
+        "1",
+        "true",
+        "yes",
+    )
+    if use_embed:
+        return render_template("shop_stock_in_receipt_embed.html", **receipt_ctx)
     return render_template(
         "shop_stock_in_receipt.html",
-        shop=shop,
-        receipt=receipt,
-        pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
+        **receipt_ctx,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -12141,6 +12226,9 @@ def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
         fulfill_qty = None
 
     review_note = (data.get("review_note") or "").strip() or None
+    delivered_by = None
+    if action == "approve" and "delivered_by" in data:
+        delivered_by = (data.get("delivered_by") or "").strip()[:120]
     role_key = (emp.get("role") or "employee").strip().lower()
 
     try:
@@ -12154,6 +12242,7 @@ def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
             approver_shop_id=int(shop_id),
             review_note=review_note,
             fulfill_qty=fulfill_qty if action == "approve" else None,
+            delivered_by=delivered_by,
         )
     except Exception as e:
         logger.exception("shop_pos_incoming_stock_request_review: %s", e)
@@ -12162,7 +12251,118 @@ def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
     if not ok:
         return jsonify({"ok": False, "error": err_msg or "Could not update this request."}), 400
 
-    return jsonify({"ok": True, "action": action})
+    receipt_url = None
+    receipt_summary = None
+    if action == "approve":
+        receipt_url = url_for(
+            "shop_stock_transfer_receipt",
+            shop_id=shop_id,
+            request_id=request_id,
+            auto_print=1,
+            embed=1,
+        )
+        try:
+            from database import get_shop_stock_transfer_out_receipt_row
+
+            receipt_row = get_shop_stock_transfer_out_receipt_row(
+                shop_id=int(shop_id),
+                stock_request_id=int(request_id),
+            )
+            if receipt_row:
+                receipt_summary = {
+                    "tx_id": int(receipt_row.get("id") or 0),
+                    "request_id": int(receipt_row.get("transfer_request_id") or request_id),
+                    "item_name": (receipt_row.get("item_name") or "").strip(),
+                    "qty": receipt_row.get("qty"),
+                    "transfer_from": (receipt_row.get("shop_name") or shop.get("shop_name") or "").strip(),
+                    "transfer_to": (receipt_row.get("place_brought_from") or "").strip(),
+                    "served_by": (receipt_row.get("served_by") or "").strip(),
+                    "delivered_by": (receipt_row.get("delivered_by") or delivered_by or "").strip(),
+                }
+        except Exception:
+            receipt_summary = None
+        if not receipt_summary:
+            try:
+                from database import get_cursor
+
+                with get_cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT r.qty, i.name AS item_name, rq.shop_name AS requesting_shop_name
+                        FROM shop_stock_requests r
+                        JOIN items i ON i.id = r.item_id
+                        JOIN shops rq ON rq.id = r.requesting_shop_id
+                        WHERE r.id=%s
+                        LIMIT 1
+                        """,
+                        (int(request_id),),
+                    )
+                    req_row = cur.fetchone()
+                if req_row:
+                    eff_qty = fulfill_qty if fulfill_qty is not None else req_row.get("qty")
+                    receipt_summary = {
+                        "tx_id": 0,
+                        "request_id": int(request_id),
+                        "item_name": (req_row.get("item_name") or "").strip(),
+                        "qty": eff_qty,
+                        "transfer_from": (shop.get("shop_name") or "").strip(),
+                        "transfer_to": (req_row.get("requesting_shop_name") or "").strip(),
+                        "served_by": (emp.get("full_name") or emp.get("name") or "").strip() or "—",
+                        "delivered_by": (delivered_by or "").strip(),
+                    }
+            except Exception:
+                receipt_summary = None
+
+    return jsonify({"ok": True, "action": action, "receipt_url": receipt_url, "receipt": receipt_summary})
+
+
+@app.route("/shops/<int:shop_id>/stock-transfer-receipt/<int:request_id>")
+def shop_stock_transfer_receipt(shop_id: int, request_id: int):
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    try:
+        from database import get_shop_stock_transfer_out_receipt_row
+
+        receipt = get_shop_stock_transfer_out_receipt_row(
+            shop_id=int(shop_id),
+            stock_request_id=int(request_id),
+        )
+    except Exception:
+        receipt = None
+    if not receipt:
+        if request.args.get("embed") in ("1", "true", "yes"):
+            return ("Transfer receipt not found.", 404)
+        flash("Transfer receipt not found.", "error")
+        return redirect(url_for("shop_notifications", shop_id=shop_id))
+    if request.args.get("embed") in ("1", "true", "yes") or request.args.get("auto_print") in ("1", "true", "yes"):
+        return render_template(
+            "shop_stock_in_receipt_embed.html",
+            shop=shop,
+            receipt=receipt,
+            receipt_kind="Stock transfer",
+            pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
+        )
+    return render_template(
+        "shop_stock_in_receipt.html",
+        shop=shop,
+        receipt=receipt,
+        receipt_kind="Stock transfer",
+        pos_receipt_settings=_effective_receipt_settings_for_shop(shop),
+        embed_print_url=url_for(
+            "shop_stock_transfer_receipt",
+            shop_id=shop_id,
+            request_id=request_id,
+            embed=1,
+            auto_print=1,
+        ),
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
 
 
 def _shop_pos_validate_employee_code(shop_id: int, code: str) -> Tuple[Optional[dict], Optional[str], int]:
@@ -15195,9 +15395,9 @@ def shop_expenses_payment_update(shop_id: int, expense_id: int):
     if not isinstance(data, dict):
         data = request.form
 
-    pay_mode = (data.get("pay_mode") or "").strip().lower()
-    add_raw = (data.get("additional_payment") or "").strip()
-    amount_raw = (data.get("amount_paid") or "").strip()
+    pay_mode = _request_data_str(data, "pay_mode").lower()
+    add_raw = _request_data_str(data, "additional_payment")
+    amount_raw = _request_data_str(data, "amount_paid")
 
     try:
         from database import init_operational_expense_tables, update_shop_operational_expense_payment
@@ -15266,9 +15466,9 @@ def it_support_company_operational_expense_payment(shop_id: int, expense_id: int
     if not isinstance(data, dict):
         data = request.form
 
-    pay_mode = (data.get("pay_mode") or "").strip().lower()
-    add_raw = (data.get("additional_payment") or "").strip()
-    amount_raw = (data.get("amount_paid") or "").strip()
+    pay_mode = _request_data_str(data, "pay_mode").lower()
+    add_raw = _request_data_str(data, "additional_payment")
+    amount_raw = _request_data_str(data, "amount_paid")
 
     try:
         sid = int(shop_id)
@@ -15375,6 +15575,7 @@ def shop_report(shop_id: int):
         "accrual_cogs_stock_out": 0.0,
         "accrual_gross_profit": 0.0,
         "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
         "accrual_operating_expenses": 0.0,
         "estimated_sale_gross_profit": 0.0,
         "items": [],
@@ -15522,6 +15723,7 @@ def shop_report_json(shop_id: int):
         "accrual_cogs_stock_out": 0.0,
         "accrual_gross_profit": 0.0,
         "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
         "accrual_operating_expenses": 0.0,
         "estimated_sale_gross_profit": 0.0,
         "items": [],
@@ -15643,8 +15845,8 @@ def shop_receipts(shop_id: int):
         receipt_q=rq,
         can_mark_receipts=shop_shell_can("receipt_mark"),
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
-        shop_portal=True,
         pos_inventory_mode=_pos_inventory_mode(shop),
+        shop_portal=True,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -15854,7 +16056,16 @@ def shop_kitchen_portions(shop_id: int):
                     q = int(str(raw or "").strip() or "0")
                 except (TypeError, ValueError):
                     q = 0
-                upsert_shop_kitchen_portion_qty(shop_id, iid, q)
+                try:
+                    price = round(
+                        float(str(request.form.get(f"prod_price_{iid}", "") or "").strip() or "0"),
+                        2,
+                    )
+                except (TypeError, ValueError):
+                    price = 0.0
+                if price < 0:
+                    price = 0.0
+                upsert_shop_kitchen_portion_qty(shop_id, iid, q, estimated_production_price=price)
             flash("Kitchen portions updated.", "success")
         except Exception:
             flash("Could not save kitchen portions.", "error")
@@ -17817,31 +18028,23 @@ def notifications():
             shop_id=None,
             role_key=role_key,
             limit=300,
+            outcomes_only=True,
         )
         stock_requests = list_stock_requests_for_session(
             role_key=role_key,
             viewer_shop_id=None,
             limit=300,
+            status="pending",
+            approval_queue_only=True,
         )
     except Exception:
         notifications, stock_requests = [], []
     viewer_shop_id = _effective_viewer_shop_id(role_key)
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=viewer_shop_id)
-        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
+        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0))
 
-    def _stock_request_sort_key(row: dict) -> tuple:
-        st = (row.get("status") or "").lower()
-        pending_first = 0 if st == "pending" else 1
-        ca = row.get("created_at")
-        try:
-            ts = -ca.timestamp() if hasattr(ca, "timestamp") else 0
-        except Exception:
-            ts = 0
-        return (pending_first, ts)
-
-    stock_requests = sorted(stock_requests or [], key=_stock_request_sort_key)
-    pending_request_count = sum(1 for r in stock_requests if (r.get("status") or "").lower() == "pending")
+    pending_request_count = len(stock_requests or [])
     return render_template(
         "notifications.html",
         notifications=notifications,
@@ -17866,11 +18069,14 @@ def shop_notifications(shop_id: int):
             shop_id=shop_id,
             role_key=role_key,
             limit=300,
+            outcomes_only=True,
         )
         stock_requests = list_stock_requests_for_session(
             role_key=role_key,
             viewer_shop_id=shop_id,
             limit=300,
+            status="pending",
+            approval_queue_only=True,
         )
     except Exception:
         rows, stock_requests = [], []
@@ -17885,20 +18091,9 @@ def shop_notifications(shop_id: int):
         sr_outcome_max_id = 0
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=shop_id)
-        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0)) if (r.get("status") == "pending") else False
+        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0))
 
-    def _stock_request_sort_key(row: dict) -> tuple:
-        st = (row.get("status") or "").lower()
-        pending_first = 0 if st == "pending" else 1
-        ca = row.get("created_at")
-        try:
-            ts = -ca.timestamp() if hasattr(ca, "timestamp") else 0
-        except Exception:
-            ts = 0
-        return (pending_first, ts)
-
-    stock_requests = sorted(stock_requests or [], key=_stock_request_sort_key)
-    pending_request_count = sum(1 for r in stock_requests if (r.get("status") or "").lower() == "pending")
+    pending_request_count = len(stock_requests or [])
     return render_template(
         "shop_notifications.html",
         shop=shop,
@@ -18918,6 +19113,7 @@ def _render_shop_analytics_view(shop_id: int, analytics_view: str):
         shop_portal=True,
         selected_shop_id=shop_id,
         pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
+        pos_inventory_mode=_pos_inventory_mode(shop),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -20453,6 +20649,7 @@ def it_support_company_report():
         "accrual_cogs_stock_out": 0.0,
         "accrual_gross_profit": 0.0,
         "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
         "accrual_operating_expenses": 0.0,
         "items": [],
         "expenditure_rows": [],
@@ -20508,6 +20705,8 @@ def it_support_company_report():
         shops=shops,
         shop_filter_id=shop_filter_id or 0,
         shop_filter_name=shop_filter_name,
+        pos_allow_credit_sale=report_data.get("pos_allow_credit_sale", True),
+        pos_inventory_mode=report_data.get("pos_inventory_mode", "shop"),
     )
 
 
@@ -20538,6 +20737,7 @@ def it_support_company_report_json():
         "accrual_cogs_stock_out": 0.0,
         "accrual_gross_profit": 0.0,
         "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
         "accrual_operating_expenses": 0.0,
         "items": [],
         "items_sold": [],

@@ -145,25 +145,6 @@
               <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
                 <h1 class="pos-header-brand__title min-w-0 truncate text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</h1>
                 <time id="pos-clock" class="pos-header-brand__clock shrink-0" aria-hidden="true"></time>
-                {% if shop_day_opening_boot and shop_day_opening_boot.can_submit and not shop_day_opening_boot.today_closed %}
-                <button
-                  type="button"
-                  id="pos-close-shop-link"
-                  class="pos-header-close-shop-link shrink-0"
-                  title="Submit closing balances and close the shop for today"
-                >
-                  Close shop
-                </button>
-                {% elif shop_day_opening_boot and shop_day_opening_boot.can_submit and shop_day_opening_boot.today_closed %}
-                <button
-                  type="button"
-                  id="pos-open-shop-link"
-                  class="pos-header-close-shop-link shrink-0 !border-emerald-500/40 !bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-300"
-                  title="Reopen the shop for today and resume sales"
-                >
-                  Open shop
-                </button>
-                {% endif %}
                 {% if pos_printing_settings.pos_cart_mode == 'withhold' %}
                 <span id="pos-cart-mode-badge" class="pos-header-brand__badge shrink-0" title="Withhold POS — save carts before payment" aria-label="Withhold mode">
                   <svg class="h-2.5 w-2.5 max-sm:h-2 max-sm:w-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -243,37 +224,6 @@
               </span>
               <span class="pos-header-action__text">Receipts</span>
             </button>
-            {% if shop_day_opening_boot and shop_day_opening_boot.can_submit and not shop_day_opening_boot.today_closed %}
-            <button
-              type="button"
-              id="pos-close-shop-open"
-              class="pos-header-action pos-header-action--close-shop"
-              aria-label="Close shop for today"
-              title="Submit closing balances and close the shop for today"
-            >
-              <span class="pos-header-action__icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </span>
-              <span class="pos-header-action__text">Close shop</span>
-            </button>
-            {% elif shop_day_opening_boot and shop_day_opening_boot.can_submit and shop_day_opening_boot.today_closed %}
-            <button
-              type="button"
-              id="pos-open-shop-open"
-              class="pos-header-action pos-header-action--close-shop !border-emerald-500/35 !text-emerald-700 dark:!text-emerald-300"
-              aria-label="Reopen shop for today"
-              title="Reopen the shop for today and resume sales"
-            >
-              <span class="pos-header-action__icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                </svg>
-              </span>
-              <span class="pos-header-action__text">Open shop</span>
-            </button>
-            {% endif %}
             </div>
             <div class="pos-header-toolbar__group pos-header-toolbar__group--system" role="group" aria-label="Device &amp; sync">
             <button
@@ -310,6 +260,27 @@
             </button>
             </div>
             <div class="pos-header-toolbar__group pos-header-toolbar__group--account" role="group" aria-label="Account">
+              {% set _closing_boot = shop_day_opening_boot.closing_reminder if shop_day_opening_boot else none %}
+              {% if _closing_boot and _closing_boot.can_submit %}
+              <button
+                type="button"
+                id="pos-close-shop-link"
+                class="pos-header-close-shop-link pos-header-close-shop-link--toolbar hidden"
+                title="Submit closing balances and close the shop for today"
+              >
+                Close shop
+              </button>
+              {% endif %}
+              {% if shop_day_opening_boot and shop_day_opening_boot.can_submit %}
+              <button
+                type="button"
+                id="pos-open-shop-link"
+                class="pos-header-close-shop-link pos-header-close-shop-link--toolbar hidden !border-emerald-500/40 !bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-300"
+                title="Reopen the shop for today and resume sales"
+              >
+                Open shop
+              </button>
+              {% endif %}
               {% include "partials/notification_bell.html" %}
               {% include "partials/theme_toggle.html" %}
               <div class="flex min-w-0 shrink-0 items-center">
@@ -1715,6 +1686,18 @@
             <p class="mt-0.5 text-[11px] leading-snug text-[rgb(var(--rc-muted))]">
               Enter the 6-digit employee code last — when the code is valid, stock-in saves automatically.
             </p>
+            <label
+              id="pos-stockin-print-receipt-row"
+              class="mt-2 flex cursor-pointer items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/50 px-2.5 py-2"
+            >
+              <input
+                type="checkbox"
+                id="pos-stockin-print-receipt"
+                checked
+                class="h-4 w-4 shrink-0 rounded border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))] focus:ring-[rgb(var(--rc-primary))]/30"
+              />
+              <span class="text-[11px] font-semibold text-[rgb(var(--rc-page-fg))]">Print receipt after save</span>
+            </label>
             <div class="mt-2">
               <input
                 id="pos-stockin-auth-code"
@@ -1730,11 +1713,7 @@
             </div>
             <p id="pos-stockin-auth-status" class="pos-auth-status--muted mt-1.5 text-[11px] leading-relaxed">Fill the form above, then enter the employee code to save.</p>
           </div>
-          <div class="sm:col-span-2 flex flex-wrap justify-end gap-2">
-            <button type="button" id="pos-stockin-print" class="btn-rc btn-rc-success hidden px-3 py-2 text-xs font-bold uppercase tracking-wider">Print receipt</button>
-            <button type="button" id="pos-stockin-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs font-bold uppercase tracking-wider">Cancel</button>
-            <button type="submit" id="pos-stockin-submit" class="hidden" tabindex="-1" aria-hidden="true">Save</button>
-          </div>
+          <button type="submit" id="pos-stockin-submit" class="hidden" tabindex="-1" aria-hidden="true">Save</button>
         </form>
       </div>
     </div>
@@ -1903,7 +1882,7 @@
             </svg>
           </div>
           <div class="min-w-0 flex-1">
-            <h3 id="pos-incoming-sr-title" class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Incoming stock request</h3>
+            <h3 id="pos-incoming-sr-title" class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Requests awaiting approval</h3>
             <p id="pos-incoming-sr-queue-hint" class="mt-1 text-xs text-[rgb(var(--rc-muted))]"></p>
           </div>
         </div>
@@ -1911,6 +1890,7 @@
           id="pos-incoming-sr-detail"
           class="mt-4 space-y-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3 text-sm text-[rgb(var(--rc-page-fg))]"
         ></div>
+        <div id="pos-incoming-sr-actions" class="pos-incoming-sr-actions">
         <div class="mt-4 space-y-2">
           <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-qty">Quantity to transfer (if approving)</label>
           <input
@@ -1922,6 +1902,17 @@
             class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm font-semibold tabular-nums text-[rgb(var(--rc-page-fg))] outline-none"
           />
           <p id="pos-incoming-sr-qty-hint" class="text-[11px] text-[rgb(var(--rc-muted))]"></p>
+        </div>
+        <div class="mt-3 space-y-2">
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-delivered-by">Delivered by (optional)</label>
+          <input
+            id="pos-incoming-sr-delivered-by"
+            type="text"
+            maxlength="120"
+            autocomplete="name"
+            placeholder="Leave blank for a manual signature line on the receipt"
+            class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+          />
         </div>
         <div class="mt-3 space-y-2">
             <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-code"
@@ -1953,17 +1944,16 @@
           >
             Decline
           </button>
+        </div>
+        </div>
+        <div class="mt-4">
           <button
             type="button"
             id="pos-incoming-sr-dismiss"
             class="btn-rc btn-rc-ghost w-full px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
           >
-            Dismiss reminder
+            Close
           </button>
-          <a
-            href="{{ url_for('shop_notifications', shop_id=shop.id) }}"
-            class="block w-full text-center text-[11px] font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline"
-            >Open notifications list</a>
         </div>
       </div>
     </div>

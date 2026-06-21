@@ -322,7 +322,7 @@ def _enrich_period_report_financials(out: dict) -> dict:
     elif out.get("items_sold") is None:
         combined = list(out.get("items_sold_sale") or []) + list(out.get("items_sold_credit") or [])
         out["items_sold"] = combined
-    return out
+    return _apply_shop_report_summary_cards(out)
 
 
 def _analytics_receipt_scope_clause(analytics_scope: Optional[str], alias: str = ""):
@@ -1475,6 +1475,155 @@ def list_shop_expenditure_for_report(shop_id: int, analytics_filter: dict) -> li
     return out
 
 
+def _sum_shop_expenditure_breakdown(expenditure_rows: list) -> dict:
+    """Split stock purchases and operational bills into paid vs unpaid totals."""
+    paid_stock = 0.0
+    unpaid_stock = 0.0
+    paid_bills = 0.0
+    unpaid_bills = 0.0
+    for r in expenditure_rows or []:
+        ps = (r.get("payment_status") or "pending_payment").strip().lower()
+        kind = (r.get("expense_kind") or "").strip().lower()
+        if ps == "cancelled_out" or kind == "stock_out":
+            continue
+        try:
+            row_total = float(r.get("total_cost") or r.get("total_amount") or 0)
+        except Exception:
+            row_total = 0.0
+        try:
+            row_paid = float(r.get("amount_paid") or 0)
+        except Exception:
+            row_paid = 0.0
+        row_balance = max(0.0, row_total - row_paid)
+        if kind == "operational":
+            paid_bills += row_paid
+            unpaid_bills += row_balance
+        else:
+            paid_stock += row_paid
+            unpaid_stock += row_balance
+    return {
+        "paid_stock_expenditure": round(paid_stock, 2),
+        "unpaid_stock_expenditure": round(unpaid_stock, 2),
+        "paid_bills_expenditure": round(paid_bills, 2),
+        "unpaid_bills_expenditure": round(unpaid_bills, 2),
+    }
+
+
+def _apply_shop_report_pos_settings(out: dict) -> dict:
+    """Apply POS settings to report totals (credit off, kitchen/both stock cost rules)."""
+    allow_credit = bool(out.get("pos_allow_credit_sale", True))
+    inv_mode = (out.get("pos_inventory_mode") or "shop").strip().lower()
+    out["pos_allow_credit_sale"] = allow_credit
+    out["pos_inventory_mode"] = inv_mode
+    out["stock_cost_shelf_only"] = inv_mode in ("kitchen", "both")
+
+    if not allow_credit:
+        sale_rev = round(float(out.get("sale_revenue") or 0), 2)
+        out["credit_revenue"] = 0.0
+        out["paid_credit"] = 0.0
+        out["unpaid_credit"] = 0.0
+        out["total_revenue"] = sale_rev
+        out["accrual_cogs_credit"] = 0.0
+        out["stock_cost_credit_total"] = 0.0
+        out["items_sold_credit"] = []
+        out["items_sold"] = list(out.get("items_sold_sale") or [])
+        for item in out.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            item["credit_qty"] = 0
+            item["credit_amount"] = 0.0
+            item["credit_paid_amount"] = 0.0
+            item["credit_stock_cost"] = 0.0
+            item["credit_stock_cost_full"] = 0.0
+
+    if inv_mode in ("kitchen", "both"):
+        cogs_out = round(float(out.get("accrual_cogs_stock_out") or 0), 2)
+        cogs_portions = round(float(out.get("accrual_cogs_kitchen_portions") or 0), 2)
+        out["accrual_cogs_sale"] = 0.0
+        out["accrual_cogs_credit"] = 0.0
+        out["stock_cost_sale_only"] = 0.0
+        # Kitchen/both: portion est. production price is buying price (COGS). Shelf stock-out
+        # counts under expenditure (kitchen + both). Legacy shop-mode sales keep FIFO COGS.
+        shop_mode_fifo = round(float(out.get("accrual_cogs_shop_mode_sales") or 0), 2)
+        out["shelf_stock_out_expenditure"] = cogs_out if inv_mode in ("kitchen", "both") else 0.0
+        out["accrual_cogs"] = round(cogs_portions + shop_mode_fifo, 2)
+        out["stock_cost_sold"] = round(cogs_portions + shop_mode_fifo, 2)
+        out["stock_cost_total"] = out["accrual_cogs"]
+        credit_portion = round(
+            sum(
+                float(i.get("credit_stock_cost_full") or 0)
+                for i in out.get("items") or []
+                if isinstance(i, dict)
+            ),
+            2,
+        )
+        out["stock_cost_credit_total"] = credit_portion
+    elif inv_mode == "none":
+        cogs_out = round(float(out.get("accrual_cogs_stock_out") or 0), 2)
+        out["accrual_cogs_sale"] = 0.0
+        out["accrual_cogs_credit"] = 0.0
+        out["accrual_cogs_kitchen_portions"] = 0.0
+        out["accrual_cogs_shop_mode_sales"] = 0.0
+        out["accrual_cogs"] = cogs_out
+        out["stock_cost_sold"] = 0.0
+        out["stock_cost_total"] = cogs_out
+        out["shelf_stock_out_expenditure"] = 0.0
+        out["stock_cost_credit_total"] = 0.0
+    elif not allow_credit:
+        cogs_sale = round(float(out.get("accrual_cogs_sale") or 0), 2)
+        cogs_out = round(float(out.get("accrual_cogs_stock_out") or 0), 2)
+        out["accrual_cogs"] = round(cogs_sale + cogs_out, 2)
+        out["shelf_stock_out_expenditure"] = 0.0
+    else:
+        out.setdefault("shelf_stock_out_expenditure", 0.0)
+
+    return out
+
+
+def _apply_shop_report_summary_cards(out: dict) -> dict:
+    """Card totals for the simplified revenue / expenditure / stock-cost summary."""
+    out = _apply_shop_report_pos_settings(out)
+    breakdown = _sum_shop_expenditure_breakdown(out.get("expenditure_rows") or [])
+    out.update(breakdown)
+    till = out.get("till_summary")
+    if isinstance(till, dict) and till:
+        opening_total = round(float(till.get("opening_total") or 0), 2)
+    else:
+        opening_total = round(
+            float(out.get("opening_cash_total") or 0) + float(out.get("opening_mpesa_total") or 0),
+            2,
+        )
+    out["opening_balance_expense"] = opening_total
+    cash_mpesa = round(
+        float(out.get("cash_revenue") or 0) + float(out.get("mpesa_revenue") or 0),
+        2,
+    )
+    out["summary_cash_mpesa"] = cash_mpesa
+    paid_credit = round(float(out.get("paid_credit") or 0), 2)
+    out["summary_collected_revenue"] = round(cash_mpesa + paid_credit, 2)
+    out["collected_revenue"] = out["summary_collected_revenue"]
+    out["summary_revenue_total"] = out["summary_collected_revenue"]
+    out["summary_revenue_settled"] = out["summary_collected_revenue"]
+    shelf_stock_out = round(float(out.get("shelf_stock_out_expenditure") or 0), 2)
+    out["shelf_stock_out_expenditure"] = shelf_stock_out
+    out["summary_expenditure_total"] = round(
+        breakdown["paid_stock_expenditure"]
+        + breakdown["paid_bills_expenditure"]
+        + float(out.get("unpaid_credit") or 0)
+        + breakdown["unpaid_stock_expenditure"]
+        + breakdown["unpaid_bills_expenditure"]
+        + opening_total
+        + shelf_stock_out,
+        2,
+    )
+    out["summary_expenditure_collected"] = out["summary_expenditure_total"]
+    accrual_net, accrual_net_collected = _shop_report_accrual_net_profit_pair(out)
+    out["accrual_net_profit"] = accrual_net
+    out["accrual_net_profit_collected"] = accrual_net_collected
+    out["net_profit"] = accrual_net_collected
+    return out
+
+
 def _sum_shop_expenditure_totals(expenditure_rows: list) -> dict:
     """Aggregate total, paid, and balance from expenditure line rows."""
     total = 0.0
@@ -1522,8 +1671,26 @@ def _sum_accrual_operating_expenses(expenditure_rows: list) -> float:
     return round(total, 2)
 
 
+def _shop_report_accrual_net_profit_pair(out: dict) -> tuple[float, float]:
+    """Net profit aligned with the three summary cards (no double-counting paid items)."""
+    total_revenue = round(float(out.get("total_revenue") or 0), 2)
+    collected_revenue = round(
+        float(out.get("summary_collected_revenue") or 0)
+        or float(out.get("summary_cash_mpesa") or 0) + float(out.get("paid_credit") or 0)
+        or float(out.get("sale_revenue") or 0) + float(out.get("paid_credit") or 0),
+        2,
+    )
+    stock_cost = round(float(out.get("accrual_cogs") or 0), 2)
+    expenditure_total = round(float(out.get("summary_expenditure_total") or 0), 2)
+    accrual_net = round(total_revenue - expenditure_total - stock_cost, 2)
+    accrual_net_collected = round(collected_revenue - expenditure_total - stock_cost, 2)
+    out["summary_collected_revenue"] = collected_revenue
+    out["collected_revenue"] = collected_revenue
+    return accrual_net, accrual_net_collected
+
+
 def _apply_shop_report_accrual_summary(out: dict, *, stock_cost_stock_out: float) -> dict:
-    """Compute accrual profit metrics with an explicit, reconcilable COGS breakdown."""
+    """Compute accrual profit metrics including COGS (deducted from net profit on finalize)."""
     items = list(out.get("items") or [])
     sale_only = round(sum(float(i.get("sale_stock_cost") or 0) for i in items), 2)
     credit_full = round(sum(float(i.get("credit_stock_cost_full") or 0) for i in items), 2)
@@ -1542,9 +1709,9 @@ def _apply_shop_report_accrual_summary(out: dict, *, stock_cost_stock_out: float
     cogs_stock_out = stock_out_cost
     accrual_cogs = round(cogs_sale + cogs_credit + cogs_stock_out, 2)
     accrual_revenue = round(float(out.get("total_revenue") or 0), 2)
-    accrual_gross = round(accrual_revenue - accrual_cogs, 2)
     accrual_operating = _sum_accrual_operating_expenses(out.get("expenditure_rows") or [])
-    accrual_net = round(accrual_gross - accrual_operating, 2)
+    accrual_gross = accrual_revenue
+    accrual_net, accrual_net_collected = _shop_report_accrual_net_profit_pair(out)
 
     out["accrual_cogs"] = accrual_cogs
     out["accrual_cogs_sale"] = cogs_sale
@@ -1553,6 +1720,7 @@ def _apply_shop_report_accrual_summary(out: dict, *, stock_cost_stock_out: float
     out["accrual_gross_profit"] = accrual_gross
     out["accrual_operating_expenses"] = accrual_operating
     out["accrual_net_profit"] = accrual_net
+    out["accrual_net_profit_collected"] = accrual_net_collected
     return out
 
 
@@ -1631,12 +1799,15 @@ def _aggregate_company_financials_from_shops(
         "accrual_cogs_sale",
         "accrual_cogs_credit",
         "accrual_cogs_stock_out",
+        "accrual_cogs_kitchen_portions",
+        "accrual_cogs_shop_mode_sales",
         "stock_cost_sold",
         "stock_cost_stock_out",
         "stock_cost_total",
         "stock_cost_sale_only",
         "stock_cost_credit_total",
         "estimated_sale_gross_profit",
+        "shelf_stock_out_expenditure",
     )
     for key in cogs_keys:
         out[key] = 0.0
@@ -1675,19 +1846,13 @@ def _aggregate_company_financials_from_shops(
     out["items_sold"] = sale_rows + credit_rows
 
     accrual_revenue = round(float(out.get("total_revenue") or 0), 2)
-    accrual_cogs = round(float(out.get("accrual_cogs") or 0), 2)
-    accrual_gross = round(accrual_revenue - accrual_cogs, 2)
     accrual_operating = _sum_accrual_operating_expenses(out.get("expenditure_rows") or [])
-    out["accrual_gross_profit"] = accrual_gross
+    out["accrual_gross_profit"] = accrual_revenue
     out["accrual_operating_expenses"] = accrual_operating
-    out["accrual_net_profit"] = round(accrual_gross - accrual_operating, 2)
-    out["net_profit"] = round(
-        float(out.get("sale_revenue") or 0)
-        + float(out.get("paid_credit") or 0)
-        - float(out.get("paid_expenditure") or 0)
-        - float(out.get("unpaid_credit") or 0),
-        2,
-    )
+    accrual_net, accrual_net_collected = _shop_report_accrual_net_profit_pair(out)
+    out["accrual_net_profit"] = accrual_net
+    out["accrual_net_profit_collected"] = accrual_net_collected
+    out["net_profit"] = accrual_net_collected
     return out
 
 
@@ -5743,6 +5908,7 @@ def get_shop_store_stock_in_receipt_row(shop_id: int, tx_id: int):
     r["place_brought_from"] = (r.get("place_brought_from") or "").strip() or "-"
     r["seller_phone"] = (r.get("seller_phone") or "").strip() or "-"
     r["served_by"] = (r.get("served_by") or "").strip() or "UNKNOWN"
+    r["note"] = (r.get("note") or "").strip()
     r["payment_status"] = (r.get("payment_status") or "pending_payment").strip().lower()
     return r
 
@@ -8081,6 +8247,50 @@ def return_shop_pos_sale_lines(
         return False, None, {}
 
 
+_ENSURED_POS_SALE_ITEMS_PORTION_COST = False
+
+
+def ensure_shop_pos_sale_items_portion_unit_cost_column() -> bool:
+    """Snapshot est. production price on kitchen/both sale lines for accurate period COGS."""
+    global _ENSURED_POS_SALE_ITEMS_PORTION_COST
+    if _ENSURED_POS_SALE_ITEMS_PORTION_COST:
+        return True
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS shop_pos_sale_items (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    sale_id BIGINT NOT NULL,
+                    shop_id INT NOT NULL,
+                    item_id INT NULL,
+                    item_name VARCHAR(200) NOT NULL,
+                    qty INT NOT NULL DEFAULT 0,
+                    unit_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    line_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    KEY idx_shop_pos_sale_items_sale (sale_id),
+                    KEY idx_shop_pos_sale_items_shop_created (shop_id, created_at),
+                    KEY idx_shop_pos_sale_items_item (item_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            if not column_exists("shop_pos_sale_items", "portion_unit_cost"):
+                cur.execute(
+                    """
+                    ALTER TABLE shop_pos_sale_items
+                    ADD COLUMN portion_unit_cost DECIMAL(14,2) NULL DEFAULT NULL
+                    COMMENT 'Est. production price at checkout (kitchen/both)'
+                    AFTER line_total
+                    """
+                )
+        _ENSURED_POS_SALE_ITEMS_PORTION_COST = True
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not add shop_pos_sale_items.portion_unit_cost: %s", e)
+        return False
+
+
 def init_shop_pos_sale_items_table():
     """Persist POS checkout line items for item analytics."""
     sql = """
@@ -9033,6 +9243,44 @@ def pos_held_order_mark_finalized(
         return False
 
 
+_ENSURED_SHOP_KITCHEN_PORTIONS_PRICE = False
+
+
+def ensure_shop_kitchen_portions_production_price_column() -> bool:
+    """Add estimated production price per item (used as kitchen portion COGS in shop reports)."""
+    global _ENSURED_SHOP_KITCHEN_PORTIONS_PRICE
+    if _ENSURED_SHOP_KITCHEN_PORTIONS_PRICE:
+        return True
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS shop_kitchen_portions (
+                    shop_id INT NOT NULL,
+                    item_id INT NOT NULL,
+                    portions_remaining INT NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (shop_id, item_id),
+                    KEY idx_shop_kitchen_shop (shop_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            if not column_exists("shop_kitchen_portions", "estimated_production_price"):
+                cur.execute(
+                    """
+                    ALTER TABLE shop_kitchen_portions
+                    ADD COLUMN estimated_production_price DECIMAL(14,2) NOT NULL DEFAULT 0
+                    COMMENT 'Est. cost per portion for kitchen COGS in reports'
+                    AFTER portions_remaining
+                    """
+                )
+        _ENSURED_SHOP_KITCHEN_PORTIONS_PRICE = True
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not add shop_kitchen_portions.estimated_production_price: %s", e)
+        return False
+
+
 def ensure_shop_kitchen_portions_schema() -> bool:
     """Per-shop kitchen portion counts for POS when inventory mode is kitchen (not shop stock)."""
     sql = """
@@ -9063,14 +9311,15 @@ def list_shop_kitchen_portion_editor_rows(
     When only_displayed_on_pos is True (default), only rows with shop_items.displayed = 1 (POS-visible).
     When False, every item linked to the shop in shop_items is included.
     """
-    ensure_shop_kitchen_portions_schema()
+    ensure_shop_kitchen_portions_production_price_column()
     displayed_clause = " AND si.displayed = 1" if only_displayed_on_pos else ""
     sql = f"""
     SELECT
         i.id,
         i.category,
         i.name,
-        COALESCE(skp.portions_remaining, 0) AS portions_remaining
+        COALESCE(skp.portions_remaining, 0) AS portions_remaining,
+        COALESCE(skp.estimated_production_price, 0) AS estimated_production_price
     FROM shop_items si
     INNER JOIN items i ON i.id = si.item_id AND i.status = 'active'
     LEFT JOIN shop_kitchen_portions skp
@@ -9085,24 +9334,316 @@ def list_shop_kitchen_portion_editor_rows(
     for r in rows:
         r["portions_remaining"] = int(r.get("portions_remaining") or 0)
         r["id"] = int(r.get("id") or 0)
+        r["estimated_production_price"] = round(float(r.get("estimated_production_price") or 0), 2)
     return rows
 
 
-def upsert_shop_kitchen_portion_qty(shop_id: int, item_id: int, portions: int) -> bool:
-    """Set remaining kitchen portions for an item at a shop (non-negative)."""
-    ensure_shop_kitchen_portions_schema()
+def upsert_shop_kitchen_portion_qty(
+    shop_id: int,
+    item_id: int,
+    portions: int,
+    *,
+    estimated_production_price: Optional[float] = None,
+) -> bool:
+    """Set remaining kitchen portions (and optionally est. production price) for an item at a shop."""
+    ensure_shop_kitchen_portions_production_price_column()
     q = max(0, min(99999999, int(portions or 0)))
-    sql = """
-    INSERT INTO shop_kitchen_portions (shop_id, item_id, portions_remaining)
-    VALUES (%s, %s, %s)
-    ON DUPLICATE KEY UPDATE portions_remaining = VALUES(portions_remaining)
-    """
     try:
         with get_cursor(commit=True) as cur:
-            cur.execute(sql, (int(shop_id), int(item_id), q))
+            if estimated_production_price is None:
+                cur.execute(
+                    """
+                    INSERT INTO shop_kitchen_portions (shop_id, item_id, portions_remaining)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE portions_remaining = VALUES(portions_remaining)
+                    """,
+                    (int(shop_id), int(item_id), q),
+                )
+            else:
+                price = max(0.0, round(float(estimated_production_price or 0), 2))
+                cur.execute(
+                    """
+                    INSERT INTO shop_kitchen_portions
+                        (shop_id, item_id, portions_remaining, estimated_production_price)
+                    VALUES (%s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        portions_remaining = VALUES(portions_remaining),
+                        estimated_production_price = VALUES(estimated_production_price)
+                    """,
+                    (int(shop_id), int(item_id), q, price),
+                )
         return True
     except pymysql.Error:
         return False
+
+
+def _shop_kitchen_portion_cogs_report_filters(
+    shop_id: int,
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    *,
+    allow_credit_sale: bool = True,
+) -> Optional[tuple[str, list, str]]:
+    """Shared WHERE clause for kitchen/both portion COGS (est. production price × qty sold)."""
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return None
+    if sid <= 0:
+        return None
+    ensure_shop_kitchen_portions_production_price_column()
+    ensure_shop_pos_sale_items_portion_unit_cost_column()
+    ensure_shop_pos_sales_inventory_mode_column()
+    init_shop_pos_sale_items_table()
+    af = analytics_filter or {}
+    scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
+    sale_range_where, sale_range_params = _analytics_where_clause(af, "s")
+    sale_where = f"s.shop_id=%s AND {sale_range_where} AND {scope_where}"
+    sale_params = [sid] + list(sale_range_params) + list(scope_params)
+    credit_clause = "" if allow_credit_sale else " AND s.sale_type <> 'credit'"
+    return sale_where, sale_params, credit_clause
+
+
+_KITCHEN_PORTION_SALE_NAME_JOIN = """
+LEFT JOIN (
+    SELECT MIN(i.id) AS id, LOWER(TRIM(i.name)) AS nm
+    FROM items i
+    WHERE i.status = 'active' AND COALESCE(i.stock_update_enabled, 0) = 1
+    GROUP BY LOWER(TRIM(i.name))
+) im ON (spi.item_id IS NULL OR spi.item_id = 0)
+    AND im.nm = LOWER(TRIM(COALESCE(spi.item_name, '')))
+    AND LENGTH(TRIM(COALESCE(spi.item_name, ''))) > 0
+"""
+
+
+def _kitchen_portion_unit_cost_expr() -> str:
+    """Sale-time snapshot first, then current kitchen portion price (by id or matched name)."""
+    if _ENSURED_POS_SALE_ITEMS_PORTION_COST or column_exists(
+        "shop_pos_sale_items", "portion_unit_cost"
+    ):
+        return (
+            "COALESCE(spi.portion_unit_cost, skp.estimated_production_price, "
+            "skp_n.estimated_production_price, 0)"
+        )
+    return "COALESCE(skp.estimated_production_price, skp_n.estimated_production_price, 0)"
+
+
+def _kitchen_portion_cogs_from_joins() -> str:
+    cost = _kitchen_portion_unit_cost_expr()
+    return f"""
+    FROM shop_pos_sale_items spi
+    INNER JOIN shop_pos_sales s ON s.id = spi.sale_id AND s.shop_id = spi.shop_id
+    LEFT JOIN shop_kitchen_portions skp
+        ON skp.shop_id = s.shop_id
+        AND spi.item_id IS NOT NULL AND spi.item_id > 0
+        AND skp.item_id = spi.item_id
+    {_KITCHEN_PORTION_SALE_NAME_JOIN}
+    LEFT JOIN shop_kitchen_portions skp_n
+        ON skp_n.shop_id = s.shop_id AND skp_n.item_id = im.id
+    """
+
+
+def sum_shop_kitchen_portion_cogs_for_report(
+    shop_id: int,
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    *,
+    allow_credit_sale: bool = True,
+) -> float:
+    """Kitchen/both POS sales COGS: portions sold × est. production price (snapshot at sale)."""
+    filt = _shop_kitchen_portion_cogs_report_filters(
+        shop_id, analytics_filter, analytics_scope, allow_credit_sale=allow_credit_sale
+    )
+    if not filt:
+        return 0.0
+    sale_where, sale_params, credit_clause = filt
+    cost = _kitchen_portion_unit_cost_expr()
+    sql = f"""
+    SELECT COALESCE(SUM(spi.qty * ({cost})), 0) AS portion_cogs
+    {_kitchen_portion_cogs_from_joins()}
+    WHERE {sale_where}
+      AND LOWER(COALESCE(s.inventory_mode, 'shop')) IN ('kitchen', 'both')
+      {credit_clause}
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(sale_params))
+            row = cur.fetchone() or {}
+        return round(float(row.get("portion_cogs") or 0), 2)
+    except pymysql.Error:
+        return 0.0
+
+
+def kitchen_portion_cogs_by_item_for_report(
+    shop_id: int,
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    *,
+    allow_credit_sale: bool = True,
+) -> dict:
+    """Per-item portion COGS for kitchen/both POS sales (includes name-matched lines)."""
+    filt = _shop_kitchen_portion_cogs_report_filters(
+        shop_id, analytics_filter, analytics_scope, allow_credit_sale=allow_credit_sale
+    )
+    if not filt:
+        return {}
+    sale_where, sale_params, credit_clause = filt
+    cost = _kitchen_portion_unit_cost_expr()
+    sql = f"""
+    SELECT
+        COALESCE(NULLIF(spi.item_id, 0), im.id) AS item_id,
+        MAX(COALESCE(spi.item_name, '')) AS item_name,
+        COALESCE(SUM(spi.qty * ({cost})), 0) AS portion_cogs
+    {_kitchen_portion_cogs_from_joins()}
+    WHERE {sale_where}
+      AND LOWER(COALESCE(s.inventory_mode, 'shop')) IN ('kitchen', 'both')
+      {credit_clause}
+    GROUP BY COALESCE(NULLIF(spi.item_id, 0), im.id), LOWER(TRIM(COALESCE(spi.item_name, '')))
+    """
+    out: dict = {}
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    iid = 0
+                cogs = round(float(r.get("portion_cogs") or 0), 2)
+                if iid > 0:
+                    out[iid] = round(float(out.get(iid) or 0) + cogs, 2)
+                else:
+                    nm = (r.get("item_name") or "").strip().lower()
+                    if nm:
+                        out[f"name:{nm}"] = cogs
+    except pymysql.Error:
+        return {}
+    return out
+
+
+def kitchen_portion_cost_warnings_for_report(
+    shop_id: int,
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    *,
+    allow_credit_sale: bool = True,
+) -> list:
+    """Items with kitchen/both sales but zero est. production price (missing buying price)."""
+    filt = _shop_kitchen_portion_cogs_report_filters(
+        shop_id, analytics_filter, analytics_scope, allow_credit_sale=allow_credit_sale
+    )
+    if not filt:
+        return []
+    sale_where, sale_params, credit_clause = filt
+    cost = _kitchen_portion_unit_cost_expr()
+    sql = f"""
+    SELECT
+        COALESCE(NULLIF(spi.item_id, 0), im.id) AS item_id,
+        MAX(COALESCE(spi.item_name, i2.name, '')) AS item_name,
+        COALESCE(SUM(spi.qty), 0) AS portions_sold,
+        COALESCE(SUM(spi.qty * ({cost})), 0) AS portion_cogs
+    {_kitchen_portion_cogs_from_joins()}
+    LEFT JOIN items i2 ON i2.id = COALESCE(NULLIF(spi.item_id, 0), im.id)
+    WHERE {sale_where}
+      AND LOWER(COALESCE(s.inventory_mode, 'shop')) IN ('kitchen', 'both')
+      {credit_clause}
+    GROUP BY COALESCE(NULLIF(spi.item_id, 0), im.id), LOWER(TRIM(COALESCE(spi.item_name, '')))
+    HAVING portions_sold > 0 AND portion_cogs <= 0
+    ORDER BY portions_sold DESC, item_name ASC
+    LIMIT 50
+    """
+    warnings: list = []
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                warnings.append(
+                    {
+                        "item_id": int(r.get("item_id") or 0) or None,
+                        "name": (r.get("item_name") or "").strip() or "Unknown item",
+                        "portions_sold": int(r.get("portions_sold") or 0),
+                    }
+                )
+    except pymysql.Error:
+        return []
+    return warnings
+
+
+def _apply_kitchen_portion_item_stock_costs(items: list, portion_cogs_by_item: dict) -> None:
+    """Replace FIFO sale costs with est. production price × portions sold per item."""
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            iid = int(item.get("item_id") or 0)
+        except Exception:
+            iid = 0
+        item_total = 0.0
+        if iid > 0:
+            item_total = round(float(portion_cogs_by_item.get(iid) or 0), 2)
+        if item_total <= 0:
+            nm = (item.get("name") or "").strip().lower()
+            if nm:
+                item_total = round(float(portion_cogs_by_item.get(f"name:{nm}") or 0), 2)
+        sale_qty_i = int(item.get("sale_qty") or 0)
+        credit_qty_i = int(item.get("credit_qty") or 0)
+        sold_qty_total = sale_qty_i + credit_qty_i
+        if sold_qty_total > 0 and item_total > 0:
+            sale_stock_cost = round(item_total * sale_qty_i / sold_qty_total, 2)
+            credit_stock_cost_full = round(item_total - sale_stock_cost, 2)
+        else:
+            sale_stock_cost = 0.0
+            credit_stock_cost_full = 0.0
+        credit_amount_f = round(float(item.get("credit_amount") or 0), 2)
+        credit_paid_f = round(float(item.get("credit_paid_amount") or 0), 2)
+        item["sale_stock_cost"] = sale_stock_cost
+        item["credit_stock_cost_full"] = credit_stock_cost_full
+        item["credit_stock_cost"] = _credit_stock_cost_for_payment(
+            credit_stock_cost_full, credit_amount_f, credit_paid_f
+        )
+        item["stock_cost_sold"] = item_total
+
+
+def _kitchen_portion_price_at_checkout(cur, shop_id: int, item_id, item_name: str = "") -> float:
+    """Est. production price snapshot for a kitchen/both sale line."""
+    iid = 0
+    try:
+        if item_id is not None:
+            iid = int(item_id)
+    except (TypeError, ValueError):
+        iid = 0
+    try:
+        if iid > 0:
+            cur.execute(
+                """
+                SELECT COALESCE(estimated_production_price, 0)
+                FROM shop_kitchen_portions
+                WHERE shop_id=%s AND item_id=%s
+                LIMIT 1
+                """,
+                (int(shop_id), iid),
+            )
+        else:
+            nm = (item_name or "").strip()
+            if not nm:
+                return 0.0
+            cur.execute(
+                """
+                SELECT COALESCE(skp.estimated_production_price, 0)
+                FROM items i
+                INNER JOIN shop_items si ON si.item_id = i.id AND si.shop_id = %s
+                LEFT JOIN shop_kitchen_portions skp
+                    ON skp.shop_id = si.shop_id AND skp.item_id = i.id
+                WHERE i.status = 'active'
+                  AND LOWER(TRIM(i.name)) = LOWER(TRIM(%s))
+                LIMIT 1
+                """,
+                (int(shop_id), nm[:200]),
+            )
+        row = cur.fetchone() or {}
+        return round(max(0.0, float(row.get("estimated_production_price") or 0)), 2)
+    except pymysql.Error:
+        return 0.0
 
 
 def add_shop_kitchen_portions(shop_id: int, item_id: int, delta: int) -> Tuple[bool, Optional[int]]:
@@ -9563,6 +10104,7 @@ def create_shop_pos_sale(
     ensure_shop_pos_sales_receipt_columns()
     ensure_shop_pos_sales_client_txn_column()
     ensure_shop_pos_sales_mpesa_receipt_column()
+    ensure_shop_pos_sale_items_portion_unit_cost_column()
     client_txn = (client_txn_id or "").strip()[:64] or None
     mpesa_ref = (mpesa_receipt_number or "").strip()[:32] or None
     sale_sql = """
@@ -9572,8 +10114,8 @@ def create_shop_pos_sale(
     """
     line_sql = """
     INSERT INTO shop_pos_sale_items
-        (sale_id, shop_id, item_id, item_name, qty, unit_price, line_total)
-    VALUES (%s, %s, %s, %s, %s, %s, %s)
+        (sale_id, shop_id, item_id, item_name, qty, unit_price, line_total, portion_unit_cost)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """
     stock_tx_sql = """
     INSERT INTO shop_stock_transactions
@@ -9705,6 +10247,11 @@ def create_shop_pos_sale(
             note_base = "POS %s #%s" % (s_type, sale_id)
 
             for p in parsed:
+                portion_uc = None
+                if mode in ("kitchen", "both"):
+                    portion_uc = _kitchen_portion_price_at_checkout(
+                        cur, int(shop_id), p.get("item_id"), p.get("name") or ""
+                    )
                 cur.execute(
                     line_sql,
                     (
@@ -9715,6 +10262,7 @@ def create_shop_pos_sale(
                         p["qty"],
                         p["unit_price"],
                         p["line_total"],
+                        portion_uc,
                     ),
                 )
 
@@ -12360,10 +12908,55 @@ def get_shop_item_analytics(
     shop_id: int, analytics_filter: dict, analytics_scope: str = "general"
 ):
     """Return item analytics: totals, top items, and peak day/hour sold."""
+    sid = int(shop_id)
+    inv_mode = resolve_shop_pos_inventory_mode(sid)
     range_where, range_params = _analytics_where_clause(analytics_filter, "s")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
     where_sql = f"s.shop_id=%s AND {range_where} AND {scope_where}"
-    params = [int(shop_id)] + list(range_params) + list(scope_params)
+    params = [sid] + list(range_params) + list(scope_params)
+    if inv_mode in ("kitchen", "both"):
+        ensure_shop_pos_sale_items_portion_unit_cost_column()
+        cost = _kitchen_portion_unit_cost_expr()
+        portion_cost_select = f"""
+        , COALESCE(SUM(
+            CASE
+                WHEN LOWER(COALESCE(s.inventory_mode, 'shop')) IN ('kitchen', 'both')
+                THEN si.qty * ({cost})
+                ELSE 0
+            END
+        ), 0) AS portion_cost
+        """
+        top_items_from = f"""
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    LEFT JOIN shop_kitchen_portions skp
+        ON skp.shop_id = s.shop_id
+        AND si.item_id IS NOT NULL AND si.item_id > 0
+        AND skp.item_id = si.item_id
+    {_KITCHEN_PORTION_SALE_NAME_JOIN}
+    LEFT JOIN shop_kitchen_portions skp_n
+        ON skp_n.shop_id = s.shop_id AND skp_n.item_id = im.id
+        """
+    else:
+        portion_cost_select = ", 0 AS portion_cost"
+        top_items_from = """
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+        """
+    top_items_sql = f"""
+    SELECT
+        si.item_id,
+        si.item_name,
+        COALESCE(SUM(si.qty), 0) AS qty_sold,
+        COALESCE(SUM(si.line_total), 0) AS revenue,
+        COUNT(*) AS sale_lines
+        {portion_cost_select}
+    {top_items_from}
+    WHERE {where_sql}
+    GROUP BY si.item_id, si.item_name
+    ORDER BY qty_sold DESC, revenue DESC
+    LIMIT 20
+    """
     totals_sql = f"""
     SELECT
         COALESCE(SUM(si.qty), 0) AS total_qty,
@@ -12373,20 +12966,6 @@ def get_shop_item_analytics(
     FROM shop_pos_sale_items si
     JOIN shop_pos_sales s ON s.id = si.sale_id
     WHERE {where_sql}
-    """
-    top_items_sql = f"""
-    SELECT
-        si.item_id,
-        si.item_name,
-        COALESCE(SUM(si.qty), 0) AS qty_sold,
-        COALESCE(SUM(si.line_total), 0) AS revenue,
-        COUNT(*) AS sale_lines
-    FROM shop_pos_sale_items si
-    JOIN shop_pos_sales s ON s.id = si.sale_id
-    WHERE {where_sql}
-    GROUP BY si.item_id, si.item_name
-    ORDER BY qty_sold DESC, revenue DESC
-    LIMIT 20
     """
     peak_day_sql = f"""
     SELECT DATE(s.created_at) AS day, COALESCE(SUM(si.qty), 0) AS qty_sold
@@ -12414,6 +12993,7 @@ def get_shop_item_analytics(
         "top_items": [],
         "peak_day": None,
         "peak_hour": None,
+        "pos_inventory_mode": inv_mode,
     }
     try:
         with get_cursor() as cur:
@@ -12433,6 +13013,7 @@ def get_shop_item_analytics(
                     "qty_sold": int(r.get("qty_sold") or 0),
                     "revenue": float(r.get("revenue") or 0),
                     "sale_lines": int(r.get("sale_lines") or 0),
+                    "portion_cost": round(float(r.get("portion_cost") or 0), 2),
                 }
                 for r in rows
             ]
@@ -14292,7 +14873,160 @@ def get_shop_stock_in_receipt_row(shop_id: int, tx_id: int):
     r["place_brought_from"] = (r.get("place_brought_from") or "").strip() or "-"
     r["seller_phone"] = (r.get("seller_phone") or "").strip() or "-"
     r["served_by"] = (r.get("served_by") or "").strip() or "UNKNOWN"
+    r["note"] = (r.get("note") or "").strip()
     r["payment_status"] = (r.get("payment_status") or "pending_payment").strip().lower()
+    return r
+
+
+def get_shop_operational_expense_receipt_row(shop_id: int, expense_id: int):
+    """Single operational expense row enriched for thermal receipt printing."""
+    sql = """
+    SELECT
+        soe.id,
+        soe.shop_id,
+        soe.qty,
+        soe.unit_price,
+        soe.total_amount,
+        soe.note,
+        soe.created_at,
+        soe.category_name,
+        soe.expense_name,
+        soe.supplier_name,
+        soe.seller_phone,
+        sh.shop_name,
+        sh.shop_code,
+        sh.shop_location,
+        COALESCE(e.full_name, 'UNKNOWN') AS served_by
+    FROM shop_operational_expenses soe
+    JOIN shops sh ON sh.id = soe.shop_id
+    LEFT JOIN employees e ON e.id = soe.created_by_employee_id
+    WHERE soe.shop_id=%s AND soe.id=%s
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(shop_id), int(expense_id)))
+            row = cur.fetchone() or None
+    except pymysql.Error:
+        return None
+    if not row:
+        return None
+    r = dict(row)
+    try:
+        qty = float(r.get("qty") or 0)
+    except Exception:
+        qty = 0.0
+    unit = float(r.get("unit_price") or 0.0)
+    total = float(r.get("total_amount") or 0.0)
+    if total <= 0 and qty and unit:
+        total = round(qty * unit, 2)
+    r["qty"] = qty
+    r["buying_price"] = unit
+    r["total_cost"] = total
+    r["item_name"] = (r.get("expense_name") or "").strip() or "Expense"
+    r["category_name"] = (r.get("category_name") or "").strip() or "—"
+    r["place_brought_from"] = (r.get("supplier_name") or "").strip() or "-"
+    r["seller_phone"] = (r.get("seller_phone") or "").strip() or "-"
+    r["served_by"] = (r.get("served_by") or "").strip() or "UNKNOWN"
+    r["note"] = (r.get("note") or "").strip()
+    return r
+
+
+_TRANSFER_DELIVERED_BY_NOTE_RE = re.compile(r"\s·\sDelivered by:\s*(.*)$", re.IGNORECASE)
+
+
+def _parse_delivered_by_from_transfer_note(note: Optional[str]) -> str:
+    if not note:
+        return ""
+    m = _TRANSFER_DELIVERED_BY_NOTE_RE.search(str(note))
+    return (m.group(1).strip() if m else "")
+
+
+def _transfer_note_with_delivered_by(base_note: Optional[str], delivered_by: Optional[str]) -> Optional[str]:
+    """Append POS delivery-note signer; empty string leaves a blank line on the printed receipt."""
+    if delivered_by is None:
+        return (base_note or "").strip() or None
+    base = (base_note or "").strip()
+    name = str(delivered_by).strip()
+    suffix = f" · Delivered by: {name}"
+    combined = (base + suffix).strip() if base else suffix.strip()
+    return combined or None
+
+
+def get_shop_stock_transfer_out_receipt_row(*, shop_id: int, stock_request_id: int):
+    """Transfer-out slip for a source shop after approving an incoming stock request."""
+    shop_id = int(shop_id)
+    stock_request_id = int(stock_request_id)
+    note_like = f"%request #{stock_request_id}%"
+    approved_note_like = f"%Approved request #{stock_request_id}%"
+    has_sr_col = column_exists("shop_stock_transactions", "stock_request_id")
+    if has_sr_col:
+        sql = """
+        SELECT
+            sst.id, sst.shop_id, sst.item_id, sst.source, sst.direction, sst.qty, sst.note, sst.created_at,
+            sh.shop_name, sh.shop_code, sh.shop_location,
+            i.name AS item_name, i.category AS item_category,
+            COALESCE(e.full_name, 'UNKNOWN') AS served_by,
+            rq.shop_name AS transfer_to_shop_name,
+            sr.id AS stock_request_id
+        FROM shop_stock_transactions sst
+        JOIN shops sh ON sh.id = sst.shop_id
+        JOIN items i ON i.id = sst.item_id
+        LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+        LEFT JOIN shop_stock_requests sr ON sr.id = sst.stock_request_id
+        LEFT JOIN shops rq ON rq.id = sr.requesting_shop_id
+        WHERE sst.shop_id=%s
+          AND sst.direction='out'
+          AND sst.source='transfer'
+          AND (sst.stock_request_id=%s OR sst.note LIKE %s OR sst.note LIKE %s)
+        ORDER BY sst.id DESC
+        LIMIT 1
+        """
+        params = (shop_id, stock_request_id, note_like, approved_note_like)
+    else:
+        sql = """
+        SELECT
+            sst.id, sst.shop_id, sst.item_id, sst.source, sst.direction, sst.qty, sst.note, sst.created_at,
+            sh.shop_name, sh.shop_code, sh.shop_location,
+            i.name AS item_name, i.category AS item_category,
+            COALESCE(e.full_name, 'UNKNOWN') AS served_by,
+            rq.shop_name AS transfer_to_shop_name,
+            sr.id AS stock_request_id
+        FROM shop_stock_transactions sst
+        JOIN shops sh ON sh.id = sst.shop_id
+        JOIN items i ON i.id = sst.item_id
+        LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+        LEFT JOIN shop_stock_requests sr ON sr.id=%s AND sr.source_shop_id = sst.shop_id
+        LEFT JOIN shops rq ON rq.id = sr.requesting_shop_id
+        WHERE sst.shop_id=%s
+          AND sst.direction='out'
+          AND sst.source='transfer'
+          AND (sr.id IS NOT NULL OR sst.note LIKE %s OR sst.note LIKE %s)
+        ORDER BY sst.id DESC
+        LIMIT 1
+        """
+        params = (stock_request_id, shop_id, note_like, approved_note_like)
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone() or None
+    except pymysql.Error:
+        return None
+    if not row:
+        return None
+    r = dict(row)
+    qty = round(float(r.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+    r["qty"] = qty
+    r["buying_price"] = 0.0
+    r["amount_paid"] = 0.0
+    r["total_cost"] = 0.0
+    dest = (r.get("transfer_to_shop_name") or "").strip() or "Receiving shop"
+    r["place_brought_from"] = dest
+    r["seller_phone"] = "TRANSFER OUT"
+    r["served_by"] = (r.get("served_by") or "").strip() or "UNKNOWN"
+    r["payment_status"] = "paid"
+    r["transfer_request_id"] = int(r.get("stock_request_id") or stock_request_id or 0)
+    r["delivered_by"] = _parse_delivered_by_from_transfer_note(r.get("note") or "")
     return r
 
 
@@ -15814,6 +16548,7 @@ def get_company_report(
         "accrual_cogs_stock_out": 0.0,
         "accrual_gross_profit": 0.0,
         "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
         "accrual_operating_expenses": 0.0,
         "shop_filter_id": shop_filter,
         "items": [],
@@ -15974,6 +16709,12 @@ def get_company_report(
     out["paid_expenditure"] = exp_totals["paid_expenditure"]
     out["balance_expenditure"] = exp_totals["balance_expenditure"]
     _aggregate_company_financials_from_shops(out, af, analytics_scope, shop_id=shop_filter)
+    if shop_filter is not None:
+        out["pos_allow_credit_sale"] = resolve_shop_pos_allow_credit_sale(shop_filter)
+        out["pos_inventory_mode"] = resolve_shop_pos_inventory_mode(shop_filter)
+    else:
+        out["pos_allow_credit_sale"] = True
+        out["pos_inventory_mode"] = "shop"
     return _enrich_period_report_financials(out)
 
 
@@ -16173,6 +16914,7 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
         "accrual_cogs_stock_out": 0.0,
         "accrual_gross_profit": 0.0,
         "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
         "accrual_operating_expenses": 0.0,
         "estimated_sale_gross_profit": 0.0,
         "items": [],
@@ -16295,13 +17037,8 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     paid_cr = float(out.get("paid_credit") or 0)
     out["unpaid_credit"] = round(max(0.0, credit_rev - paid_cr), 2)
     out["collected_revenue"] = round(float(out.get("sale_revenue") or 0) + paid_cr, 2)
-    out["net_profit"] = round(
-        float(out.get("sale_revenue") or 0)
-        + paid_cr
-        - float(out.get("paid_expenditure") or 0)
-        - out["unpaid_credit"],
-        2,
-    )
+    _, accrual_net_collected = _shop_report_accrual_net_profit_pair(out)
+    out["net_profit"] = accrual_net_collected
     catalog_by_id = _report_catalog_by_item_id(catalog_rows)
     affected_ids = set(movement_map.keys()) | set(sales_map.keys())
     missing_meta = _report_fetch_item_meta_by_ids(
@@ -16375,6 +17112,10 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     items_out.sort(key=lambda x: (-float(x.get("revenue") or 0), x.get("name") or ""))
     out["items"] = items_out
     _apply_shop_report_accrual_summary(out, stock_cost_stock_out=fifo_stock_out_cost)
+    out["accrual_cogs_shop_mode_sales"] = round(
+        float(out.get("accrual_cogs_sale") or 0) + float(out.get("accrual_cogs_credit") or 0),
+        2,
+    )
     openings = list_shop_day_openings_for_report(af, shop_id=sid)
     out["shop_openings"] = openings
     out["opening_cash_total"] = round(
@@ -16383,6 +17124,33 @@ def get_shop_report(shop_id: int, analytics_filter: dict, analytics_scope: str =
     out["opening_mpesa_total"] = round(
         sum(float(o.get("opening_mpesa") or 0) for o in openings), 2
     )
+    out["pos_allow_credit_sale"] = resolve_shop_pos_allow_credit_sale(sid)
+    out["pos_inventory_mode"] = resolve_shop_pos_inventory_mode(sid)
+    inv_mode = (out.get("pos_inventory_mode") or "shop").strip().lower()
+    allow_credit = bool(out.get("pos_allow_credit_sale", True))
+    if inv_mode in ("kitchen", "both"):
+        out["accrual_cogs_kitchen_portions"] = sum_shop_kitchen_portion_cogs_for_report(
+            sid,
+            af,
+            analytics_scope,
+            allow_credit_sale=allow_credit,
+        )
+        portion_by_item = kitchen_portion_cogs_by_item_for_report(
+            sid,
+            af,
+            analytics_scope,
+            allow_credit_sale=allow_credit,
+        )
+        _apply_kitchen_portion_item_stock_costs(out.get("items") or [], portion_by_item)
+        out["kitchen_portion_cost_warnings"] = kitchen_portion_cost_warnings_for_report(
+            sid,
+            af,
+            analytics_scope,
+            allow_credit_sale=allow_credit,
+        )
+    else:
+        out["accrual_cogs_kitchen_portions"] = 0.0
+        out["kitchen_portion_cost_warnings"] = []
     return _enrich_period_report_financials(out)
 
 
@@ -17446,6 +18214,55 @@ def _merge_printing_inventory_flags(merged: Dict[str, Any]) -> None:
         merged["pos_shop_stock_sale"] = True
 
 
+        merged["pos_shop_stock_sale"] = True
+
+
+def _merged_shop_printing_settings(shop_id: int) -> Dict[str, Any]:
+    """Site printing defaults with optional per-shop override (same merge as POS checkout)."""
+    defaults: Dict[str, Any] = {
+        "pos_inventory_use_both": False,
+        "pos_kitchen_portions": False,
+        "pos_shop_stock_sale": True,
+        "pos_allow_credit_sale": True,
+    }
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return dict(defaults)
+    if sid <= 0:
+        return dict(defaults)
+    try:
+        raw = (get_site_settings(["printing_settings_json"]).get("printing_settings_json") or "").strip() or "{}"
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            data = {}
+        merged: Dict[str, Any] = {**defaults, **data}
+        for k in ("pos_inventory_use_both", "pos_kitchen_portions", "pos_shop_stock_sale", "pos_allow_credit_sale"):
+            if k in merged:
+                merged[k] = merged[k] in (True, "true", "1", 1, "True")
+        shop_row = get_shop_by_id(sid)
+        ovr = shop_row.get("printing_settings_json") if shop_row else None
+        if ovr and str(ovr).strip() and str(ovr).strip() != "{}":
+            try:
+                sdata = json.loads(ovr)
+            except (json.JSONDecodeError, TypeError):
+                sdata = {}
+            if isinstance(sdata, dict):
+                merged = {**merged, **sdata}
+                for kk in ("pos_inventory_use_both", "pos_kitchen_portions", "pos_shop_stock_sale", "pos_allow_credit_sale"):
+                    if kk in merged:
+                        merged[kk] = merged[kk] in (True, "true", "1", 1, "True")
+        _merge_printing_inventory_flags(merged)
+        return merged
+    except Exception:
+        return dict(defaults)
+
+
+def resolve_shop_pos_allow_credit_sale(shop_id: int) -> bool:
+    """Whether credit sales are enabled for this shop's POS."""
+    return bool(_merged_shop_printing_settings(shop_id).get("pos_allow_credit_sale"))
+
+
 def resolve_shop_pos_inventory_mode(shop_id: int) -> str:
     """
     Effective POS inventory mode for a branch (site printing defaults + optional shop override).
@@ -17457,42 +18274,16 @@ def resolve_shop_pos_inventory_mode(shop_id: int) -> str:
         return "none"
     if sid <= 0:
         return "none"
-    defaults: Dict[str, Any] = {
-        "pos_inventory_use_both": False,
-        "pos_kitchen_portions": False,
-        "pos_shop_stock_sale": True,
-    }
-    try:
-        raw = (get_site_settings(["printing_settings_json"]).get("printing_settings_json") or "").strip() or "{}"
-        data = json.loads(raw)
-        if not isinstance(data, dict):
-            data = {}
-        merged: Dict[str, Any] = {**defaults, **data}
-        for k in ("pos_inventory_use_both", "pos_kitchen_portions", "pos_shop_stock_sale"):
-            merged[k] = merged.get(k) in (True, "true", "1", 1, "True")
-        shop_row = get_shop_by_id(sid)
-        ovr = shop_row.get("printing_settings_json") if shop_row else None
-        if ovr and str(ovr).strip() and str(ovr).strip() != "{}":
-            try:
-                sdata = json.loads(ovr)
-            except (json.JSONDecodeError, TypeError):
-                sdata = {}
-            if isinstance(sdata, dict):
-                merged = {**merged, **sdata}
-                for kk in ("pos_inventory_use_both", "pos_kitchen_portions", "pos_shop_stock_sale"):
-                    merged[kk] = merged.get(kk) in (True, "true", "1", 1, "True")
-        _merge_printing_inventory_flags(merged)
-        k_on = bool(merged.get("pos_kitchen_portions"))
-        s_on = bool(merged.get("pos_shop_stock_sale"))
-        if k_on and s_on:
-            return "both"
-        if k_on:
-            return "kitchen"
-        if s_on:
-            return "shop"
-        return "none"
-    except Exception:
+    merged = _merged_shop_printing_settings(sid)
+    k_on = bool(merged.get("pos_kitchen_portions"))
+    s_on = bool(merged.get("pos_shop_stock_sale"))
+    if k_on and s_on:
+        return "both"
+    if k_on:
+        return "kitchen"
+    if s_on:
         return "shop"
+    return "none"
 
 
 def _shop_item_physical_stock_tracking_ok(si_row: Optional[dict], *, shop_id: int) -> bool:
@@ -17802,17 +18593,24 @@ def list_notifications_for_session(
     shop_id: Optional[int],
     role_key: str,
     limit: int = 100,
+    outcomes_only: bool = False,
 ):
     role_key = (role_key or "").strip().lower()
     is_admin = role_key in ("it_support", "super_admin", "company_manager")
     limit = max(1, min(int(limit), 500))
+    outcome_sql = (
+        " AND (dedupe_key LIKE 'sr:rev:%' OR dedupe_key LIKE 'sr:exp:%')"
+        if outcomes_only
+        else ""
+    )
     try:
         with get_cursor() as cur:
             if is_admin:
                 cur.execute(
-                    """
+                    f"""
                     SELECT id, title, message, employee_id, shop_id, audience_role, link_url, created_at
                     FROM app_notifications
+                    WHERE 1=1{outcome_sql}
                     ORDER BY created_at DESC, id DESC
                     LIMIT %s
                     """,
@@ -17834,7 +18632,7 @@ def list_notifications_for_session(
                     f"""
                     SELECT id, title, message, employee_id, shop_id, audience_role, link_url, created_at
                     FROM app_notifications
-                    WHERE ({where_sql}) AND audience_role <> 'admin_only'
+                    WHERE ({where_sql}) AND audience_role <> 'admin_only'{outcome_sql}
                     ORDER BY created_at DESC, id DESC
                     LIMIT %s
                     """,
@@ -18034,13 +18832,29 @@ def list_stock_requests_for_session(
     role_key: str,
     viewer_shop_id: Optional[int],
     limit: int = 200,
+    status: Optional[str] = None,
+    approval_queue_only: bool = False,
 ):
     role_key = (role_key or "").strip().lower()
     is_admin = role_key in ("it_support", "super_admin", "company_manager")
     limit = max(1, min(int(limit), 1000))
+    status_filter = (status or "").strip().lower() or None
     try:
         with get_cursor() as cur:
             req_type_col = "r.request_type" if column_exists("shop_stock_requests", "request_type") else "'stock_in'"
+            status_sql = " AND r.status = %s" if status_filter else ""
+            status_params: tuple = (status_filter,) if status_filter else ()
+            if approval_queue_only and not is_admin:
+                approval_sql = (
+                    " AND r.source_type = 'shop'"
+                    " AND r.source_shop_id = %s"
+                )
+                if column_exists("shop_stock_requests", "request_type"):
+                    approval_sql += " AND COALESCE(r.request_type, 'stock_in') <> 'return_to_company'"
+                approval_params = (int(viewer_shop_id or 0),)
+            else:
+                approval_sql = ""
+                approval_params = ()
             if is_admin:
                 cur.execute(
                     """
@@ -18054,12 +18868,23 @@ def list_stock_requests_for_session(
                     JOIN shops rq ON rq.id = r.requesting_shop_id
                     LEFT JOIN shops ss ON ss.id = r.source_shop_id
                     JOIN items i ON i.id = r.item_id
+                    WHERE 1=1""" + status_sql + approval_sql + """
                     ORDER BY r.created_at DESC, r.id DESC
                     LIMIT %s
                     """,
-                    (limit,),
+                    status_params + approval_params + (limit,),
                 )
             else:
+                scope_sql = (
+                    approval_sql
+                    if approval_queue_only
+                    else " AND (r.requesting_shop_id=%s OR r.source_shop_id=%s)"
+                )
+                scope_params = (
+                    approval_params
+                    if approval_queue_only
+                    else (int(viewer_shop_id or 0), int(viewer_shop_id or 0))
+                )
                 cur.execute(
                     """
                     SELECT r.id, r.requesting_shop_id, """ + req_type_col + """ AS request_type, r.source_type, r.source_shop_id, r.item_id, r.qty, r.status,
@@ -18072,15 +18897,51 @@ def list_stock_requests_for_session(
                     JOIN shops rq ON rq.id = r.requesting_shop_id
                     LEFT JOIN shops ss ON ss.id = r.source_shop_id
                     JOIN items i ON i.id = r.item_id
-                    WHERE r.requesting_shop_id=%s OR r.source_shop_id=%s
+                    WHERE 1=1""" + scope_sql + status_sql + """
                     ORDER BY r.created_at DESC, r.id DESC
                     LIMIT %s
                     """,
-                    (int(viewer_shop_id or 0), int(viewer_shop_id or 0), limit),
+                    scope_params + status_params + (limit,),
                 )
             return cur.fetchall() or []
     except pymysql.Error:
         return []
+
+
+def count_pending_stock_requests_for_session(*, role_key: str, viewer_shop_id: Optional[int]) -> int:
+    """Pending stock requests this user can approve (matches Requests awaiting approval)."""
+    role_key = (role_key or "").strip().lower()
+    is_admin = role_key in ("it_support", "super_admin", "company_manager")
+    try:
+        with get_cursor() as cur:
+            if is_admin:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS c
+                    FROM shop_stock_requests r
+                    WHERE r.status = 'pending'
+                    """,
+                )
+            else:
+                return_sql = (
+                    " AND COALESCE(r.request_type, 'stock_in') <> 'return_to_company'"
+                    if column_exists("shop_stock_requests", "request_type")
+                    else ""
+                )
+                cur.execute(
+                    f"""
+                    SELECT COUNT(*) AS c
+                    FROM shop_stock_requests r
+                    WHERE r.status = 'pending'
+                      AND r.source_type = 'shop'
+                      AND r.source_shop_id = %s{return_sql}
+                    """,
+                    (int(viewer_shop_id or 0),),
+                )
+            row = cur.fetchone() or {}
+            return int(row.get("c") or 0)
+    except pymysql.Error:
+        return 0
 
 
 def list_incoming_pending_stock_requests_for_shop(*, source_shop_id: int, limit: int = 30):
@@ -18191,6 +19052,7 @@ def review_stock_request(
     approver_shop_id: Optional[int],
     review_note: Optional[str] = None,
     fulfill_qty=None,
+    delivered_by: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """Approve or reject a pending stock request. Returns (success, error_message). error_message is empty on success."""
     request_id = int(request_id)
@@ -18267,12 +19129,15 @@ def review_stock_request(
                         cur=cur,
                     )
                 else:
+                    xfer_note = (req.get("note") or "").strip() or f"Approved request #{request_id}"
+                    if delivered_by is not None:
+                        xfer_note = _transfer_note_with_delivered_by(xfer_note, delivered_by)
                     ok = shop_transfer_stock_between_shops(
                         from_shop_id=int(req["source_shop_id"]),
                         to_shop_id=int(req["requesting_shop_id"]),
                         item_id=int(req["item_id"]),
                         qty=eff_qty,
-                        note=(req.get("note") or "").strip() or f"Approved request #{request_id}",
+                        note=xfer_note,
                         created_by_employee_id=approver_employee_id,
                         stock_request_id=request_id,
                         cur=cur,

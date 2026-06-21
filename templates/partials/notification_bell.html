@@ -1,13 +1,26 @@
-{% if notifications_url %}
+{% if notifications_url or notification_bell_popup %}
+  {% if notification_bell_popup %}
+  <button
+    type="button"
+    data-rc-notif-bell="1"
+    data-rc-notif-popup="1"
+    data-rc-notif-count="{{ notification_count | default(0) }}"
+    data-rc-notif-scope="{{ notification_scope | default('portal') }}"
+    class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
+    aria-label="Requests awaiting approval{% if notification_count and notification_count > 0 %} ({{ notification_count }} pending){% endif %}"
+    title="Requests awaiting approval{% if notification_count and notification_count > 0 %} — {{ notification_count }} pending{% endif %}"
+  >
+  {% else %}
   <a
     href="{{ notifications_url }}"
     data-rc-notif-bell="1"
     data-rc-notif-count="{{ notification_count | default(0) }}"
     data-rc-notif-scope="{{ notification_scope | default('portal') }}"
     class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
-    aria-label="Notifications"
-    title="Notifications"
+    aria-label="Notifications{% if notification_count and notification_count > 0 %} ({{ notification_count }} awaiting approval){% endif %}"
+    title="Notifications{% if notification_count and notification_count > 0 %} — {{ notification_count }} awaiting approval{% endif %}"
   >
+  {% endif %}
     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 11-6 0m6 0H9" />
     </svg>
@@ -16,10 +29,15 @@
         {{ notification_count if notification_count < 100 else '99+' }}
       </span>
     {% endif %}
+  {% if notification_bell_popup %}
+  </button>
+  {% else %}
   </a>
+  {% endif %}
+  {% if not notification_bell_popup %}
   <script>
     (function () {
-      var bell = document.querySelector("[data-rc-notif-bell]");
+      var bell = document.querySelector("[data-rc-notif-bell]:not([data-rc-notif-popup])");
       if (!bell) return;
       var scope = bell.getAttribute("data-rc-notif-scope") || "portal";
       var key = "rc_notif_seen_" + scope;
@@ -62,4 +80,5 @@
       }
     })();
   </script>
+  {% endif %}
 {% endif %}

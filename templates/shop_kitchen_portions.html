@@ -21,7 +21,7 @@
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop kitchen portion update</h2>
       <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-        Use <strong class="font-medium text-[rgb(var(--rc-page-fg))]">− / +</strong> or type a number to add or reduce portions for each item, then <strong class="font-medium text-[rgb(var(--rc-page-fg))]">save</strong>. When this shop’s POS is in kitchen mode, sales deduct from these counts instead of shop stock.
+        Use <strong class="font-medium text-[rgb(var(--rc-page-fg))]">− / +</strong> or type a number to add or reduce portions for each item. Set an <strong class="font-medium text-[rgb(var(--rc-page-fg))]">est. production price</strong> per item (used as portion cost in the shop report), then <strong class="font-medium text-[rgb(var(--rc-page-fg))]">save</strong>. When this shop’s POS is in kitchen mode, sales deduct from these counts instead of shop stock.
         Sales history: <a href="{{ url_for('shop_kitchen_portion_analytics', shop_id=shop.id) }}" class="font-medium text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">kitchen portion analytics</a> (sidebar).
       </p>
 

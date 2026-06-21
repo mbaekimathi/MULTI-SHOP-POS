@@ -240,18 +240,53 @@
       '" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No expenditure recorded for this period.</td></tr>';
   }
 
+  function renderKitchenWarnings(container, warnings) {
+    if (!container) return;
+    var list = Array.isArray(warnings) ? warnings : [];
+    if (!list.length) {
+      container.classList.add("hidden");
+      container.innerHTML = "";
+      return;
+    }
+    container.classList.remove("hidden");
+    var html =
+      '<p class="font-semibold text-amber-800 dark:text-amber-200">Missing est. production price</p>' +
+      '<p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">These items sold on kitchen portions but have no buying price — stock cost may be understated. Set prices on the kitchen portions page.</p>' +
+      '<ul class="mt-2 list-inside list-disc text-xs">';
+    list.slice(0, 8).forEach(function (w) {
+      html +=
+        "<li>" +
+        (w.name || "Item") +
+        " · " +
+        (w.portions_sold != null ? w.portions_sold : 0) +
+        " portion(s)</li>";
+    });
+    if (list.length > 8) {
+      html +=
+        '<li class="list-none text-[rgb(var(--rc-muted))]">…and ' +
+        (list.length - 8) +
+        " more</li>";
+    }
+    html += "</ul>";
+    container.innerHTML = html;
+  }
+
   function applyReportPayload(data) {
     var rd = (data && data.report) || data || {};
     var till = rd.till_summary || {};
     setLiveText("collected_revenue", fmtMoney(rd.collected_revenue));
+    setLiveText("summary_collected_revenue", fmtMoney(rd.summary_collected_revenue));
     setLiveText("total_revenue", fmtMoney(rd.total_revenue));
     setLiveText("accrual_cogs", fmtMoney(rd.accrual_cogs));
     setLiveText("accrual_cogs_sale", fmtMoney(rd.accrual_cogs_sale));
     setLiveText("accrual_cogs_credit", fmtMoney(rd.accrual_cogs_credit));
     setLiveText("accrual_cogs_stock_out", fmtMoney(rd.accrual_cogs_stock_out));
+    setLiveText("accrual_cogs_kitchen_portions", fmtMoney(rd.accrual_cogs_kitchen_portions));
+    setLiveText("accrual_cogs_shop_mode_sales", fmtMoney(rd.accrual_cogs_shop_mode_sales));
     setLiveText("accrual_operating_expenses", fmtMoney(rd.accrual_operating_expenses));
     setLiveSignedMoney("accrual_gross_profit", rd.accrual_gross_profit);
     setLiveSignedMoney("accrual_net_profit", rd.accrual_net_profit);
+    setLiveSignedMoney("accrual_net_profit_collected", rd.accrual_net_profit_collected);
     setLiveText("sale_revenue", fmtMoney(rd.sale_revenue));
     setLiveText("credit_revenue", fmtMoney(rd.credit_revenue));
     setLiveText("cash_revenue", fmtMoney(rd.cash_revenue));
@@ -261,12 +296,23 @@
     setLiveText("paid_credit", fmtMoney(rd.paid_credit));
     setLiveText("unpaid_credit", fmtMoney(rd.unpaid_credit));
     setLiveText("balance_expenditure", fmtMoney(rd.balance_expenditure));
+    setLiveText("summary_revenue_total", fmtMoney(rd.summary_revenue_total));
+    setLiveText("summary_revenue_settled", fmtMoney(rd.summary_revenue_settled));
+    setLiveText("summary_expenditure_collected", fmtMoney(rd.summary_expenditure_collected));
+    setLiveText("summary_expenditure_total", fmtMoney(rd.summary_expenditure_total));
+    setLiveText("summary_cash_mpesa", fmtMoney(rd.summary_cash_mpesa));
+    setLiveText("paid_stock_expenditure", fmtMoney(rd.paid_stock_expenditure));
+    setLiveText("unpaid_stock_expenditure", fmtMoney(rd.unpaid_stock_expenditure));
+    setLiveText("paid_bills_expenditure", fmtMoney(rd.paid_bills_expenditure));
+    setLiveText("unpaid_bills_expenditure", fmtMoney(rd.unpaid_bills_expenditure));
+    setLiveText("shelf_stock_out_expenditure", fmtMoney(rd.shelf_stock_out_expenditure));
     setLiveText("stock_cost_sold", fmtMoney(rd.stock_cost_sold));
     setLiveText("stock_cost_stock_out", fmtMoney(rd.stock_cost_stock_out));
     setLiveText("stock_cost_total", fmtMoney(rd.stock_cost_total));
     setLiveText("stock_cost_sale_only", fmtMoney(rd.stock_cost_sale_only));
     setLiveText("stock_cost_credit_total", fmtMoney(rd.stock_cost_credit_total));
     setLiveSignedMoney("estimated_sale_gross_profit", rd.estimated_sale_gross_profit);
+    setLiveText("opening_balance_expense", fmtMoney(rd.opening_balance_expense));
     setLiveText("opening_cash", fmtMoney(till.opening_cash));
     setLiveText("opening_mpesa", fmtMoney(till.opening_mpesa));
     setLiveText("opening_total", fmtMoney(till.opening_total));
@@ -279,6 +325,10 @@
     renderSoldSaleRows(document.getElementById("report-items-sale-body"), rd.items_sold_sale || []);
     renderSoldRows(document.getElementById("report-items-sold-body"), rd.items_sold || []);
     renderExpenditureRows(document.getElementById("report-expenditure-body"), rd.expenditure_rows || []);
+    renderKitchenWarnings(
+      document.getElementById("shop-report-portion-warnings"),
+      rd.kitchen_portion_cost_warnings || []
+    );
   }
 
   window.initPeriodReportLive = function (opts) {
