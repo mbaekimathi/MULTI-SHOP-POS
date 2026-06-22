@@ -3963,7 +3963,7 @@ def _render_public_storefront(*, catalog_mode: bool = False):
         website_featured_products=products,
         website_cart_products=[_serialize_website_product_cart_row(p) for p in products],
         website_public_shops=_public_storefront_shops(),
-        website_product_categories=_website_catalog_categories(),
+        website_product_categories=_website_product_categories(products),
         is_live_public_website=_is_public_website_host_request(),
         storefront_catalog_mode=False,
     )

@@ -1,0 +1,57 @@
+{# Category rows with horizontal product scroll. Expects ``cats`` and ``products``. #}
+{% set _rows_products = products if products is defined else website_featured_products|default([]) %}
+{% set _rows_cats = cats if cats is defined else website_product_categories|default([]) %}
+{% set _sec_idx = namespace(v=0) %}
+{% if _rows_cats %}
+  {% for cat in _rows_cats %}
+    {% set cat_name = cat.name if cat is mapping else cat %}
+    {% set cat_key = cat.key if cat is mapping else (cat_name|upper) %}
+    {% set row = namespace(open=false, n=0) %}
+    {% for p in _rows_products %}
+      {% if (p.category or 'General')|upper == cat_key %}
+        {% if not row.open %}
+  <section id="wsf-cat-{{ _sec_idx.v }}" class="wsf-catalog__group wsf-cat-row" data-wsf-category-row="{{ cat_key }}">
+    <div class="wsf-catalog__group-head">
+      <h2 class="wsf-catalog__group-title">{{ cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name }}</h2>
+      <span class="wsf-cat-row__count" aria-hidden="true"></span>
+      {% if catalog_url is defined and catalog_url %}
+      <a href="{{ catalog_url }}?cat={{ cat_name|urlencode }}" class="wsf-link wsf-catalog__group-link">View all</a>
+      {% endif %}
+    </div>
+    <div class="wsf-cat-scroll-wrap">
+      <div class="wsf-cat-scroll" tabindex="0" aria-label="{{ cat_name }} products">
+        {% set row.open = true %}
+        {% endif %}
+        {% with delay=row.n %}
+          {% include "partials/website_ecommerce_product_card.html" %}
+        {% endwith %}
+        {% set row.n = row.n + 1 %}
+      {% endif %}
+    {% endfor %}
+    {% if row.open %}
+      </div>
+    </div>
+  </section>
+    {% set _sec_idx.v = _sec_idx.v + 1 %}
+    {% endif %}
+  {% endfor %}
+{% else %}
+  {% for cat, cat_products in _rows_products|sort(attribute='category')|groupby('category') %}
+    {% set cat_label = cat or 'General' %}
+  <section id="wsf-cat-{{ loop.index0 }}" class="wsf-catalog__group wsf-cat-row" data-wsf-category-row="{{ cat_label|upper }}">
+    <div class="wsf-catalog__group-head">
+      <h2 class="wsf-catalog__group-title">{{ cat_label|title if cat_label.isupper() and cat_label|length > 3 else cat_label }}</h2>
+      <span class="wsf-cat-row__count" aria-hidden="true"></span>
+    </div>
+    <div class="wsf-cat-scroll-wrap">
+      <div class="wsf-cat-scroll" tabindex="0" aria-label="{{ cat_label }} products">
+        {% for p in cat_products %}
+          {% with delay=loop.index0 %}
+            {% include "partials/website_ecommerce_product_card.html" %}
+          {% endwith %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+{% endif %}
