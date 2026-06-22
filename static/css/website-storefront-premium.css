@@ -1191,6 +1191,10 @@ html[data-marketing-theme="dark"] .wsf-header.is-scrolled,
     filter: blur(56px);
     opacity: 0.28;
   }
+
+  .wsf-cat-tile--card .wsf-cat-tile__label {
+    font-size: 0.75rem;
+  }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
@@ -1200,6 +1204,22 @@ html[data-marketing-theme="dark"] .wsf-header.is-scrolled,
 
   .wsf-hero-static__grid {
     gap: 2rem;
+  }
+
+  .wsf-hero-static__copy {
+    max-width: none;
+  }
+
+  .wsf-hero-bestsellers__head {
+    text-align: left;
+  }
+
+  .wsf-hero-bestsellers__foot {
+    text-align: left;
+  }
+
+  .wsf-section-head .flex.flex-col {
+    gap: 1rem;
   }
 }
 

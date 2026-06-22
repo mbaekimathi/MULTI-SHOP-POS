@@ -70,6 +70,10 @@ textarea {
   flex-wrap: wrap;
 }
 
+.grid {
+  display: grid;
+}
+
 .items-center {
   align-items: center;
 }
@@ -100,6 +104,10 @@ textarea {
 
 .gap-3 {
   gap: 0.75rem;
+}
+
+.gap-4 {
+  gap: 1rem;
 }
 
 .gap-x-6 {
@@ -421,6 +429,35 @@ html[data-marketing-theme="dark"] .dark\:text-zinc-400 {
   color: #ffffff;
 }
 
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.h-7 {
+  height: 1.75rem;
+}
+
+.w-7 {
+  width: 1.75rem;
+}
+
+.pb-16 {
+  padding-bottom: 4rem;
+}
+
+.uppercase {
+  text-transform: uppercase;
+}
+
+.tracking-wider {
+  letter-spacing: 0.05em;
+}
+
+.text-\[0\.625rem\] {
+  font-size: 0.625rem;
+  line-height: 1rem;
+}
+
 @media (min-width: 640px) {
   .sm\:flex-row {
     flex-direction: row;
@@ -437,6 +474,16 @@ html[data-marketing-theme="dark"] .dark\:text-zinc-400 {
   .sm\:px-6 {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
+  }
+
+  .sm\:py-5 {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .sm\:py-12 {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
   }
 
   .sm\:py-14 {
@@ -484,12 +531,25 @@ html[data-marketing-theme="dark"] .dark\:text-zinc-400 {
   .md\:hidden {
     display: none;
   }
+
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .md\:col-span-2 {
+    grid-column: span 2 / span 2;
+  }
 }
 
 @media (min-width: 1024px) {
   .lg\:py-20 {
     padding-top: 5rem;
     padding-bottom: 5rem;
+  }
+
+  .lg\:px-8 {
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }
 

@@ -2456,8 +2456,15 @@ html[data-marketing-theme="dark"] .wsf-footer,
 }
 
 .wsf-footer__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
   box-shadow: 0 4px 14px -10px var(--wsf-glow);
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .wsf-view-all-link {
@@ -5451,4 +5458,206 @@ body.wsf-contact-open .wsf-fab {
 .wsf-shop-card__cta:hover svg,
 .wsf-shop-card__cta:focus-visible svg {
   transform: translateX(2px);
+}
+
+/* ── Full-viewport responsive system (mobile · tablet · desktop) ── */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.wsf-hero-bestsellers,
+.wsf-deals,
+.wsf-cat-visual:not(.wsf-cat-visual--home) {
+  max-width: 100%;
+}
+
+.wsf-hero-bestsellers__list {
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767.98px) {
+  .wsf-hero-static__copy {
+    max-width: none;
+    text-align: center;
+  }
+
+  .wsf-hero-static__lead {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .wsf-hero-static__stats {
+    justify-content: center;
+  }
+
+  .wsf-hero-bestsellers__head,
+  .wsf-hero-bestsellers__foot {
+    text-align: center;
+  }
+
+  .wsf-hero-bestsellers__list {
+    margin-inline: -0.35rem;
+    padding-inline: 0.35rem;
+    scroll-padding-inline: 0.75rem;
+    mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
+  }
+
+  .wsf-section-head .flex.flex-wrap.items-center {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wsf-section-head .wsf-view-all-link {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .wsf-home-categories .wsf-section-head .wsf-view-all-link {
+    align-self: stretch;
+  }
+
+  .wsf-promo-bar .mx-auto {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+
+  .wsf-promo-bar__text {
+    word-break: break-word;
+    line-height: 1.45;
+  }
+
+  .wsf-trust-bar__item--static {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .wsf-footer__col--brand {
+    text-align: center;
+  }
+
+  .wsf-footer__brand {
+    justify-content: center;
+  }
+
+  .wsf-footer__social {
+    justify-content: center;
+  }
+
+  .wsf-policies__grid {
+    gap: 0.85rem;
+  }
+
+  .wsf-contact-modal {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 100%);
+    border-radius: 1.25rem 1.25rem 0 0;
+    transform: translateY(105%);
+  }
+
+  .wsf-contact-modal.is-open {
+    transform: translateY(0);
+  }
+
+  .wsf-fab {
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .wsf-fab--contact.wsf-fab--stacked {
+    bottom: max(4.85rem, calc(env(safe-area-inset-bottom) + 3.85rem));
+  }
+}
+
+@media (min-width: 640px) and (max-width: 767.98px) {
+  .wsf-deals__scroll {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.75rem, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+    gap: 0.85rem;
+  }
+
+  .wsf-deal-card {
+    flex: none;
+    width: 100%;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .wsf-hero-bestsellers__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+    gap: 1rem;
+    margin-inline: 0;
+    padding-inline: 0;
+    mask-image: none;
+  }
+
+  .wsf-hero-bestsellers__item {
+    flex: none;
+    width: 100%;
+    max-width: none;
+  }
+
+  .wsf-deals__scroll {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.25rem, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+    gap: 1rem;
+  }
+
+  .wsf-deal-card {
+    flex: none;
+    width: 100%;
+  }
+
+  .wsf-footer__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+  }
+
+  .wsf-footer__col--brand {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1024px) {
+  .wsf-deals__scroll {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+    gap: 1rem;
+  }
+
+  .wsf-deal-card {
+    flex: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 359.98px) {
+  .wsf-cat-visual--home .wsf-cat-visual__scroll {
+    grid-template-columns: 1fr;
+  }
+
+  .wsf-hero-static__title {
+    font-size: clamp(1.625rem, 8.5vw, 1.875rem);
+  }
 }
