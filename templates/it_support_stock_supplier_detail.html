@@ -47,6 +47,7 @@
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Notes</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
               <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
+              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -87,9 +88,34 @@
                     Pay
                   </button>
                 </td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      class="js-supply-edit rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1.5 text-xs font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
+                      data-tx-id="{{ r.tx_id }}"
+                      data-tx-scope="{{ r.tx_scope or 'shop' }}"
+                      data-item-name="{{ r.item_name|e }}"
+                      data-qty="{{ r.qty }}"
+                      data-buying-price="{{ r.buying_price }}"
+                      data-total-cost="{{ r.total_cost }}"
+                      data-amount-paid="{{ r.amount_paid }}"
+                      data-seller-name="{{ r.seller_name|e }}"
+                      data-seller-phone="{{ r.seller_phone|e }}"
+                      data-note="{{ (r.note or '')|e }}"
+                    >Edit</button>
+                    <button
+                      type="button"
+                      class="js-supply-delete rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20"
+                      data-tx-id="{{ r.tx_id }}"
+                      data-tx-scope="{{ r.tx_scope or 'shop' }}"
+                      data-item-name="{{ r.item_name }}"
+                    >Delete</button>
+                  </div>
+                </td>
               </tr>
             {% else %}
-              <tr><td colspan="11" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No item rows for this supplier.</td></tr>
+              <tr><td colspan="12" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No item rows for this supplier.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -176,6 +202,60 @@
           <div class="mt-4 flex justify-end gap-2">
             <button type="button" id="payment-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
             <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="supply-edit-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
+      <div class="relative mx-auto mt-6 w-[95%] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl sm:mt-12">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Edit supply</h4>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Update quantity, unit price, seller details, note, or amount paid.</p>
+          </div>
+          <button type="button" id="supply-edit-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
+        </div>
+        <form id="supply-edit-form" class="mt-4 space-y-3">
+          <input type="hidden" id="edit-tx-id" />
+          <input type="hidden" id="edit-tx-scope" />
+          <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+            <span class="text-[rgb(var(--rc-muted))]">Item:</span>
+            <span id="edit-item-name" class="font-semibold text-[rgb(var(--rc-page-fg))]"></span>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-sm">
+              <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</span>
+              <input id="edit-qty" name="qty" type="number" min="0" step="any" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" />
+            </label>
+            <label class="block text-sm">
+              <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Unit price</span>
+              <input id="edit-buying-price" name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" />
+            </label>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-sm">
+              <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller name</span>
+              <input id="edit-seller-name" name="seller_name" type="text" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" />
+            </label>
+            <label class="block text-sm">
+              <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller phone</span>
+              <input id="edit-seller-phone" name="seller_phone" type="text" inputmode="tel" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" />
+            </label>
+          </div>
+          <label class="block text-sm">
+            <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Amount paid (total)</span>
+            <input id="edit-amount-paid" name="amount_paid" type="number" min="0" step="0.01" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none" />
+          </label>
+          <label class="block text-sm">
+            <span class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Notes</span>
+            <textarea id="edit-note" name="note" rows="2" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none"></textarea>
+          </label>
+          <p class="text-xs text-[rgb(var(--rc-muted))]">Reducing quantity or deleting is blocked if stock from this supply was already sold or stock-out.</p>
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" id="supply-edit-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
+            <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save changes</button>
           </div>
         </form>
       </div>
@@ -285,6 +365,98 @@
         })
         .catch(function () {
           alert("Failed to update payment.");
+        });
+      });
+    })();
+
+    (function () {
+      var editModal = document.getElementById("supply-edit-modal");
+      var editForm = document.getElementById("supply-edit-form");
+      var editBtns = document.querySelectorAll(".js-supply-edit");
+      var deleteBtns = document.querySelectorAll(".js-supply-delete");
+      if (!editModal || !editForm) return;
+
+      var txIdEl = document.getElementById("edit-tx-id");
+      var txScopeEl = document.getElementById("edit-tx-scope");
+      var itemEl = document.getElementById("edit-item-name");
+      var qtyEl = document.getElementById("edit-qty");
+      var priceEl = document.getElementById("edit-buying-price");
+      var sellerNameEl = document.getElementById("edit-seller-name");
+      var sellerPhoneEl = document.getElementById("edit-seller-phone");
+      var paidEl = document.getElementById("edit-amount-paid");
+      var noteEl = document.getElementById("edit-note");
+      var closeBtn = document.getElementById("supply-edit-close");
+      var cancelBtn = document.getElementById("supply-edit-cancel");
+
+      function openEdit() { editModal.classList.remove("hidden"); }
+      function closeEdit() { editModal.classList.add("hidden"); }
+
+      editBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          txIdEl.value = btn.getAttribute("data-tx-id") || "";
+          txScopeEl.value = (btn.getAttribute("data-tx-scope") || "shop").trim().toLowerCase();
+          itemEl.textContent = btn.getAttribute("data-item-name") || "-";
+          qtyEl.value = btn.getAttribute("data-qty") || "";
+          priceEl.value = btn.getAttribute("data-buying-price") || "";
+          sellerNameEl.value = (btn.getAttribute("data-seller-name") || "").replace(/^-$/, "");
+          sellerPhoneEl.value = (btn.getAttribute("data-seller-phone") || "").replace(/^-$/, "");
+          paidEl.value = btn.getAttribute("data-amount-paid") || "0";
+          noteEl.value = btn.getAttribute("data-note") || "";
+          openEdit();
+        });
+      });
+
+      if (closeBtn) closeBtn.addEventListener("click", closeEdit);
+      if (cancelBtn) cancelBtn.addEventListener("click", closeEdit);
+
+      editForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var txId = txIdEl.value;
+        var scope = (txScopeEl.value || "shop").trim().toLowerCase();
+        if (!txId) return;
+        var fd = new FormData(editForm);
+        fd.append("tx_scope", scope);
+        fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/update", {
+          method: "POST",
+          body: fd
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            alert((data && data.error) || "Failed to update supply.");
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          alert("Failed to update supply.");
+        });
+      });
+
+      deleteBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var txId = btn.getAttribute("data-tx-id") || "";
+          var scope = (btn.getAttribute("data-tx-scope") || "shop").trim().toLowerCase();
+          var itemName = btn.getAttribute("data-item-name") || "this supply";
+          if (!txId) return;
+          if (!window.confirm("Delete supply for \"" + itemName + "\"? Stock quantity will be reversed.")) return;
+          var fd = new FormData();
+          fd.append("tx_scope", scope);
+          fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/delete", {
+            method: "POST",
+            body: fd
+          })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              alert((data && data.error) || "Failed to delete supply.");
+              return;
+            }
+            window.location.reload();
+          })
+          .catch(function () {
+            alert("Failed to delete supply.");
+          });
         });
       });
     })();

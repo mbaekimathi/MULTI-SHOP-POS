@@ -8167,6 +8167,122 @@ def it_support_manual_stock_in_payment_update(tx_id: int):
     return jsonify({"ok": True, "row": row})
 
 
+@app.route("/it_support/stock-status/manual-stock-ins/<int:tx_id>/update", methods=["POST"])
+@login_required
+def it_support_manual_stock_in_edit(tx_id: int):
+    _it_support_or_super_admin_only()
+    tx_scope = (request.form.get("tx_scope") or "shop").strip().lower()
+    if tx_scope not in ("shop", "company"):
+        tx_scope = "shop"
+    qty_raw = (request.form.get("qty") or "").strip()
+    price_raw = (request.form.get("buying_price") or "").strip()
+    note = (request.form.get("note") or "").strip()
+    seller_name = (request.form.get("seller_name") or "").strip().upper()
+    seller_phone = (request.form.get("seller_phone") or "").strip()
+    paid_raw = (request.form.get("amount_paid") or "").strip()
+    amount_paid = None
+    if paid_raw != "":
+        try:
+            amount_paid = float(paid_raw)
+        except Exception:
+            return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
+        if amount_paid < 0:
+            return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
+    try:
+        if tx_scope == "company":
+            from database import update_company_stock_in
+
+            ok, msg, row = update_company_stock_in(
+                tx_id,
+                qty=qty_raw,
+                buying_price=price_raw,
+                note=note,
+                place_brought_from=seller_name or None,
+                seller_phone=seller_phone or None,
+                amount_paid=amount_paid,
+            )
+        else:
+            from database import update_shop_manual_stock_in
+
+            ok, msg, row = update_shop_manual_stock_in(
+                tx_id,
+                qty=qty_raw,
+                buying_price=price_raw,
+                note=note,
+                place_brought_from=seller_name or None,
+                seller_phone=seller_phone or None,
+                amount_paid=amount_paid,
+            )
+    except Exception:
+        app.logger.exception("it_support_manual_stock_in_edit: tx_id=%s", tx_id)
+        return jsonify({"ok": False, "error": "Could not update supply."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": msg or "Could not update supply."}), 400
+    return jsonify({"ok": True, "message": msg, "row": row})
+
+
+@app.route("/it_support/stock-status/manual-stock-ins/<int:tx_id>/delete", methods=["POST"])
+@login_required
+def it_support_manual_stock_in_delete(tx_id: int):
+    _it_support_or_super_admin_only()
+    tx_scope = (request.form.get("tx_scope") or "").strip().lower()
+    if not tx_scope and request.is_json:
+        payload = request.get_json(silent=True) or {}
+        tx_scope = (payload.get("tx_scope") or "").strip().lower()
+    if tx_scope not in ("shop", "company"):
+        tx_scope = "shop"
+    try:
+        if tx_scope == "company":
+            from database import delete_company_stock_in
+
+            ok, msg = delete_company_stock_in(tx_id)
+        else:
+            from database import delete_shop_manual_stock_in
+
+            ok, msg = delete_shop_manual_stock_in(tx_id)
+    except Exception:
+        app.logger.exception("it_support_manual_stock_in_delete: tx_id=%s", tx_id)
+        return jsonify({"ok": False, "error": "Could not delete supply."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": msg or "Could not delete supply."}), 400
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/it_support/stock-status/manual-stock-outs/<int:tx_id>/update", methods=["POST"])
+@login_required
+def it_support_manual_stock_out_edit(tx_id: int):
+    _it_support_or_super_admin_only()
+    try:
+        from database import update_shop_manual_stock_out
+
+        ok, msg, row = update_shop_manual_stock_out(
+            tx_id,
+            note=(request.form.get("note") or "").strip(),
+        )
+    except Exception:
+        app.logger.exception("it_support_manual_stock_out_edit: tx_id=%s", tx_id)
+        return jsonify({"ok": False, "error": "Could not update stock out."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": msg or "Could not update stock out."}), 400
+    return jsonify({"ok": True, "message": msg, "row": row})
+
+
+@app.route("/it_support/stock-status/manual-stock-outs/<int:tx_id>/delete", methods=["POST"])
+@login_required
+def it_support_manual_stock_out_delete(tx_id: int):
+    _it_support_or_super_admin_only()
+    try:
+        from database import delete_shop_manual_stock_out
+
+        ok, msg = delete_shop_manual_stock_out(tx_id)
+    except Exception:
+        app.logger.exception("it_support_manual_stock_out_delete: tx_id=%s", tx_id)
+        return jsonify({"ok": False, "error": "Could not delete stock out."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": msg or "Could not delete stock out."}), 400
+    return jsonify({"ok": True, "message": msg})
+
+
 @app.route("/it_support/stock-status/print/daily-data")
 @login_required
 def it_support_stock_status_print_daily_data():
@@ -15764,6 +15880,74 @@ def it_support_company_operational_expense_payment(shop_id: int, expense_id: int
     if not row:
         return jsonify({"ok": False, "error": "Expense not found."}), 404
     return jsonify({"ok": True, "row": row})
+
+
+@app.route(
+    "/it_support/company-operational-expenses/<int:shop_id>/<int:expense_id>/update",
+    methods=["POST"],
+)
+@login_required
+def it_support_company_operational_expense_update(shop_id: int, expense_id: int):
+    """Edit a shop operational expense from the company expenditure page."""
+    _it_support_only()
+    paid_raw = (request.form.get("amount_paid") or "").strip()
+    amount_paid = None
+    if paid_raw != "":
+        try:
+            amount_paid = float(paid_raw)
+        except Exception:
+            return jsonify({"ok": False, "error": "Invalid amount paid."}), 400
+        if amount_paid < 0:
+            return jsonify({"ok": False, "error": "Amount paid cannot be negative."}), 400
+    try:
+        from database import update_shop_operational_expense
+
+        ok, msg, row = update_shop_operational_expense(
+            shop_id,
+            expense_id,
+            category_name=(request.form.get("category_name") or "").strip(),
+            expense_name=(request.form.get("expense_name") or "").strip(),
+            qty=(request.form.get("qty") or "").strip(),
+            unit_price=(request.form.get("unit_price") or "").strip(),
+            supplier_name=(request.form.get("supplier_name") or "").strip(),
+            seller_phone=(request.form.get("seller_phone") or "").strip(),
+            note=(request.form.get("note") or "").strip(),
+            amount_paid=amount_paid,
+        )
+    except Exception:
+        logger.exception(
+            "it_support_company_operational_expense_update failed shop_id=%s expense_id=%s",
+            shop_id,
+            expense_id,
+        )
+        return jsonify({"ok": False, "error": "Could not update expense."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": msg or "Could not update expense."}), 400
+    return jsonify({"ok": True, "message": msg, "row": row})
+
+
+@app.route(
+    "/it_support/company-operational-expenses/<int:shop_id>/<int:expense_id>/delete",
+    methods=["POST"],
+)
+@login_required
+def it_support_company_operational_expense_delete(shop_id: int, expense_id: int):
+    """Delete a shop operational expense from the company expenditure page."""
+    _it_support_only()
+    try:
+        from database import delete_shop_operational_expense
+
+        ok, msg = delete_shop_operational_expense(shop_id, expense_id)
+    except Exception:
+        logger.exception(
+            "it_support_company_operational_expense_delete failed shop_id=%s expense_id=%s",
+            shop_id,
+            expense_id,
+        )
+        return jsonify({"ok": False, "error": "Could not delete expense."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": msg or "Could not delete expense."}), 400
+    return jsonify({"ok": True, "message": msg})
 
 
 @app.route("/shops/<int:shop_id>/shop-report")

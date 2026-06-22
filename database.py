@@ -2216,6 +2216,285 @@ def update_shop_operational_expense_payment(
         }
 
 
+def update_shop_operational_expense(
+    shop_id: int,
+    expense_id: int,
+    *,
+    category_name: str,
+    expense_name: str,
+    qty,
+    unit_price,
+    supplier_name: Optional[str] = None,
+    seller_phone: Optional[str] = None,
+    note: Optional[str] = None,
+    amount_paid: Optional[float] = None,
+) -> Tuple[bool, str, Optional[dict]]:
+    """Edit one shop operational expense line."""
+    try:
+        sid = int(shop_id)
+        eid = int(expense_id)
+    except Exception:
+        return False, "Invalid expense reference.", None
+    if sid <= 0 or eid <= 0:
+        return False, "Invalid expense reference.", None
+
+    cat_label = _normalize_expense_label(category_name)
+    name_label = _normalize_expense_label(expense_name)
+    if not cat_label:
+        return False, "Expense category is required.", None
+    if not name_label:
+        return False, "Expense name is required.", None
+    n = normalize_stock_move_qty(qty)
+    if n is None:
+        return False, "Quantity must be greater than zero.", None
+    try:
+        if isinstance(unit_price, str):
+            s = unit_price.strip().replace("\u00a0", "").replace(" ", "")
+            if "," in s and "." not in s:
+                s = s.replace(",", ".")
+            unit = float(s)
+        else:
+            unit = float(unit_price)
+        if not math.isfinite(unit) or unit < 0:
+            raise ValueError()
+    except Exception:
+        return False, "Unit price must be a valid number.", None
+
+    resolved_name, resolved_phone = resolve_seller_name_and_phone(
+        seller_phone=seller_phone or "",
+        seller_name=supplier_name or "",
+    )
+    if not resolved_name or not resolved_phone:
+        return False, "Supplier phone must be valid. If new, provide supplier name to register.", None
+
+    total = round(float(n) * unit, 2)
+    note_clean = _normalize_expense_label(note) if (note or "").strip() else None
+    init_operational_expense_tables()
+
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, COALESCE(amount_paid, 0) AS amount_paid
+                FROM shop_operational_expenses
+                WHERE id=%s AND shop_id=%s
+                FOR UPDATE
+                """,
+                (eid, sid),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False, "Expense not found.", None
+
+            paid_raw = amount_paid if amount_paid is not None else float(row.get("amount_paid") or 0)
+            try:
+                paid = round(float(paid_raw or 0), 2)
+            except Exception:
+                return False, "Invalid amount paid.", None
+            if paid < 0:
+                return False, "Amount paid cannot be negative.", None
+            if total <= 0:
+                status = "paid"
+                paid = 0.0
+            elif paid <= 0:
+                status = "pending_payment"
+            elif paid + 0.009 < total:
+                status = "partially_paid"
+            else:
+                status = "paid"
+                paid = total
+
+            category_id = get_or_create_expense_category(cat_label)
+            if not category_id:
+                return False, "Could not save expense category.", None
+            catalog_id = get_or_create_expense_catalog_item(category_id, name_label)
+            if not catalog_id:
+                return False, "Could not save expense name.", None
+
+            cur.execute(
+                """
+                UPDATE shop_operational_expenses
+                SET category_id=%s, expense_catalog_id=%s, category_name=%s, expense_name=%s,
+                    qty=%s, unit_price=%s, total_amount=%s, payment_status=%s, amount_paid=%s,
+                    note=%s, supplier_name=%s, seller_phone=%s
+                WHERE id=%s AND shop_id=%s
+                """,
+                (
+                    int(category_id),
+                    int(catalog_id),
+                    cat_label,
+                    name_label,
+                    n,
+                    round(unit, 2),
+                    total,
+                    status,
+                    paid,
+                    note_clean,
+                    resolved_name,
+                    resolved_phone,
+                    eid,
+                    sid,
+                ),
+            )
+        return True, "Expense updated.", {
+            "id": eid,
+            "shop_id": sid,
+            "total_cost": total,
+            "amount_paid": paid,
+            "balance": round(max(0.0, total - paid), 2),
+            "payment_status": status,
+        }
+    except pymysql.Error as e:
+        logger.warning("update_shop_operational_expense failed shop=%s id=%s: %s", sid, eid, e)
+        return False, "Could not update expense.", None
+
+
+def delete_shop_operational_expense(shop_id: int, expense_id: int) -> Tuple[bool, str]:
+    """Remove one shop operational expense line."""
+    try:
+        sid = int(shop_id)
+        eid = int(expense_id)
+    except Exception:
+        return False, "Invalid expense reference."
+    if sid <= 0 or eid <= 0:
+        return False, "Invalid expense reference."
+    init_operational_expense_tables()
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT id FROM shop_operational_expenses WHERE id=%s AND shop_id=%s FOR UPDATE",
+                (eid, sid),
+            )
+            if not cur.fetchone():
+                return False, "Expense not found."
+            cur.execute(
+                "DELETE FROM shop_operational_expenses WHERE id=%s AND shop_id=%s",
+                (eid, sid),
+            )
+        return True, "Expense deleted."
+    except pymysql.Error as e:
+        logger.warning("delete_shop_operational_expense failed shop=%s id=%s: %s", sid, eid, e)
+        return False, "Could not delete expense."
+
+
+def delete_shop_manual_stock_out(tx_id: int) -> Tuple[bool, str]:
+    """Remove a manual stock-out and restore shop stock (+ FIFO layers)."""
+    allowed_reasons = {"RETURN", "WASTE", "DISPLAY"}
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, shop_id, item_id, qty, direction, source, reason
+                FROM shop_stock_transactions
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (int(tx_id),),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                return False, "Transaction not found."
+            if (tx.get("source") or "").strip().lower() != "manual":
+                return False, "Only manual stock-out lines can be deleted."
+            if (tx.get("direction") or "").strip().lower() != "out":
+                return False, "Only stock-out lines can be deleted here."
+            reason = (tx.get("reason") or "").strip().upper()
+            if reason not in allowed_reasons:
+                return False, "This stock-out type cannot be deleted from here."
+
+            qty = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if qty <= 0:
+                return False, "Invalid transaction quantity."
+            shop_id = int(tx.get("shop_id") or 0)
+            item_id = int(tx.get("item_id") or 0)
+            if shop_id <= 0 or item_id <= 0:
+                return False, "Invalid shop or item on this transaction."
+
+            if ensure_shop_stock_fifo_schema():
+                cur.execute(
+                    """
+                    SELECT id, layer_id, qty
+                    FROM shop_stock_fifo_consumptions
+                    WHERE out_transaction_id=%s
+                    FOR UPDATE
+                    """,
+                    (int(tx_id),),
+                )
+                for c in cur.fetchall() or []:
+                    lid = int(c.get("layer_id") or 0)
+                    q = round(float(c.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    if lid > 0 and q > 0:
+                        cur.execute(
+                            """
+                            UPDATE shop_stock_cost_layers
+                            SET qty_remaining = qty_remaining + %s
+                            WHERE id=%s
+                            """,
+                            (q, lid),
+                        )
+                    cur.execute(
+                        "DELETE FROM shop_stock_fifo_consumptions WHERE id=%s",
+                        (int(c.get("id") or 0),),
+                    )
+
+            cur.execute(
+                f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s FOR UPDATE",
+                (shop_id, item_id),
+            )
+            si = cur.fetchone()
+            if not si:
+                return False, "Shop item not found."
+            shop_now = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            shop_after = round(shop_now + qty, STOCK_QTY_DECIMAL_PLACES)
+            cur.execute(
+                "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+                (shop_after, shop_id, item_id),
+            )
+            cur.execute("DELETE FROM shop_stock_transactions WHERE id=%s", (int(tx_id),))
+        return True, "Stock out deleted."
+    except pymysql.Error as e:
+        logger.warning("delete_shop_manual_stock_out failed: %s", e)
+        return False, "Could not delete stock out."
+
+
+def update_shop_manual_stock_out(
+    tx_id: int,
+    *,
+    note: Optional[str] = None,
+) -> Tuple[bool, str, Optional[dict]]:
+    """Edit notes on a manual stock-out expenditure line."""
+    allowed_reasons = {"RETURN", "WASTE", "DISPLAY"}
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, direction, source, reason
+                FROM shop_stock_transactions
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (int(tx_id),),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                return False, "Transaction not found.", None
+            if (tx.get("source") or "").strip().lower() != "manual":
+                return False, "Only manual stock-out lines can be edited.", None
+            if (tx.get("direction") or "").strip().lower() != "out":
+                return False, "Only stock-out lines can be edited here.", None
+            reason = (tx.get("reason") or "").strip().upper()
+            if reason not in allowed_reasons:
+                return False, "This stock-out type cannot be edited from here.", None
+            cur.execute(
+                "UPDATE shop_stock_transactions SET note=%s WHERE id=%s",
+                ((note or "").strip() or None, int(tx_id)),
+            )
+        return True, "Stock out updated.", {"id": int(tx_id)}
+    except pymysql.Error as e:
+        logger.warning("update_shop_manual_stock_out failed: %s", e)
+        return False, "Could not update stock out.", None
+
+
 def _serialize_operational_expense_row(r: dict) -> dict:
     try:
         qty = float(r.get("qty") or 0)
@@ -18170,6 +18449,458 @@ def get_company_stock_in_transaction(tx_id: int):
         }
     except pymysql.Error:
         return None
+
+
+def _shop_stock_in_fifo_layers_for_tx(cur, tx_id: int) -> list:
+    """FIFO cost layers tied to a manual stock-in transaction."""
+    if not ensure_shop_stock_fifo_schema():
+        return []
+    cur.execute(
+        """
+        SELECT id, qty_remaining, unit_cost
+        FROM shop_stock_cost_layers
+        WHERE source_transaction_id=%s
+        FOR UPDATE
+        """,
+        (int(tx_id),),
+    )
+    return cur.fetchall() or []
+
+
+def _shop_stock_in_fifo_remaining_for_tx(cur, tx_id: int) -> float:
+    layers = _shop_stock_in_fifo_layers_for_tx(cur, tx_id)
+    return round(
+        sum(round(float(r.get("qty_remaining") or 0), STOCK_QTY_DECIMAL_PLACES) for r in layers),
+        STOCK_QTY_DECIMAL_PLACES,
+    )
+
+
+def _shop_stock_in_fifo_consumed(cur, tx_id: int, tx_qty) -> bool:
+    """True when FIFO shows part of this stock-in layer was already consumed."""
+    q = round(float(tx_qty or 0), STOCK_QTY_DECIMAL_PLACES)
+    if q <= 0:
+        return False
+    rem = _shop_stock_in_fifo_remaining_for_tx(cur, tx_id)
+    if rem <= 0:
+        return False
+    return rem + 1e-9 < q
+
+
+def _shop_stock_in_payment_fields(qty, buying_price, amount_paid) -> dict:
+    total_cost = max(0.0, round(float(qty or 0) * float(buying_price or 0), 2))
+    try:
+        paid = round(float(amount_paid or 0), 2)
+    except Exception:
+        paid = 0.0
+    if paid < 0:
+        paid = 0.0
+    if total_cost <= 0:
+        status = "paid"
+        paid = 0.0
+    elif paid <= 0:
+        status = "pending_payment"
+    elif paid + 0.009 < total_cost:
+        status = "partially_paid"
+    else:
+        status = "paid"
+        paid = total_cost
+    return {
+        "total_cost": total_cost,
+        "amount_paid": paid,
+        "payment_status": status,
+    }
+
+
+def _delete_shop_stock_in_fifo_layers(cur, tx_id: int) -> None:
+    if not ensure_shop_stock_fifo_schema():
+        return
+    layers = _shop_stock_in_fifo_layers_for_tx(cur, tx_id)
+    for layer in layers:
+        lid = int(layer.get("id") or 0)
+        if lid <= 0:
+            continue
+        cur.execute(
+            "DELETE FROM shop_stock_fifo_consumptions WHERE layer_id=%s",
+            (lid,),
+        )
+    cur.execute(
+        "DELETE FROM shop_stock_cost_layers WHERE source_transaction_id=%s",
+        (int(tx_id),),
+    )
+
+
+def delete_shop_manual_stock_in(tx_id: int) -> Tuple[bool, str]:
+    """Remove a manual shop stock-in and reverse its quantity from shop stock."""
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, shop_id, item_id, qty, source, direction
+                FROM shop_stock_transactions
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (int(tx_id),),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                return False, "Transaction not found."
+            if (tx.get("source") or "").strip().lower() != "manual":
+                return False, "Only manual stock-in supplies can be deleted."
+            if (tx.get("direction") or "").strip().lower() != "in":
+                return False, "Only stock-in supplies can be deleted."
+
+            qty = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if qty <= 0:
+                return False, "Invalid transaction quantity."
+            if _shop_stock_in_fifo_consumed(cur, int(tx_id), qty):
+                return (
+                    False,
+                    "Cannot delete: part of this supply has already been used in sales or stock outs.",
+                )
+
+            shop_id = int(tx.get("shop_id") or 0)
+            item_id = int(tx.get("item_id") or 0)
+            if shop_id <= 0 or item_id <= 0:
+                return False, "Invalid shop or item on this transaction."
+
+            cur.execute(
+                f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s FOR UPDATE",
+                (shop_id, item_id),
+            )
+            si = cur.fetchone()
+            if not si:
+                return False, "Shop item not found."
+            shop_now = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if shop_now + 1e-9 < qty:
+                return False, "Cannot delete: insufficient shop stock on hand."
+
+            shop_after = round(shop_now - qty, STOCK_QTY_DECIMAL_PLACES)
+            cur.execute(
+                "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+                (shop_after, shop_id, item_id),
+            )
+            _delete_shop_stock_in_fifo_layers(cur, int(tx_id))
+            cur.execute("DELETE FROM shop_stock_transactions WHERE id=%s", (int(tx_id),))
+        return True, "Supply deleted."
+    except pymysql.Error as e:
+        logger.warning("delete_shop_manual_stock_in failed: %s", e)
+        return False, "Could not delete supply."
+
+
+def delete_company_stock_in(tx_id: int) -> Tuple[bool, str]:
+    """Remove a company warehouse stock-in and reverse its quantity."""
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, item_id, qty, direction
+                FROM stock_transactions
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (int(tx_id),),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                return False, "Transaction not found."
+            if (tx.get("direction") or "").strip().lower() != "in":
+                return False, "Only stock-in supplies can be deleted."
+
+            qty = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if qty <= 0:
+                return False, "Invalid transaction quantity."
+            item_id = int(tx.get("item_id") or 0)
+            if item_id <= 0:
+                return False, "Invalid item on this transaction."
+
+            cur.execute(
+                "SELECT stock_qty FROM items WHERE id=%s FOR UPDATE",
+                (item_id,),
+            )
+            item = cur.fetchone()
+            if not item:
+                return False, "Item not found."
+            before = round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if before + 1e-9 < qty:
+                return False, "Cannot delete: insufficient company stock on hand."
+
+            after = round(before - qty, STOCK_QTY_DECIMAL_PLACES)
+            cur.execute("UPDATE items SET stock_qty=%s WHERE id=%s", (after, item_id))
+            cur.execute("DELETE FROM stock_transactions WHERE id=%s", (int(tx_id),))
+        return True, "Supply deleted."
+    except pymysql.Error as e:
+        logger.warning("delete_company_stock_in failed: %s", e)
+        return False, "Could not delete supply."
+
+
+def update_shop_manual_stock_in(
+    tx_id: int,
+    *,
+    qty,
+    buying_price,
+    note: Optional[str] = None,
+    place_brought_from: Optional[str] = None,
+    seller_phone: Optional[str] = None,
+    amount_paid: Optional[float] = None,
+) -> Tuple[bool, str, Optional[dict]]:
+    """Edit a manual shop stock-in (qty, cost, supplier, note, payment)."""
+    n = normalize_stock_move_qty(qty)
+    if n is None:
+        return False, "Invalid quantity.", None
+    try:
+        bp = float(buying_price if buying_price is not None else 0)
+    except Exception:
+        return False, "Invalid unit price.", None
+    if not math.isfinite(bp) or bp < 0:
+        return False, "Invalid unit price.", None
+
+    place_clean = (place_brought_from or "").strip() or None
+    phone_raw = (seller_phone or "").strip()
+    if place_clean or phone_raw:
+        if not place_clean:
+            return False, "Seller name is required when a phone is provided.", None
+        seller_phone_norm = _normalize_phone(seller_phone)
+        if len(re.sub(r"\D", "", seller_phone_norm)) < 7:
+            return False, "Seller phone must have at least 7 digits.", None
+        place_clean = place_clean.upper()
+    else:
+        place_clean = None
+        seller_phone_norm = None
+
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, shop_id, item_id, qty, buying_price, source, direction,
+                       COALESCE(amount_paid, 0) AS amount_paid
+                FROM shop_stock_transactions
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (int(tx_id),),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                return False, "Transaction not found.", None
+            if (tx.get("source") or "").strip().lower() != "manual":
+                return False, "Only manual stock-in supplies can be edited.", None
+            if (tx.get("direction") or "").strip().lower() != "in":
+                return False, "Only stock-in supplies can be edited.", None
+
+            old_qty = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            delta = round(n - old_qty, STOCK_QTY_DECIMAL_PLACES)
+            shop_id = int(tx.get("shop_id") or 0)
+            item_id = int(tx.get("item_id") or 0)
+            if shop_id <= 0 or item_id <= 0:
+                return False, "Invalid shop or item on this transaction.", None
+
+            if delta < 0 and _shop_stock_in_fifo_consumed(cur, int(tx_id), old_qty):
+                rem = _shop_stock_in_fifo_remaining_for_tx(cur, int(tx_id))
+                if rem + delta < -1e-9:
+                    return (
+                        False,
+                        "Cannot reduce quantity: part of this supply has already been used.",
+                        None,
+                    )
+
+            cur.execute(
+                f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s FOR UPDATE",
+                (shop_id, item_id),
+            )
+            si = cur.fetchone()
+            if not si:
+                return False, "Shop item not found.", None
+            shop_now = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if delta < 0 and shop_now + delta < -1e-9:
+                return False, "Cannot reduce quantity: insufficient shop stock on hand.", None
+
+            shop_after = round(shop_now + delta, STOCK_QTY_DECIMAL_PLACES)
+            if delta != 0:
+                cur.execute(
+                    "UPDATE shop_items SET shop_stock_qty=%s WHERE shop_id=%s AND item_id=%s",
+                    (shop_after, shop_id, item_id),
+                )
+                layers = _shop_stock_in_fifo_layers_for_tx(cur, int(tx_id))
+                if layers:
+                    primary = layers[0]
+                    lid = int(primary.get("id") or 0)
+                    rem = round(float(primary.get("qty_remaining") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    new_rem = round(rem + delta, STOCK_QTY_DECIMAL_PLACES)
+                    if new_rem < -1e-9:
+                        return (
+                            False,
+                            "Cannot reduce quantity: part of this supply has already been used.",
+                            None,
+                        )
+                    if lid > 0:
+                        cur.execute(
+                            "UPDATE shop_stock_cost_layers SET qty_remaining=%s WHERE id=%s",
+                            (max(0.0, new_rem), lid),
+                        )
+                elif delta > 0 and ensure_shop_stock_fifo_schema():
+                    _shop_fifo_add_layer(cur, shop_id, item_id, delta, bp, int(tx_id))
+
+            paid_raw = amount_paid if amount_paid is not None else float(tx.get("amount_paid") or 0)
+            pay = _shop_stock_in_payment_fields(n, bp, paid_raw)
+            cost_total = pay["total_cost"]
+            cur.execute(
+                """
+                UPDATE shop_stock_transactions
+                SET qty=%s, buying_price=%s, place_brought_from=%s, seller_phone=%s,
+                    note=%s, amount_paid=%s, payment_status=%s, shop_stock_after=%s
+                WHERE id=%s
+                """,
+                (
+                    n,
+                    bp,
+                    place_clean,
+                    seller_phone_norm,
+                    (note or "").strip() or None,
+                    pay["amount_paid"],
+                    pay["payment_status"],
+                    shop_after,
+                    int(tx_id),
+                ),
+            )
+            if column_exists("shop_stock_transactions", "cost_total"):
+                cur.execute(
+                    "UPDATE shop_stock_transactions SET cost_total=%s WHERE id=%s",
+                    (cost_total, int(tx_id)),
+                )
+            layers = _shop_stock_in_fifo_layers_for_tx(cur, int(tx_id))
+            if layers:
+                lid = int(layers[0].get("id") or 0)
+                if lid > 0:
+                    cur.execute(
+                        "UPDATE shop_stock_cost_layers SET unit_cost=%s WHERE id=%s",
+                        (round(bp, 2), lid),
+                    )
+                    if column_exists("shop_stock_transactions", "cost_total"):
+                        rem = round(float(layers[0].get("qty_remaining") or 0), STOCK_QTY_DECIMAL_PLACES)
+                        cur.execute(
+                            "UPDATE shop_stock_transactions SET cost_total=%s WHERE id=%s",
+                            (round(rem * bp, 2), int(tx_id)),
+                        )
+
+            return True, "Supply updated.", {
+                "id": int(tx_id),
+                "qty": n,
+                "buying_price": bp,
+                "total_cost": cost_total,
+                "amount_paid": pay["amount_paid"],
+                "payment_status": pay["payment_status"],
+            }
+    except pymysql.Error as e:
+        logger.warning("update_shop_manual_stock_in failed: %s", e)
+        return False, "Could not update supply.", None
+
+
+def update_company_stock_in(
+    tx_id: int,
+    *,
+    qty,
+    buying_price,
+    note: Optional[str] = None,
+    place_brought_from: Optional[str] = None,
+    seller_phone: Optional[str] = None,
+    amount_paid: Optional[float] = None,
+) -> Tuple[bool, str, Optional[dict]]:
+    """Edit a company warehouse stock-in."""
+    n = normalize_stock_move_qty(qty)
+    if n is None:
+        return False, "Invalid quantity.", None
+    try:
+        bp = float(buying_price if buying_price is not None else 0)
+    except Exception:
+        return False, "Invalid unit price.", None
+    if not math.isfinite(bp) or bp < 0:
+        return False, "Invalid unit price.", None
+
+    place_clean = (place_brought_from or "").strip() or None
+    phone_raw = (seller_phone or "").strip()
+    if place_clean or phone_raw:
+        if not place_clean:
+            return False, "Seller name is required when a phone is provided.", None
+        seller_phone_norm = _normalize_phone(seller_phone)
+        if len(re.sub(r"\D", "", seller_phone_norm)) < 7:
+            return False, "Seller phone must have at least 7 digits.", None
+        place_clean = place_clean.upper()
+    else:
+        place_clean = None
+        seller_phone_norm = None
+
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, item_id, qty, buying_price, direction,
+                       COALESCE(amount_paid, 0) AS amount_paid, stock_before, stock_after
+                FROM stock_transactions
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (int(tx_id),),
+            )
+            tx = cur.fetchone()
+            if not tx:
+                return False, "Transaction not found.", None
+            if (tx.get("direction") or "").strip().lower() != "in":
+                return False, "Only stock-in supplies can be edited.", None
+
+            old_qty = round(float(tx.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            delta = round(n - old_qty, STOCK_QTY_DECIMAL_PLACES)
+            item_id = int(tx.get("item_id") or 0)
+            if item_id <= 0:
+                return False, "Invalid item on this transaction.", None
+
+            cur.execute("SELECT stock_qty FROM items WHERE id=%s FOR UPDATE", (item_id,))
+            item = cur.fetchone()
+            if not item:
+                return False, "Item not found.", None
+            stock_now = round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+            if delta < 0 and stock_now + delta < -1e-9:
+                return False, "Cannot reduce quantity: insufficient company stock on hand.", None
+
+            stock_after = round(stock_now + delta, STOCK_QTY_DECIMAL_PLACES)
+            if delta != 0:
+                cur.execute(
+                    "UPDATE items SET stock_qty=%s WHERE id=%s",
+                    (stock_after, item_id),
+                )
+
+            paid_raw = amount_paid if amount_paid is not None else float(tx.get("amount_paid") or 0)
+            pay = _shop_stock_in_payment_fields(n, bp, paid_raw)
+            cur.execute(
+                """
+                UPDATE stock_transactions
+                SET qty=%s, buying_price=%s, place_brought_from=%s, seller_phone=%s,
+                    note=%s, amount_paid=%s, payment_status=%s, stock_after=%s
+                WHERE id=%s
+                """,
+                (
+                    n,
+                    bp,
+                    place_clean,
+                    seller_phone_norm,
+                    (note or "").strip() or None,
+                    pay["amount_paid"],
+                    pay["payment_status"],
+                    stock_after,
+                    int(tx_id),
+                ),
+            )
+            return True, "Supply updated.", {
+                "id": int(tx_id),
+                "qty": n,
+                "buying_price": bp,
+                "total_cost": pay["total_cost"],
+                "amount_paid": pay["amount_paid"],
+                "payment_status": pay["payment_status"],
+            }
+    except pymysql.Error as e:
+        logger.warning("update_company_stock_in failed: %s", e)
+        return False, "Could not update supply.", None
 
 
 def get_shop_stock_qty_map_for_item(item_id: int) -> dict:
