@@ -23,10 +23,12 @@
   var EMPLOYEE_CACHE_API = BOOT.apis.employeeAuthCache;
   var EMPLOYEE_AUTH_CACHE_KEY = "richcom-shop-pos-employee-auth-cache-" + SHOP_ID;
   var CUSTOMER_LOOKUP_API = BOOT.apis.customerLookup;
+  var CUSTOMER_SEARCH_API = BOOT.apis.customerSearch || "";
   var CUSTOMER_UPSERT_API = BOOT.apis.customerUpsert;
   var RECORD_SALE_API = BOOT.apis.recordSale;
   var RECORD_QUOTE_API = BOOT.apis.recordQuote;
-  var SELLER_LOOKUP_API = BOOT.apis.sellerLookup;
+  var SELLER_LOOKUP_API = BOOT.apis.sellerLookup || ("/shops/" + SHOP_ID + "/shop-pos/seller-lookup");
+  var SELLER_SEARCH_API = BOOT.apis.sellerSearch || ("/shops/" + SHOP_ID + "/shop-pos/seller-search");
   var EXPENSE_SEARCH_API = BOOT.apis.expenseSearch || "";
   var CATALOG_STOCK_API = BOOT.apis.catalogStock;
   var RECEIPTS_LIST_API = BOOT.apis.receiptsList;
@@ -256,9 +258,14 @@ var saleType = "sale";
       var knownCustomer = null;
       var customerLookupTimer = null;
       var customerLookupInFlight = false;
+      var customerNameSuggestTimer = null;
+      var customerNameSuggestSeq = 0;
+      var customerNameSuggestEl = document.getElementById("pos-customer-name-suggest");
       var customerRegisterInFlight = false;
       var lastSplitEdited = "cash";
       var stockInModal = document.getElementById("pos-stockin-modal");
+      var stockInPanel = document.getElementById("pos-stockin-panel");
+      var stockInHeaderEyebrow = document.querySelector(".pos-stockin-header__eyebrow");
       var openReceiptsBtn = document.getElementById("pos-receipts-open");
       var receiptsModal = document.getElementById("pos-receipts-modal");
       var receiptsBackdrop = document.getElementById("pos-receipts-backdrop");
@@ -955,8 +962,12 @@ var saleType = "sale";
       var stockInOpenBtn = document.getElementById("pos-buy-open");
       var stockInCloseBtn = document.getElementById("pos-stockin-close");
       var stockInBackdrop = document.getElementById("pos-stockin-backdrop");
-      var stockInSearch = document.getElementById("pos-stockin-search");
+      var stockInItemInput = document.getElementById("pos-stockin-item-input");
+      var stockInItemListToggle = document.getElementById("pos-stockin-item-list-toggle");
+      var stockInItemSuggest = document.getElementById("pos-stockin-item-suggest");
       var stockInSelect = document.getElementById("pos-stockin-item-id");
+      var stockInItemCatalog = [];
+      var stockInItemSuggestTimer = null;
       var stockInForm = document.getElementById("pos-stockin-form");
       var stockInSellerPhone = document.getElementById("pos-stockin-seller-phone");
       var stockInSellerName = document.getElementById("pos-stockin-seller-name");
@@ -971,6 +982,9 @@ var saleType = "sale";
       var stockInAuthSixTimer = null;
       var stockInLastSixCode = "";
       var sellerLookupTimer = null;
+      var sellerNameSuggestTimer = null;
+      var sellerNameSuggestSeq = 0;
+      var stockInSellerNameSuggest = document.getElementById("pos-stockin-seller-name-suggest");
       var stockInReceiptUrl = "";
       var stockInEntryType = "stock";
       var stockInExpenseSuggestTimer = null;
@@ -1187,9 +1201,21 @@ var saleType = "sale";
         });
       }
 
+      function applyStockInModalTheme() {
+        var isExpense = stockInEntryType === "expense";
+        if (stockInPanel) {
+          stockInPanel.classList.toggle("pos-stockin-panel--stock", !isExpense);
+          stockInPanel.classList.toggle("pos-stockin-panel--expense", isExpense);
+        }
+        if (stockInHeaderEyebrow) {
+          stockInHeaderEyebrow.textContent = isExpense ? "Expense" : "Stock in";
+        }
+      }
+
       function setStockInEntryType(mode) {
         stockInEntryType = mode === "expense" ? "expense" : "stock";
         if (stockInEntryTypeInput) stockInEntryTypeInput.value = stockInEntryType;
+        applyStockInModalTheme();
         if (stockInTitle) {
           stockInTitle.textContent =
             stockInEntryType === "expense" ? "Register expense" : "Buy and stock in item";
@@ -1197,8 +1223,8 @@ var saleType = "sale";
         if (stockInSubtitle) {
           stockInSubtitle.textContent =
             stockInEntryType === "expense"
-              ? "Record a non-stock expense with category, supplier, quantity, and unit price."
-              : "Search an item live or pick from list, then fill stock-in details.";
+              ? "Record a non-stock expense with name, category, supplier, quantity, and unit price."
+              : "Search or pick an item, then fill stock-in details.";
         }
         if (stockInStockFields) stockInStockFields.classList.toggle("hidden", stockInEntryType === "expense");
         if (stockInExpenseFields) stockInExpenseFields.classList.toggle("hidden", stockInEntryType !== "expense");
@@ -1276,11 +1302,29 @@ var saleType = "sale";
         });
       }
       document.addEventListener("click", function (e) {
-        if (!stockInExpenseNameSuggest || stockInExpenseNameSuggest.classList.contains("hidden")) return;
-        if (stockInExpenseNameSuggest.contains(e.target)) return;
-        if (e.target === stockInExpenseName) return;
-        if (e.target === stockInExpenseListToggle) return;
-        hideStockInExpenseSuggest();
+        if (stockInExpenseNameSuggest && !stockInExpenseNameSuggest.classList.contains("hidden")) {
+          if (
+            !stockInExpenseNameSuggest.contains(e.target) &&
+            e.target !== stockInExpenseName &&
+            e.target !== stockInExpenseListToggle
+          ) {
+            hideStockInExpenseSuggest();
+          }
+        }
+        if (stockInSellerNameSuggest && !stockInSellerNameSuggest.classList.contains("hidden")) {
+          if (!stockInSellerNameSuggest.contains(e.target) && e.target !== stockInSellerName) {
+            hideStockInSellerNameSuggest();
+          }
+        }
+        if (stockInItemSuggest && !stockInItemSuggest.classList.contains("hidden")) {
+          if (
+            !stockInItemSuggest.contains(e.target) &&
+            e.target !== stockInItemInput &&
+            e.target !== stockInItemListToggle
+          ) {
+            hideStockInItemSuggest();
+          }
+        }
       });
       Array.prototype.forEach.call(stockInTypeRadios || [], function (radio) {
         radio.addEventListener("change", function () {
@@ -1415,6 +1459,10 @@ var saleType = "sale";
         if (!stockInModal) return;
         stockInModal.classList.toggle("hidden", !open);
         stockInModal.setAttribute("aria-hidden", open ? "false" : "true");
+        if (!open) {
+          hideStockInSellerNameSuggest();
+          hideStockInItemSuggest();
+        }
         if (open) {
           resetStockInEmployeeAuth();
           setStockInEntryType("stock");
@@ -1422,29 +1470,104 @@ var saleType = "sale";
             radio.checked = radio.value === "stock";
           });
           loadStockInExpenseCategories();
-          if (stockInSearch) {
+          buildStockInItemCatalog();
+          if (stockInItemInput) {
+            stockInItemInput.value = "";
+          }
+          if (stockInSelect) {
+            stockInSelect.value = "";
+          }
+          hideStockInItemSuggest();
+          if (stockInItemInput) {
             setTimeout(function () {
-              stockInSearch.focus();
+              stockInItemInput.focus();
             }, 30);
           }
         }
       }
 
-      function filterStockInOptions() {
+      function buildStockInItemCatalog() {
+        stockInItemCatalog = [];
         if (!stockInSelect) return;
-        var q = ((stockInSearch && stockInSearch.value) || "").trim().toLowerCase();
-        var firstVisible = "";
         Array.prototype.forEach.call(stockInSelect.options, function (opt, idx) {
-          if (idx === 0) {
-            opt.hidden = false;
-            return;
-          }
-          var hay = (opt.getAttribute("data-search") || "").toLowerCase();
-          var show = !q || hay.indexOf(q) !== -1;
-          opt.hidden = !show;
-          if (show && !firstVisible) firstVisible = opt.value;
+          if (idx === 0 || !opt.value) return;
+          stockInItemCatalog.push({
+            id: opt.value,
+            label: String(opt.textContent || "").trim(),
+            search: String(opt.getAttribute("data-search") || opt.textContent || "").toLowerCase(),
+          });
         });
-        if (firstVisible) stockInSelect.value = firstVisible;
+      }
+
+      function hideStockInItemSuggest() {
+        if (!stockInItemSuggest) return;
+        stockInItemSuggest.classList.add("hidden");
+        stockInItemSuggest.innerHTML = "";
+      }
+
+      function filterStockInItemRows(q, showAll) {
+        var needle = showAll ? "" : String(q || "").trim().toLowerCase();
+        return stockInItemCatalog.filter(function (item) {
+          return !needle || item.search.indexOf(needle) !== -1;
+        });
+      }
+
+      function applyStockInItemPick(item) {
+        var row = item || null;
+        if (!row) return;
+        if (stockInSelect) stockInSelect.value = row.id;
+        if (stockInItemInput) stockInItemInput.value = row.label;
+        hideStockInItemSuggest();
+      }
+
+      function showStockInItemSuggest(rows, emptyMessage) {
+        if (!stockInItemSuggest) return;
+        if (!rows.length) {
+          stockInItemSuggest.innerHTML =
+            '<div class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
+            (emptyMessage || "No matching items.") +
+            "</div>";
+          stockInItemSuggest.classList.remove("hidden");
+          return;
+        }
+        stockInItemSuggest.innerHTML = rows
+          .map(function (row) {
+            return (
+              '<button type="button" class="block w-full px-3 py-2 text-left text-xs hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
+              String(row.id || "").replace(/"/g, "&quot;") +
+              '" data-label="' +
+              String(row.label || "").replace(/"/g, "&quot;") +
+              '"><span class="font-semibold text-[rgb(var(--rc-page-fg))]">' +
+              String(row.label || "").replace(/</g, "&lt;") +
+              "</span></button>"
+            );
+          })
+          .join("");
+        stockInItemSuggest.classList.remove("hidden");
+        Array.prototype.forEach.call(
+          stockInItemSuggest.querySelectorAll("button[data-id]"),
+          function (btn) {
+            btn.addEventListener("mousedown", function (e) {
+              e.preventDefault();
+            });
+            btn.addEventListener("click", function () {
+              applyStockInItemPick({
+                id: btn.getAttribute("data-id"),
+                label: String(btn.getAttribute("data-label") || ""),
+              });
+            });
+          }
+        );
+      }
+
+      function lookupStockInItems(showAll) {
+        if (!stockInItemInput) return;
+        var q = showAll ? "" : stockInItemInput.value;
+        var rows = filterStockInItemRows(q, showAll);
+        showStockInItemSuggest(
+          rows,
+          rows.length ? "" : showAll ? "No items available." : "No matching items. Try another search or open the full list."
+        );
       }
 
       function lookupSellerByPhone() {
@@ -1493,10 +1616,131 @@ var saleType = "sale";
           });
       }
 
+      function stockInSellerPartyLabel() {
+        return stockInEntryType === "expense" ? "supplier" : "seller";
+      }
+
+      function hideStockInSellerNameSuggest() {
+        if (!stockInSellerNameSuggest) return;
+        stockInSellerNameSuggest.classList.add("hidden");
+        stockInSellerNameSuggest.innerHTML = "";
+      }
+
+      function applyStockInSellerSuggestion(seller) {
+        var s = seller || null;
+        if (!s || !stockInSellerName) return;
+        stockInSellerName.value = String(s.seller_name || "").toUpperCase();
+        if (stockInSellerPhone && s.phone) stockInSellerPhone.value = s.phone;
+        if (stockInSellerHint) {
+          stockInSellerHint.textContent =
+            "Registered " + stockInSellerPartyLabel() + " found. Name and phone auto-filled.";
+        }
+        hideStockInSellerNameSuggest();
+      }
+
+      function showStockInSellerNameSuggest(rows, emptyMessage) {
+        if (!stockInSellerNameSuggest || !stockInSellerName) return;
+        if (!rows.length) {
+          stockInSellerNameSuggest.innerHTML =
+            '<div class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
+            (emptyMessage ||
+              "No matching " + stockInSellerPartyLabel() + "s. Type a new name.") +
+            "</div>";
+          stockInSellerNameSuggest.classList.remove("hidden");
+          return;
+        }
+        stockInSellerNameSuggest.innerHTML = rows
+          .map(function (row) {
+            var name = String(row.seller_name || "");
+            var phone = String(row.phone || "");
+            return (
+              '<button type="button" class="block w-full px-3 py-2 text-left text-xs uppercase hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
+              String(row.id || "") +
+              '" data-name="' +
+              name.replace(/"/g, "&quot;") +
+              '" data-phone="' +
+              phone.replace(/"/g, "&quot;") +
+              '"><span class="font-semibold text-[rgb(var(--rc-page-fg))]">' +
+              name.replace(/</g, "&lt;") +
+              '</span>' +
+              (phone
+                ? '<span class="ml-1 text-[rgb(var(--rc-muted))]">' + phone.replace(/</g, "&lt;") + "</span>"
+                : "") +
+              "</button>"
+            );
+          })
+          .join("");
+        stockInSellerNameSuggest.classList.remove("hidden");
+        Array.prototype.forEach.call(
+          stockInSellerNameSuggest.querySelectorAll("button[data-name]"),
+          function (btn) {
+            btn.addEventListener("mousedown", function (e) {
+              e.preventDefault();
+            });
+            btn.addEventListener("click", function () {
+              applyStockInSellerSuggestion({
+                id: btn.getAttribute("data-id"),
+                seller_name: String(btn.getAttribute("data-name") || ""),
+                phone: String(btn.getAttribute("data-phone") || ""),
+              });
+            });
+          }
+        );
+      }
+
+      function runStockInSellerNameSearchNow() {
+        if (!stockInSellerName || !SELLER_SEARCH_API) return;
+        var q = String(stockInSellerName.value || "").trim();
+        if (q.length < 1) {
+          hideStockInSellerNameSuggest();
+          return;
+        }
+        var seq = ++sellerNameSuggestSeq;
+        if (stockInSellerHint) stockInSellerHint.textContent = "Searching " + stockInSellerPartyLabel() + "s…";
+        fetch(SELLER_SEARCH_API + "?q=" + encodeURIComponent(q) + "&limit=10", {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              if (!r.ok || !j.ok) throw new Error((j && j.error) || "Search failed");
+              return j;
+            });
+          })
+          .then(function (j) {
+            if (seq !== sellerNameSuggestSeq) return;
+            var rows = (j && j.results) || [];
+            if (!rows.length && j && j.suggestions) {
+              rows = (j.suggestions || []).map(function (name) {
+                return { seller_name: name, phone: "" };
+              });
+            }
+            if (stockInSellerHint && !rows.length) {
+              stockInSellerHint.textContent =
+                "No registered " + stockInSellerPartyLabel() + " match. Enter details to register.";
+            } else if (stockInSellerHint && rows.length) {
+              stockInSellerHint.textContent = "Pick a " + stockInSellerPartyLabel() + " or keep typing.";
+            }
+            showStockInSellerNameSuggest(
+              rows,
+              rows.length ? "" : "No matching " + stockInSellerPartyLabel() + "s. Type a new name."
+            );
+          })
+          .catch(function () {
+            if (seq !== sellerNameSuggestSeq) return;
+            hideStockInSellerNameSuggest();
+            if (stockInSellerHint) stockInSellerHint.textContent = "";
+          });
+      }
+
+      function scheduleStockInSellerNameSearch() {
+        if (sellerNameSuggestTimer) clearTimeout(sellerNameSuggestTimer);
+        sellerNameSuggestTimer = setTimeout(runStockInSellerNameSearchNow, 280);
+      }
+
       if (stockInOpenBtn) {
         stockInOpenBtn.addEventListener("click", function () {
           setStockInModalOpen(true);
-          filterStockInOptions();
         });
       }
       if (stockInCloseBtn) stockInCloseBtn.addEventListener("click", function () { setStockInModalOpen(false); });
@@ -1504,27 +1748,43 @@ var saleType = "sale";
       if (stockInAuthCode) {
         stockInAuthCode.addEventListener("input", onStockInAuthCodeInput);
       }
-      if (stockInSearch) stockInSearch.addEventListener("input", filterStockInOptions);
-      if (stockInForm) {
-        if (stockInQtyInput) {
-          stockInQtyInput.addEventListener("focus", function () {
-            if (!stockInSearch || !stockInSelect) return;
-            if ((stockInSearch.value || "").trim() === "") return;
-            var selected = stockInSelect.value || "";
-            stockInSearch.value = "";
-            filterStockInOptions();
-            if (selected) stockInSelect.value = selected;
-            stockInSelect.classList.add("ring-2", "ring-brand-400/60");
-            setTimeout(function () {
-              stockInSelect.classList.remove("ring-2", "ring-brand-400/60");
-            }, 1200);
-          });
-        }
+      buildStockInItemCatalog();
+      if (stockInItemInput) {
+        stockInItemInput.addEventListener("input", function () {
+          if (stockInSelect) stockInSelect.value = "";
+          clearTimeout(stockInItemSuggestTimer);
+          stockInItemSuggestTimer = setTimeout(function () {
+            lookupStockInItems(false);
+          }, 120);
+        });
+        stockInItemInput.addEventListener("focus", function () {
+          lookupStockInItems(false);
+        });
+      }
+      if (stockInItemListToggle) {
+        stockInItemListToggle.addEventListener("click", function (e) {
+          e.preventDefault();
+          lookupStockInItems(true);
+          if (stockInItemInput) stockInItemInput.focus();
+        });
       }
       if (stockInSellerPhone) {
         stockInSellerPhone.addEventListener("input", function () {
+          hideStockInSellerNameSuggest();
           if (sellerLookupTimer) clearTimeout(sellerLookupTimer);
           sellerLookupTimer = setTimeout(lookupSellerByPhone, 220);
+        });
+      }
+      if (stockInSellerName) {
+        stockInSellerName.addEventListener("input", function () {
+          sellerNameSuggestSeq++;
+          scheduleStockInSellerNameSearch();
+        });
+        stockInSellerName.addEventListener("focus", function () {
+          scheduleStockInSellerNameSearch();
+        });
+        stockInSellerName.addEventListener("blur", function () {
+          setTimeout(hideStockInSellerNameSuggest, 160);
         });
       }
       function stockInReceiptPrintUrl(rawUrl) {
@@ -4184,6 +4444,124 @@ var saleType = "sale";
       function scheduleCustomerLookup() {
         if (customerLookupTimer) clearTimeout(customerLookupTimer);
         customerLookupTimer = setTimeout(runCustomerLookupNow, 320);
+      }
+
+      function hideCustomerNameSuggest() {
+        if (!customerNameSuggestEl) return;
+        customerNameSuggestEl.classList.add("hidden");
+        customerNameSuggestEl.innerHTML = "";
+      }
+
+      function applyCustomerSuggestion(customer) {
+        var nameEl = document.getElementById("pos-customer-name");
+        var phoneEl = document.getElementById("pos-customer-phone");
+        var c = customer || null;
+        if (!c) return;
+        if (nameEl) nameEl.value = c.customer_name || "";
+        if (phoneEl && c.phone) phoneEl.value = c.phone;
+        if (c.id) {
+          knownCustomer = {
+            id: c.id,
+            customer_name: c.customer_name || "",
+            phone: c.phone || "",
+          };
+          setCustomerLookupStatus("Registered customer found and auto-filled.", "ok");
+        } else {
+          knownCustomer = null;
+          setCustomerLookupStatus("Customer details filled.", "ok");
+        }
+        hideCustomerNameSuggest();
+        updateCustomerSectionState();
+      }
+
+      function showCustomerNameSuggest(rows, emptyMessage) {
+        var nameEl = document.getElementById("pos-customer-name");
+        if (!customerNameSuggestEl || !nameEl) return;
+        if (!rows.length) {
+          customerNameSuggestEl.innerHTML =
+            '<div class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
+            (emptyMessage || "No matching customers. Type a new name.") +
+            "</div>";
+          customerNameSuggestEl.classList.remove("hidden");
+          return;
+        }
+        customerNameSuggestEl.innerHTML = rows
+          .map(function (row) {
+            var name = String(row.customer_name || "");
+            var phone = String(row.phone || "");
+            var label = name + (phone ? " — " + phone : "");
+            return (
+              '<button type="button" class="block w-full px-3 py-2 text-left text-xs hover:bg-[rgb(var(--rc-surface-2))]" data-id="' +
+              String(row.id || "") +
+              '" data-name="' +
+              name.replace(/"/g, "&quot;") +
+              '" data-phone="' +
+              phone.replace(/"/g, "&quot;") +
+              '"><span class="font-semibold text-[rgb(var(--rc-page-fg))]">' +
+              name.replace(/</g, "&lt;") +
+              '</span>' +
+              (phone
+                ? '<span class="ml-1 text-[rgb(var(--rc-muted))]">' + phone.replace(/</g, "&lt;") + "</span>"
+                : "") +
+              "</button>"
+            );
+          })
+          .join("");
+        customerNameSuggestEl.classList.remove("hidden");
+        Array.prototype.forEach.call(
+          customerNameSuggestEl.querySelectorAll("button[data-name]"),
+          function (btn) {
+            btn.addEventListener("mousedown", function (e) {
+              e.preventDefault();
+            });
+            btn.addEventListener("click", function () {
+              var pickedId = btn.getAttribute("data-id");
+              applyCustomerSuggestion({
+                id: pickedId ? parseInt(pickedId, 10) : null,
+                customer_name: String(btn.getAttribute("data-name") || ""),
+                phone: String(btn.getAttribute("data-phone") || ""),
+              });
+            });
+          }
+        );
+      }
+
+      function runCustomerNameSearchNow() {
+        var nameEl = document.getElementById("pos-customer-name");
+        if (!nameEl || !CUSTOMER_SEARCH_API) return;
+        var q = String(nameEl.value || "").trim();
+        if (q.length < 2) {
+          hideCustomerNameSuggest();
+          return;
+        }
+        var seq = ++customerNameSuggestSeq;
+        fetch(CUSTOMER_SEARCH_API + "?q=" + encodeURIComponent(q) + "&limit=10", {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              if (!r.ok || !j.ok) throw new Error((j && j.error) || "Search failed");
+              return j;
+            });
+          })
+          .then(function (j) {
+            if (seq !== customerNameSuggestSeq) return;
+            var rows = (j && j.results) || [];
+            showCustomerNameSuggest(
+              rows,
+              rows.length ? "" : "No matching customers. Type a new name."
+            );
+          })
+          .catch(function () {
+            if (seq !== customerNameSuggestSeq) return;
+            hideCustomerNameSuggest();
+          });
+      }
+
+      function scheduleCustomerNameSearch() {
+        if (customerNameSuggestTimer) clearTimeout(customerNameSuggestTimer);
+        customerNameSuggestTimer = setTimeout(runCustomerNameSearchNow, 280);
       }
 
       function posPaymentFeatureFlags() {
@@ -9344,6 +9722,7 @@ var saleType = "sale";
       if (customerPhoneEl) {
         customerPhoneEl.addEventListener("input", function () {
           clearKnownCustomer();
+          hideCustomerNameSuggest();
           scheduleCustomerLookup();
           if (mpesaStkPromptSent || mpesaStkFailed) {
             mpesaStkPromptSent = false;
@@ -9359,13 +9738,33 @@ var saleType = "sale";
       }
       if (customerNameEl) {
         customerNameEl.addEventListener("input", function () {
+          var nm = (customerNameEl.value || "").trim();
+          if (
+            knownCustomer &&
+            knownCustomer.customer_name &&
+            nm.toLowerCase() !== String(knownCustomer.customer_name).trim().toLowerCase()
+          ) {
+            clearKnownCustomer();
+          }
+          customerNameSuggestSeq++;
+          scheduleCustomerNameSearch();
           updateCustomerSectionState();
         });
+        customerNameEl.addEventListener("focus", function () {
+          scheduleCustomerNameSearch();
+        });
         customerNameEl.addEventListener("blur", function () {
+          setTimeout(hideCustomerNameSuggest, 160);
           maybeRegisterCustomerAfterAuth();
           updateCustomerSectionState();
         });
       }
+      document.addEventListener("click", function (e) {
+        if (!customerNameSuggestEl || customerNameSuggestEl.classList.contains("hidden")) return;
+        if (customerNameSuggestEl.contains(e.target)) return;
+        if (e.target === customerNameEl) return;
+        hideCustomerNameSuggest();
+      });
 
       var authCodeEl = document.getElementById("pos-auth-code");
       var verifyBtn = document.getElementById("pos-auth-verify");

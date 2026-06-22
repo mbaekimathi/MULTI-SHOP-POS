@@ -1386,6 +1386,7 @@ def _serialize_shop_stock_out_expenditure_row(r: dict) -> dict:
         "refund_amount": pay["refund_amount"],
         "note": (r.get("note") or "").strip(),
         "supplier_name": moved_by,
+        "seller_phone": "",
         "supplier": moved_by or reason.title(),
         "created_by": moved_by,
         "created_at": created_out,
@@ -1743,6 +1744,9 @@ def _serialize_company_warehouse_stock_expenditure_row(r: dict) -> dict:
         created_out = str(created or "")
         created_iso = created_out
     supplier = (r.get("seller_name") or "").strip() or "—"
+    seller_phone = (r.get("seller_phone") or "").strip()
+    if seller_phone in ("", "-"):
+        seller_phone = ""
     return {
         "id": int(r.get("tx_id") or 0),
         "shop_id": 0,
@@ -1758,6 +1762,7 @@ def _serialize_company_warehouse_stock_expenditure_row(r: dict) -> dict:
         "balance": round(max(0.0, total - amount_paid), 2),
         "supplier": supplier,
         "supplier_name": supplier,
+        "seller_phone": seller_phone,
         "created_by": (r.get("moved_by") or "").strip(),
         "created_at": created_out,
         "created_at_iso": created_iso,
@@ -3640,21 +3645,21 @@ def update_item(
 
 
 def update_item_selling_price_for_shop(shop_id: int, item_id: int, selling_price) -> bool:
-    """Update ``items.selling_price`` only when the item is linked to the shop (shop portal)."""
+    """Update per-shop selling price on ``shop_items`` (does not change other branches)."""
     try:
         sp = float(selling_price)
     except (TypeError, ValueError):
         return False
     if sp < 0:
         return False
+    init_shop_items_table()
     sql = """
-    UPDATE items i
-    INNER JOIN shop_items si ON si.item_id = i.id AND si.shop_id = %s
-    SET i.selling_price = %s
-    WHERE i.id = %s AND i.status = 'active'
+    UPDATE shop_items
+    SET selling_price = %s
+    WHERE shop_id = %s AND item_id = %s
     """
     with get_cursor(commit=True) as cur:
-        cur.execute(sql, (int(shop_id), sp, int(item_id)))
+        cur.execute(sql, (sp, int(shop_id), int(item_id)))
         return cur.rowcount > 0
 
 
@@ -3663,7 +3668,7 @@ def sync_shop_items_from_company_item(item_id: int) -> None:
     Apply company item master flags to all shop_items rows for this item.
     - Suspended at company: force shop display off and shop stock updates off.
     - Active but company stock updates off: force shop stock updates off (display unchanged).
-    - Active and company stock on: turn display and shop stock updates on for every shop.
+    - Active and company stock on: no automatic shop-level override (each branch keeps its own toggles).
     """
     sql_item = "SELECT status, stock_update_enabled FROM items WHERE id=%s LIMIT 1"
     with get_cursor() as cur:
@@ -3682,11 +3687,6 @@ def sync_shop_items_from_company_item(item_id: int) -> None:
         elif not comp_stock:
             cur.execute(
                 "UPDATE shop_items SET stock_update_enabled=0 WHERE item_id=%s",
-                (int(item_id),),
-            )
-        else:
-            cur.execute(
-                "UPDATE shop_items SET displayed=1, stock_update_enabled=1 WHERE item_id=%s",
                 (int(item_id),),
             )
 
@@ -4131,6 +4131,99 @@ def search_seller_names(prefix: str, limit: int = 8):
         if name:
             out.append(name)
     return out
+
+
+def search_sellers_for_pos(query: str, limit: int = 10):
+    """Substring name/phone search for POS seller/supplier autofill suggestions."""
+    q = (query or "").strip()
+    if len(q) < 1:
+        return []
+    try:
+        lim = max(1, min(int(limit), 25))
+    except Exception:
+        lim = 10
+    like = f"%{q}%"
+    digits = re.sub(r"\D", "", q)
+    phone_like = f"%{digits}%" if len(digits) >= 3 else None
+
+    seller_where = "TRIM(seller_name) <> '' AND (LOWER(seller_name) LIKE LOWER(%s)"
+    seller_params: list[Any] = [like]
+    if phone_like:
+        seller_where += " OR phone LIKE %s"
+        seller_params.append(phone_like)
+    seller_where += ")"
+
+    stock_where = (
+        "direction='in' AND TRIM(COALESCE(place_brought_from, '')) <> '' "
+        "AND TRIM(COALESCE(seller_phone, '')) NOT IN ('', '-') "
+        "AND LOWER(place_brought_from) LIKE LOWER(%s)"
+    )
+    expense_where = (
+        "TRIM(COALESCE(supplier_name, '')) <> '' "
+        "AND TRIM(COALESCE(seller_phone, '')) NOT IN ('', '-')"
+        " AND LOWER(supplier_name) LIKE LOWER(%s)"
+    )
+
+    name_col = "CONVERT(TRIM({col}) USING utf8mb4) COLLATE utf8mb4_unicode_ci"
+    phone_col = "CONVERT(TRIM({col}) USING utf8mb4) COLLATE utf8mb4_unicode_ci"
+
+    sql = f"""
+    SELECT id, seller_name, phone, sort_ts FROM (
+        SELECT id,
+               {name_col.format(col='seller_name')} AS seller_name,
+               {phone_col.format(col='phone')} AS phone,
+               updated_at AS sort_ts
+        FROM sellers
+        WHERE {seller_where}
+        UNION ALL
+        SELECT NULL AS id,
+               {name_col.format(col='place_brought_from')} AS seller_name,
+               {phone_col.format(col='seller_phone')} AS phone,
+               MAX(created_at) AS sort_ts
+        FROM stock_transactions
+        WHERE {stock_where}
+        GROUP BY TRIM(place_brought_from), TRIM(seller_phone)
+        UNION ALL
+        SELECT NULL AS id,
+               {name_col.format(col='supplier_name')} AS seller_name,
+               {phone_col.format(col='seller_phone')} AS phone,
+               MAX(created_at) AS sort_ts
+        FROM shop_operational_expenses
+        WHERE {expense_where}
+        GROUP BY TRIM(supplier_name), TRIM(seller_phone)
+    ) AS hits
+    WHERE TRIM(seller_name) <> ''
+    ORDER BY (id IS NOT NULL) DESC, sort_ts DESC, seller_name ASC
+    LIMIT %s
+    """
+    params = tuple(seller_params + [like, like, lim])
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall() or []
+        seen: set[str] = set()
+        out: list[dict] = []
+        for r in rows:
+            name = (r.get("seller_name") or "").strip()
+            phone = (r.get("phone") or "").strip()
+            if not name:
+                continue
+            key = f"{name.lower()}|{re.sub(r'\D', '', phone)}"
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(
+                {
+                    "id": r.get("id"),
+                    "seller_name": name,
+                    "phone": phone,
+                }
+            )
+            if len(out) >= lim:
+                break
+        return out
+    except pymysql.Error:
+        return []
 
 
 def list_registered_sellers_for_report(
@@ -4948,6 +5041,10 @@ def init_shop_items_table():
             if not column_exists("shop_items", "store_stock_registered"):
                 cur.execute(
                     "ALTER TABLE shop_items ADD COLUMN store_stock_registered TINYINT(1) NOT NULL DEFAULT 0 AFTER reorder_level"
+                )
+            if not column_exists("shop_items", "selling_price"):
+                cur.execute(
+                    "ALTER TABLE shop_items ADD COLUMN selling_price DECIMAL(12,2) NULL DEFAULT NULL AFTER displayed"
                 )
         logger.info("Table shop_items is ready.")
         return True
@@ -13521,6 +13618,42 @@ def _canonical_kenya_phone(phone: str) -> str:
     return p
 
 
+def search_shop_customers_for_pos(shop_id: int, query: str, limit: int = 10):
+    """Substring name search for POS customer autofill suggestions."""
+    q = (query or "").strip()
+    if len(q) < 2:
+        return []
+    try:
+        lim = max(1, min(int(limit), 25))
+    except Exception:
+        lim = 10
+    like = f"%{q}%"
+    sql = """
+    SELECT id, customer_name, phone
+    FROM shop_customers
+    WHERE shop_id=%s
+      AND TRIM(customer_name) <> ''
+      AND customer_name LIKE %s
+    ORDER BY updated_at DESC, customer_name ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (int(shop_id), like, lim))
+            rows = cur.fetchall() or []
+        return [
+            {
+                "id": r.get("id"),
+                "customer_name": (r.get("customer_name") or "").strip(),
+                "phone": (r.get("phone") or "").strip(),
+            }
+            for r in rows
+            if (r.get("customer_name") or "").strip()
+        ]
+    except pymysql.Error:
+        return []
+
+
 def get_shop_customer_by_phone(shop_id: int, phone: str):
     sql = """
     SELECT id, shop_id, customer_name, phone, created_at, updated_at
@@ -14348,8 +14481,14 @@ def seed_shop_items_for_company_item(item_id: int, origin_shop_id: Optional[int]
 def list_shop_items(shop_id: int, limit: int = 500):
     has_company_levels = column_exists("items", "low_stock_threshold") and column_exists("items", "reorder_level")
     has_shop_levels = column_exists("shop_items", "low_stock_threshold") and column_exists("shop_items", "reorder_level")
+    has_shop_selling_price = column_exists("shop_items", "selling_price")
     company_cols = ", i.low_stock_threshold, i.reorder_level" if has_company_levels else ""
     shop_cols = ", si.low_stock_threshold AS shop_low_stock_threshold, si.reorder_level AS shop_reorder_level" if has_shop_levels else ""
+    selling_price_col = (
+        "COALESCE(si.selling_price, i.selling_price, i.price) AS selling_price"
+        if has_shop_selling_price
+        else "COALESCE(i.selling_price, i.price) AS selling_price"
+    )
     sql = """
     SELECT
         i.id,
@@ -14357,7 +14496,7 @@ def list_shop_items(shop_id: int, limit: int = 500):
         i.name,
         i.description,
         i.price,
-        i.selling_price,
+        {selling_price_col},
         i.image_path,
         si.shop_stock_qty,
         si.stock_update_enabled AS shop_item_stock_updates,
@@ -14371,12 +14510,18 @@ def list_shop_items(shop_id: int, limit: int = 500):
     JOIN shop_items si ON si.item_id = i.id AND si.shop_id=%s
     ORDER BY i.category ASC, i.name ASC
     LIMIT %s
-    """.format(company_cols=company_cols, shop_cols=shop_cols)
+    """.format(company_cols=company_cols, shop_cols=shop_cols, selling_price_col=selling_price_col)
     with get_cursor() as cur:
         cur.execute(sql, (int(shop_id), int(limit)))
         rows = cur.fetchall() or []
     # Normalize fields used by templates.
     for r in rows:
+        try:
+            r["selling_price"] = float(
+                r.get("selling_price") if r.get("selling_price") is not None else r.get("price") or 0
+            )
+        except (TypeError, ValueError):
+            r["selling_price"] = float(r.get("price") or 0)
         r["shop_stock_qty"] = round(float(r.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         # Explicit aliased cols avoid DictCursor overriding duplicate logical column names from JOINs.
         shop_s = r.get("shop_item_stock_updates")
@@ -14396,6 +14541,12 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
     """
     Items for Shop POS: only active system items that are marked displayed for this shop.
     """
+    has_shop_selling_price = column_exists("shop_items", "selling_price")
+    selling_price_col = (
+        "COALESCE(si.selling_price, i.selling_price, i.price) AS selling_price"
+        if has_shop_selling_price
+        else "COALESCE(i.selling_price, i.price) AS selling_price"
+    )
     sql = """
     SELECT
         i.id,
@@ -14403,7 +14554,7 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
         i.name,
         i.description,
         i.price AS original_selling_price,
-        i.selling_price,
+        {selling_price_col},
         i.image_path,
         si.shop_stock_qty,
         si.stock_update_enabled AS shop_pos_inventory_toggle,
@@ -14416,7 +14567,7 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
     WHERE i.status='active' AND si.displayed=1
     ORDER BY i.category ASC, i.name ASC
     LIMIT %s
-    """
+    """.format(selling_price_col=selling_price_col)
     with get_cursor() as cur:
         cur.execute(sql, (int(shop_id), int(limit)))
         rows = cur.fetchall() or []
@@ -14434,6 +14585,7 @@ def list_shop_pos_items(shop_id: int, limit: int = 2000):
         except (TypeError, ValueError):
             sell = orig
         r["price"] = sell
+        r["selling_price"] = sell
         r["original_selling_price"] = orig
     return rows
 
@@ -16027,6 +16179,395 @@ def get_company_stock_status(
     return shops, rows
 
 
+def get_shop_stock_period_item_balances(shop_id: int, analytics_filter: dict) -> dict:
+    """
+    Per-item stock reconciliation for one shop over an analytics period.
+
+    Returns {item_id: {opening_stock, stock_in, stock_out, stock_sold, closing_stock}}.
+    """
+    try:
+        sid = int(shop_id)
+    except Exception:
+        return {}
+    if sid <= 0:
+        return {}
+
+    af = analytics_filter or {}
+    range_start = (af.get("range_start") or "").strip()
+    range_end = (af.get("range_end_exclusive") or "").strip()
+
+    sst_where, sst_params = _analytics_where_clause(af, "sst")
+    sst_where = f"({sst_where}) AND sst.shop_id=%s"
+    sst_params = list(sst_params) + [sid]
+
+    sale_range_where, sale_range_params = _analytics_where_clause(af, "s")
+    scope_where, scope_params = _analytics_receipt_scope_clause("general", "s")
+    sale_where = f"s.shop_id=%s AND {sale_range_where} AND {scope_where}"
+    sale_params = [sid] + list(sale_range_params) + list(scope_params)
+
+    movement_sql = f"""
+    SELECT
+        sst.item_id,
+        COALESCE(SUM(CASE WHEN sst.direction = 'in' THEN sst.qty ELSE 0 END), 0) AS stock_in,
+        COALESCE(SUM(CASE WHEN sst.direction = 'out' THEN sst.qty ELSE 0 END), 0) AS stock_out
+    FROM shop_stock_transactions sst
+    WHERE {sst_where}
+    GROUP BY sst.item_id
+    """
+
+    join_name_catalog = """
+    INNER JOIN (
+        SELECT MIN(i.id) AS id, LOWER(TRIM(i.name)) AS nm
+        FROM items i
+        WHERE i.status = 'active' AND COALESCE(i.stock_update_enabled, 0) = 1
+        GROUP BY LOWER(TRIM(i.name))
+    ) im ON im.nm = LOWER(TRIM(COALESCE(si.item_name, '')))
+        AND LENGTH(TRIM(COALESCE(si.item_name, ''))) > 0
+    """
+    sales_by_id_sql = f"""
+    SELECT
+        si.item_id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    WHERE {sale_where} AND si.item_id IS NOT NULL AND si.item_id > 0
+    GROUP BY si.item_id
+    """
+    sales_by_name_sql = f"""
+    SELECT
+        im.id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    {join_name_catalog}
+    WHERE {sale_where} AND (si.item_id IS NULL OR si.item_id = 0)
+    GROUP BY im.id
+    """
+
+    stock_at_sql = """
+    SELECT sst.item_id, CAST(sst.shop_stock_after AS SIGNED) AS qty
+    FROM shop_stock_transactions sst
+    INNER JOIN (
+        SELECT item_id, MAX(id) AS mid
+        FROM shop_stock_transactions
+        WHERE shop_id = %s AND created_at < %s
+        GROUP BY item_id
+    ) z ON z.mid = sst.id
+    """
+    current_qty_sql = """
+    SELECT si.item_id, COALESCE(si.shop_stock_qty, 0) AS qty
+    FROM shop_items si
+    JOIN items i ON i.id = si.item_id
+    WHERE si.shop_id = %s AND i.status = 'active'
+    """
+
+    movement_map: dict = {}
+    sales_map: dict = {}
+    opening_map: dict = {}
+    closing_map: dict = {}
+    current_qty: dict = {}
+
+    try:
+        with get_cursor() as cur:
+            cur.execute(movement_sql, tuple(sst_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    movement_map[iid] = {
+                        "stock_in": int(r.get("stock_in") or 0),
+                        "stock_out": int(r.get("stock_out") or 0),
+                    }
+
+            cur.execute(sales_by_id_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    sales_map[iid] = int(r.get("stock_sold") or 0)
+
+            cur.execute(sales_by_name_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    sales_map[iid] = int(sales_map.get(iid, 0)) + int(r.get("stock_sold") or 0)
+
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_start):
+                cur.execute(stock_at_sql, (sid, range_start))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        opening_map[iid] = int(r.get("qty") or 0)
+
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_end):
+                cur.execute(stock_at_sql, (sid, range_end))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        closing_map[iid] = int(r.get("qty") or 0)
+
+            cur.execute(current_qty_sql, (sid,))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    current_qty[iid] = int(r.get("qty") or 0)
+    except pymysql.Error:
+        return {}
+
+    out: dict = {}
+    all_ids = set(current_qty) | set(movement_map) | set(sales_map) | set(opening_map) | set(closing_map)
+    for iid in all_ids:
+        mv = movement_map.get(iid) or {"stock_in": 0, "stock_out": 0}
+        stock_in = int(mv["stock_in"])
+        stock_out = int(mv["stock_out"])
+        stock_sold = int(sales_map.get(iid, 0))
+        shop_qty = int(current_qty.get(iid, 0))
+        closing_stock = int(closing_map.get(iid, shop_qty))
+        if iid in opening_map:
+            opening_stock = int(opening_map[iid])
+        else:
+            opening_stock = closing_stock - stock_in + stock_out
+        out[iid] = {
+            "opening_stock": opening_stock,
+            "stock_in": stock_in,
+            "stock_out": stock_out,
+            "stock_sold": stock_sold,
+            "closing_stock": closing_stock,
+        }
+    return out
+
+
+def get_it_stock_period_item_balances(
+    analytics_filter: dict, shop_id: Optional[int] = None
+) -> dict:
+    """
+    Per-item period balances for IT stock reports.
+
+    - shop_id set: that shop only (same as get_shop_stock_period_item_balances).
+    - shop_id None: company warehouse + all shops combined per item.
+    """
+    if shop_id is not None:
+        try:
+            sid = int(shop_id)
+        except Exception:
+            return {}
+        if sid > 0:
+            return get_shop_stock_period_item_balances(sid, analytics_filter)
+        return {}
+
+    af = analytics_filter or {}
+    range_start = (af.get("range_start") or "").strip()
+    range_end = (af.get("range_end_exclusive") or "").strip()
+
+    st_where, st_params = _analytics_where_clause(af, "st")
+    sst_where, sst_params = _analytics_where_clause(af, "sst")
+
+    movement_sql = f"""
+    SELECT
+        mv.item_id,
+        COALESCE(SUM(CASE WHEN mv.direction = 'in' THEN mv.qty ELSE 0 END), 0) AS stock_in,
+        COALESCE(SUM(CASE WHEN mv.direction = 'out' THEN mv.qty ELSE 0 END), 0) AS stock_out
+    FROM (
+        SELECT st.item_id, st.direction, st.qty
+        FROM stock_transactions st
+        WHERE {st_where}
+        UNION ALL
+        SELECT sst.item_id, sst.direction, sst.qty
+        FROM shop_stock_transactions sst
+        WHERE {sst_where}
+    ) mv
+    GROUP BY mv.item_id
+    """
+
+    sale_range_where, sale_range_params = _analytics_where_clause(af, "s")
+    scope_where, scope_params = _analytics_receipt_scope_clause("general", "s")
+    sale_where = f"{sale_range_where} AND {scope_where}"
+    sale_params = list(sale_range_params) + list(scope_params)
+
+    join_name_catalog = """
+    INNER JOIN (
+        SELECT MIN(i.id) AS id, LOWER(TRIM(i.name)) AS nm
+        FROM items i
+        WHERE i.status = 'active' AND COALESCE(i.stock_update_enabled, 0) = 1
+        GROUP BY LOWER(TRIM(i.name))
+    ) im ON im.nm = LOWER(TRIM(COALESCE(si.item_name, '')))
+        AND LENGTH(TRIM(COALESCE(si.item_name, ''))) > 0
+    """
+    sales_by_id_sql = f"""
+    SELECT
+        si.item_id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    WHERE {sale_where} AND si.item_id IS NOT NULL AND si.item_id > 0
+    GROUP BY si.item_id
+    """
+    sales_by_name_sql = f"""
+    SELECT
+        im.id AS item_id,
+        COALESCE(SUM(si.qty), 0) AS stock_sold
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales s ON s.id = si.sale_id
+    {join_name_catalog}
+    WHERE {sale_where} AND (si.item_id IS NULL OR si.item_id = 0)
+    GROUP BY im.id
+    """
+
+    stock_at_company_sql = """
+    SELECT st.item_id, CAST(st.stock_after AS SIGNED) AS qty
+    FROM stock_transactions st
+    INNER JOIN (
+        SELECT item_id, MAX(id) AS mid
+        FROM stock_transactions
+        WHERE created_at < %s
+        GROUP BY item_id
+    ) z ON z.mid = st.id
+    """
+    stock_at_shops_sql = """
+    SELECT sst.item_id, COALESCE(SUM(CAST(sst.shop_stock_after AS SIGNED)), 0) AS qty
+    FROM shop_stock_transactions sst
+    INNER JOIN (
+        SELECT shop_id, item_id, MAX(id) AS mid
+        FROM shop_stock_transactions
+        WHERE created_at < %s
+        GROUP BY shop_id, item_id
+    ) z ON z.mid = sst.id
+    GROUP BY sst.item_id
+    """
+    current_qty_sql = """
+    SELECT
+        i.id AS item_id,
+        COALESCE(i.stock_qty, 0) + COALESCE(SUM(si.shop_stock_qty), 0) AS qty
+    FROM items i
+    LEFT JOIN shop_items si ON si.item_id = i.id
+    WHERE i.status = 'active'
+    GROUP BY i.id, i.stock_qty
+    """
+
+    movement_map: dict = {}
+    sales_map: dict = {}
+    opening_map: dict = {}
+    closing_map: dict = {}
+    current_qty: dict = {}
+
+    try:
+        with get_cursor() as cur:
+            cur.execute(movement_sql, tuple(list(st_params) + list(sst_params)))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    movement_map[iid] = {
+                        "stock_in": int(r.get("stock_in") or 0),
+                        "stock_out": int(r.get("stock_out") or 0),
+                    }
+
+            cur.execute(sales_by_id_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    sales_map[iid] = int(r.get("stock_sold") or 0)
+
+            cur.execute(sales_by_name_sql, tuple(sale_params))
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    sales_map[iid] = int(sales_map.get(iid, 0)) + int(r.get("stock_sold") or 0)
+
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_start):
+                cur.execute(stock_at_company_sql, (range_start,))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        opening_map[iid] = int(opening_map.get(iid, 0)) + int(r.get("qty") or 0)
+                cur.execute(stock_at_shops_sql, (range_start,))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        opening_map[iid] = int(opening_map.get(iid, 0)) + int(r.get("qty") or 0)
+
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", range_end):
+                cur.execute(stock_at_company_sql, (range_end,))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        closing_map[iid] = int(closing_map.get(iid, 0)) + int(r.get("qty") or 0)
+                cur.execute(stock_at_shops_sql, (range_end,))
+                for r in cur.fetchall() or []:
+                    try:
+                        iid = int(r.get("item_id") or 0)
+                    except Exception:
+                        continue
+                    if iid > 0:
+                        closing_map[iid] = int(closing_map.get(iid, 0)) + int(r.get("qty") or 0)
+
+            cur.execute(current_qty_sql)
+            for r in cur.fetchall() or []:
+                try:
+                    iid = int(r.get("item_id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    current_qty[iid] = int(r.get("qty") or 0)
+    except pymysql.Error:
+        return {}
+
+    out: dict = {}
+    all_ids = set(current_qty) | set(movement_map) | set(sales_map) | set(opening_map) | set(closing_map)
+    for iid in all_ids:
+        mv = movement_map.get(iid) or {"stock_in": 0, "stock_out": 0}
+        stock_in = int(mv["stock_in"])
+        stock_out = int(mv["stock_out"])
+        stock_sold = int(sales_map.get(iid, 0))
+        total_qty = int(current_qty.get(iid, 0))
+        closing_stock = int(closing_map.get(iid, total_qty))
+        if iid in opening_map:
+            opening_stock = int(opening_map[iid])
+        else:
+            opening_stock = closing_stock - stock_in + stock_out
+        out[iid] = {
+            "opening_stock": opening_stock,
+            "stock_in": stock_in,
+            "stock_out": stock_out,
+            "stock_sold": stock_sold,
+            "closing_stock": closing_stock,
+        }
+    return out
+
+
 def get_shop_daily_stock_count(shop_id: int, report_date) -> list:
     """
     Per-item daily stock reconciliation for one shop (calendar day).
@@ -17330,6 +17871,37 @@ def list_company_stock_movements(
     return out
 
 
+def _supplier_stock_in_payment_snapshot(
+    *,
+    total_cost: float,
+    amount_paid: float,
+    payment_status: str,
+) -> dict:
+    """Align supplier stock-in paid/balance fields with payment_status for reporting."""
+    total = round(max(0.0, float(total_cost or 0)), 2)
+    paid = round(max(0.0, float(amount_paid or 0)), 2)
+    status = (payment_status or "pending_payment").strip().lower()
+    if status not in {"pending_payment", "partially_paid", "paid"}:
+        status = "pending_payment"
+
+    if status == "paid" and paid + 0.009 < total:
+        paid = total
+    elif paid + 0.009 >= total and total > 0:
+        paid = total
+        status = "paid"
+    elif paid > 0.009 and paid + 0.009 < total:
+        status = "partially_paid"
+    elif paid <= 0.009 and status not in ("paid", "partially_paid"):
+        status = "pending_payment"
+
+    balance = round(max(total - paid, 0.0), 2)
+    return {
+        "amount_paid": paid,
+        "balance": balance,
+        "payment_status": status,
+    }
+
+
 def list_company_supplier_stock_ins(
     analytics_filter: Optional[dict] = None,
     shop_id: Optional[int] = None,
@@ -17442,7 +18014,11 @@ def list_company_supplier_stock_ins(
         qty = int(r.get("qty") or 0)
         buying_price = float(r.get("buying_price") or 0)
         total_cost = max(0.0, float(qty * buying_price))
-        amount_paid = max(0.0, float(r.get("amount_paid") or 0))
+        pay = _supplier_stock_in_payment_snapshot(
+            total_cost=total_cost,
+            amount_paid=float(r.get("amount_paid") or 0),
+            payment_status=(r.get("payment_status") or "pending_payment"),
+        )
         scope = (r.get("tx_scope") or "shop").strip().lower()
         if scope not in ("company", "shop"):
             scope = "shop"
@@ -17460,9 +18036,9 @@ def list_company_supplier_stock_ins(
                 "total_cost": total_cost,
                 "seller_name": (r.get("seller_name") or "-").strip() or "-",
                 "seller_phone": (r.get("seller_phone") or "-").strip() or "-",
-                "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
-                "amount_paid": amount_paid,
-                "balance": max(total_cost - amount_paid, 0.0),
+                "payment_status": pay["payment_status"],
+                "amount_paid": pay["amount_paid"],
+                "balance": pay["balance"],
                 "moved_by": (r.get("moved_by") or "UNKNOWN").strip() or "UNKNOWN",
                 "note": (r.get("note") or "").strip(),
             }
@@ -17506,7 +18082,11 @@ def get_shop_manual_stock_in_transaction(tx_id: int):
         qty = round(float(r.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         buying_price = float(r.get("buying_price") or 0)
         total_cost = max(0.0, float(qty * buying_price))
-        amount_paid = max(0.0, float(r.get("amount_paid") or 0))
+        pay = _supplier_stock_in_payment_snapshot(
+            total_cost=total_cost,
+            amount_paid=float(r.get("amount_paid") or 0),
+            payment_status=(r.get("payment_status") or "pending_payment"),
+        )
         return {
             "tx_id": int(r.get("tx_id") or 0),
             "tx_scope": "shop",
@@ -17520,9 +18100,9 @@ def get_shop_manual_stock_in_transaction(tx_id: int):
             "total_cost": total_cost,
             "seller_name": (r.get("seller_name") or "-").strip() or "-",
             "seller_phone": (r.get("seller_phone") or "-").strip() or "-",
-            "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
-            "amount_paid": amount_paid,
-            "balance": max(total_cost - amount_paid, 0.0),
+            "payment_status": pay["payment_status"],
+            "amount_paid": pay["amount_paid"],
+            "balance": pay["balance"],
             "moved_by": (r.get("moved_by") or "UNKNOWN").strip() or "UNKNOWN",
             "note": (r.get("note") or "").strip(),
         }
@@ -17564,7 +18144,11 @@ def get_company_stock_in_transaction(tx_id: int):
         qty = round(float(r.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
         buying_price = float(r.get("buying_price") or 0)
         total_cost = max(0.0, float(qty * buying_price))
-        amount_paid = max(0.0, float(r.get("amount_paid") or 0))
+        pay = _supplier_stock_in_payment_snapshot(
+            total_cost=total_cost,
+            amount_paid=float(r.get("amount_paid") or 0),
+            payment_status=(r.get("payment_status") or "pending_payment"),
+        )
         return {
             "tx_id": int(r.get("tx_id") or 0),
             "tx_scope": "company",
@@ -17578,9 +18162,9 @@ def get_company_stock_in_transaction(tx_id: int):
             "total_cost": total_cost,
             "seller_name": (r.get("seller_name") or "-").strip() or "-",
             "seller_phone": (r.get("seller_phone") or "-").strip() or "-",
-            "payment_status": (r.get("payment_status") or "pending_payment").strip().lower(),
-            "amount_paid": amount_paid,
-            "balance": max(total_cost - amount_paid, 0.0),
+            "payment_status": pay["payment_status"],
+            "amount_paid": pay["amount_paid"],
+            "balance": pay["balance"],
             "moved_by": (r.get("moved_by") or "UNKNOWN").strip() or "UNKNOWN",
             "note": (r.get("note") or "").strip(),
         }
@@ -17884,6 +18468,11 @@ def shop_manual_stock_in(
     payment_status = (payment_status or "pending_payment").strip().lower()
     if payment_status not in {"pending_payment", "partially_paid", "paid"}:
         payment_status = "pending_payment"
+    line_total = max(0.0, round(float(n) * buying_price, 2))
+    if payment_status == "paid":
+        amount_paid = line_total
+    else:
+        amount_paid = 0.0
 
     with get_cursor(commit=True) as cur:
         cur.execute(
@@ -17904,8 +18493,8 @@ def shop_manual_stock_in(
             """
             INSERT INTO shop_stock_transactions
                 (shop_id, item_id, direction, source, qty, shop_stock_before, shop_stock_after,
-                 buying_price, place_brought_from, seller_phone, payment_status, note, created_by_employee_id)
-            VALUES (%s,%s,'in','manual',%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 buying_price, place_brought_from, seller_phone, payment_status, amount_paid, note, created_by_employee_id)
+            VALUES (%s,%s,'in','manual',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 int(shop_id),
@@ -17917,6 +18506,7 @@ def shop_manual_stock_in(
                 place_clean,
                 seller_phone_norm,
                 payment_status,
+                amount_paid,
                 note or None,
                 created_by_employee_id,
             ),
@@ -18942,6 +19532,49 @@ def count_pending_stock_requests_for_session(*, role_key: str, viewer_shop_id: O
             return int(row.get("c") or 0)
     except pymysql.Error:
         return 0
+
+
+def list_incoming_stock_requests_for_shop(*, source_shop_id: int, limit: int = 300, status: Optional[str] = None):
+    """Incoming shop-to-shop stock requests where this shop is the source (all statuses for notifications page)."""
+    source_shop_id = int(source_shop_id)
+    limit = max(1, min(int(limit), 500))
+    status_filter = (status or "").strip().lower() or None
+    req_type_col = "r.request_type" if column_exists("shop_stock_requests", "request_type") else "'stock_in'"
+    status_sql = " AND r.status = %s" if status_filter else ""
+    status_params: tuple = (status_filter,) if status_filter else ()
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT r.id, r.requesting_shop_id, """ + req_type_col + """ AS request_type, r.source_type, r.source_shop_id,
+                       r.item_id, r.qty, r.status, r.note, r.requested_by_employee_id,
+                       r.reviewed_by_employee_id, r.review_note, r.created_at, r.reviewed_at,
+                       rq.shop_name AS requesting_shop_name,
+                       ss.shop_name AS source_shop_name,
+                       i.name AS item_name,
+                       req_emp.full_name AS requested_by_name,
+                       rev_emp.full_name AS reviewed_by_name,
+                       COALESCE((
+                         SELECT si.shop_stock_qty FROM shop_items si
+                         WHERE si.shop_id = r.source_shop_id AND si.item_id = r.item_id
+                         LIMIT 1
+                       ), 0) AS source_shop_stock_qty
+                FROM shop_stock_requests r
+                JOIN shops rq ON rq.id = r.requesting_shop_id
+                LEFT JOIN shops ss ON ss.id = r.source_shop_id
+                JOIN items i ON i.id = r.item_id
+                LEFT JOIN employees req_emp ON req_emp.id = r.requested_by_employee_id
+                LEFT JOIN employees rev_emp ON rev_emp.id = r.reviewed_by_employee_id
+                WHERE r.source_type = 'shop'
+                  AND r.source_shop_id = %s""" + status_sql + """
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT %s
+                """,
+                (source_shop_id,) + status_params + (limit,),
+            )
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
 
 
 def list_incoming_pending_stock_requests_for_shop(*, source_shop_id: int, limit: int = 30):
@@ -20776,7 +21409,10 @@ def set_employee_suspended(emp_id: int, *, suspended: bool) -> bool:
     if not row or (row.get("status") or "") not in ("active", "suspended"):
         return False
     new_status = "suspended" if suspended else "active"
-    sql = "UPDATE employees SET status=%s WHERE id=%s AND status IN ('active','suspended')"
+    sql = (
+        "UPDATE employees SET status=%s "
+        "WHERE id=%s AND status IN ('active','suspended')"
+    )
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql, (new_status, int(emp_id)))
@@ -20787,10 +21423,14 @@ def set_employee_suspended(emp_id: int, *, suspended: bool) -> bool:
 
 def delete_employee_if_approved(emp_id: int) -> bool:
     """Hard-delete an employee (active, suspended, or pending approval)."""
-    sql = "DELETE FROM employees WHERE id=%s AND status IN ('active','suspended','pending_approval')"
+    sql = (
+        "DELETE FROM employees WHERE id=%s "
+        "AND status IN ('active','suspended','pending_approval')"
+    )
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql, (int(emp_id),))
             return cur.rowcount > 0
     except pymysql.Error:
         return False
+

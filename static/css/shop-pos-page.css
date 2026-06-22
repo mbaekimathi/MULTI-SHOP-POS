@@ -382,6 +382,330 @@
     .pos-cart-open-trigger:active {
       transform: translateY(0) scale(0.96);
     }
+    /* Shared POS form popups — phone sheet, tablet/desktop centered card. */
+    .pos-form-dialog__viewport {
+      padding-left: env(safe-area-inset-left, 0);
+      padding-right: env(safe-area-inset-right, 0);
+    }
+    .pos-form-dialog__panel {
+      max-height: min(92dvh, 100%);
+      width: 100%;
+    }
+    @media (min-width: 640px) {
+      .pos-form-dialog__panel {
+        max-height: min(88dvh, 900px);
+      }
+    }
+    .pos-form-dialog__body {
+      -webkit-overflow-scrolling: touch;
+      scroll-padding-bottom: max(1rem, env(safe-area-inset-bottom, 0));
+    }
+    .pos-form-dialog__suggest {
+      max-height: min(42dvh, 13rem);
+    }
+    .pos-form-dialog__entry-grid > label {
+      width: 100%;
+    }
+    @media (max-width: 639px) {
+      .pos-form-dialog__panel {
+        border-bottom: 0;
+        border-radius: 1rem 1rem 0 0;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
+      .pos-form-dialog__body input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]),
+      .pos-form-dialog__body select,
+      .pos-form-dialog__body .btn-rc {
+        min-height: 2.75rem;
+        font-size: 16px;
+      }
+      .pos-form-dialog__body .pos-auth-input {
+        min-height: 2.75rem;
+        font-size: 16px;
+      }
+    }
+    /* Buy / stock-in popup — vivid card only (backdrop stays neutral). */
+    @keyframes pos-stockin-panel-in {
+      from {
+        opacity: 0;
+        transform: scale(0.94) translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+    @keyframes pos-stockin-panel-in-mobile {
+      from {
+        opacity: 0.65;
+        transform: translateY(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    #pos-stockin-modal:not(.hidden) .pos-stockin-panel {
+      animation: pos-stockin-panel-in-mobile 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @media (min-width: 640px) {
+      #pos-stockin-modal:not(.hidden) .pos-stockin-panel {
+        animation: pos-stockin-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+    }
+    .pos-stockin-panel {
+      border: 3px solid transparent;
+      background: #ffffff;
+      max-height: inherit;
+      transition:
+        border-color 0.22s ease,
+        box-shadow 0.22s ease;
+    }
+    .dark .pos-stockin-panel {
+      background: rgb(var(--rc-surface));
+    }
+    .pos-stockin-panel--stock {
+      border-color: #10b981;
+      box-shadow:
+        0 0 0 5px rgba(16, 185, 129, 0.28),
+        0 0 40px rgba(16, 185, 129, 0.22),
+        0 28px 56px -14px rgba(0, 0, 0, 0.42);
+    }
+    .pos-stockin-panel--expense {
+      border-color: #f59e0b;
+      box-shadow:
+        0 0 0 5px rgba(245, 158, 11, 0.3),
+        0 0 40px rgba(245, 158, 11, 0.2),
+        0 28px 56px -14px rgba(0, 0, 0, 0.42);
+    }
+    @media (max-width: 639px) {
+      .pos-stockin-panel {
+        border-left-width: 0;
+        border-right-width: 0;
+        border-bottom-width: 0;
+        border-top-width: 4px;
+        border-radius: 1rem 1rem 0 0;
+        box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.32);
+      }
+      .pos-stockin-panel--stock {
+        border-top-color: #10b981;
+        box-shadow:
+          0 -10px 36px rgba(0, 0, 0, 0.32),
+          0 0 24px rgba(16, 185, 129, 0.18);
+      }
+      .pos-stockin-panel--expense {
+        border-top-color: #f59e0b;
+        box-shadow:
+          0 -10px 36px rgba(0, 0, 0, 0.32),
+          0 0 24px rgba(245, 158, 11, 0.16);
+      }
+      .pos-stockin-header__title {
+        font-size: 1rem;
+      }
+      .pos-stockin-header__subtitle {
+        font-size: 0.75rem;
+      }
+      .pos-stockin-header__badge {
+        width: 2.35rem;
+        height: 2.35rem;
+        border-radius: 0.75rem;
+      }
+      .pos-stockin-header__badge-icon {
+        width: 1.2rem;
+        height: 1.2rem;
+      }
+      .pos-stockin-form {
+        padding: 1rem 1rem max(1.15rem, env(safe-area-inset-bottom, 0));
+      }
+    }
+    @media (max-width: 380px) {
+      .pos-stockin-header__badge {
+        display: none;
+      }
+    }
+    .pos-stockin-header {
+      position: relative;
+      overflow: hidden;
+    }
+    .pos-stockin-panel--stock .pos-stockin-header {
+      background: linear-gradient(125deg, #047857 0%, #059669 42%, #10b981 100%);
+    }
+    .pos-stockin-panel--expense .pos-stockin-header {
+      background: linear-gradient(125deg, #b45309 0%, #d97706 42%, #f59e0b 100%);
+    }
+    .pos-stockin-header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, transparent 48%);
+      pointer-events: none;
+    }
+    .pos-stockin-header__body {
+      position: relative;
+      z-index: 1;
+    }
+    .pos-stockin-header__badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 1rem;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+    }
+    .pos-stockin-panel--stock .pos-stockin-header__badge {
+      color: #047857;
+    }
+    .pos-stockin-panel--expense .pos-stockin-header__badge {
+      color: #b45309;
+    }
+    .pos-stockin-header__badge-icon {
+      width: 1.55rem;
+      height: 1.55rem;
+    }
+    .pos-stockin-header__badge-icon--expense {
+      display: none;
+    }
+    .pos-stockin-panel--expense .pos-stockin-header__badge-icon--stock {
+      display: none;
+    }
+    .pos-stockin-panel--expense .pos-stockin-header__badge-icon--expense {
+      display: block;
+    }
+    .pos-stockin-header__eyebrow {
+      margin: 0 0 0.2rem;
+      font-size: 0.6875rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.82);
+    }
+    .pos-stockin-header__title {
+      font-size: 1.125rem;
+      line-height: 1.25;
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    }
+    @media (min-width: 640px) {
+      .pos-stockin-header__title {
+        font-size: 1.3125rem;
+      }
+    }
+    .pos-stockin-header__subtitle {
+      font-size: 0.8125rem;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .pos-stockin-header__close {
+      border: 2px solid rgba(255, 255, 255, 0.55);
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      font-weight: 800;
+      backdrop-filter: blur(4px);
+    }
+    .pos-stockin-header__close:hover {
+      background: rgba(255, 255, 255, 0.28);
+      border-color: #ffffff;
+      color: #ffffff;
+    }
+    .pos-stockin-form {
+      background: #f8fafc;
+      padding: 1.15rem 1.25rem max(1.35rem, env(safe-area-inset-bottom, 0));
+    }
+    @media (min-width: 640px) {
+      .pos-stockin-form {
+        padding: 1.25rem 1.5rem 1.5rem;
+      }
+    }
+    .dark .pos-stockin-form {
+      background: rgb(var(--rc-surface-2));
+    }
+    .pos-stockin-type-pick {
+      border-width: 2px;
+      border-color: #cbd5e1;
+      background: #ffffff;
+      color: #64748b;
+      font-weight: 800;
+      transition:
+        border-color 0.18s ease,
+        background 0.18s ease,
+        color 0.18s ease,
+        box-shadow 0.18s ease,
+        transform 0.18s ease;
+    }
+    .dark .pos-stockin-type-pick {
+      border-color: rgba(var(--rc-border), 0.9);
+      background: rgb(var(--rc-surface));
+      color: rgb(var(--rc-muted));
+    }
+    .pos-stockin-type-pick--stock:has(:checked) {
+      border-color: #059669;
+      background: #d1fae5;
+      color: #065f46;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+      transform: translateY(-1px);
+    }
+    .pos-stockin-type-pick--expense:has(:checked) {
+      border-color: #d97706;
+      background: #fef3c7;
+      color: #92400e;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.24);
+      transform: translateY(-1px);
+    }
+    .dark .pos-stockin-type-pick--stock:has(:checked) {
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+    }
+    .dark .pos-stockin-type-pick--expense:has(:checked) {
+      background: rgba(245, 158, 11, 0.22);
+      color: #fcd34d;
+    }
+    .pos-stockin-panel--stock .pos-stockin-form .pos-stockin-type-pick--stock:has(:checked) {
+      border-color: #059669;
+    }
+    .pos-stockin-panel--expense .pos-stockin-form .pos-stockin-type-pick--expense:has(:checked) {
+      border-color: #d97706;
+    }
+    .pos-stockin-panel--stock #pos-stockin-stock-fields > .sm\:col-span-2:first-child {
+      border-radius: 0.9rem;
+      border: 2px solid rgba(16, 185, 129, 0.35);
+      background: #ecfdf5;
+      padding: 0.85rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    .dark .pos-stockin-panel--stock #pos-stockin-stock-fields > .sm\:col-span-2:first-child {
+      background: rgba(16, 185, 129, 0.1);
+    }
+    .pos-stockin-panel--expense #pos-stockin-expense-fields > .sm\:col-span-2:first-child {
+      border-radius: 0.9rem;
+      border: 2px solid rgba(245, 158, 11, 0.38);
+      background: #fffbeb;
+      padding: 0.85rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    .dark .pos-stockin-panel--expense #pos-stockin-expense-fields > .sm\:col-span-2:first-child {
+      background: rgba(245, 158, 11, 0.12);
+    }
+    .pos-stockin-form input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]),
+    .pos-stockin-form select {
+      border-width: 2px !important;
+      background: #ffffff !important;
+    }
+    .dark .pos-stockin-form input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]),
+    .dark .pos-stockin-form select {
+      background: rgb(var(--rc-surface)) !important;
+    }
+    .pos-stockin-panel--stock .pos-stockin-form input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):focus,
+    .pos-stockin-panel--stock .pos-stockin-form select:focus {
+      border-color: #10b981 !important;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    .pos-stockin-panel--expense .pos-stockin-form input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):focus,
+    .pos-stockin-panel--expense .pos-stockin-form select:focus {
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+    }
     /* Held-orders modal — professional retail UI. */
     .pos-hold-modal-card {
       border: 1px solid rgba(var(--rc-border), 0.65);

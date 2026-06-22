@@ -39,29 +39,36 @@
     {% if selected_view == "low_stock" %}
     <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
       <div class="sa-stock-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 pb-3">
-        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Low stock / reorder</h3>
+        <div>
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Low stock / reorder</h3>
+          <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Stock movement for {{ f.range_label or 'selected period' }}</p>
+        </div>
         <span class="sa-stock-panel-meta text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">{{ low_stock_rows|length }} items</span>
       </div>
       <div class="mt-3 overflow-x-auto">
-        <table class="sa-stock-data-table min-w-[28rem] w-full text-sm">
+        <table class="sa-stock-data-table min-w-[42rem] w-full text-sm">
           <thead>
             <tr>
-              <th class="text-left">Item</th>
-              <th class="text-right">Stock</th>
-              <th class="text-right">Moves</th>
-              <th class="text-right">Stock value</th>
+              <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+              <th class="text-right">Opening</th>
+              <th class="text-right">Stock in</th>
+              <th class="text-right">Stock out</th>
+              <th class="text-right">Stock sold</th>
+              <th class="text-right">Closing</th>
             </tr>
           </thead>
           <tbody>
             {% for r in low_stock_rows[:40] %}
             <tr>
-              <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.name }}</td>
-              <td class="text-right tabular-nums text-rose-400">{{ r.stock_qty or 0 }}</td>
-              <td class="text-right tabular-nums">{{ r.tx_count or 0 }}</td>
-              <td class="text-right tabular-nums">{{ "%.2f"|format(r.stock_value or 0) }}</td>
+              <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold text-[rgb(var(--rc-page-fg))] shadow-[1px_0_0_rgb(var(--rc-border))]">{{ r.name }}</td>
+              <td class="text-right tabular-nums">{{ r.opening_stock or 0 }}</td>
+              <td class="text-right tabular-nums text-emerald-400">{{ r.stock_in or 0 }}</td>
+              <td class="text-right tabular-nums text-amber-400">{{ r.stock_out or 0 }}</td>
+              <td class="text-right tabular-nums">{{ r.stock_sold or 0 }}</td>
+              <td class="text-right tabular-nums {% if (r.closing_stock or 0) <= (reorder_threshold|default(5, true)) %}text-rose-400 font-semibold{% endif %}">{{ r.closing_stock or 0 }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="py-8 text-center text-[rgb(var(--rc-muted))]">No low stock items.</td></tr>
+            <tr><td colspan="6" class="py-8 text-center text-[rgb(var(--rc-muted))]">No low stock items.</td></tr>
             {% endfor %}
           </tbody>
         </table>

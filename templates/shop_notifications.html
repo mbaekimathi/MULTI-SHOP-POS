@@ -29,7 +29,7 @@
     }
     #shop-notifications-page .sn-list-table tbody td {
       padding: 0.75rem 0.875rem;
-      vertical-align: middle;
+      vertical-align: top;
       border-bottom: 1px solid rgb(var(--rc-border) / 0.65);
       color: rgb(var(--rc-page-fg));
     }
@@ -39,22 +39,23 @@
     #shop-notifications-page .sn-list-table tbody tr:hover td {
       background: rgb(var(--rc-surface-2) / 0.45);
     }
-    #shop-notifications-page .sn-list-table .sn-msg {
-      max-width: 28rem;
-      color: rgb(var(--rc-muted));
-      line-height: 1.45;
-    }
     #shop-notifications-page .sn-actions {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.375rem;
     }
+    #sn-review-modal .sn-step-code.hidden,
+    #sn-review-modal .sn-step-approve-fields.hidden {
+      display: none;
+    }
   </style>
 {% endblock %}
 {% block shop_content %}
   {% set pending_n = pending_request_count|default(0) %}
-  {% set notif_n = (notifications or [])|length %}
+  {% set approved_n = approved_count|default(0) %}
+  {% set declined_n = declined_count|default(0) %}
+  {% set total_n = (stock_requests or [])|length %}
 
   <div id="shop-notifications-page" class="space-y-6">
     <div class="sn-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] p-5 shadow-sm sm:p-6">
@@ -63,7 +64,7 @@
           <p class="text-[10px] font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-primary))]">Alerts &amp; requests</p>
           <h2 class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))] sm:text-2xl">Notifications</h2>
           <p class="mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-            Approve incoming stock requests, then review approved or declined outcomes for {{ shop.shop_name }}.
+            Incoming stock requests for {{ shop.shop_name }} — pending, approved and declined.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -71,8 +72,11 @@
             <span class="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true"></span>
             {{ pending_n }} pending
           </span>
-          <span class="inline-flex items-center gap-2 rounded-full border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-1.5 text-xs font-bold text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
-            {{ notif_n }} outcome{% if notif_n != 1 %}s{% endif %}
+          <span class="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-200 ring-1 ring-emerald-400/15">
+            {{ approved_n }} approved
+          </span>
+          <span class="inline-flex items-center gap-2 rounded-full border border-rose-400/25 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-200 ring-1 ring-rose-400/15">
+            {{ declined_n }} declined
           </span>
         </div>
       </div>
@@ -81,8 +85,8 @@
     <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-5 py-4">
         <div>
-          <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Requests awaiting approval</h3>
-          <p class="text-xs text-[rgb(var(--rc-muted))]">Incoming stock requests you can approve or decline</p>
+          <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Stock transfer requests</h3>
+          <p class="text-xs text-[rgb(var(--rc-muted))]">All requests where another shop asked to receive stock from {{ shop.shop_name }}</p>
         </div>
         {% if pending_n > 0 %}
           <span class="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-200 ring-1 ring-amber-400/25">
@@ -93,8 +97,8 @@
 
       {% if not stock_requests %}
         <div class="px-5 py-10 text-center">
-          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No requests awaiting your approval.</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Incoming stock requests directed to this shop will appear here.</p>
+          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No stock requests yet.</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">When another shop requests stock from you, it will appear here.</p>
         </div>
       {% else %}
         <div class="overflow-x-auto">
@@ -107,7 +111,12 @@
                 <th>From</th>
                 <th>To</th>
                 <th>Status</th>
-                <th>Date</th>
+                <th>Requested</th>
+                <th>Requested by</th>
+                <th>Reviewed</th>
+                <th>Reviewed by</th>
+                <th>Note</th>
+                <th>Review note</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -124,30 +133,39 @@
                     {% endif %}
                   </td>
                   <td class="tabular-nums">{{ r.qty }}</td>
-                  <td>{% if r.source_type == 'company' %}Company{% else %}{{ r.source_shop_name or ('Shop #' ~ (r.source_shop_id or '')) }}{% endif %}</td>
+                  <td>{{ r.source_shop_name or shop.shop_name }}</td>
                   <td class="font-medium">{{ r.requesting_shop_name }}</td>
                   <td>
                     <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ring-1
                       {% if st == 'pending' %}bg-amber-500/12 text-amber-200 ring-amber-400/25
                       {% elif st == 'approved' %}bg-emerald-500/12 text-emerald-200 ring-emerald-400/25
-                      {% elif st == 'rejected' %}bg-rose-500/12 text-rose-200 ring-rose-400/25
+                      {% elif st in ('rejected', 'declined') %}bg-rose-500/12 text-rose-200 ring-rose-400/25
                       {% else %}bg-slate-500/10 text-slate-300 ring-slate-400/20{% endif %}">
-                      {{ st|replace('_', ' ') }}
+                      {% if st == 'rejected' %}declined{% else %}{{ st|replace('_', ' ') }}{% endif %}
                     </span>
                   </td>
                   <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+                  <td class="text-[rgb(var(--rc-muted))]">{{ r.requested_by_name or '—' }}</td>
+                  <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.reviewed_at or '—' }}</td>
+                  <td class="text-[rgb(var(--rc-muted))]">{{ r.reviewed_by_name or '—' }}</td>
+                  <td class="max-w-[12rem] text-[rgb(var(--rc-muted))]">{{ r.note or '—' }}</td>
+                  <td class="max-w-[12rem] text-[rgb(var(--rc-muted))]">{{ r.review_note or '—' }}</td>
                   <td>
                     <div class="sn-actions">
-                      {% if r.can_review %}
+                      {% if st == 'pending' and r.can_review %}
                         {% if not r.can_approve_now %}
                           <span class="text-[10px] font-bold uppercase tracking-wide text-rose-300" title="Not enough stock at source">Low stock</span>
                         {% endif %}
-                        <form method="post" action="{{ url_for('approve_stock_request', request_id=r.id) }}">
-                          <button type="submit" class="btn-rc btn-rc-success px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"{% if not r.can_approve_now %} disabled title="Not enough stock at the source to approve"{% endif %}>Approve</button>
-                        </form>
-                        <form method="post" action="{{ url_for('reject_stock_request', request_id=r.id) }}" onsubmit="return confirm('Cancel this stock request? The requesting shop will be notified.');">
-                          <button type="submit" class="btn-rc btn-rc-danger px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider">Decline</button>
-                        </form>
+                        <button
+                          type="button"
+                          class="js-sn-review btn-rc btn-rc-success px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
+                          data-request-id="{{ r.id }}"
+                          data-item-name="{{ r.item_name|e }}"
+                          data-qty="{{ r.qty }}"
+                          data-requesting-shop="{{ r.requesting_shop_name|e }}"
+                          data-max-qty="{{ r.qty if not r.source_shop_stock_qty else ([r.qty, r.source_shop_stock_qty]|min) }}"
+                          data-can-approve="{{ '1' if r.can_approve_now else '0' }}"
+                        >Review</button>
                       {% else %}
                         <span class="text-xs text-[rgb(var(--rc-muted))]">—</span>
                       {% endif %}
@@ -160,79 +178,214 @@
         </div>
       {% endif %}
     </section>
+  </div>
 
-    <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-5 py-4">
-        <div>
-          <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Notifications</h3>
-          <p class="text-xs text-[rgb(var(--rc-muted))]">Approved, declined and expired request outcomes</p>
+  <div
+    id="sn-review-modal"
+    class="fixed inset-0 z-[90] hidden"
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sn-review-title"
+  >
+    <div id="sn-review-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+      <div class="w-full max-w-md rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl ring-1 ring-[rgb(var(--rc-primary))]/20">
+        <h3 id="sn-review-title" class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Review stock request</h3>
+        <p id="sn-review-detail" class="mt-2 text-sm leading-snug text-[rgb(var(--rc-muted))]"></p>
+
+        <div id="sn-review-step-choice" class="mt-4">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Step 1 — choose an action</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button type="button" id="sn-review-pick-approve" class="btn-rc btn-rc-success flex-1 px-4 py-2.5 text-xs font-bold uppercase tracking-wider">Accept</button>
+            <button type="button" id="sn-review-pick-decline" class="btn-rc btn-rc-danger flex-1 px-4 py-2.5 text-xs font-bold uppercase tracking-wider">Decline</button>
+          </div>
+        </div>
+
+        <div id="sn-review-step-code" class="sn-step-code mt-4 hidden">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Step 2 — enter your 6-digit code</p>
+          <div class="sn-step-approve-fields mt-3 hidden space-y-2">
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="sn-review-qty">Quantity to transfer</label>
+            <input id="sn-review-qty" type="number" min="0.0001" step="any" inputmode="decimal" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-semibold tabular-nums outline-none" />
+          </div>
+          <input
+            id="sn-review-code"
+            type="password"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            placeholder="••••••"
+            class="mt-3 w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm tracking-[0.2em] outline-none"
+          />
+          <p id="sn-review-err" class="mt-2 hidden text-xs font-semibold text-rose-500"></p>
+        </div>
+
+        <div class="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" id="sn-review-cancel" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Cancel</button>
         </div>
       </div>
-
-      {% if not notifications %}
-        <div class="px-5 py-10 text-center">
-          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No outcomes yet.</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Approved, declined and expired request updates will show here.</p>
-        </div>
-      {% else %}
-        <div class="overflow-x-auto">
-          <table class="sn-list-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Title</th>
-                <th>Message</th>
-                <th>Type</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for n in notifications %}
-                {% set blob = ((n.title or '') ~ ' ' ~ (n.message or ''))|lower %}
-                {% if 'approv' in blob or 'completed' in blob or 'transfer completed' in blob %}
-                  {% set tone = 'approved' %}
-                {% elif 'cancel' in blob or 'declin' in blob or 'reject' in blob %}
-                  {% set tone = 'rejected' %}
-                {% elif 'expired' in blob %}
-                  {% set tone = 'expired' %}
-                {% else %}
-                  {% set tone = 'pending' %}
-                {% endif %}
-                <tr>
-                  <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ n.created_at }}</td>
-                  <td class="font-semibold">{{ n.title }}</td>
-                  <td><span class="sn-msg">{{ n.message }}</span></td>
-                  <td>
-                    <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ring-1
-                      {% if tone == 'approved' %}bg-emerald-500/12 text-emerald-200 ring-emerald-400/25
-                      {% elif tone == 'rejected' %}bg-rose-500/12 text-rose-200 ring-rose-400/25
-                      {% elif tone == 'expired' %}bg-slate-500/10 text-slate-300 ring-slate-400/20
-                      {% else %}bg-amber-500/12 text-amber-200 ring-amber-400/25{% endif %}">
-                      {% if tone == 'approved' %}Approved{% elif tone == 'rejected' %}Rejected{% elif tone == 'expired' %}Expired{% else %}Pending{% endif %}
-                    </span>
-                  </td>
-                  <td class="whitespace-nowrap">
-                    {% if n.link_url %}
-                      <a href="{{ n.link_url }}" class="text-xs font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">View</a>
-                    {% else %}
-                      <span class="text-xs text-[rgb(var(--rc-muted))]">—</span>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endif %}
-    </section>
+    </div>
   </div>
 
   {% if notification_scope is defined %}
   <script>
     try {
       localStorage.setItem("rc_notif_seen_{{ notification_scope }}", "{{ notification_count | default(0) }}");
-      localStorage.setItem("shop_sr_outcome_seen_{{ shop.id }}", "{{ sr_outcome_max_id | default(0) }}");
     } catch (e) {}
   </script>
   {% endif %}
+  <script>
+    (function () {
+      var SHOP_ID = {{ shop.id|int }};
+      var REVIEW_BASE = "/shops/" + SHOP_ID + "/shop-pos/incoming-stock-requests/";
+      var modal = document.getElementById("sn-review-modal");
+      var backdrop = document.getElementById("sn-review-backdrop");
+      var detailEl = document.getElementById("sn-review-detail");
+      var stepChoice = document.getElementById("sn-review-step-choice");
+      var stepCode = document.getElementById("sn-review-step-code");
+      var approveFields = document.querySelector("#sn-review-modal .sn-step-approve-fields");
+      var pickApprove = document.getElementById("sn-review-pick-approve");
+      var pickDecline = document.getElementById("sn-review-pick-decline");
+      var qtyEl = document.getElementById("sn-review-qty");
+      var codeEl = document.getElementById("sn-review-code");
+      var errEl = document.getElementById("sn-review-err");
+      var cancelBtn = document.getElementById("sn-review-cancel");
+      var current = null;
+      var intent = null;
+      var busy = false;
+
+      function showErr(msg) {
+        if (!errEl) return;
+        errEl.textContent = msg || "";
+        errEl.classList.toggle("hidden", !msg);
+      }
+
+      function resetModal() {
+        current = null;
+        intent = null;
+        busy = false;
+        showErr("");
+        if (codeEl) codeEl.value = "";
+        if (qtyEl) qtyEl.value = "";
+        if (stepCode) stepCode.classList.add("hidden");
+        if (stepChoice) stepChoice.classList.remove("hidden");
+        if (approveFields) approveFields.classList.add("hidden");
+        if (pickApprove) pickApprove.disabled = false;
+        if (pickDecline) pickDecline.disabled = false;
+      }
+
+      function openModal(data) {
+        current = data;
+        resetModal();
+        if (detailEl) {
+          detailEl.textContent =
+            "#" + data.id + " — " + data.requestingShop + " requests " + data.itemName + " × " + data.qty;
+        }
+        if (pickApprove) pickApprove.disabled = data.canApprove !== "1";
+        if (modal) {
+          modal.classList.remove("hidden");
+          modal.setAttribute("aria-hidden", "false");
+        }
+      }
+
+      function closeModal() {
+        if (modal) {
+          modal.classList.add("hidden");
+          modal.setAttribute("aria-hidden", "true");
+        }
+        resetModal();
+      }
+
+      function pickAction(action) {
+        intent = action;
+        if (stepChoice) stepChoice.classList.add("hidden");
+        if (stepCode) stepCode.classList.remove("hidden");
+        if (approveFields) approveFields.classList.toggle("hidden", action !== "approve");
+        if (action === "approve" && qtyEl && current) {
+          qtyEl.value = String(current.maxQty || current.qty || "");
+          qtyEl.max = String(current.maxQty || current.qty || "");
+        }
+        showErr("");
+        try {
+          if (codeEl) codeEl.focus();
+        } catch (e) {}
+      }
+
+      function submitReview() {
+        if (busy || !current || !intent) return;
+        var code = (codeEl && codeEl.value ? codeEl.value : "").trim();
+        if (!/^\d{6}$/.test(code)) {
+          showErr("Enter your 6-digit employee code.");
+          return;
+        }
+        var body = { action: intent === "approve" ? "approve" : "reject", employee_code: code };
+        if (intent === "approve") {
+          var q = parseFloat(String(qtyEl && qtyEl.value ? qtyEl.value : "").replace(",", "."));
+          if (!isFinite(q) || q <= 0) {
+            showErr("Enter a valid quantity greater than zero.");
+            return;
+          }
+          body.qty = q;
+        }
+        busy = true;
+        showErr("");
+        fetch(REVIEW_BASE + current.id + "/review", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (res) {
+            return res.json().then(function (j) {
+              return { ok: res.ok, j: j };
+            });
+          })
+          .then(function (x) {
+            busy = false;
+            if (!x.ok || !x.j || !x.j.ok) {
+              showErr((x.j && x.j.error) || "Could not update this request.");
+              return;
+            }
+            window.location.reload();
+          })
+          .catch(function () {
+            busy = false;
+            showErr("Network error. Try again.");
+          });
+      }
+
+      document.querySelectorAll(".js-sn-review").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          openModal({
+            id: btn.getAttribute("data-request-id"),
+            itemName: btn.getAttribute("data-item-name") || "Item",
+            qty: btn.getAttribute("data-qty") || "0",
+            requestingShop: btn.getAttribute("data-requesting-shop") || "Shop",
+            maxQty: btn.getAttribute("data-max-qty") || btn.getAttribute("data-qty") || "0",
+            canApprove: btn.getAttribute("data-can-approve") || "0",
+          });
+        });
+      });
+
+      pickApprove && pickApprove.addEventListener("click", function () { pickAction("approve"); });
+      pickDecline && pickDecline.addEventListener("click", function () { pickAction("decline"); });
+      cancelBtn && cancelBtn.addEventListener("click", closeModal);
+      backdrop && backdrop.addEventListener("click", closeModal);
+
+      codeEl &&
+        codeEl.addEventListener("input", function () {
+          var raw = (codeEl.value || "").replace(/\D/g, "").slice(0, 6);
+          if (codeEl.value !== raw) codeEl.value = raw;
+          showErr("");
+          if (raw.length === 6 && /^\d{6}$/.test(raw) && intent) submitReview();
+        });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (!modal || modal.classList.contains("hidden")) return;
+        closeModal();
+      });
+    })();
+  </script>
 {% endblock %}

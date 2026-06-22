@@ -263,9 +263,11 @@ SHOP_SHELL_CAN_ROLES: dict[str, frozenset[str]] = {
     "credit_payments": frozenset({"manager", "admin", "finance", "sales"}),
     "settings": frozenset({"manager", "admin"}),
     "expenses": frozenset({"manager", "admin"}),
+    "notifications": frozenset({"manager", "admin"}),
 }
 
 SHOP_DAY_OPENING_SUBMIT_ROLES = frozenset({"admin", "manager"})
+SHOP_NOTIFICATION_ROLES = SHOP_DAY_OPENING_SUBMIT_ROLES
 SHOP_DAY_CLOSING_SUBMIT_ROLES = frozenset(
     {"admin", "manager", "super_admin", "it_support", "company_manager"}
 )
@@ -1299,39 +1301,91 @@ def _notify_new_shop_stock_request(
         )
 
 
+def _pos_context_shop_id() -> int | None:
+    """Shop id for the current POS page (URL), when applicable."""
+    if request.endpoint != "shop_pos":
+        return None
+    try:
+        pos_sid = request.view_args.get("shop_id") if request.view_args else None
+        return int(pos_sid) if pos_sid is not None else None
+    except Exception:
+        return None
+
+
+def _session_may_see_shop_notifications(*, shop_id: int | None = None) -> bool:
+    """Shop admin/manager (or shop-password till on matching POS) may see notification bell/page."""
+    pos_sid = _pos_context_shop_id()
+    effective_shop = int(shop_id) if shop_id else pos_sid
+    if effective_shop is None:
+        return False
+    uid = session.get("employee_id")
+    if uid:
+        if _session_shop_shell_role_key() not in SHOP_NOTIFICATION_ROLES:
+            return False
+        try:
+            sid = int(session.get("shop_id") or 0)
+        except Exception:
+            sid = 0
+        if sid and sid != int(effective_shop):
+            return False
+        return True
+    if pos_sid is not None and int(session.get("shop_id") or 0) == int(pos_sid):
+        return True
+    return False
+
+
 @app.context_processor
 def inject_notification_context():
+    hidden = {
+        "notification_count": 0,
+        "notifications_url": None,
+        "notification_scope": None,
+        "notification_bell_popup": False,
+        "notification_bell_visible": False,
+    }
+    pos_sid = _pos_context_shop_id()
     uid = session.get("employee_id")
-    if not uid:
-        return {"notification_count": 0, "notifications_url": None, "notification_scope": None, "notification_bell_popup": False}
     role_key = (session.get("employee_role") or "employee").strip().lower()
-    shop_id = _effective_viewer_shop_id(role_key)
-    if request.endpoint == "shop_pos":
+
+    if role_key in COMPANY_PORTAL_ROLES and uid and not pos_sid:
         try:
-            pos_sid = request.view_args.get("shop_id") if request.view_args else None
-            if pos_sid is not None:
-                shop_id = int(pos_sid)
+            from database import count_pending_stock_requests_for_session
+
+            notification_count = count_pending_stock_requests_for_session(
+                role_key=role_key,
+                viewer_shop_id=None,
+            )
         except Exception:
-            pass
+            notification_count = 0
+        return {
+            "notification_count": int(notification_count or 0),
+            "notifications_url": url_for("notifications"),
+            "notification_scope": "portal",
+            "notification_bell_popup": False,
+            "notification_bell_visible": True,
+        }
+
+    shop_id = pos_sid if pos_sid is not None else _effective_viewer_shop_id(role_key)
+    if not shop_id:
+        return hidden
+    if not _session_may_see_shop_notifications(shop_id=int(shop_id)):
+        return hidden
+
     try:
         from database import count_pending_stock_requests_for_session
 
         notification_count = count_pending_stock_requests_for_session(
             role_key=role_key,
-            viewer_shop_id=int(shop_id) if shop_id else None,
+            viewer_shop_id=int(shop_id),
         )
     except Exception:
         notification_count = 0
-    notifications_url = (
-        url_for("shop_notifications", shop_id=int(shop_id)) if shop_id else url_for("notifications")
-    )
-    notification_scope = f"shop-{int(shop_id)}" if shop_id else "portal"
-    notification_bell_popup = request.endpoint == "shop_pos"
     return {
         "notification_count": int(notification_count or 0),
-        "notifications_url": notifications_url,
-        "notification_scope": notification_scope,
-        "notification_bell_popup": notification_bell_popup,
+        "notifications_url": url_for("shop_notifications", shop_id=int(shop_id)),
+        "notification_scope": f"shop-{int(shop_id)}",
+        "notification_bell_popup": request.endpoint == "shop_pos",
+        "notification_bell_visible": True,
     }
 
 
@@ -8333,6 +8387,11 @@ def _sort_profitability_rows(rows, col, ascending):
 _REPORT_SORT_LABELS = {
     "name": "Item name",
     "stock_qty": "Stock qty",
+    "opening_stock": "Opening",
+    "closing_stock": "Closing",
+    "stock_in": "Stock in",
+    "stock_out": "Stock out",
+    "stock_sold": "Stock sold",
     "tx_count": "Moves",
     "stock_value": "Stock value",
     "avg_buying_price": "Avg buy",
@@ -8341,7 +8400,29 @@ _REPORT_SORT_LABELS = {
 }
 
 _REPORT_SORT_COLUMNS_BY_VIEW = {
-    "low_stock": ("stock_qty", "low_stock_threshold", "tx_count", "stock_value", "name", "avg_buying_price"),
+    "period_balance": (
+        "name",
+        "opening_stock",
+        "stock_in",
+        "stock_out",
+        "stock_sold",
+        "closing_stock",
+        "stock_qty",
+        "tx_count",
+    ),
+    "low_stock": (
+        "closing_stock",
+        "opening_stock",
+        "stock_in",
+        "stock_out",
+        "stock_sold",
+        "stock_qty",
+        "low_stock_threshold",
+        "tx_count",
+        "stock_value",
+        "name",
+        "avg_buying_price",
+    ),
     "fast_moving": ("tx_count", "stock_qty", "stock_value", "updated_at", "name"),
     "valuation": ("stock_value", "stock_qty", "tx_count", "avg_buying_price", "name"),
     "highest_value": ("stock_value", "stock_qty", "tx_count", "name", "avg_buying_price"),
@@ -8349,7 +8430,8 @@ _REPORT_SORT_COLUMNS_BY_VIEW = {
 }
 
 _REPORT_DEFAULT_SORT = {
-    "low_stock": ("stock_qty", True),  # lowest on-hand first
+    "period_balance": ("name", False),
+    "low_stock": ("closing_stock", True),  # lowest closing stock first
     "fast_moving": ("tx_count", False),  # most moves first
     "valuation": ("stock_value", False),  # highest value first
     "highest_value": ("stock_value", False),
@@ -8625,8 +8707,12 @@ def it_support_stock_reports():
     _it_support_or_super_admin_only()
     analytics_filter = _build_analytics_filter()
     inv_mode = _global_pos_inventory_mode()
-    selected_view = (request.args.get("view") or "low_stock").strip().lower()
+    shop_filter_id = _company_report_shop_filter_from_request()
+    shops_list: list = []
+    shop_filter_name = ""
+    selected_view = (request.args.get("view") or "period_balance").strip().lower()
     allowed_views = {
+        "period_balance",
         "low_stock",
         "fast_moving",
         "valuation",
@@ -8634,23 +8720,11 @@ def it_support_stock_reports():
         "stagnant",
     }
     if selected_view not in allowed_views:
-        selected_view = "low_stock"
+        selected_view = "period_balance"
 
-    report_sort_allowed = set(_REPORT_SORT_COLUMNS_BY_VIEW.get(selected_view, ()))
-    rdacol, rdaasc = _REPORT_DEFAULT_SORT.get(selected_view, ("name", True))
-    raw_rs = (request.args.get("report_sort") or "").strip().lower()
-    if raw_rs in report_sort_allowed:
-        rep_col = raw_rs
-        rep_asc = (request.args.get("report_order") or "desc").strip().lower() == "asc"
-    else:
-        rep_col = rdacol
-        rep_asc = rdaasc
-    report_order = "asc" if rep_asc else "desc"
-    report_sort_options = [
-        (c, _REPORT_SORT_LABELS.get(c, c.replace("_", " ").title()))
-        for c in _REPORT_SORT_COLUMNS_BY_VIEW.get(selected_view, ())
-    ]
+    rep_col, rep_asc = _REPORT_DEFAULT_SORT.get(selected_view, ("name", False))
 
+    period_balance_rows = []
     low_stock_rows = []
     fast_moving_rows = []
     valuation_rows = []
@@ -8662,10 +8736,23 @@ def it_support_stock_reports():
         from database import (
             IT_SUPPORT_ANALYTICS_ITEMS_MAX,
             _analytics_where_clause,
+            column_exists,
             get_company_stock_status,
             get_cursor,
+            get_it_stock_period_item_balances,
             list_active_catalog_items_for_it_analytics,
+            list_shops,
         )
+
+        shops_list = list_shops(limit=500) or []
+        if shop_filter_id:
+            for sh in shops_list:
+                try:
+                    if int(sh.get("id") or 0) == int(shop_filter_id):
+                        shop_filter_name = (sh.get("shop_name") or "").strip() or f"Shop #{shop_filter_id}"
+                        break
+                except Exception:
+                    continue
 
         items = list_active_catalog_items_for_it_analytics(
             limit=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
@@ -8678,6 +8765,7 @@ def it_support_stock_reports():
             only_active=True,
         )
         stock_map = {}
+        per_shop_stock_map: Dict[int, Dict[int, int]] = {}
         for r in stock_rows or []:
             try:
                 iid = int(r.get("id") or 0)
@@ -8685,29 +8773,70 @@ def it_support_stock_reports():
                 continue
             if iid > 0:
                 stock_map[iid] = int(r.get("total_stock_qty") or 0)
+                per_shop = r.get("per_shop") or {}
+                for sid_s, qty in per_shop.items():
+                    try:
+                        sid_i = int(sid_s)
+                        per_shop_stock_map.setdefault(sid_i, {})[iid] = int(qty or 0)
+                    except Exception:
+                        continue
+
+        period_balances = get_it_stock_period_item_balances(
+            analytics_filter, shop_id=shop_filter_id
+        ) or {}
+
+        shop_low_thresh_map: Dict[int, int] = {}
+        if shop_filter_id and column_exists("shop_items", "low_stock_threshold"):
+            with get_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT item_id, COALESCE(low_stock_threshold, 0) AS low_stock_threshold
+                    FROM shop_items
+                    WHERE shop_id=%s
+                    """,
+                    (int(shop_filter_id),),
+                )
+                for rr in cur.fetchall() or []:
+                    try:
+                        shop_low_thresh_map[int(rr.get("item_id") or 0)] = int(
+                            rr.get("low_stock_threshold") or 0
+                        )
+                    except Exception:
+                        continue
 
         mv_where_st, mv_params_st = _analytics_where_clause(analytics_filter, "st")
         mv_where_sst, mv_params_sst = _analytics_where_clause(analytics_filter, "sst")
         tx_count_map = {}
         with get_cursor() as cur:
-            cur.execute(
-                f"""
-                SELECT item_id, SUM(tx_count) AS tx_count
-                FROM (
-                  SELECT st.item_id AS item_id, COUNT(*) AS tx_count
-                  FROM stock_transactions st
-                  WHERE {mv_where_st}
-                  GROUP BY st.item_id
-                  UNION ALL
-                  SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
-                  FROM shop_stock_transactions sst
-                  WHERE {mv_where_sst}
-                  GROUP BY sst.item_id
-                ) u
-                GROUP BY item_id
-                """,
-                tuple(list(mv_params_st) + list(mv_params_sst)),
-            )
+            if shop_filter_id:
+                cur.execute(
+                    f"""
+                    SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
+                    FROM shop_stock_transactions sst
+                    WHERE sst.shop_id=%s AND {mv_where_sst}
+                    GROUP BY sst.item_id
+                    """,
+                    tuple([int(shop_filter_id)] + list(mv_params_sst)),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT item_id, SUM(tx_count) AS tx_count
+                    FROM (
+                      SELECT st.item_id AS item_id, COUNT(*) AS tx_count
+                      FROM stock_transactions st
+                      WHERE {mv_where_st}
+                      GROUP BY st.item_id
+                      UNION ALL
+                      SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
+                      FROM shop_stock_transactions sst
+                      WHERE {mv_where_sst}
+                      GROUP BY sst.item_id
+                    ) u
+                    GROUP BY item_id
+                    """,
+                    tuple(list(mv_params_st) + list(mv_params_sst)),
+                )
             for rr in (cur.fetchall() or []):
                 try:
                     tx_count_map[int(rr.get("item_id") or 0)] = int(rr.get("tx_count") or 0)
@@ -8744,19 +8873,38 @@ def it_support_stock_reports():
                 continue
             if iid <= 0:
                 continue
-            stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
+            if shop_filter_id:
+                stock_qty = int(
+                    per_shop_stock_map.get(int(shop_filter_id), {}).get(iid, 0)
+                )
+            else:
+                stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
             tx_count = int(tx_count_map.get(iid, 0))
             avg_buy = float(avg_buy_map.get(iid) or 0.0)
             stock_value = max(stock_qty, 0) * avg_buy
             total_valuation += stock_value
 
-            row_low = max(0, int(it.get("low_stock_threshold") or 0))
+            bal = period_balances.get(iid) or {}
+            opening_stock = int(bal.get("opening_stock", stock_qty))
+            stock_in = int(bal.get("stock_in", 0))
+            stock_out = int(bal.get("stock_out", 0))
+            stock_sold = int(bal.get("stock_sold", 0))
+            closing_stock = int(bal.get("closing_stock", stock_qty))
+
+            company_low = max(0, int(it.get("low_stock_threshold") or 0))
+            shop_low = max(0, int(shop_low_thresh_map.get(iid, 0)))
+            row_low = shop_low if shop_filter_id and shop_low > 0 else company_low
             row_reorder = max(0, int(it.get("reorder_level") or 0))
             row = {
                 "item_id": iid,
                 "name": (it.get("name") or "").strip() or f"Item #{iid}",
                 "category": (it.get("category") or "").strip(),
                 "stock_qty": stock_qty,
+                "opening_stock": opening_stock,
+                "stock_in": stock_in,
+                "stock_out": stock_out,
+                "stock_sold": stock_sold,
+                "closing_stock": closing_stock,
                 "tx_count": tx_count,
                 "updated_at": it.get("updated_at"),
                 "avg_buying_price": avg_buy,
@@ -8765,21 +8913,24 @@ def it_support_stock_reports():
                 "reorder_level": row_reorder,
             }
             valuation_rows.append(row)
-            if row_low > 0 and stock_qty <= row_low:
+            if row_low > 0 and closing_stock <= row_low:
                 low_stock_rows.append(row)
             if stock_qty > 0 and tx_count == 0:
                 stagnant_rows.append(row)
 
         val_snap = list(valuation_rows)
+        period_balance_rows = _sort_stock_report_rows(val_snap, "name", False)
         fast_moving_rows = [r for r in val_snap if (r.get("tx_count") or 0) > 0]
 
-        low_stock_rows = _sort_stock_report_rows(low_stock_rows, "stock_qty", True)
+        low_stock_rows = _sort_stock_report_rows(low_stock_rows, "closing_stock", True)
         fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, "tx_count", False)
         valuation_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
         highest_value_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
         stagnant_rows = _sort_stock_report_rows(stagnant_rows, "stock_value", False)
 
-        if selected_view == "low_stock":
+        if selected_view == "period_balance":
+            period_balance_rows = _sort_stock_report_rows(period_balance_rows, rep_col, rep_asc)
+        elif selected_view == "low_stock":
             low_stock_rows = _sort_stock_report_rows(low_stock_rows, rep_col, rep_asc)
         elif selected_view == "fast_moving":
             fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, rep_col, rep_asc)
@@ -8796,10 +8947,11 @@ def it_support_stock_reports():
         "it_support_stock_reports.html",
         analytics_filter=analytics_filter,
         selected_view=selected_view,
-        report_sort=rep_col,
-        report_order=report_order,
-        report_sort_options=report_sort_options,
         total_valuation=total_valuation,
+        shops=shops_list,
+        shop_filter_id=shop_filter_id,
+        shop_filter_name=shop_filter_name,
+        period_balance_rows=period_balance_rows[:300],
         low_stock_rows=low_stock_rows[:120],
         fast_moving_rows=fast_moving_rows[:120],
         valuation_rows=valuation_rows[:300],
@@ -12177,6 +12329,8 @@ def shop_pos_incoming_stock_requests_json(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not _session_may_see_shop_notifications(shop_id=shop_id):
+        return jsonify({"ok": True, "requests": []})
     try:
         from database import list_incoming_pending_stock_requests_for_shop
 
@@ -12225,6 +12379,9 @@ def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
     emp, err, st = _shop_pos_validate_employee_code(shop_id, code)
     if err:
         return jsonify({"ok": False, "error": err}), st
+    role_key = (emp.get("role") or "employee").strip().lower()
+    if role_key not in SHOP_NOTIFICATION_ROLES and role_key not in COMPANY_PORTAL_ROLES:
+        return jsonify({"ok": False, "error": "Only shop admins and managers can approve or decline requests."}), 403
     if action not in ("approve", "reject"):
         return jsonify({"ok": False, "error": "Use action approve or reject."}), 400
 
@@ -12243,7 +12400,6 @@ def shop_pos_incoming_stock_request_review(shop_id: int, request_id: int):
     delivered_by = None
     if action == "approve" and "delivered_by" in data:
         delivered_by = (data.get("delivered_by") or "").strip()[:120]
-    role_key = (emp.get("role") or "employee").strip().lower()
 
     try:
         from database import review_stock_request
@@ -12512,6 +12668,10 @@ def seller_lookup():
     if not session.get("employee_id") and not session.get("shop_id"):
         return jsonify({"ok": False, "error": "Authentication required."}), 401
     phone = (request.form.get("seller_phone") or "").strip()
+    return jsonify(_seller_lookup_by_phone_payload(phone))
+
+
+def _seller_lookup_by_phone_payload(phone: str) -> dict:
     try:
         from database import get_seller_by_phone
 
@@ -12519,35 +12679,98 @@ def seller_lookup():
     except Exception:
         row = None
     if not row:
-        return jsonify({"ok": True, "registered": False, "seller": None})
-    return jsonify(
-        {
-            "ok": True,
-            "registered": True,
-            "seller": {
-                "id": int(row.get("id") or 0),
-                "seller_name": (row.get("seller_name") or "").strip(),
-                "phone": (row.get("phone") or "").strip(),
-            },
-        }
-    )
+        return {"ok": True, "registered": False, "seller": None}
+    return {
+        "ok": True,
+        "registered": True,
+        "seller": {
+            "id": int(row.get("id") or 0),
+            "seller_name": (row.get("seller_name") or "").strip(),
+            "phone": (row.get("phone") or "").strip(),
+        },
+    }
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/seller-lookup", methods=["POST"])
+def shop_pos_seller_lookup(shop_id: int):
+    """Lookup registered seller by phone from the shop POS stock-in form."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    phone = (request.form.get("seller_phone") or "").strip()
+    return jsonify(_seller_lookup_by_phone_payload(phone))
+
+
+def _seller_suggest_payload(*, q: str, limit: int) -> dict:
+    q = (q or "").strip()
+    if len(q) < 1:
+        return {"ok": True, "results": []}
+    try:
+        from database import search_sellers_for_pos
+
+        rows = search_sellers_for_pos(q, limit=min(limit or 10, 20))
+        payload = [
+            {
+                "id": int(r["id"]) if r.get("id") else None,
+                "seller_name": r.get("seller_name") or "",
+                "phone": r.get("phone") or "",
+            }
+            for r in rows
+        ]
+    except Exception:
+        payload = []
+    return {"ok": True, "results": payload}
 
 
 @app.route("/sellers/suggest", methods=["GET"])
 def seller_suggest():
-    """Live seller-name suggestions by prefix."""
+    """Live seller/supplier name suggestions with phone for stock-in forms."""
     if not session.get("employee_id") and not session.get("shop_id"):
-        return jsonify({"ok": False, "error": "Authentication required.", "suggestions": []}), 401
+        return jsonify({"ok": False, "error": "Authentication required.", "results": []}), 401
     q = (request.args.get("q") or "").strip()
-    if len(q) < 1:
-        return jsonify({"ok": True, "suggestions": []})
-    try:
-        from database import search_seller_names
+    req_limit = request.args.get("limit", type=int)
+    return jsonify(_seller_suggest_payload(q=q, limit=req_limit or 10))
 
-        suggestions = search_seller_names(q, limit=10)
+
+@app.route("/shops/<int:shop_id>/shop-pos/seller-search", methods=["GET"])
+def shop_pos_seller_search(shop_id: int):
+    """Live seller/supplier suggestions for the shop POS stock-in form."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    q = (request.args.get("q") or "").strip()
+    req_limit = request.args.get("limit", type=int)
+    return jsonify(_seller_suggest_payload(q=q, limit=req_limit or 10))
+
+
+@app.route("/shops/<int:shop_id>/shop-pos/customer-search", methods=["GET"])
+def shop_pos_customer_search(shop_id: int):
+    """Live customer name suggestions for POS checkout."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"ok": True, "results": []})
+    req_limit = request.args.get("limit", type=int)
+    try:
+        from database import search_shop_customers_for_pos
+
+        rows = search_shop_customers_for_pos(shop_id, q, limit=min(req_limit or 10, 20))
+        payload = [
+            {
+                "id": int(r["id"]) if r.get("id") else None,
+                "customer_name": r.get("customer_name") or "",
+                "phone": r.get("phone") or "",
+            }
+            for r in rows
+        ]
     except Exception:
-        suggestions = []
-    return jsonify({"ok": True, "suggestions": suggestions})
+        payload = []
+    return jsonify({"ok": True, "results": payload})
 
 
 @app.route("/shops/<int:shop_id>/shop-pos/customer-upsert", methods=["POST"])
@@ -18070,47 +18293,41 @@ def shop_notifications(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    if not shop_shell_can("notifications"):
+        flash("Only shop admins and managers can view notifications.", "error")
+        return redirect(url_for("shop_dashboard", shop_id=shop_id))
     role_key = (session.get("employee_role") or "employee").strip().lower()
     try:
-        from database import list_notifications_for_session, list_stock_requests_for_session, can_fulfill_stock_request
+        from database import list_incoming_stock_requests_for_shop, can_fulfill_stock_request
 
-        rows = list_notifications_for_session(
-            employee_id=session.get("employee_id"),
-            shop_id=shop_id,
-            role_key=role_key,
-            limit=300,
-            outcomes_only=True,
-        )
-        stock_requests = list_stock_requests_for_session(
-            role_key=role_key,
-            viewer_shop_id=shop_id,
-            limit=300,
-            status="pending",
-            approval_queue_only=True,
-        )
+        stock_requests = list_incoming_stock_requests_for_shop(source_shop_id=shop_id, limit=300)
     except Exception:
-        rows, stock_requests = [], []
-    sr_outcome_max_id = 0
-    try:
-        from database import list_shop_stock_request_alerts_for_shop
-
-        sr_rows = list_shop_stock_request_alerts_for_shop(shop_id=shop_id, limit=1)
-        if sr_rows:
-            sr_outcome_max_id = int(sr_rows[0].get("id") or 0)
-    except Exception:
-        sr_outcome_max_id = 0
+        stock_requests = []
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=shop_id)
-        r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0))
+        if (r.get("status") or "").lower() == "pending":
+            r["can_approve_now"] = can_fulfill_stock_request(int(r.get("id") or 0))
+        else:
+            r["can_approve_now"] = False
 
-    pending_request_count = len(stock_requests or [])
+    pending_request_count = sum(
+        1 for r in (stock_requests or []) if (r.get("status") or "").lower() == "pending"
+    )
+    approved_count = sum(
+        1 for r in (stock_requests or []) if (r.get("status") or "").lower() == "approved"
+    )
+    declined_count = sum(
+        1 for r in (stock_requests or []) if (r.get("status") or "").lower() in ("rejected", "declined")
+    )
     return render_template(
         "shop_notifications.html",
         shop=shop,
-        notifications=rows,
         stock_requests=stock_requests,
         pending_request_count=pending_request_count,
-        sr_outcome_max_id=sr_outcome_max_id,
+        approved_count=approved_count,
+        declined_count=declined_count,
+        notification_count=pending_request_count,
+        notification_scope=f"shop-{int(shop_id)}",
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -18238,9 +18455,15 @@ def _load_shop_stock_live_report_rows(
     stagnant_rows: list = []
     total_valuation = 0.0
     try:
-        from database import _analytics_where_clause, get_cursor, list_shop_stock_manage_items
+        from database import (
+            _analytics_where_clause,
+            get_cursor,
+            get_shop_stock_period_item_balances,
+            list_shop_stock_manage_items,
+        )
 
         items = list_shop_stock_manage_items(shop_id=shop_id, limit=3000) or []
+        period_balances = get_shop_stock_period_item_balances(shop_id, analytics_filter) or {}
         sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
         tx_count_map: Dict[int, int] = {}
         with get_cursor() as cur:
@@ -18295,17 +18518,28 @@ def _load_shop_stock_live_report_rows(
             avg_buy = float(avg_buy_map.get(iid) or 0.0)
             stock_value = max(stock_qty, 0) * avg_buy
             total_valuation += stock_value
+            bal = period_balances.get(iid) or {}
+            opening_stock = int(bal.get("opening_stock", stock_qty))
+            stock_in = int(bal.get("stock_in", 0))
+            stock_out = int(bal.get("stock_out", 0))
+            stock_sold = int(bal.get("stock_sold", 0))
+            closing_stock = int(bal.get("closing_stock", stock_qty))
             row = {
                 "item_id": iid,
                 "name": (it.get("name") or "").strip() or f"Item #{iid}",
                 "category": (it.get("category") or "").strip(),
                 "stock_qty": stock_qty,
+                "opening_stock": opening_stock,
+                "stock_in": stock_in,
+                "stock_out": stock_out,
+                "stock_sold": stock_sold,
+                "closing_stock": closing_stock,
                 "tx_count": tx_count,
                 "avg_buying_price": avg_buy,
                 "stock_value": stock_value,
             }
             valuation_rows.append(row)
-            if stock_qty <= reorder_threshold:
+            if closing_stock <= reorder_threshold:
                 low_stock_rows.append(row)
             if stock_qty > 0 and tx_count == 0:
                 stagnant_rows.append(row)
@@ -18317,7 +18551,7 @@ def _load_shop_stock_live_report_rows(
         )
         valuation_rows.sort(key=lambda r: (r.get("name") or "").lower())
         highest_value_rows = sorted(valuation_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
-        low_stock_rows.sort(key=lambda r: (r.get("stock_qty") or 0, -(r.get("tx_count") or 0)))
+        low_stock_rows.sort(key=lambda r: (r.get("closing_stock") or 0, -(r.get("tx_count") or 0)))
         stagnant_rows.sort(key=lambda r: (r.get("stock_value") or 0), reverse=True)
     except Exception:
         pass

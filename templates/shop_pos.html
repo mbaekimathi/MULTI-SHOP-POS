@@ -2,7 +2,7 @@
 {% block title %}Shop POS — {{ shop.shop_name }}{% endblock %}
 
 {% block head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-page.css') }}?v=3" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-page.css') }}?v=6" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-pos-pro.css') }}?v=10" />
 {% endblock %}
 
@@ -281,7 +281,9 @@
                 Open shop
               </button>
               {% endif %}
+              {% if notification_bell_visible|default(false) %}
               {% include "partials/notification_bell.html" %}
+              {% endif %}
               {% include "partials/theme_toggle.html" %}
               <div class="flex min-w-0 shrink-0 items-center">
                 {% if session.get('shop_id') and session.get('shop_id')|int == shop.id %}
@@ -1011,9 +1013,10 @@
             <label for="pos-customer-phone" id="pos-customer-phone-label" class="sr-only">Customer phone (optional)</label>
           </div>
           <p id="pos-customer-lookup-status" class="text-[10px] text-[rgb(var(--rc-muted))] empty:hidden"></p>
-          <div>
-            <input id="pos-customer-name" type="text" autocomplete="name" placeholder="Name (optional)" class="pos-auth-input w-full rounded-xl border px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          <div class="relative">
+            <input id="pos-customer-name" type="text" autocomplete="off" placeholder="Name (optional)" class="pos-auth-input w-full rounded-xl border px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
             <label for="pos-customer-name" id="pos-customer-name-label" class="sr-only">Customer name (optional)</label>
+            <div id="pos-customer-name-suggest" class="absolute z-20 mt-1 hidden max-h-48 w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
           </div>
           <p id="pos-customer-rule" class="text-[10px] text-[rgb(var(--rc-muted))] empty:hidden"></p>
         </div>
@@ -1557,27 +1560,41 @@
   {% endif %}
 
   {% if pos_printing_settings.pos_show_buy_items_link %}
-  <div id="pos-stockin-modal" class="fixed inset-0 z-[90] hidden" aria-hidden="true">
+  <div id="pos-stockin-modal" class="pos-form-dialog fixed inset-0 z-[90] hidden" aria-hidden="true">
     <div id="pos-stockin-backdrop" class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
-    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
-      <div class="w-full max-w-2xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
-        <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
-          <div>
-            <h3 id="pos-stockin-title" class="text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Buy and stock in item</h3>
-            <p id="pos-stockin-subtitle" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Search an item live or pick from list, then fill stock-in details.</p>
+    <div class="pos-form-dialog__viewport absolute inset-0 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div id="pos-stockin-panel" class="pos-stockin-panel pos-form-dialog__panel pos-stockin-panel--stock flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:rounded-2xl" role="dialog" aria-modal="true" aria-labelledby="pos-stockin-title">
+        <div class="pos-stockin-header shrink-0">
+          <div class="pos-stockin-header__body flex items-start justify-between gap-2 px-4 py-3.5 sm:gap-3 sm:px-6 sm:py-5">
+            <div class="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3.5">
+              <span class="pos-stockin-header__badge inline-flex" aria-hidden="true">
+                <svg class="pos-stockin-header__badge-icon pos-stockin-header__badge-icon--stock" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <svg class="pos-stockin-header__badge-icon pos-stockin-header__badge-icon--expense" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="pos-stockin-header__eyebrow">Stock in</p>
+                <h3 id="pos-stockin-title" class="pos-stockin-header__title line-clamp-2 font-black uppercase tracking-wide">Buy and stock in item</h3>
+                <p id="pos-stockin-subtitle" class="pos-stockin-header__subtitle mt-1 line-clamp-2 sm:mt-1.5">Search or pick an item, then fill stock-in details.</p>
+              </div>
+            </div>
+            <button type="button" id="pos-stockin-close" class="pos-stockin-header__close shrink-0 rounded-lg border px-3 py-2 text-xs font-bold sm:py-1.5">Close</button>
           </div>
-          <button type="button" id="pos-stockin-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold">Close</button>
         </div>
-        <form id="pos-stockin-form" method="post" action="{{ url_for('shop_pos_stock_in', shop_id=shop.id) }}" class="grid gap-3 p-4 sm:grid-cols-2">
+        <div class="pos-form-dialog__body min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+        <form id="pos-stockin-form" method="post" action="{{ url_for('shop_pos_stock_in', shop_id=shop.id) }}" class="pos-stockin-form grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input type="hidden" name="entry_type" id="pos-stockin-entry-type" value="stock" />
           <div class="sm:col-span-2">
             <p class="mb-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Entry type</p>
-            <div class="flex flex-wrap gap-2">
-              <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-xs font-bold uppercase tracking-wider has-[:checked]:border-[rgb(var(--rc-primary))]/50 has-[:checked]:bg-[rgb(var(--rc-primary))]/10">
+            <div class="pos-form-dialog__entry-grid grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+              <label class="pos-stockin-type-pick pos-stockin-type-pick--stock inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold uppercase tracking-wider sm:justify-start sm:py-2">
                 <input type="radio" name="pos_stockin_type_pick" value="stock" checked class="pos-stockin-type-radio" />
                 Stock in item
               </label>
-              <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-xs font-bold uppercase tracking-wider has-[:checked]:border-[rgb(var(--rc-primary))]/50 has-[:checked]:bg-[rgb(var(--rc-primary))]/10">
+              <label class="pos-stockin-type-pick pos-stockin-type-pick--expense inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold uppercase tracking-wider sm:justify-start sm:py-2">
                 <input type="radio" name="pos_stockin_type_pick" value="expense" class="pos-stockin-type-radio" />
                 Register expense
               </label>
@@ -1590,15 +1607,27 @@
             </div>
           {% endif %}
           <div id="pos-stockin-stock-fields" class="contents">
-          <div class="sm:col-span-2">
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search item</label>
-            <input id="pos-stockin-search" type="search" placeholder="Search by name or category..." class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+          <div class="sm:col-span-2 relative">
+            <label for="pos-stockin-item-input" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               {% if is_store_stock_mode %}Store stock item{% else %}Item{% endif %}
             </label>
-            <select id="pos-stockin-item-id" name="item_id" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+            <div class="flex">
+              <input
+                id="pos-stockin-item-input"
+                type="search"
+                autocomplete="off"
+                placeholder="{% if is_store_stock_mode %}Search or pick store stock item…{% else %}Search or pick item…{% endif %}"
+                class="min-w-0 flex-1 rounded-l-xl border border-r-0 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:z-10"
+              />
+              <button
+                type="button"
+                id="pos-stockin-item-list-toggle"
+                class="flex shrink-0 items-center rounded-r-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 text-sm font-bold text-[rgb(var(--rc-muted))] outline-none hover:bg-[rgb(var(--rc-surface))]"
+                aria-label="{% if is_store_stock_mode %}Show all store stock items{% else %}Show all items{% endif %}"
+                title="{% if is_store_stock_mode %}Show all store stock items{% else %}Show all items{% endif %}"
+              >▾</button>
+            </div>
+            <select id="pos-stockin-item-id" name="item_id" class="sr-only" tabindex="-1" aria-hidden="true">
               <option value="">
                 {% if is_store_stock_mode %}Select store stock item{% else %}Select item{% endif %}
               </option>
@@ -1611,6 +1640,7 @@
                 </option>
               {% endfor %}
             </select>
+            <div id="pos-stockin-item-suggest" class="pos-form-dialog__suggest absolute z-20 mt-1 hidden w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
             {% if is_store_stock_mode and not (buy_items_catalog or []) %}
               <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]">No registered store stock items yet for this shop. Register from IT support → Register stock item.</p>
             {% endif %}
@@ -1632,18 +1662,18 @@
           </div>
           </div>
           <div id="pos-stockin-expense-fields" class="contents hidden">
-            <div>
-              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense category</label>
-              <input id="pos-stockin-expense-category" name="expense_category" list="pos-stockin-expense-category-list" autocomplete="off" class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="E.G. UTILITIES" />
-              <datalist id="pos-stockin-expense-category-list"></datalist>
-            </div>
             <div class="sm:col-span-2 relative">
               <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense name</label>
               <div class="flex">
                 <input id="pos-stockin-expense-name" name="expense_name" autocomplete="off" class="pos-stockin-upper min-w-0 flex-1 rounded-l-xl border border-r-0 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none focus:z-10" placeholder="SEARCH, PICK, OR TYPE NEW" />
                 <button type="button" id="pos-stockin-expense-list-toggle" class="flex shrink-0 items-center rounded-r-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 text-sm font-bold text-[rgb(var(--rc-muted))] outline-none hover:bg-[rgb(var(--rc-surface))]" aria-label="Show all expenses" title="Show all expenses">▾</button>
               </div>
-              <div id="pos-stockin-expense-name-suggest" class="absolute z-20 mt-1 hidden max-h-48 w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
+              <div id="pos-stockin-expense-name-suggest" class="pos-form-dialog__suggest absolute z-20 mt-1 hidden w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense category</label>
+              <input id="pos-stockin-expense-category" name="expense_category" list="pos-stockin-expense-category-list" autocomplete="off" class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="E.G. UTILITIES" />
+              <datalist id="pos-stockin-expense-category-list"></datalist>
             </div>
             <div class="pos-stockin-expense-qty-price-row contents">
             <div>
@@ -1667,7 +1697,10 @@
           </div>
           <div>
             <label id="pos-stockin-seller-name-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller name</label>
-            <input id="pos-stockin-seller-name" name="seller_name" required class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. COLLINS MWANGI" />
+            <div class="relative">
+              <input id="pos-stockin-seller-name" name="seller_name" required autocomplete="off" class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase" placeholder="E.G. COLLINS MWANGI" />
+              <div id="pos-stockin-seller-name-suggest" class="pos-form-dialog__suggest absolute z-[200] mt-1 hidden w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
+            </div>
             <p id="pos-stockin-seller-hint" class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]"></p>
           </div>
           </div>
@@ -1717,24 +1750,28 @@
           </div>
           <button type="submit" id="pos-stockin-submit" class="hidden" tabindex="-1" aria-hidden="true">Save</button>
         </form>
+        </div>
       </div>
     </div>
   </div>
   {% endif %}
 
   {% if pos_inventory_mode in ("kitchen", "both") %}
-  <div id="pos-refill-portions-modal" class="fixed inset-0 z-[90] hidden" aria-hidden="true">
+  <div id="pos-refill-portions-modal" class="pos-form-dialog fixed inset-0 z-[90] hidden" aria-hidden="true">
     <div id="pos-refill-portions-backdrop" class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
-    <div class="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
-      <div class="w-full max-w-xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl">
-        <div class="flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-4 py-3">
-          <div>
-            <h3 class="text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Refill kitchen portions</h3>
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Add freshly prepared portions to the kitchen. Adds to existing count — does not replace it.</p>
+    <div class="pos-form-dialog__viewport absolute inset-0 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div class="pos-form-dialog__panel flex w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl sm:rounded-2xl">
+        <div class="shrink-0 border-b border-[rgb(var(--rc-border))] px-4 py-3.5 sm:px-4 sm:py-3">
+          <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <h3 class="line-clamp-2 text-sm font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]">Refill kitchen portions</h3>
+            <p class="mt-1 line-clamp-2 text-xs text-[rgb(var(--rc-muted))]">Add freshly prepared portions to the kitchen. Adds to existing count — does not replace it.</p>
           </div>
-          <button type="button" id="pos-refill-portions-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-bold">Close</button>
+          <button type="button" id="pos-refill-portions-close" class="shrink-0 rounded-lg border border-[rgb(var(--rc-border))] px-3 py-2 text-xs font-bold sm:py-1.5">Close</button>
+          </div>
         </div>
-        <form id="pos-refill-portions-form" method="post" action="{{ url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id) }}" class="grid gap-3 p-4 sm:grid-cols-2">
+        <div class="pos-form-dialog__body min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+        <form id="pos-refill-portions-form" method="post" action="{{ url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id) }}" class="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
           <div class="sm:col-span-2">
             <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Live search item</label>
             <input id="pos-refill-portions-search" type="search" placeholder="Search by name or category..." class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
@@ -1791,6 +1828,7 @@
             <button type="submit" id="pos-refill-portions-submit" class="hidden" tabindex="-1" aria-hidden="true">Save</button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   </div>
@@ -1893,8 +1931,29 @@
           class="mt-4 space-y-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3 text-sm text-[rgb(var(--rc-page-fg))]"
         ></div>
         <div id="pos-incoming-sr-actions" class="pos-incoming-sr-actions">
-        <div class="mt-4 space-y-2">
-          <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-qty">Quantity to transfer (if approving)</label>
+        <div id="pos-incoming-sr-step-choice">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Step 1 — choose an action</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              id="pos-incoming-sr-approve"
+              class="btn-rc btn-rc-success inline-flex flex-1 items-center justify-center px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              id="pos-incoming-sr-decline"
+              class="btn-rc btn-rc-danger inline-flex flex-1 items-center justify-center px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+        <div id="pos-incoming-sr-step-code" class="mt-4 hidden">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Step 2 — enter your 6-digit code</p>
+        <div id="pos-incoming-sr-approve-fields" class="mt-3 hidden space-y-2">
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-qty">Quantity to transfer</label>
           <input
             id="pos-incoming-sr-qty"
             type="number"
@@ -1905,7 +1964,7 @@
           />
           <p id="pos-incoming-sr-qty-hint" class="text-[11px] text-[rgb(var(--rc-muted))]"></p>
         </div>
-        <div class="mt-3 space-y-2">
+        <div id="pos-incoming-sr-delivered-wrap" class="mt-3 hidden space-y-2">
           <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-delivered-by">Delivered by (optional)</label>
           <input
             id="pos-incoming-sr-delivered-by"
@@ -1918,7 +1977,7 @@
         </div>
         <div class="mt-3 space-y-2">
             <label class="block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pos-incoming-sr-code"
-              >Employee code (6 digits) — validates on the 6th digit; if valid, the action runs automatically</label>
+              >Manager / admin 6-digit code</label>
           <input
             id="pos-incoming-sr-code"
             type="password"
@@ -1931,21 +1990,6 @@
           />
         </div>
         <p id="pos-incoming-sr-err" class="mt-2 hidden text-xs font-semibold text-rose-500"></p>
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            id="pos-incoming-sr-approve"
-            class="btn-rc btn-rc-success inline-flex flex-1 items-center justify-center px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
-          >
-            Approve
-          </button>
-          <button
-            type="button"
-            id="pos-incoming-sr-decline"
-            class="btn-rc btn-rc-danger inline-flex flex-1 items-center justify-center px-4 py-2.5 text-xs font-bold uppercase tracking-wider"
-          >
-            Decline
-          </button>
         </div>
         </div>
         <div class="mt-4">

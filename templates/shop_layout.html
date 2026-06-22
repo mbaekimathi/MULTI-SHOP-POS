@@ -153,7 +153,7 @@
                   Shop settings
                 </a>
               {% endif %}
-              {% if shop_ui_role and shop_ui_role not in ('it_support', 'super_admin', 'company_manager') %}
+              {% if shop_shell_can('notifications') %}
                 <a
                   href="{{ url_for('shop_notifications', shop_id=shop.id) }}"
                   class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_notifications' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
@@ -250,7 +250,9 @@
 
         <div class="ml-auto flex shrink-0 items-center gap-2">
           {% include "partials/theme_toggle.html" %}
+          {% if shop_shell_can('notifications') %}
           {% include "partials/notification_bell.html" %}
+          {% endif %}
           {% include "partials/employee_portal_header_user.html" %}
         </div>
       </header>

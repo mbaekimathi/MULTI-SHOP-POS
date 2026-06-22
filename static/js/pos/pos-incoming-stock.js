@@ -1,5 +1,6 @@
 (function () {
   var BOOT = window.__POS_BOOT || {};
+  if (!BOOT.apis || !BOOT.apis.canReviewIncomingStock) return;
   var POS_SID = BOOT.shopId;
   var API = BOOT.apis.incomingStockRequests;
   var LS_KEY = "pos_incoming_sr_sig_shop_" + POS_SID;
@@ -19,8 +20,12 @@
   var dismissBtn = document.getElementById("pos-incoming-sr-dismiss");
   var backdrop = document.getElementById("pos-incoming-sr-backdrop");
   var actionsEl = document.getElementById("pos-incoming-sr-actions");
+  var stepChoice = document.getElementById("pos-incoming-sr-step-choice");
+  var stepCode = document.getElementById("pos-incoming-sr-step-code");
+  var approveFields = document.getElementById("pos-incoming-sr-approve-fields");
+  var deliveredWrap = document.getElementById("pos-incoming-sr-delivered-wrap");
 
-  /** null = auto-submit approve on 6 digits; "reject" = auto-submit decline on 6 digits (after Decline click). */
+  /** null until user picks Accept/Decline; then "approve" or "reject". */
   var incomingSrIntent = null;
 
   var alertSoundTimer = null;
@@ -254,13 +259,37 @@
     });
   }
 
+  function resetReviewSteps() {
+    incomingSrIntent = null;
+    if (stepChoice) stepChoice.classList.remove("hidden");
+    if (stepCode) stepCode.classList.add("hidden");
+    if (approveFields) approveFields.classList.add("hidden");
+    if (deliveredWrap) deliveredWrap.classList.add("hidden");
+    if (codeEl) codeEl.value = "";
+    if (deliveredByEl) deliveredByEl.value = "";
+    showErr("");
+  }
+
+  function showReviewCodeStep(action) {
+    incomingSrIntent = action;
+    if (stepChoice) stepChoice.classList.add("hidden");
+    if (stepCode) stepCode.classList.remove("hidden");
+    var isApprove = action === "approve";
+    if (approveFields) approveFields.classList.toggle("hidden", !isApprove);
+    if (deliveredWrap) deliveredWrap.classList.toggle("hidden", !isApprove);
+    showErr("");
+    try {
+      if (codeEl) codeEl.focus();
+    } catch (e) {}
+  }
+
   function setActionsVisible(on) {
     if (actionsEl) actionsEl.classList.toggle("hidden", !on);
   }
 
   function showEmptyState() {
     window.__posIncomingSrCurrent = null;
-    incomingSrIntent = null;
+    resetReviewSteps();
     if (detailEl) {
       detailEl.innerHTML =
         '<p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No requests awaiting your approval.</p>' +
@@ -276,7 +305,7 @@
   function applyDetail(r, total) {
     if (!detailEl) return;
     setActionsVisible(true);
-    incomingSrIntent = null;
+    resetReviewSteps();
     window.__posIncomingSrCurrent = r;
     detailEl.innerHTML = "";
     var p1 = document.createElement("p");
@@ -307,7 +336,7 @@
       queueHint.textContent =
         total > 1
           ? total + " pending — oldest first. Handle one at a time."
-          : "Enter your employee code to approve or decline.";
+          : "Choose Accept or Decline, then enter your 6-digit code.";
     }
     if (qtyHint) {
       qtyHint.textContent =
@@ -419,6 +448,11 @@
     showErr("");
     var r = window.__posIncomingSrCurrent;
     if (!r) return;
+    if (!incomingSrIntent) {
+      showErr("Choose Accept or Decline first.");
+      return;
+    }
+    action = action || incomingSrIntent;
     var code = (codeEl && codeEl.value ? codeEl.value : "").trim();
     if (!/^\d{6}$/.test(code)) {
       showErr("Enter your 6-digit employee code.");
@@ -476,6 +510,7 @@
         } catch (e) {}
         window.__posIncomingSrLastSig = "";
         window.__posIncomingSrCurrent = null;
+        incomingSrIntent = null;
         showErr("");
         if (codeEl) codeEl.value = "";
         if (deliveredByEl) deliveredByEl.value = "";
@@ -491,21 +526,12 @@
 
   approveBtn &&
     approveBtn.addEventListener("click", function () {
-      incomingSrIntent = "approve";
-      var code = (codeEl && codeEl.value ? codeEl.value : "").trim();
-      if (!/^\d{6}$/.test(code)) {
-        showErr("Enter your 6-digit employee code to approve.");
-        try {
-          if (codeEl) codeEl.focus();
-        } catch (e) {}
-        return;
-      }
-      submitReview("approve");
+      if (approveBtn.disabled) return;
+      showReviewCodeStep("approve");
     });
   declineBtn &&
     declineBtn.addEventListener("click", function () {
-      incomingSrIntent = "reject";
-      submitReview("reject");
+      showReviewCodeStep("reject");
     });
 
   codeEl &&
@@ -515,13 +541,15 @@
       showErr("");
       if (raw.length !== 6 || !/^\d{6}$/.test(raw)) return;
       if (window.__posIncomingSrSubmitting) return;
-      var useReject = incomingSrIntent === "reject";
-      if (!useReject) {
+      if (!incomingSrIntent) {
+        showErr("Choose Accept or Decline first.");
+        return;
+      }
+      var action = incomingSrIntent === "reject" ? "reject" : "approve";
+      if (action === "approve") {
         if (approveBtn && approveBtn.disabled) return;
         if (qtyEl && qtyEl.disabled) return;
       }
-      var action = useReject ? "reject" : "approve";
-      incomingSrIntent = null;
       submitReview(action);
     });
 

@@ -66,7 +66,7 @@
       <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Expenditure lines</h3>
-          <input id="company-expenses-search" type="search" autocomplete="off" placeholder="Search item, shop, supplier…" class="min-w-[12rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-xs" />
+          <input id="company-expenses-search" type="search" autocomplete="off" placeholder="Search item, shop, supplier, phone…" class="min-w-[12rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-xs" />
         </div>
       </div>
       <div class="exp-table-wrap overflow-x-auto">
@@ -77,7 +77,9 @@
               <th class="px-4 py-3">When</th>
               <th class="px-4 py-3">Shop</th>
               <th class="px-4 py-3">Item</th>
-              <th class="px-4 py-3">Supplier / By</th>
+              <th class="px-4 py-3">Supplier</th>
+              <th class="px-4 py-3">Phone</th>
+              <th class="px-4 py-3">Recorded by</th>
               <th class="px-4 py-3 text-right">Qty</th>
               <th class="px-4 py-3 text-right">Unit cost</th>
               <th class="px-4 py-3 text-right">Total</th>
@@ -91,7 +93,11 @@
               {% set bal = row.balance if row.balance is not none else ((row.total_cost or 0) - (row.amount_paid or 0)) %}
               {% set ps = (row.payment_status or 'pending_payment')|lower %}
               {% set kind_label = 'Expense' if row.expense_kind == 'operational' else ('Stock out' if row.expense_kind == 'stock_out' else 'Stock') %}
-              <tr class="exp-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or '') ~ ' ' ~ (row.shop_name or '') ~ ' ' ~ (row.supplier or '') ~ ' ' ~ (row.expense_kind or '') ~ ' ' ~ ps)|lower }}">
+              {% set supplier_display = (row.supplier_name or row.supplier or '')|trim %}
+              {% if supplier_display in ('', '—', '-') %}{% set supplier_display = '' %}{% endif %}
+              {% set phone_display = (row.seller_phone or '')|trim %}
+              {% if phone_display in ('', '—', '-') %}{% set phone_display = '' %}{% endif %}
+              <tr class="exp-row" data-search="{{ ((row.name or '') ~ ' ' ~ (row.category or '') ~ ' ' ~ (row.shop_name or '') ~ ' ' ~ supplier_display ~ ' ' ~ phone_display ~ ' ' ~ (row.created_by or '') ~ ' ' ~ (row.expense_kind or '') ~ ' ' ~ ps)|lower }}">
                 <td class="px-4 py-3">
                   <div class="text-[10px] font-bold uppercase text-[rgb(var(--rc-page-fg))]">{{ kind_label }}</div>
                   {% if ps == 'paid' %}
@@ -112,7 +118,9 @@
                   <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.name }}</div>
                   {% if row.category %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ row.category }}</div>{% endif %}
                 </td>
-                <td class="px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">{{ row.supplier or row.created_by or '—' }}</td>
+                <td class="px-4 py-3 text-sm font-medium text-[rgb(var(--rc-page-fg))]">{{ supplier_display or '—' }}</td>
+                <td class="px-4 py-3 text-sm tabular-nums text-[rgb(var(--rc-muted))]">{{ phone_display or '—' }}</td>
+                <td class="px-4 py-3 text-sm text-[rgb(var(--rc-muted))]">{{ row.created_by or '—' }}</td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ row.qty }}</td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ "%.2f"|format(row.buying_price or row.unit_price or 0) }}</td>
                 <td class="px-4 py-3 text-right font-semibold tabular-nums text-amber-700 dark:text-amber-300">{{ "%.2f"|format(row.total_cost or 0) }}</td>
@@ -140,7 +148,7 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="11" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No expenditure for this period.</td></tr>
+              <tr><td colspan="13" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No expenditure for this period.</td></tr>
             {% endfor %}
           </tbody>
         </table>

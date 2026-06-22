@@ -1,4 +1,4 @@
-{% if notifications_url or notification_bell_popup %}
+{% if notification_bell_visible and (notifications_url or notification_bell_popup) %}
   {% if notification_bell_popup %}
   <button
     type="button"
