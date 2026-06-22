@@ -45,7 +45,7 @@
       <div class="sa-raw-only space-y-4">
         <p class="text-sm text-[rgb(var(--rc-muted))]">
           Detailed line-level reports:
-          <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, view='low_stock', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '', reorder_threshold=reorder_threshold or 5) }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">open stock reports</a>.
+          <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">open stock reports</a>.
         </p>
 
         <div class="grid gap-4 lg:grid-cols-2">

@@ -18629,124 +18629,59 @@ def _shop_active_sku_count(shop_id: int) -> int:
         return 0
 
 
-def _load_shop_stock_live_report_rows(
-    shop_id: int, analytics_filter: dict, reorder_threshold: int
-) -> Dict[str, Any]:
-    low_stock_rows: list = []
-    fast_moving_rows: list = []
-    valuation_rows: list = []
-    highest_value_rows: list = []
-    stagnant_rows: list = []
-    total_valuation = 0.0
+def _load_shop_stock_period_report_rows(
+    shop_id: int, analytics_filter: dict
+) -> list:
+    """Per-item opening / movements / closing for the selected period."""
+    rows: list = []
     try:
         from database import (
-            _analytics_where_clause,
-            get_cursor,
+            _report_fetch_item_meta_by_ids,
+            _report_item_had_period_activity,
             get_shop_stock_period_item_balances,
             list_shop_stock_manage_items,
         )
 
         items = list_shop_stock_manage_items(shop_id=shop_id, limit=3000) or []
         period_balances = get_shop_stock_period_item_balances(shop_id, analytics_filter) or {}
-        sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
-        tx_count_map: Dict[int, int] = {}
-        with get_cursor() as cur:
-            cur.execute(
-                f"""
-                SELECT sst.item_id, COUNT(*) AS tx_count
-                FROM shop_stock_transactions sst
-                WHERE sst.shop_id=%s AND {sst_where}
-                GROUP BY sst.item_id
-                """,
-                tuple([int(shop_id)] + list(sst_params)),
-            )
-            for rr in (cur.fetchall() or []):
-                try:
-                    tx_count_map[int(rr.get("item_id") or 0)] = int(rr.get("tx_count") or 0)
-                except Exception:
-                    continue
-
-        avg_buy_map: Dict[int, float] = {}
-        with get_cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    sst.item_id,
-                    SUM(COALESCE(sst.buying_price,0) * sst.qty) AS buy_value,
-                    SUM(sst.qty) AS buy_qty
-                FROM shop_stock_transactions sst
-                WHERE sst.shop_id=%s AND sst.direction='in' AND sst.buying_price IS NOT NULL
-                GROUP BY sst.item_id
-                """,
-                (int(shop_id),),
-            )
-            for rr in (cur.fetchall() or []):
-                try:
-                    iid = int(rr.get("item_id") or 0)
-                    bq = int(rr.get("buy_qty") or 0)
-                    bv = float(rr.get("buy_value") or 0)
-                except Exception:
-                    continue
-                if iid > 0 and bq > 0:
-                    avg_buy_map[iid] = bv / bq
-
+        item_by_id: Dict[int, dict] = {}
         for it in items:
             try:
                 iid = int(it.get("id") or 0)
             except Exception:
                 continue
-            if iid <= 0:
-                continue
-            stock_qty = int(it.get("shop_stock_qty") or 0)
-            tx_count = int(tx_count_map.get(iid, 0))
-            avg_buy = float(avg_buy_map.get(iid) or 0.0)
-            stock_value = max(stock_qty, 0) * avg_buy
-            total_valuation += stock_value
+            if iid > 0:
+                item_by_id[iid] = it
+
+        missing_ids = [iid for iid in period_balances if iid not in item_by_id]
+        missing_meta = _report_fetch_item_meta_by_ids(missing_ids) if missing_ids else {}
+
+        for iid in set(item_by_id) | set(period_balances):
+            it = item_by_id.get(iid) or missing_meta.get(iid) or {}
             bal = period_balances.get(iid) or {}
+            stock_qty = int(it.get("shop_stock_qty") or 0)
             opening_stock = int(bal.get("opening_stock", stock_qty))
             stock_in = int(bal.get("stock_in", 0))
             stock_out = int(bal.get("stock_out", 0))
             stock_sold = int(bal.get("stock_sold", 0))
             closing_stock = int(bal.get("closing_stock", stock_qty))
-            row = {
-                "item_id": iid,
-                "name": (it.get("name") or "").strip() or f"Item #{iid}",
-                "category": (it.get("category") or "").strip(),
-                "stock_qty": stock_qty,
-                "opening_stock": opening_stock,
-                "stock_in": stock_in,
-                "stock_out": stock_out,
-                "stock_sold": stock_sold,
-                "closing_stock": closing_stock,
-                "tx_count": tx_count,
-                "avg_buying_price": avg_buy,
-                "stock_value": stock_value,
-            }
-            valuation_rows.append(row)
-            if closing_stock <= reorder_threshold:
-                low_stock_rows.append(row)
-            if stock_qty > 0 and tx_count == 0:
-                stagnant_rows.append(row)
-
-        fast_moving_rows = sorted(
-            [r for r in valuation_rows if (r.get("tx_count") or 0) > 0],
-            key=lambda r: (r.get("tx_count") or 0),
-            reverse=True,
-        )
-        valuation_rows.sort(key=lambda r: (r.get("name") or "").lower())
-        highest_value_rows = sorted(valuation_rows, key=lambda r: r.get("stock_value") or 0, reverse=True)
-        low_stock_rows.sort(key=lambda r: (r.get("closing_stock") or 0, -(r.get("tx_count") or 0)))
-        stagnant_rows.sort(key=lambda r: (r.get("stock_value") or 0), reverse=True)
+            if not _report_item_had_period_activity(stock_in, stock_out, stock_sold, 0):
+                continue
+            rows.append(
+                {
+                    "item_id": iid,
+                    "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                    "opening_stock": opening_stock,
+                    "stock_in": stock_in,
+                    "stock_out": stock_out,
+                    "stock_sold": stock_sold,
+                    "closing_stock": closing_stock,
+                }
+            )
+        rows.sort(key=lambda r: (r.get("name") or "").lower())
     except Exception:
         pass
-    return {
-        "low_stock_rows": low_stock_rows[:120],
-        "fast_moving_rows": fast_moving_rows[:120],
-        "valuation_rows": valuation_rows[:300],
-        "highest_value_rows": highest_value_rows[:120],
-        "stagnant_rows": stagnant_rows[:120],
-        "total_valuation": total_valuation,
-    }
+    return rows[:300]
 
 
 @app.route("/shops/<int:shop_id>/shop-stock-analytics")
@@ -18799,17 +18734,10 @@ def shop_stock_analytics(shop_id: int):
     )
 
 
-def _shop_stock_reports_canonical_query(
-    *,
-    selected_view: str,
-    analytics_filter: dict,
-    reorder_threshold: int,
-) -> Dict[str, Any]:
+def _shop_stock_reports_canonical_query(*, analytics_filter: dict) -> Dict[str, Any]:
     """Stable query dict for shop stock reports URLs (matches redirect normalization)."""
     clean_query: Dict[str, Any] = {
-        "view": selected_view,
         "mode": analytics_filter.get("mode") or "single_day",
-        "reorder_threshold": reorder_threshold,
     }
     if clean_query["mode"] == "single_day" and analytics_filter.get("single_day"):
         clean_query["single_day"] = analytics_filter.get("single_day")
@@ -18990,36 +18918,17 @@ def shop_stock_reports(shop_id: int):
     if gate is not None:
         return gate
     analytics_filter = _build_analytics_filter()
-    selected_view = (request.args.get("view") or "low_stock").strip().lower()
-    allowed_views = {"low_stock", "fast_moving", "valuation", "highest_value", "stagnant"}
-    if selected_view not in allowed_views:
-        selected_view = "low_stock"
-    reorder_threshold = request.args.get("reorder_threshold", type=int)
-    if reorder_threshold is None:
-        reorder_threshold = 5
-    reorder_threshold = max(0, min(500, int(reorder_threshold)))
     # Canonicalize query params so the page URL does not keep empty fields.
-    clean_query = _shop_stock_reports_canonical_query(
-        selected_view=selected_view,
-        analytics_filter=analytics_filter,
-        reorder_threshold=reorder_threshold,
-    )
+    clean_query = _shop_stock_reports_canonical_query(analytics_filter=analytics_filter)
     if request.args.to_dict(flat=True) != {k: str(v) for k, v in clean_query.items()}:
         return redirect(url_for("shop_stock_reports", shop_id=shop_id, **clean_query))
-    bundle = _load_shop_stock_live_report_rows(shop_id, analytics_filter, reorder_threshold)
+    period_balance_rows = _load_shop_stock_period_report_rows(shop_id, analytics_filter)
     return render_template(
         "shop_stock_reports.html",
         shop=shop,
         analytics_filter=analytics_filter,
         shop_stock_sidebar_focus="reports",
-        selected_view=selected_view,
-        reorder_threshold=reorder_threshold,
-        total_valuation=bundle["total_valuation"],
-        low_stock_rows=bundle["low_stock_rows"],
-        fast_moving_rows=bundle["fast_moving_rows"],
-        valuation_rows=bundle["valuation_rows"],
-        highest_value_rows=bundle["highest_value_rows"],
-        stagnant_rows=bundle["stagnant_rows"],
+        period_balance_rows=period_balance_rows,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",

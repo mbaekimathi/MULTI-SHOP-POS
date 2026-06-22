@@ -378,7 +378,7 @@
     <p class="rev-stock-hint text-sm text-[rgb(var(--rc-muted))]">
       {% if shop_portal and shop is defined %}
       Detailed line-level reports:
-      <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, view='low_stock', mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '', reorder_threshold=reorder_threshold or 5) }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">open stock reports</a>.
+      <a href="{{ url_for('shop_stock_reports', shop_id=shop.id, mode=f.mode or 'single_day', single_day=f.single_day or '', start_date=f.start_date or '', end_date=f.end_date or '', month=f.month or '', year=f.year or '') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">open stock reports</a>.
       {% else %}
       Line-level stock reports are available in the shop portal stock workspace for each branch.
       {% endif %}
