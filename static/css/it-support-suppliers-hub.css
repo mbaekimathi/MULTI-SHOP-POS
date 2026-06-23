@@ -1,0 +1,39 @@
+/* IT Support — suppliers grouped report */
+.it-suppliers-page .it-suppliers-stat-value {
+  font-variant-numeric: tabular-nums;
+}
+.it-suppliers-page .it-suppliers-table-wrap {
+  -webkit-overflow-scrolling: touch;
+}
+.it-suppliers-page .it-suppliers-balance--due {
+  color: rgb(225 29 72);
+  font-weight: 700;
+}
+html[data-theme="dark"] .it-suppliers-page .it-suppliers-balance--due {
+  color: rgb(251 113 133);
+}
+.it-suppliers-page .it-suppliers-balance--clear {
+  color: rgb(5 150 105);
+  font-weight: 600;
+}
+html[data-theme="dark"] .it-suppliers-page .it-suppliers-balance--clear {
+  color: rgb(52 211 153);
+}
+
+.it-suppliers-page .it-suppliers-tab {
+  border: 1px solid rgb(var(--rc-border) / 0.9);
+  background: rgb(var(--rc-surface));
+  color: rgb(var(--rc-muted));
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.it-suppliers-page .it-suppliers-tab--active {
+  border-color: rgb(var(--rc-primary) / 0.35);
+  background: rgb(var(--rc-primary) / 0.12);
+  color: rgb(var(--rc-page-fg));
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+  font-weight: 700;
+}
+.it-suppliers-page .it-supplier-detail-phone {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}

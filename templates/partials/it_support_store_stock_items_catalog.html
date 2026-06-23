@@ -15,11 +15,11 @@
     {% if not catalog %}
       <p class="text-sm text-[rgb(var(--rc-muted))]">No items yet.</p>
     {% else %}
-      <div class="overflow-hidden border border-[rgb(var(--rc-border))] max-md:-mx-4 max-md:rounded-none max-md:border-x-0 sm:max-md:-mx-6 md:rounded-2xl">
+      <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))]">
         <div class="bg-[rgb(var(--rc-surface-2))] px-4 py-3">
           <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Store SKUs</h4>
         </div>
-        <div class="it-stock-table-wrap min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
+        <div class="it-stock-table-wrap rc-table-wrap min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
           <table class="it-stock-grid-table min-w-[44rem] w-full text-xs md:text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>

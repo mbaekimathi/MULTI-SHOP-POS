@@ -16242,6 +16242,136 @@ def apply_supplier_payment_fifo_company_from_tx(tx_id: int, additional_payment: 
         }
 
 
+def apply_supplier_payment_fifo_for_seller(
+    seller_name: str,
+    seller_phone: str,
+    additional_payment: float,
+    *,
+    shop_id: Optional[int] = None,
+) -> Optional[dict]:
+    """Apply payment FIFO from oldest stock-in across company warehouse and shop manual receipts."""
+    try:
+        pay_amt = float(additional_payment)
+    except Exception:
+        return None
+    if pay_amt <= 0:
+        return None
+
+    sn = (seller_name or "-").strip() or "-"
+    sp = (seller_phone or "-").strip() or "-"
+
+    with get_cursor(commit=True) as cur:
+        merged: list[dict] = []
+
+        if shop_id is None:
+            cur.execute(
+                """
+                SELECT
+                  id,
+                  qty,
+                  buying_price,
+                  COALESCE(amount_paid, 0) AS amount_paid,
+                  created_at,
+                  'company' AS tx_scope
+                FROM stock_transactions
+                WHERE direction='in'
+                  AND COALESCE(NULLIF(place_brought_from, ''), '-')=%s
+                  AND COALESCE(NULLIF(seller_phone, ''), '-')=%s
+                ORDER BY created_at ASC, id ASC
+                FOR UPDATE
+                """,
+                (sn, sp),
+            )
+            merged.extend(cur.fetchall() or [])
+
+        shop_sql = """
+            SELECT
+              sst.id,
+              sst.qty,
+              sst.buying_price,
+              COALESCE(sst.amount_paid, 0) AS amount_paid,
+              sst.created_at,
+              'shop' AS tx_scope
+            FROM shop_stock_transactions sst
+            WHERE sst.direction='in'
+              AND sst.source='manual'
+              AND COALESCE(NULLIF(sst.place_brought_from, ''), '-')=%s
+              AND COALESCE(NULLIF(sst.seller_phone, ''), '-')=%s
+        """
+        shop_params: list[Any] = [sn, sp]
+        if shop_id is not None:
+            shop_sql += " AND sst.shop_id=%s"
+            shop_params.append(int(shop_id))
+        shop_sql += " ORDER BY sst.created_at ASC, sst.id ASC FOR UPDATE"
+        cur.execute(shop_sql, tuple(shop_params))
+        merged.extend(cur.fetchall() or [])
+
+        merged.sort(key=lambda r: (r.get("created_at"), int(r.get("id") or 0)))
+        if not merged:
+            return None
+
+        allocated = []
+        remaining = pay_amt
+        for r in merged:
+            if remaining <= 0.0001:
+                break
+            rid = int(r.get("id") or 0)
+            scope = (r.get("tx_scope") or "shop").strip().lower()
+            if scope not in ("company", "shop"):
+                scope = "shop"
+            qty = int(r.get("qty") or 0)
+            buying_price = float(r.get("buying_price") or 0.0)
+            total_cost = float(qty * buying_price)
+            old_paid = float(r.get("amount_paid") or 0.0)
+            due = max(total_cost - old_paid, 0.0)
+            if due <= 0.0001:
+                continue
+
+            apply_amt = min(due, remaining)
+            new_paid = round(old_paid + apply_amt, 2)
+            if total_cost <= 0:
+                status = "paid"
+            elif new_paid <= 0:
+                status = "pending_payment"
+            elif new_paid < total_cost:
+                status = "partially_paid"
+            else:
+                status = "paid"
+
+            if scope == "company":
+                cur.execute(
+                    """
+                    UPDATE stock_transactions
+                    SET amount_paid=%s, payment_status=%s
+                    WHERE id=%s
+                    """,
+                    (new_paid, status, rid),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE shop_stock_transactions
+                    SET amount_paid=%s, payment_status=%s
+                    WHERE id=%s
+                    """,
+                    (new_paid, status, rid),
+                )
+            allocated.append(
+                {"tx_id": rid, "tx_scope": scope, "applied": float(apply_amt)}
+            )
+            remaining -= apply_amt
+
+        if not allocated:
+            return None
+
+        return {
+            "seller_name": sn,
+            "seller_phone": sp,
+            "allocated": allocated,
+            "unused": float(max(remaining, 0.0)),
+        }
+
+
 def list_shop_stock_audit_rows(
     shop_id: int,
     limit: int = 1000,

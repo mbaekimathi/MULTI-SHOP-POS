@@ -7704,25 +7704,26 @@ def _it_support_stock_management_post():
             if not bp_raw:
                 errors.append(f"{label}: buying price is required when quantity is set.")
                 continue
+            if not phone_raw:
+                errors.append(f"{label}: supplier phone is required when quantity is set.")
+                continue
             if not place:
-                errors.append(f"{label}: place bought is required when quantity is set.")
+                errors.append(f"{label}: seller name is required when quantity is set.")
                 continue
             if pay_raw not in allowed_pay:
                 errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
                 continue
             payment_status = pay_raw
             place_final = place.upper()
-            resolved_phone = None
-            if phone_raw:
-                rn, rp = resolve_seller_name_and_phone(phone_raw, place)
-                if not rn or not rp:
-                    errors.append(
-                        f"{label}: seller phone must be valid (07… or 254…). "
-                        "If new, enter seller name in the seller field."
-                    )
-                    continue
-                place_final = (rn or place).strip().upper()
-                resolved_phone = rp
+            rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+            if not rn or not rp:
+                errors.append(
+                    f"{label}: supplier phone must be valid (07… or 254…). "
+                    "If new, enter seller name in the seller field."
+                )
+                continue
+            place_final = (rn or place).strip().upper()
+            resolved_phone = rp
             try:
                 buying_price = float(bp_raw)
                 if buying_price < 0:
@@ -7865,25 +7866,26 @@ def _it_support_store_stock_management_post(direction: str):
             if not bp_raw:
                 errors.append(f"{label}: buying price is required when quantity is set.")
                 continue
+            if not phone_raw:
+                errors.append(f"{label}: supplier phone is required when quantity is set.")
+                continue
             if not place:
-                errors.append(f"{label}: place bought is required when quantity is set.")
+                errors.append(f"{label}: seller name is required when quantity is set.")
                 continue
             if pay_raw not in allowed_pay:
                 errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
                 continue
             payment_status = pay_raw
             place_final = place.upper()
-            resolved_phone = None
-            if phone_raw:
-                rn, rp = resolve_seller_name_and_phone(phone_raw, place)
-                if not rn or not rp:
-                    errors.append(
-                        f"{label}: seller phone must be valid (07… or 254…). "
-                        "If new, enter seller name in the seller field."
-                    )
-                    continue
-                place_final = (rn or place).strip().upper()
-                resolved_phone = rp
+            rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+            if not rn or not rp:
+                errors.append(
+                    f"{label}: supplier phone must be valid (07… or 254…). "
+                    "If new, enter seller name in the seller field."
+                )
+                continue
+            place_final = (rn or place).strip().upper()
+            resolved_phone = rp
             try:
                 buying_price = float(bp_raw)
                 if buying_price < 0:
@@ -9686,6 +9688,29 @@ def it_support_stock_supplier_detail():
     total_cost = sum(float(r.get("total_cost") or 0) for r in rows)
     total_paid = sum(float(r.get("amount_paid") or 0) for r in rows)
     total_balance = max(total_cost - total_paid, 0.0)
+    pay_all_balance = total_balance
+    if has_date_filter:
+        try:
+            from database import list_company_supplier_stock_ins
+
+            all_rows = list_company_supplier_stock_ins(
+                analytics_filter={"range_label": "All dates"},
+                shop_id=filter_shop_id,
+                supplier_search=None,
+                moved_by_contains=None,
+                limit=10000,
+            ) or []
+            all_rows = [
+                r
+                for r in all_rows
+                if ((r.get("seller_name") or "-").strip() or "-") == seller_name
+                and ((r.get("seller_phone") or "-").strip() or "-") == seller_phone
+            ]
+            all_cost = sum(float(r.get("total_cost") or 0) for r in all_rows)
+            all_paid = sum(float(r.get("amount_paid") or 0) for r in all_rows)
+            pay_all_balance = max(all_cost - all_paid, 0.0)
+        except Exception:
+            pay_all_balance = total_balance
     return render_template(
         "it_support_stock_supplier_detail.html",
         seller_name=seller_name,
@@ -9697,10 +9722,51 @@ def it_support_stock_supplier_detail():
         total_cost=total_cost,
         total_paid=total_paid,
         total_balance=total_balance,
+        pay_all_balance=pay_all_balance,
         filter_shop_id=filter_shop_id,
         supplier_q=(request.args.get("supplier_q") or "").strip(),
         moved_by_q=(request.args.get("moved_by") or "").strip(),
         supplier_should_print=should_print,
+    )
+
+
+@app.route("/it_support/stock-reports/suppliers/seller/payment", methods=["POST"])
+@login_required
+def it_support_stock_supplier_seller_payment():
+    """Apply supplier payment FIFO from oldest stock-in (company + shop manual receipts)."""
+    _it_support_or_super_admin_only()
+    seller_name = (request.form.get("seller_name") or "").strip() or "-"
+    seller_phone = (request.form.get("seller_phone") or "").strip() or "-"
+    add_raw = (request.form.get("additional_payment") or "").strip()
+    filter_shop_id = request.form.get("shop_id", type=int)
+    if filter_shop_id is not None and filter_shop_id <= 0:
+        filter_shop_id = None
+    try:
+        additional_payment = float(add_raw)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid payment amount."}), 400
+    if additional_payment <= 0:
+        return jsonify({"ok": False, "error": "Payment amount must be greater than zero."}), 400
+    try:
+        from database import apply_supplier_payment_fifo_for_seller
+
+        fifo_res = apply_supplier_payment_fifo_for_seller(
+            seller_name,
+            seller_phone,
+            additional_payment,
+            shop_id=filter_shop_id,
+        )
+    except Exception:
+        fifo_res = None
+    if not fifo_res:
+        return jsonify({"ok": False, "error": "No outstanding supplier balance found."}), 404
+    return jsonify(
+        {
+            "ok": True,
+            "fifo_allocated_count": len(fifo_res.get("allocated") or []),
+            "fifo_unused": float(fifo_res.get("unused") or 0.0),
+            "allocated": fifo_res.get("allocated") or [],
+        }
     )
 
 
@@ -17840,24 +17906,25 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     if not bp_raw:
                         errors.append(f"{label}: buying price is required when quantity is set.")
                         continue
+                    if not phone_raw:
+                        errors.append(f"{label}: supplier phone is required when quantity is set.")
+                        continue
                     if not place:
-                        errors.append(f"{label}: place bought is required when quantity is set.")
+                        errors.append(f"{label}: seller name is required when quantity is set.")
                         continue
                     if pay_raw not in allowed_pay:
                         errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
                         continue
                     payment_status = pay_raw
                     place_final = place.upper()
-                    resolved_phone = None
-                    if phone_raw:
-                        rn, rp = resolve_seller_name_and_phone(phone_raw, place)
-                        if not rn or not rp:
-                            errors.append(
-                                f"{label}: seller phone must be valid (07… or 254…). If new, enter seller name in the seller field."
-                            )
-                            continue
-                        place_final = (rn or place).strip().upper()
-                        resolved_phone = rp
+                    rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+                    if not rn or not rp:
+                        errors.append(
+                            f"{label}: supplier phone must be valid (07… or 254…). If new, enter seller name in the seller field."
+                        )
+                        continue
+                    place_final = (rn or place).strip().upper()
+                    resolved_phone = rp
                     try:
                         buying_price = float(bp_raw)
                         if buying_price < 0:
@@ -18171,30 +18238,23 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         fail_note += 1
                         fail_count += 1
                         continue
-                    require_supplier = bool(ws.get("require_manual_in_supplier"))
-                    has_seller_input = bool(sp or sn)
-                    if require_supplier or has_seller_input:
-                        if require_supplier and not has_seller_input:
-                            fail_seller += 1
-                            fail_count += 1
-                            continue
-                        resolved_name, resolved_phone = resolve_seller_name_and_phone(
-                            seller_phone=sp,
-                            seller_name=sn,
-                        )
-                        if not resolved_name or not resolved_phone:
-                            fail_seller += 1
-                            fail_count += 1
-                            continue
-                        # Same value as legacy single-field flow: place on the receipt matches registered seller name.
-                        place_final = (resolved_name or "").strip()
-                        if not place_final:
-                            fail_seller += 1
-                            fail_count += 1
-                            continue
-                    else:
-                        place_final = None
-                        resolved_phone = None
+                    if not (sp or sn):
+                        fail_seller += 1
+                        fail_count += 1
+                        continue
+                    resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                        seller_phone=sp,
+                        seller_name=sn,
+                    )
+                    if not resolved_name or not resolved_phone:
+                        fail_seller += 1
+                        fail_count += 1
+                        continue
+                    place_final = (resolved_name or "").strip()
+                    if not place_final:
+                        fail_seller += 1
+                        fail_count += 1
+                        continue
                     ok = shop_manual_stock_in(
                         shop_id=shop_id,
                         item_id=iid,

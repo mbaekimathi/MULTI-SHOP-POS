@@ -2,120 +2,318 @@
 {% block title %}Suppliers report — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Suppliers report{% endblock %}
 {% block sidebar_links %}
-  {% set suppliers_sidebar_payments_only = true %}
-  {% include "partials/it_support_stock_suppliers_sidebar.html" %}
+  {% set _ep = request.endpoint or '' %}
+  {% set _nav_on = 'bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25' %}
+  {% set _nav_off = 'text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]' %}
+  <a href="{{ url_for('it_support_stock_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_management' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_stock_management' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" /></svg>
+    Stock management
+  </a>
+  <a href="{{ url_for('it_support_company_stock_update') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_company_stock_update' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_company_stock_update' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" /></svg>
+    Shop stock update
+  </a>
+  <a href="{{ url_for('it_support_stock_movement_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_movement_analysis' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_stock_movement_analysis' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" /></svg>
+    Stock movement analysis
+  </a>
+  <a href="{{ url_for('it_support_stock_profitability_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_profitability_analysis' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_stock_profitability_analysis' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" /></svg>
+    Stock profitability analysis
+  </a>
+  <a href="{{ url_for('it_support_stock_reports') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_reports' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_stock_reports' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+    Stock reports
+  </a>
+  <a href="{{ url_for('it_support_stock_suppliers', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep in ('it_support_stock_suppliers', 'it_support_stock_supplier_detail') %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep in ('it_support_stock_suppliers', 'it_support_stock_supplier_detail') %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" /></svg>
+    Suppliers
+  </a>
+  <a href="{{ url_for('it_support_supplier_payment_transactions', filter='all', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_supplier_payment_transactions' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_supplier_payment_transactions' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+    Payment transactions
+  </a>
+  <a href="{{ url_for('it_support_stock_status_print') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_status_print' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_stock_status_print' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 18h12v2H6v-2zm12-8H6a2 2 0 00-2 2v4h4v-3h8v3h4v-4a2 2 0 00-2-2z" /></svg>
+    Print page
+  </a>
+  <a href="{{ url_for('it_support_company_stock_settings') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_company_stock_settings' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_company_stock_settings' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 01-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+    Company stock settings
+  </a>
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   {% set groups = supplier_groups or [] %}
   {% set shops = stock_shops or [] %}
-  <div class="mx-auto max-w-6xl space-y-4">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Suppliers grouped statement</h2>
-      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Company warehouse stock-ins and shop manual receipts; sellers are grouped with totals and balances. Registered sellers with no stock-ins in this view still appear (no shop / moved-by filter).</p>
+  {% set ns = namespace(suppliers=0, tx=0, total_cost=0.0, paid=0.0, balance=0.0, with_balance=0) %}
+  {% for g in groups %}
+    {% set ns.suppliers = ns.suppliers + 1 %}
+    {% set ns.tx = ns.tx + (g.tx_count or 0) %}
+    {% set ns.total_cost = ns.total_cost + (g.total_cost or 0) %}
+    {% set ns.paid = ns.paid + (g.amount_paid or 0) %}
+    {% set ns.balance = ns.balance + (g.balance or 0) %}
+    {% if (g.balance or 0) > 0 %}
+      {% set ns.with_balance = ns.with_balance + 1 %}
+    {% endif %}
+  {% endfor %}
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-suppliers-hub.css') }}?v=1" />
+
+  <div id="it-suppliers-page" class="it-suppliers-page portal-live-root mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {# Hero #}
+    <div class="relative overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] via-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-lg shadow-black/5 ring-1 ring-[rgb(var(--rc-border))]/60 sm:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="pointer-events-none absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-rose-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex min-w-0 flex-1 gap-4">
+          <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-600 ring-1 ring-brand-500/25 dark:text-brand-400">
+            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Stock reports</p>
+            <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Suppliers statement</h2>
+            <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Grouped buying totals for <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'all dates' }}</span>.
+              Company warehouse stock-ins and shop manual receipts; registered sellers with no activity still appear when shop / moved-by filters are off.
+            </p>
+          </div>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <a href="{{ url_for('it_support_supplier_payment_transactions', filter='pending', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="btn-rc btn-rc-primary inline-flex min-h-[2.75rem] items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-md shadow-brand-500/20">
+            Pending payments
+          </a>
+          <a href="{{ url_for('it_support_stock_reports') }}" class="btn-rc btn-rc-ghost inline-flex min-h-[2.75rem] items-center rounded-xl px-5 py-2.5 text-sm font-semibold">Stock reports</a>
+        </div>
+      </div>
     </div>
 
-    <form method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-      <div class="flex flex-wrap items-end gap-2.5">
-        <div class="min-w-[10rem] flex-1">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
-          <select id="suppliers-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs">
-            <option value="" {% if not has_date_filter %}selected{% endif %}>All dates</option>
-            <option value="single_day" {% if has_date_filter and (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-          </select>
-        </div>
-        <div id="suppliers-filter-single-day" class="min-w-[10rem] flex-1 {% if not has_date_filter or (f.mode or '') != 'single_day' %}hidden{% endif %}">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
-          <input type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-        </div>
-        <div id="suppliers-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-          <div class="min-w-[9.5rem] flex-1">
-            <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
-            <input type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-          </div>
-          <div class="min-w-[9.5rem] flex-1">
-            <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
-            <input type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-          </div>
-        </div>
-        <div id="suppliers-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
-          <input type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-        </div>
-        <div id="suppliers-filter-year" class="min-w-[8rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
-          <input type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-        </div>
-        <div class="min-w-[12rem] flex-1">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Supplier name or phone</label>
-          <input type="search" name="supplier_q" value="{{ supplier_q or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-        </div>
-        <div class="min-w-[10rem] flex-1">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Moved by</label>
-          <input type="search" name="moved_by" value="{{ moved_by_q or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
-        </div>
-        <div class="min-w-[11rem] flex-1">
-          <label class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
-          <select name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs">
-            <option value="">All shops</option>
-            {% for sh in shops %}
-              <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="flex gap-2">
-          <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply filters</button>
-          <a href="{{ url_for('it_support_stock_suppliers') }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Clear all</a>
-        </div>
+    {# Filters #}
+    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-[rgb(var(--rc-border))]/40">
+      <div class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-3 sm:px-5">
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Filters</h3>
+        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Updates automatically as you change fields.</p>
       </div>
-    </form>
+      <form id="suppliers-grouped-filter-form" method="get" data-portal-live-filter data-portal-live-content="#portal-live-content" class="p-4 sm:p-5">
+        <div class="flex flex-wrap items-end gap-3">
+          <div class="min-w-[10rem] flex-1">
+            <label for="suppliers-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
+            <select id="suppliers-filter-mode" name="mode" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="" {% if not has_date_filter %}selected{% endif %}>All dates</option>
+              <option value="single_day" {% if has_date_filter and (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
+              <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
+              <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
+              <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+            </select>
+          </div>
+          <div id="suppliers-filter-single-day" class="min-w-[10rem] flex-1 {% if not has_date_filter or (f.mode or '') != 'single_day' %}hidden{% endif %}">
+            <label for="suppliers-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+            <input id="suppliers-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div id="suppliers-filter-period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+            <div class="min-w-[9.5rem] flex-1">
+              <label for="suppliers-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+              <input id="suppliers-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+            </div>
+            <div class="min-w-[9.5rem] flex-1">
+              <label for="suppliers-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+              <input id="suppliers-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+            </div>
+          </div>
+          <div id="suppliers-filter-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+            <label for="suppliers-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="suppliers-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div id="suppliers-filter-year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+            <label for="suppliers-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="suppliers-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div class="min-w-[12rem] flex-1">
+            <label for="supplier-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Supplier name or phone</label>
+            <input id="supplier-q" type="search" name="supplier_q" value="{{ supplier_q or '' }}" placeholder="Search seller…" autocomplete="off" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div class="min-w-[10rem] flex-1">
+            <label for="moved-by-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Moved by</label>
+            <input id="moved-by-q" type="search" name="moved_by" value="{{ moved_by_q or '' }}" placeholder="Employee name" autocomplete="off" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+          <div class="min-w-[11rem] flex-1">
+            <label for="filter-shop-id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
+            <select id="filter-shop-id" name="shop_id" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="">All shops</option>
+              {% for sh in shops %}
+                <option value="{{ sh.id }}" {% if filter_shop_id and sh.id == filter_shop_id %}selected{% endif %}>{{ sh.shop_name or ('Shop ' ~ sh.id) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 pb-0.5">
+            <a href="{{ url_for('it_support_stock_suppliers') }}" class="btn-rc btn-rc-ghost rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider portal-live-keep-submit">Clear all</a>
+          </div>
+        </div>
+      </form>
+    </div>
 
-    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
-      <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
-        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Suppliers</h3>
+    <div id="portal-live-content" data-portal-live-content class="space-y-6">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 shadow-sm">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 ring-1 ring-sky-400/20 dark:text-sky-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Suppliers</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ ns.suppliers }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 shadow-sm">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 ring-1 ring-violet-400/20 dark:text-violet-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Stock-in lines</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ ns.tx }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 shadow-sm">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 ring-1 ring-amber-400/25 dark:text-amber-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Total cost</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-amber-700 dark:text-amber-300">{{ "%.2f"|format(ns.total_cost) }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 shadow-sm">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Paid</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{{ "%.2f"|format(ns.paid) }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 shadow-sm sm:col-span-2 xl:col-span-1">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/20 text-rose-700 ring-1 ring-rose-400/25 dark:text-rose-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Balance due</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-rose-700 dark:text-rose-300">{{ "%.2f"|format(ns.balance) }}</div>
+            <div class="text-[10px] text-[rgb(var(--rc-muted))]">{{ ns.with_balance }} supplier(s) with balance</div>
+          </div>
+        </div>
       </div>
-      <div class="overflow-x-auto">
-        <table class="min-w-[920px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Seller</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Phone</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Items tx</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Total cost</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
-              <th class="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider">View</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-            {% for g in groups %}
-              <tr class="hover:bg-[rgb(var(--rc-surface-2))]/50">
-                <td class="px-3 py-2.5 font-semibold text-[rgb(var(--rc-page-fg))]">{{ g.seller_name }}</td>
-                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ g.seller_phone }}</td>
-                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ g.tx_count }}</td>
-                <td class="px-3 py-2.5 text-[rgb(var(--rc-muted))]">{{ g.total_qty }}</td>
-                <td class="px-3 py-2.5 text-amber-300">{{ "%.2f"|format(g.total_cost) }}</td>
-                <td class="px-3 py-2.5 text-emerald-300">{{ "%.2f"|format(g.amount_paid) }}</td>
-                <td class="px-3 py-2.5 font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(g.balance) }}</td>
-                <td class="px-3 py-2.5">
-                  <a href="{{ url_for('it_support_stock_supplier_detail', seller_name=g.seller_name, seller_phone=g.seller_phone, mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}"
-                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
-                    </svg>
-                  </a>
-                </td>
+
+      {# Table panel #}
+      <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-[rgb(var(--rc-border))]/40">
+        <div class="flex flex-col gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Suppliers <span class="font-normal text-[rgb(var(--rc-muted))]">· {{ groups|length }} rows</span></h3>
+            <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Sorted by balance due (highest first). Tap a row or use View for line detail.</p>
+          </div>
+          <div class="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xs sm:flex-none">
+            <label for="it-suppliers-table-search" class="sr-only">Filter table</label>
+            <input id="it-suppliers-table-search" type="search" autocomplete="off" placeholder="Filter visible rows…" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+          </div>
+        </div>
+
+        <div class="it-suppliers-table-wrap hidden overflow-x-auto md:block">
+          <table class="min-w-[980px] w-full text-sm">
+            <thead class="sticky top-0 z-[1] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+              <tr>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Seller</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Phone</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Lines</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Qty</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Total cost</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Paid</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Balance</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Detail</th>
               </tr>
-            {% else %}
-              <tr><td colspan="8" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No supplier rows found.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for g in groups %}
+                {% set detail_url = url_for('it_support_stock_supplier_detail', seller_name=g.seller_name, seller_phone=g.seller_phone, mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) %}
+                {% set search_blob = ((g.seller_name or '') ~ ' ' ~ (g.seller_phone or ''))|lower %}
+                <tr class="it-suppliers-row transition hover:bg-[rgb(var(--rc-surface-2))]/60" data-supplier-search="{{ search_blob }}">
+                  <td class="px-3 py-3 sm:px-4">
+                    <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ g.seller_name }}</div>
+                    {% if g.last_activity %}
+                      <div class="text-[10px] text-[rgb(var(--rc-muted))]">Last: {{ g.last_activity }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-3 font-mono text-sm text-[rgb(var(--rc-muted))] sm:px-4">{{ g.seller_phone }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-4">{{ g.tx_count }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-4">{{ g.total_qty }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums font-semibold text-amber-700 dark:text-amber-300 sm:px-4">{{ "%.2f"|format(g.total_cost) }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-300 sm:px-4">{{ "%.2f"|format(g.amount_paid) }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums sm:px-4">
+                    {% if (g.balance or 0) > 0 %}
+                      <span class="it-suppliers-balance--due">{{ "%.2f"|format(g.balance) }}</span>
+                    {% else %}
+                      <span class="it-suppliers-balance--clear">{{ "%.2f"|format(g.balance) }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-3 text-right sm:px-4">
+                    <a href="{{ detail_url }}" class="btn-rc btn-rc-ghost inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold uppercase tracking-wider" title="View supplier detail">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                      </svg>
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="8" class="px-4 py-12 text-center text-sm text-[rgb(var(--rc-muted))]">No supplier rows match your filters.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {# Mobile cards #}
+        <div class="space-y-3 p-3 md:hidden">
+          {% for g in groups %}
+            {% set detail_url = url_for('it_support_stock_supplier_detail', seller_name=g.seller_name, seller_phone=g.seller_phone, mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) %}
+            {% set search_blob = ((g.seller_name or '') ~ ' ' ~ (g.seller_phone or ''))|lower %}
+            <article class="it-suppliers-row rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4 shadow-sm" data-supplier-search="{{ search_blob }}">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h4 class="truncate text-base font-bold text-[rgb(var(--rc-page-fg))]">{{ g.seller_name }}</h4>
+                  <p class="mt-0.5 font-mono text-xs text-[rgb(var(--rc-muted))]">{{ g.seller_phone }}</p>
+                </div>
+                {% if (g.balance or 0) > 0 %}
+                  <span class="shrink-0 rounded-full bg-rose-500/15 px-2.5 py-1 text-xs font-bold tabular-nums text-rose-700 ring-1 ring-rose-400/25 dark:text-rose-300">{{ "%.2f"|format(g.balance) }}</span>
+                {% else %}
+                  <span class="shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-bold tabular-nums text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">Settled</span>
+                {% endif %}
+              </div>
+              <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2">
+                  <dt class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Lines</dt>
+                  <dd class="mt-0.5 text-sm font-bold tabular-nums">{{ g.tx_count }}</dd>
+                </div>
+                <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2">
+                  <dt class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Qty</dt>
+                  <dd class="mt-0.5 text-sm font-bold tabular-nums">{{ g.total_qty }}</dd>
+                </div>
+                <div class="rounded-lg border border-amber-400/25 bg-amber-500/10 px-2.5 py-2">
+                  <dt class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Cost</dt>
+                  <dd class="mt-0.5 text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ "%.2f"|format(g.total_cost) }}</dd>
+                </div>
+                <div class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-2">
+                  <dt class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Paid</dt>
+                  <dd class="mt-0.5 text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ "%.2f"|format(g.amount_paid) }}</dd>
+                </div>
+              </dl>
+              <a href="{{ detail_url }}" class="btn-rc btn-rc-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold">View transactions</a>
+            </article>
+          {% else %}
+            <p class="py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No supplier rows match your filters.</p>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
@@ -125,21 +323,16 @@
   {{ super() }}
   <script>
     (function () {
-      var mode = document.getElementById("suppliers-filter-mode");
-      var day = document.getElementById("suppliers-filter-single-day");
-      var period = document.getElementById("suppliers-filter-period");
-      var month = document.getElementById("suppliers-filter-month");
-      var year = document.getElementById("suppliers-filter-year");
-      if (!mode) return;
-      function syncPanels() {
-        var v = (mode.value || "").toLowerCase();
-        if (day) day.classList.toggle("hidden", v !== "single_day");
-        if (period) period.classList.toggle("hidden", v !== "period");
-        if (month) month.classList.toggle("hidden", v !== "month");
-        if (year) year.classList.toggle("hidden", v !== "year");
+      function filterSupplierRows(q) {
+        document.querySelectorAll(".it-suppliers-row").forEach(function (row) {
+          var blob = String(row.getAttribute("data-supplier-search") || "");
+          row.classList.toggle("hidden", !!q && blob.indexOf(q) === -1);
+        });
       }
-      mode.addEventListener("change", syncPanels);
-      syncPanels();
+      document.addEventListener("input", function (ev) {
+        if (!ev.target || ev.target.id !== "it-suppliers-table-search") return;
+        filterSupplierRows((ev.target.value || "").trim().toLowerCase());
+      });
     })();
   </script>
 {% endblock %}

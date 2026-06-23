@@ -1,5 +1,39 @@
 /* Stock workspace portal pages — extracted from inline template styles */
 
+#it-stock-mgmt-page {
+  min-width: 0;
+}
+
+.it-stock-panel-card {
+  border: 1px solid rgb(var(--rc-border));
+  border-radius: 1rem;
+  background: rgb(var(--rc-surface));
+  box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.35);
+  min-width: 0;
+}
+
+#it-stock-mgmt-page .it-stock-items-shell {
+  border-radius: 1rem;
+}
+
+#it-stock-mgmt-page .it-stock-table-wrap.rc-table-wrap {
+  border: none;
+  border-radius: 0;
+  max-height: min(62vh, 680px);
+}
+
+@media (min-width: 1024px) {
+  #it-stock-mgmt-page .it-stock-table-wrap.rc-table-wrap {
+    max-height: min(68vh, 720px);
+  }
+}
+
+@media (max-width: 767px) {
+  #it-stock-mgmt-page .it-stock-table-wrap.rc-table-wrap {
+    max-height: min(52vh, 480px);
+  }
+}
+
 /* ── templates/partials/it_support_stock_management_styles.html ── */
 /* Company stock update — matching appearance for stock management */
   #it-stock-mgmt-page .it-stock-mode-tabs {

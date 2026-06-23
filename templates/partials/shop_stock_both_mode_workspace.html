@@ -4,7 +4,7 @@
   <div class="stk-zone__head">
     <div>
       <h2 class="stk-zone__title">Stock operations</h2>
-      <p class="stk-zone__desc">Record stock in or stock out per item</p>
+      <p class="stk-zone__desc">Stock in requires qty, buy price, supplier phone, seller &amp; payment per row</p>
     </div>
     {% if store_items %}
       <div class="stk-zone__meta">
@@ -37,9 +37,9 @@
             <thead>
               <tr>
                 <th class="sa-stock-col-item">Item</th><th class="sa-stock-th--num">Stock</th>
-                <th class="sa-stock-th--in">Qty in</th><th class="sa-stock-th--in sa-stock-col-hide-sm">Buy</th>
-                <th class="sa-stock-th--in sa-stock-col-hide-lg">Phone</th><th class="sa-stock-th--in sa-stock-col-hide-lg">Seller</th>
-                <th class="sa-stock-th--in sa-stock-col-hide-md">Pay</th><th class="sa-stock-th--in sa-stock-col-hide-md">Note</th>
+                <th class="sa-stock-th--in">Qty in</th><th class="sa-stock-th--in">Buy <span class="text-rose-500" aria-hidden="true">*</span></th>
+                <th class="sa-stock-th--in">Phone <span class="text-rose-500" aria-hidden="true">*</span></th><th class="sa-stock-th--in">Seller <span class="text-rose-500" aria-hidden="true">*</span></th>
+                <th class="sa-stock-th--in">Pay <span class="text-rose-500" aria-hidden="true">*</span></th><th class="sa-stock-th--in">Note</th>
               </tr>
             </thead>
             <tbody>
@@ -55,16 +55,16 @@
                   <td class="sa-stock-mgmt-item-cell"><div class="stk-cell-name">{{ it.name }}</div></td>
                   <td class="sa-stock-td--num">{{ it.stock_qty }}</td>
                   <td><input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="shop-store-in-qty" placeholder="Qty" /></td>
-                  <td class="sa-stock-col-hide-sm"><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" /></td>
-                  <td class="sa-stock-col-hide-lg"><input name="in_seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone" placeholder="07…" /></td>
-                  <td class="sa-stock-col-hide-lg">
-                    <input name="in_place_{{ it.id }}" data-seller-name="{{ it.id }}" class="shop-store-seller-name" placeholder="Seller" />
+                  <td><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" aria-required="true" /></td>
+                  <td><input name="in_seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone" placeholder="07…" aria-required="true" /></td>
+                  <td>
+                    <input name="in_place_{{ it.id }}" data-seller-name="{{ it.id }}" class="shop-store-seller-name" placeholder="Seller" aria-required="true" />
                     <p class="shop-store-seller-hint stk-hint" data-seller-hint="{{ it.id }}"></p>
                   </td>
-                  <td class="sa-stock-col-hide-md">
-                    <select name="in_payment_status_{{ it.id }}"><option value="" selected>—</option><option value="pending_payment">Unpaid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select>
+                  <td>
+                    <select name="in_payment_status_{{ it.id }}" aria-required="true"><option value="pending_payment" selected>Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select>
                   </td>
-                  <td class="sa-stock-col-hide-md"><input name="in_note_{{ it.id }}" placeholder="Note" /></td>
+                  <td><input name="in_note_{{ it.id }}" placeholder="Note" /></td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -76,7 +76,7 @@
           <div class="stk-side-panel__fields">
             <label class="stk-field"><span>Phone</span><input type="text" id="shop-store-apply-phone" placeholder="07…" /></label>
             <label class="stk-field"><span>Seller</span><input type="text" id="shop-store-apply-name" placeholder="Name" /></label>
-            <label class="stk-field"><span>Payment</span><select id="shop-store-apply-payment"><option value="" selected>—</option><option value="pending_payment">Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select></label>
+            <label class="stk-field"><span>Payment</span><select id="shop-store-apply-payment"><option value="pending_payment" selected>Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select></label>
             <label class="stk-field"><span>Note</span><input type="text" id="shop-store-apply-note" placeholder="Optional" /></label>
           </div>
           <button type="button" id="shop-store-copy-in-rows" class="stk-btn stk-btn--ghost">Copy to rows</button>

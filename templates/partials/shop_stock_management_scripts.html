@@ -243,6 +243,13 @@
         var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
         var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
         var noteVal = String((applyNote && applyNote.value) || "").trim().toUpperCase();
+        if (!pv || !nv || !payOk) {
+          if (feedback) {
+            feedback.textContent =
+              "Fill supplier phone, seller name, and payment above before copying to rows.";
+          }
+          return;
+        }
         var copied = 0;
 
         formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
@@ -267,13 +274,77 @@
         if (!feedback) return;
         if (!copied) {
           feedback.textContent = "No rows updated - enter qty on target lines, then copy again.";
-        } else if (!payOk) {
-          feedback.textContent = "Copied phone/name/note to " + copied + " row(s). Pick payment and copy again to apply it.";
         } else {
-          feedback.textContent = "Copied bulk values to " + copied + " row(s) with quantity.";
+          feedback.textContent = "Copied supplier phone, seller, and payment to " + copied + " row(s) with quantity.";
         }
       });
     }
+
+    formIn.addEventListener("submit", function (ev) {
+      var allowedPayVals = { pending_payment: 1, partially_paid: 1, paid: 1 };
+      var problems = [];
+      var firstBad = null;
+      formIn.querySelectorAll(".shop-store-row-in").forEach(function (row) {
+        var id = row.getAttribute("data-item-id");
+        if (!id) return;
+        var label = "Item #" + id;
+        var qIn = row.querySelector('input[name="in_qty_' + id + '"]');
+        var bp = row.querySelector('input[name="in_buying_price_' + id + '"]');
+        var place = row.querySelector('input[name="in_place_' + id + '"]');
+        var phone = row.querySelector('input[name="in_seller_phone_' + id + '"]');
+        var pay = row.querySelector('select[name="in_payment_status_' + id + '"]');
+        var note = row.querySelector('input[name="in_note_' + id + '"]');
+        var qtyStr = String((qIn && qIn.value) || "").trim();
+        var qPos;
+        if (!qtyStr) qPos = null;
+        else {
+          var n = parseFloat(qtyStr.replace(",", "."));
+          if (!isFinite(n) || !(n > 0)) qPos = false;
+          else qPos = n;
+        }
+        var bpS = (bp && bp.value || "").trim();
+        var plS = (place && place.value || "").trim();
+        var phS = (phone && phone.value || "").trim();
+        var payS = (pay && pay.value || "").trim().toLowerCase();
+        var payOk = !!allowedPayVals[payS];
+        var noteS = (note && note.value || "").trim();
+        var otherTouched = !!(bpS || plS || phS || payOk || noteS);
+
+        if (typeof qPos === "number") {
+          if (!bpS) {
+            problems.push(label + ": buying price is required with quantity.");
+            firstBad = firstBad || row;
+          }
+          if (!phS) {
+            problems.push(label + ": supplier phone is required with quantity.");
+            firstBad = firstBad || row;
+          }
+          if (!plS) {
+            problems.push(label + ": seller name is required with quantity.");
+            firstBad = firstBad || row;
+          }
+          if (!payOk) {
+            problems.push(label + ": select payment (Not paid, Partially paid, or Paid).");
+            firstBad = firstBad || row;
+          }
+        } else if (qPos === false) {
+          problems.push(label + ": enter a valid positive quantity or clear this row.");
+          firstBad = firstBad || row;
+        } else if (otherTouched) {
+          problems.push(label + ": enter quantity or clear buying price, seller, phone, and payment.");
+          firstBad = firstBad || row;
+        }
+      });
+      if (problems.length) {
+        ev.preventDefault();
+        window.alert(problems.slice(0, 6).join("\n") + (problems.length > 6 ? "\n..." : ""));
+        if (firstBad) {
+          try {
+            firstBad.scrollIntoView({ block: "center", behavior: "smooth" });
+          } catch (_e) {}
+        }
+      }
+    });
   })();
 </script>
 
@@ -599,7 +670,6 @@
     var applyName = document.getElementById("js-apply-all-name");
     var applyPayment = document.getElementById("js-apply-all-payment");
     var applyNote = document.getElementById("js-apply-all-note");
-    var showSupplierToggle = document.getElementById("js-manual-in-show-supplier");
     var showNotesToggle = document.getElementById("js-manual-in-show-notes");
     var bulkSupplierWrap = document.getElementById("js-manual-in-bulk-supplier-wrap");
     var bulkNoteWrap = document.getElementById("js-manual-in-bulk-note-wrap");
@@ -608,17 +678,12 @@
     var applyHint = document.getElementById("js-apply-all-hint");
     var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
 
-    function supplierRequiredBySettings() {
-      return window.shopStockWsRequired("require_manual_in_supplier");
-    }
-
     function notesRequiredBySettingsIn() {
       return window.shopStockWsRequired("require_manual_in_notes");
     }
 
     function supplierEnabled() {
-      if (supplierRequiredBySettings()) return true;
-      return !!(showSupplierToggle && showSupplierToggle.checked);
+      return true;
     }
 
     function notesEnabledIn() {
@@ -667,20 +732,7 @@
       syncManualInCatColspan();
     }
 
-    if (showSupplierToggle) {
-      showSupplierToggle.addEventListener("change", function () {
-        if (supplierRequiredBySettings()) return;
-        syncSupplierVisible(showSupplierToggle.checked);
-      });
-      if (supplierRequiredBySettings()) {
-        showSupplierToggle.checked = true;
-        syncSupplierVisible(true);
-      } else {
-        syncSupplierVisible(false);
-      }
-    } else if (supplierRequiredBySettings()) {
-      syncSupplierVisible(true);
-    }
+    syncSupplierVisible(true);
 
     if (showNotesToggle) {
       showNotesToggle.addEventListener("change", function () {
@@ -765,13 +817,19 @@
 
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
-        var supplierOn = supplierEnabled();
         var notesOn = notesEnabledIn();
-        var pv = supplierOn ? normalizePhoneValue(applyPhone && applyPhone.value) : "";
-        var nv = supplierOn ? String((applyName && applyName.value) || "").trim().toUpperCase() : "";
+        var pv = normalizePhoneValue(applyPhone && applyPhone.value);
+        var nv = String((applyName && applyName.value) || "").trim().toUpperCase();
         var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
         var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
         var noteVal = notesOn ? String((applyNote && applyNote.value) || "").trim().toUpperCase() : "";
+        if (!pv || !nv || !payOk) {
+          if (feedback) {
+            feedback.textContent =
+              "Fill supplier phone, seller name, and payment above before copying to rows.";
+          }
+          return;
+        }
         var copied = 0;
 
         form.querySelectorAll(".js-manual-stock-row").forEach(function (row) {
@@ -786,8 +844,8 @@
           var payEl = row.querySelector('select[name="payment_status_' + id + '"]');
           var noteEl = row.querySelector('input[name="note_' + id + '"]');
           var hintEl = row.querySelector('[data-seller-hint="' + id + '"]');
-          if (supplierOn && pEl) pEl.value = pv;
-          if (supplierOn && nEl) nEl.value = nv;
+          if (pEl) pEl.value = pv;
+          if (nEl) nEl.value = nv;
           if (payEl && payOk) payEl.value = payRaw;
           if (notesOn && noteEl && noteVal) noteEl.value = noteVal;
           if (hintEl) hintEl.textContent = "";
@@ -796,10 +854,8 @@
         if (!feedback) return;
         if (!copied) {
           feedback.textContent = "No rows updated - enter quantity on target lines, then copy again.";
-        } else if (!payOk) {
-          feedback.textContent = "Copied fields to " + copied + " row(s). Pick payment and copy again to apply it.";
         } else {
-          feedback.textContent = "Copied bulk fields to " + copied + " row(s) with quantity.";
+          feedback.textContent = "Copied supplier phone, seller, and payment to " + copied + " row(s) with quantity.";
         }
       });
     }
@@ -835,30 +891,27 @@
           qtyState = isFinite(qty) && qty > 0 ? qty : false;
         }
         var priceRaw = String((priceEl && priceEl.value) || "").trim();
-        var nameRaw = supplierEnabled() ? String((nameEl && nameEl.value) || "").trim() : "";
-        var phoneRaw = supplierEnabled() ? String((phoneEl && phoneEl.value) || "").trim() : "";
+        var nameRaw = String((nameEl && nameEl.value) || "").trim();
+        var phoneRaw = String((phoneEl && phoneEl.value) || "").trim();
         var payRaw = String((payEl && payEl.value) || "").trim().toLowerCase();
         var payOk = !!payAllowed[payRaw];
         var noteRaw = notesEnabledIn() ? String((row.querySelector('input[name="note_' + id + '"]') || {}).value || "").trim() : "";
-        var bulkPhone = supplierEnabled() ? String((applyPhone && applyPhone.value) || "").trim() : "";
-        var bulkName = supplierEnabled() ? String((applyName && applyName.value) || "").trim() : "";
-        var touched = !!(supplierEnabled() && (nameRaw || phoneRaw || bulkPhone || bulkName)) || !!(notesEnabledIn() && noteRaw);
+        var bulkPhone = String((applyPhone && applyPhone.value) || "").trim();
+        var bulkName = String((applyName && applyName.value) || "").trim();
+        var touched = !!(nameRaw || phoneRaw || bulkPhone || bulkName) || !!(notesEnabledIn() && noteRaw);
 
         if (typeof qtyState === "number") {
           if (!priceRaw) { issues.push("Item #" + id + ": buying price required with quantity."); firstBad = firstBad || row; }
           else if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
-          else if (supplierEnabled() && !nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
+          else if (!phoneRaw && !bulkPhone) { issues.push("Item #" + id + ": supplier phone required with quantity (or use bulk phone)."); firstBad = firstBad || row; }
+          else if (!nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
           else if (notesRequiredBySettingsIn() && !noteRaw && !(applyNote && String(applyNote.value || "").trim())) {
             issues.push("Item #" + id + ": note required with quantity (or use bulk note).");
             firstBad = firstBad || row;
           }
           else {
             var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
-            var confirmRow = ["In", itemName, qtyRaw, priceRaw];
-            if (supplierEnabled()) {
-              confirmRow.push(nameRaw || bulkName, phoneRaw || bulkPhone || "—");
-            }
-            confirmRow.push(paymentLabel(payRaw));
+            var confirmRow = ["In", itemName, qtyRaw, priceRaw, nameRaw || bulkName, phoneRaw || bulkPhone || "—", paymentLabel(payRaw)];
             if (notesEnabledIn()) confirmRow.push(noteRaw || "—");
             rows.push(confirmRow);
           }
@@ -866,7 +919,7 @@
           issues.push("Item #" + id + ": quantity must be a positive number or blank.");
           firstBad = firstBad || row;
         } else if (touched) {
-          issues.push("Item #" + id + ": add quantity or clear optional supplier/note fields.");
+          issues.push("Item #" + id + ": add quantity or clear supplier fields.");
           firstBad = firstBad || row;
         }
       });
@@ -892,13 +945,11 @@
         { label: "Type", key: "type" },
         { label: "Item", key: "item" },
         { label: "Qty", key: "qty", align: "right" },
-        { label: "Buy", align: "right" }
+        { label: "Buy", align: "right" },
+        { label: "Seller" },
+        { label: "Phone" },
+        { label: "Payment" }
       ];
-      if (supplierEnabled()) {
-        confirmColumns.push({ label: "Seller" });
-        confirmColumns.push({ label: "Phone" });
-      }
-      confirmColumns.push({ label: "Payment" });
       if (notesEnabledIn()) confirmColumns.push({ label: "Note" });
       shopStockShowSubmitConfirm(form, {
         title: "Confirm manual stock in",

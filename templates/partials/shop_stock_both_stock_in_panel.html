@@ -10,7 +10,7 @@
 
       <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock in</h3>
 
-      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Record purchases and incoming shelf stock</p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Qty, buy price, supplier phone, seller &amp; payment required per row</p>
 
     </div>
 
@@ -58,15 +58,15 @@
 
               <th class="text-left text-emerald-400">Qty in</th>
 
-              <th class="hidden text-left text-emerald-400 sm:table-cell">Buy</th>
+              <th class="text-left text-emerald-400">Buy <span class="text-rose-500" aria-hidden="true">*</span></th>
 
-              <th class="hidden text-left text-emerald-400 lg:table-cell">Phone</th>
+              <th class="text-left text-emerald-400">Phone <span class="text-rose-500" aria-hidden="true">*</span></th>
 
-              <th class="hidden text-left text-emerald-400 lg:table-cell">Seller</th>
+              <th class="text-left text-emerald-400">Seller <span class="text-rose-500" aria-hidden="true">*</span></th>
 
-              <th class="hidden text-left text-emerald-400 md:table-cell">Pay</th>
+              <th class="text-left text-emerald-400">Pay <span class="text-rose-500" aria-hidden="true">*</span></th>
 
-              <th class="hidden text-left text-emerald-400 md:table-cell">Note</th>
+              <th class="text-left text-emerald-400">Note</th>
 
             </tr>
 
@@ -98,11 +98,11 @@
 
                 <td><input name="in_qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" class="shop-store-in-qty w-full min-w-[4rem] rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" placeholder="Qty" /></td>
 
-                <td class="hidden sm:table-cell"><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" class="w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" /></td>
+                <td><input name="in_buying_price_{{ it.id }}" type="number" min="0" step="0.01" value="{% if it.last_buying_price is not none %}{{ '%.2f'|format(it.last_buying_price) }}{% endif %}" placeholder="0" class="w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" aria-required="true" /></td>
 
-                <td class="hidden lg:table-cell"><input name="in_seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" placeholder="07…" /></td>
+                <td><input name="in_seller_phone_{{ it.id }}" data-seller-phone="{{ it.id }}" class="shop-store-seller-phone w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" placeholder="07…" aria-required="true" /></td>
 
-                <td class="hidden lg:table-cell">
+                <td>
 
                   <input name="in_place_{{ it.id }}" data-seller-name="{{ it.id }}" class="shop-store-seller-name w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" placeholder="Seller" />
 
@@ -110,13 +110,13 @@
 
                 </td>
 
-                <td class="hidden md:table-cell">
+                <td>
 
-                  <select name="in_payment_status_{{ it.id }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm"><option value="" selected>—</option><option value="pending_payment">Unpaid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select>
+                  <select name="in_payment_status_{{ it.id }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" aria-required="true"><option value="pending_payment" selected>Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select>
 
                 </td>
 
-                <td class="hidden md:table-cell"><input name="in_note_{{ it.id }}" placeholder="Note" class="w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" /></td>
+                <td><input name="in_note_{{ it.id }}" placeholder="Note" class="w-full rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" /></td>
 
               </tr>
 
@@ -142,7 +142,7 @@
 
           <label class="block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Seller</span><input type="text" id="shop-store-apply-name" placeholder="Name" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm" /></label>
 
-          <label class="block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Payment</span><select id="shop-store-apply-payment" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm"><option value="" selected>—</option><option value="pending_payment">Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select></label>
+          <label class="block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Payment</span><select id="shop-store-apply-payment" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm"><option value="pending_payment" selected>Not paid</option><option value="partially_paid">Partial</option><option value="paid">Paid</option></select></label>
 
           <label class="block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Note</span><input type="text" id="shop-store-apply-note" placeholder="Optional" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm" /></label>
 

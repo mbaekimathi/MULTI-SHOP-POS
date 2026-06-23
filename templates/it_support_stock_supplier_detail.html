@@ -1,151 +1,304 @@
 {% extends "employee_layout.html" %}
-{% block title %}Supplier statement — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block title %}Supplier statement — {{ seller_name }} — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Supplier statement{% endblock %}
-{% block sidebar_links %}{% endblock %}
+{% block sidebar_links %}
+  {% set _ep = request.endpoint or '' %}
+  {% set _nav_on = 'bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25' %}
+  {% set _nav_off = 'text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]' %}
+  <a href="{{ url_for('it_support_stock_management') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_management' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep == 'it_support_stock_management' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" /></svg>
+    Stock management
+  </a>
+  <a href="{{ url_for('it_support_company_stock_update') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_company_stock_update' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" /></svg>
+    Shop stock update
+  </a>
+  <a href="{{ url_for('it_support_stock_movement_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_movement_analysis' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" /></svg>
+    Stock movement analysis
+  </a>
+  <a href="{{ url_for('it_support_stock_profitability_analysis') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_profitability_analysis' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" /></svg>
+    Stock profitability analysis
+  </a>
+  <a href="{{ url_for('it_support_stock_reports') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_reports' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+    Stock reports
+  </a>
+  <a href="{{ url_for('it_support_stock_suppliers', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep in ('it_support_stock_suppliers', 'it_support_stock_supplier_detail') %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}" {% if _ep in ('it_support_stock_suppliers', 'it_support_stock_supplier_detail') %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" /></svg>
+    Suppliers
+  </a>
+  <a href="{{ url_for('it_support_supplier_payment_transactions', filter='all', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_supplier_payment_transactions' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+    Payment transactions
+  </a>
+  <a href="{{ url_for('it_support_stock_status_print') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_stock_status_print' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9V4h12v5M6 18h12v2H6v-2zm12-8H6a2 2 0 00-2 2v4h4v-3h8v3h4v-4a2 2 0 00-2-2z" /></svg>
+    Print page
+  </a>
+  <a href="{{ url_for('it_support_company_stock_settings') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _ep == 'it_support_company_stock_settings' %}{{ _nav_on }}{% else %}{{ _nav_off }}{% endif %}">
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 01-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+    Company stock settings
+  </a>
+{% endblock %}
 
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
-  <div class="mx-auto max-w-6xl space-y-4">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">{{ seller_name }}</h2>
-          <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Phone: {{ seller_phone }}</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Range: {{ f.range_label or 'All dates' }}</p>
+  {% set rows = supplier_rows or [] %}
+  {% set payments = supplier_payment_rows or [] %}
+  {% set ns = namespace(pending=0, partial=0, paid=0) %}
+  {% for r in rows %}
+    {% if r.payment_status == 'paid' %}
+      {% set ns.paid = ns.paid + 1 %}
+    {% elif r.payment_status == 'partially_paid' %}
+      {% set ns.partial = ns.partial + 1 %}
+    {% else %}
+      {% set ns.pending = ns.pending + 1 %}
+    {% endif %}
+  {% endfor %}
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-suppliers-hub.css') }}?v=2" />
+
+  <div id="it-supplier-detail-page" class="it-suppliers-page mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {# Hero #}
+    <div class="relative overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] via-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-lg shadow-black/5 ring-1 ring-[rgb(var(--rc-border))]/60 sm:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="pointer-events-none absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex min-w-0 flex-1 gap-4">
+          <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-600 ring-1 ring-brand-500/25 dark:text-brand-400">
+            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Supplier statement</p>
+            <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ seller_name }}</h2>
+            <p class="it-supplier-detail-phone mt-1 font-mono text-sm text-[rgb(var(--rc-muted))]">{{ seller_phone }}</p>
+            <p class="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/70 px-3 py-1 text-xs text-[rgb(var(--rc-muted))]">
+              <svg class="h-3.5 w-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              {{ f.range_label or 'All dates' }}
+            </p>
+          </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <a href="{{ url_for('it_support_stock_suppliers', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-sm font-semibold">Back</a>
-          <a href="{{ url_for('it_support_stock_supplier_detail', seller_name=seller_name, seller_phone=seller_phone, mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q, print=1) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-sm font-semibold">Print statement</a>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <a href="{{ url_for('it_support_stock_suppliers', mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q) }}" class="btn-rc btn-rc-ghost inline-flex min-h-[2.75rem] items-center rounded-xl px-5 py-2.5 text-sm font-semibold">All suppliers</a>
+          {% if (pay_all_balance or 0) > 0.009 %}
+          <button type="button" id="pay-all-open" class="btn-rc btn-rc-primary inline-flex min-h-[2.75rem] items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-md shadow-brand-500/20">
+            Pay all balance
+          </button>
+          {% endif %}
+          <a href="{{ url_for('it_support_stock_supplier_detail', seller_name=seller_name, seller_phone=seller_phone, mode=request.args.get('mode',''), single_day=request.args.get('single_day',''), start_date=request.args.get('start_date',''), end_date=request.args.get('end_date',''), month=request.args.get('month',''), year=request.args.get('year',''), shop_id=filter_shop_id, supplier_q=supplier_q, moved_by=moved_by_q, print=1) }}" class="btn-rc btn-rc-ghost inline-flex min-h-[2.75rem] items-center rounded-xl px-5 py-2.5 text-sm font-semibold">Print</a>
+        </div>
+      </div>
+
+      <div class="relative mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 ring-1 ring-sky-400/20 dark:text-sky-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Stock-in lines</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ rows|length }}</div>
+            <div class="mt-0.5 flex flex-wrap gap-1 text-[10px]">
+              {% if ns.pending %}<span class="rounded-full bg-rose-500/15 px-1.5 py-0.5 font-bold text-rose-700 dark:text-rose-300">{{ ns.pending }} pending</span>{% endif %}
+              {% if ns.partial %}<span class="rounded-full bg-amber-500/15 px-1.5 py-0.5 font-bold text-amber-700 dark:text-amber-300">{{ ns.partial }} partial</span>{% endif %}
+              {% if ns.paid %}<span class="rounded-full bg-emerald-500/15 px-1.5 py-0.5 font-bold text-emerald-700 dark:text-emerald-300">{{ ns.paid }} paid</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 ring-1 ring-amber-400/25 dark:text-amber-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Total cost</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-amber-700 dark:text-amber-300">{{ "%.2f"|format(total_cost or 0) }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Paid</div>
+            <div class="it-suppliers-stat-value text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{{ "%.2f"|format(total_paid or 0) }}</div>
+            <div class="text-[10px] text-[rgb(var(--rc-muted))]">{{ payments|length }} payment record(s)</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/20 text-rose-700 ring-1 ring-rose-400/25 dark:text-rose-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Balance due</div>
+            {% if (total_balance or 0) > 0.009 %}
+              <div class="it-suppliers-stat-value text-2xl font-extrabold text-rose-700 dark:text-rose-300">{{ "%.2f"|format(total_balance or 0) }}</div>
+            {% else %}
+              <div class="it-suppliers-stat-value text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">Settled</div>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-3">
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Items total cost</div><div class="mt-2 text-2xl font-extrabold text-amber-300">{{ "%.2f"|format(total_cost or 0) }}</div></div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Paid</div><div class="mt-2 text-2xl font-extrabold text-emerald-300">{{ "%.2f"|format(total_paid or 0) }}</div></div>
-      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4"><div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance</div><div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_balance or 0) }}</div></div>
-    </div>
-
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <div class="flex flex-wrap items-center gap-2 border-b border-[rgb(var(--rc-border))] pb-3">
-        <button type="button" id="tab-items-btn" class="tab-btn rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]">Transactions</button>
-        <button type="button" id="tab-payments-btn" class="tab-btn rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]">All payments</button>
+    {# Tabs + tables #}
+    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm ring-1 ring-[rgb(var(--rc-border))]/40">
+      <div class="flex flex-col gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div class="flex flex-wrap gap-2" role="tablist" aria-label="Supplier statement views">
+          <button type="button" id="tab-items-btn" class="it-suppliers-tab it-suppliers-tab--active rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider" role="tab" aria-selected="true">Transactions</button>
+          <button type="button" id="tab-payments-btn" class="it-suppliers-tab rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider" role="tab" aria-selected="false">All payments</button>
+        </div>
+        <div class="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xs sm:flex-none">
+          <label for="it-supplier-detail-search" class="sr-only">Filter rows</label>
+          <input id="it-supplier-detail-search" type="search" autocomplete="off" placeholder="Filter rows…" class="w-full min-h-[2.5rem] rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
       </div>
 
-      <div id="tab-items-panel" class="tab-panel mt-4">
-        <table class="min-w-[980px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Unit price</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Total cost</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Paid</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Balance</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Notes</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment status</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-            {% for r in supplier_rows %}
+      <div id="tab-items-panel" class="tab-panel">
+        <div class="it-suppliers-table-wrap hidden overflow-x-auto md:block">
+          <table class="min-w-[1100px] w-full text-sm">
+            <thead class="sticky top-0 z-[1] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <td class="px-3 py-2">{{ r.created_at }}</td>
-                <td class="px-3 py-2">{{ r.shop_name }}</td>
-                <td class="px-3 py-2 font-semibold">{{ r.item_name }}</td>
-                <td class="px-3 py-2">{{ r.qty }}</td>
-                <td class="px-3 py-2">{{ "%.2f"|format(r.buying_price) }}</td>
-                <td class="px-3 py-2 text-amber-300">{{ "%.2f"|format(r.total_cost) }}</td>
-                <td class="px-3 py-2 text-emerald-300">{{ "%.2f"|format(r.amount_paid) }}</td>
-                <td class="px-3 py-2 font-semibold">{{ "%.2f"|format(r.balance) }}</td>
-                <td class="px-3 py-2">
-                  {{ r.note or "-" }}
-                </td>
-                <td class="px-3 py-2">
-                  {% if r.payment_status == 'paid' %}
-                    <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/25">Paid</span>
-                  {% elif r.payment_status == 'partially_paid' %}
-                    <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/25">Partial payment</span>
-                  {% else %}
-                    <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-rose-300 ring-1 ring-rose-400/25">Pending</span>
-                  {% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  <button
-                    type="button"
-                    class="js-payment-open inline-flex items-center gap-1 rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
-                    data-tx-id="{{ r.tx_id }}"
-                    data-tx-scope="{{ r.tx_scope or 'shop' }}"
-                    data-item-name="{{ r.item_name }}"
-                    data-qty="{{ r.qty }}"
-                    data-buying-price="{{ r.buying_price }}"
-                    data-total-cost="{{ r.total_cost }}"
-                    data-amount-paid="{{ r.amount_paid }}"
-                  >
-                    Pay
-                  </button>
-                </td>
-                <td class="px-3 py-2">
-                  <div class="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      class="js-supply-edit rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1.5 text-xs font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface))]"
-                      data-tx-id="{{ r.tx_id }}"
-                      data-tx-scope="{{ r.tx_scope or 'shop' }}"
-                      data-item-name="{{ r.item_name|e }}"
-                      data-qty="{{ r.qty }}"
-                      data-buying-price="{{ r.buying_price }}"
-                      data-total-cost="{{ r.total_cost }}"
-                      data-amount-paid="{{ r.amount_paid }}"
-                      data-seller-name="{{ r.seller_name|e }}"
-                      data-seller-phone="{{ r.seller_phone|e }}"
-                      data-note="{{ (r.note or '')|e }}"
-                    >Edit</button>
-                    <button
-                      type="button"
-                      class="js-supply-delete rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20"
-                      data-tx-id="{{ r.tx_id }}"
-                      data-tx-scope="{{ r.tx_scope or 'shop' }}"
-                      data-item-name="{{ r.item_name }}"
-                    >Delete</button>
-                  </div>
-                </td>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Date</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Shop</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Item</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Qty</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Unit</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Total</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Paid</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Balance</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Status</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Note</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Actions</th>
               </tr>
-            {% else %}
-              <tr><td colspan="12" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No item rows for this supplier.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in rows %}
+                {% set search_blob = ((r.created_at or '') ~ ' ' ~ (r.shop_name or '') ~ ' ' ~ (r.item_name or '') ~ ' ' ~ (r.note or ''))|lower %}
+                <tr class="it-supplier-detail-row transition hover:bg-[rgb(var(--rc-surface-2))]/60" data-detail-search="{{ search_blob }}">
+                  <td class="whitespace-nowrap px-3 py-3 text-xs text-[rgb(var(--rc-muted))] sm:px-4">{{ r.created_at }}</td>
+                  <td class="px-3 py-3 text-[rgb(var(--rc-muted))] sm:px-4">{{ r.shop_name }}</td>
+                  <td class="px-3 py-3 font-semibold text-[rgb(var(--rc-page-fg))] sm:px-4">{{ r.item_name }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums sm:px-4">{{ r.qty }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums text-[rgb(var(--rc-muted))] sm:px-4">{{ "%.2f"|format(r.buying_price) }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums font-semibold text-amber-700 dark:text-amber-300 sm:px-4">{{ "%.2f"|format(r.total_cost) }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-300 sm:px-4">{{ "%.2f"|format(r.amount_paid) }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums sm:px-4">
+                    {% if (r.balance or 0) > 0.009 %}
+                      <span class="it-suppliers-balance--due">{{ "%.2f"|format(r.balance) }}</span>
+                    {% else %}
+                      <span class="it-suppliers-balance--clear">{{ "%.2f"|format(r.balance) }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-3 sm:px-4">
+                    {% if r.payment_status == 'paid' %}
+                      <span class="inline-flex rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">Paid</span>
+                    {% elif r.payment_status == 'partially_paid' %}
+                      <span class="inline-flex rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 ring-1 ring-amber-400/25 dark:text-amber-300">Partial</span>
+                    {% else %}
+                      <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-700 ring-1 ring-rose-400/25 dark:text-rose-300">Pending</span>
+                    {% endif %}
+                  </td>
+                  <td class="max-w-[10rem] truncate px-3 py-3 text-xs text-[rgb(var(--rc-muted))] sm:px-4" title="{{ r.note or '' }}">{{ r.note or "—" }}</td>
+                  <td class="px-3 py-3 text-right sm:px-4">
+                    <div class="flex flex-wrap justify-end gap-1.5">
+                      <button type="button" class="js-payment-open btn-rc btn-rc-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}">Pay</button>
+                      <button type="button" class="js-supply-edit btn-rc btn-rc-ghost rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name|e }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}" data-seller-name="{{ r.seller_name|e }}" data-seller-phone="{{ r.seller_phone|e }}" data-note="{{ (r.note or '')|e }}">Edit</button>
+                      <button type="button" class="js-supply-delete btn-rc btn-rc-danger rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}">Del</button>
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr><td colspan="11" class="px-4 py-12 text-center text-sm text-[rgb(var(--rc-muted))]">No item rows for this supplier in the selected range.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="space-y-3 p-3 md:hidden">
+          {% for r in rows %}
+            {% set search_blob = ((r.created_at or '') ~ ' ' ~ (r.shop_name or '') ~ ' ' ~ (r.item_name or '') ~ ' ' ~ (r.note or ''))|lower %}
+            <article class="it-supplier-detail-row rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4 shadow-sm" data-detail-search="{{ search_blob }}">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h4 class="truncate text-base font-bold text-[rgb(var(--rc-page-fg))]">{{ r.item_name }}</h4>
+                  <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ r.created_at }} · {{ r.shop_name }}</p>
+                </div>
+                {% if r.payment_status == 'paid' %}
+                  <span class="shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">Paid</span>
+                {% elif r.payment_status == 'partially_paid' %}
+                  <span class="shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700 ring-1 ring-amber-400/25 dark:text-amber-300">Partial</span>
+                {% else %}
+                  <span class="shrink-0 rounded-full bg-rose-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-rose-700 ring-1 ring-rose-400/25 dark:text-rose-300">Pending</span>
+                {% endif %}
+              </div>
+              <dl class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2"><dt class="text-[10px] font-bold uppercase text-[rgb(var(--rc-muted))]">Qty</dt><dd class="mt-0.5 font-bold tabular-nums">{{ r.qty }}</dd></div>
+                <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2"><dt class="text-[10px] font-bold uppercase text-[rgb(var(--rc-muted))]">Unit</dt><dd class="mt-0.5 font-bold tabular-nums">{{ "%.2f"|format(r.buying_price) }}</dd></div>
+                <div class="rounded-lg border border-amber-400/25 bg-amber-500/10 px-2.5 py-2"><dt class="text-[10px] font-bold uppercase text-[rgb(var(--rc-muted))]">Total</dt><dd class="mt-0.5 font-bold tabular-nums text-amber-700 dark:text-amber-300">{{ "%.2f"|format(r.total_cost) }}</dd></div>
+                <div class="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-2"><dt class="text-[10px] font-bold uppercase text-[rgb(var(--rc-muted))]">Paid</dt><dd class="mt-0.5 font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ "%.2f"|format(r.amount_paid) }}</dd></div>
+              </dl>
+              {% if r.note %}<p class="mt-2 text-xs text-[rgb(var(--rc-muted))]"><span class="font-semibold">Note:</span> {{ r.note }}</p>{% endif %}
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="js-payment-open btn-rc btn-rc-primary flex-1 rounded-xl px-3 py-2 text-xs font-semibold" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}">Pay</button>
+                <button type="button" class="js-supply-edit btn-rc btn-rc-ghost rounded-xl px-3 py-2 text-xs font-semibold" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name|e }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}" data-seller-name="{{ r.seller_name|e }}" data-seller-phone="{{ r.seller_phone|e }}" data-note="{{ (r.note or '')|e }}">Edit</button>
+                <button type="button" class="js-supply-delete btn-rc btn-rc-danger rounded-xl px-3 py-2 text-xs font-semibold" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}">Delete</button>
+              </div>
+            </article>
+          {% else %}
+            <p class="py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No item rows for this supplier.</p>
+          {% endfor %}
+        </div>
       </div>
 
-      <div id="tab-payments-panel" class="tab-panel mt-4 hidden">
-        <table class="min-w-[760px] w-full text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Date</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Payment</th>
-              <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-            {% for p in supplier_payment_rows %}
+      <div id="tab-payments-panel" class="tab-panel hidden">
+        <div class="it-suppliers-table-wrap hidden overflow-x-auto md:block">
+          <table class="min-w-[760px] w-full text-sm">
+            <thead class="sticky top-0 z-[1] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <td class="px-3 py-2">{{ p.created_at }}</td>
-                <td class="px-3 py-2">{{ p.shop_name }}</td>
-                <td class="px-3 py-2">{{ p.item_name }}</td>
-                <td class="px-3 py-2 text-emerald-300 font-semibold">{{ "%.2f"|format(p.amount_paid) }}</td>
-                <td class="px-3 py-2 uppercase">{{ p.payment_status.replace('_', ' ') }}</td>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Date</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Shop</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Item</th>
+                <th class="px-3 py-3 text-right text-[10px] font-black uppercase tracking-wider sm:px-4">Payment</th>
+                <th class="px-3 py-3 text-left text-[10px] font-black uppercase tracking-wider sm:px-4">Status</th>
               </tr>
-            {% else %}
-              <tr><td colspan="5" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No payment rows for this supplier.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for p in payments %}
+                {% set search_blob = ((p.created_at or '') ~ ' ' ~ (p.shop_name or '') ~ ' ' ~ (p.item_name or ''))|lower %}
+                <tr class="it-supplier-detail-row transition hover:bg-[rgb(var(--rc-surface-2))]/60" data-detail-search="{{ search_blob }}">
+                  <td class="whitespace-nowrap px-3 py-3 text-xs text-[rgb(var(--rc-muted))] sm:px-4">{{ p.created_at }}</td>
+                  <td class="px-3 py-3 text-[rgb(var(--rc-muted))] sm:px-4">{{ p.shop_name }}</td>
+                  <td class="px-3 py-3 font-semibold text-[rgb(var(--rc-page-fg))] sm:px-4">{{ p.item_name }}</td>
+                  <td class="px-3 py-3 text-right tabular-nums font-bold text-emerald-700 dark:text-emerald-300 sm:px-4">{{ "%.2f"|format(p.amount_paid) }}</td>
+                  <td class="px-3 py-3 text-xs uppercase text-[rgb(var(--rc-muted))] sm:px-4">{{ p.payment_status.replace('_', ' ') }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="5" class="px-4 py-12 text-center text-sm text-[rgb(var(--rc-muted))]">No payment rows for this supplier.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="space-y-3 p-3 md:hidden">
+          {% for p in payments %}
+            {% set search_blob = ((p.created_at or '') ~ ' ' ~ (p.shop_name or '') ~ ' ' ~ (p.item_name or ''))|lower %}
+            <article class="it-supplier-detail-row rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/40 p-4 shadow-sm" data-detail-search="{{ search_blob }}">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <h4 class="truncate text-base font-bold text-[rgb(var(--rc-page-fg))]">{{ p.item_name }}</h4>
+                  <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ p.created_at }} · {{ p.shop_name }}</p>
+                </div>
+                <span class="shrink-0 rounded-full bg-emerald-500/15 px-2.5 py-1 text-sm font-bold tabular-nums text-emerald-700 ring-1 ring-emerald-400/25 dark:text-emerald-300">{{ "%.2f"|format(p.amount_paid) }}</span>
+              </div>
+              <p class="mt-2 text-xs uppercase text-[rgb(var(--rc-muted))]">{{ p.payment_status.replace('_', ' ') }}</p>
+            </article>
+          {% else %}
+            <p class="py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No payment rows for this supplier.</p>
+          {% endfor %}
+        </div>
       </div>
     </div>
 
@@ -154,22 +307,20 @@
       <p class="text-sm">Seller: {{ seller_name }} ({{ seller_phone }})</p>
       <p class="text-xs">Range: {{ f.range_label or 'All dates' }}</p>
       <p class="text-sm mt-2">Total cost: {{ "%.2f"|format(total_cost or 0) }} | Paid: {{ "%.2f"|format(total_paid or 0) }} | Balance: {{ "%.2f"|format(total_balance or 0) }}</p>
-
       <h4 class="mt-4 text-sm font-semibold">All items</h4>
       <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
         <thead><tr><th class="px-2 py-1 text-left">Date</th><th class="px-2 py-1 text-left">Shop</th><th class="px-2 py-1 text-left">Item</th><th class="px-2 py-1 text-left">Qty</th><th class="px-2 py-1 text-left">Unit</th><th class="px-2 py-1 text-left">Total</th><th class="px-2 py-1 text-left">Paid</th><th class="px-2 py-1 text-left">Balance</th></tr></thead>
         <tbody>
-          {% for r in supplier_rows %}
+          {% for r in rows %}
             <tr><td class="px-2 py-1">{{ r.created_at }}</td><td class="px-2 py-1">{{ r.shop_name }}</td><td class="px-2 py-1">{{ r.item_name }}</td><td class="px-2 py-1">{{ r.qty }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.buying_price) }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.total_cost) }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.amount_paid) }}</td><td class="px-2 py-1">{{ "%.2f"|format(r.balance) }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
-
       <h4 class="mt-4 text-sm font-semibold">All payments</h4>
       <table class="mt-2 w-full text-xs border border-[rgb(var(--rc-border))]">
         <thead><tr><th class="px-2 py-1 text-left">Date</th><th class="px-2 py-1 text-left">Shop</th><th class="px-2 py-1 text-left">Item</th><th class="px-2 py-1 text-left">Payment</th><th class="px-2 py-1 text-left">Status</th></tr></thead>
         <tbody>
-          {% for p in supplier_payment_rows %}
+          {% for p in payments %}
             <tr><td class="px-2 py-1">{{ p.created_at }}</td><td class="px-2 py-1">{{ p.shop_name }}</td><td class="px-2 py-1">{{ p.item_name }}</td><td class="px-2 py-1">{{ "%.2f"|format(p.amount_paid) }}</td><td class="px-2 py-1">{{ p.payment_status.replace('_', ' ') }}</td></tr>
           {% endfor %}
         </tbody>
@@ -182,7 +333,7 @@
         <div class="flex items-start justify-between gap-3">
           <div>
             <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Record payment</h4>
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter amount to pay for this supplier transaction.</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Payment is applied to the oldest unpaid stock-in first, then spills forward.</p>
           </div>
           <button type="button" id="payment-modal-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
         </div>
@@ -196,12 +347,36 @@
           </div>
         </div>
         <form id="payment-form" class="mt-4">
-          <input type="hidden" id="pay-tx-id" />
           <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pay-additional">Pay now</label>
           <input id="pay-additional" name="additional_payment" type="number" min="0" step="0.01" autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
           <div class="mt-4 flex justify-end gap-2">
             <button type="button" id="payment-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
             <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save payment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="pay-all-modal" class="fixed inset-0 z-50 hidden">
+      <div class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
+      <div class="relative mx-auto mt-8 w-[95%] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl sm:mt-16">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Pay all supplier balance</h4>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Settle outstanding stock-ins from oldest to newest.</p>
+          </div>
+          <button type="button" id="pay-all-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
+        </div>
+        <div class="mt-4 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+          <span class="text-[rgb(var(--rc-muted))]">Outstanding balance:</span>
+          <span id="pay-all-balance" class="ml-1 font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(pay_all_balance or 0) }}</span>
+        </div>
+        <form id="pay-all-form" class="mt-4">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pay-all-amount">Pay now</label>
+          <input id="pay-all-amount" name="additional_payment" type="number" min="0" step="0.01" autocomplete="off" value="{{ "%.2f"|format(pay_all_balance or 0) }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" />
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" id="pay-all-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
+            <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Pay all</button>
           </div>
         </form>
       </div>
@@ -276,8 +451,10 @@
         var items = name === "items";
         itemsPanel.classList.toggle("hidden", !items);
         payPanel.classList.toggle("hidden", items);
-        itemsBtn.classList.toggle("bg-[rgb(var(--rc-surface-2))]", items);
-        payBtn.classList.toggle("bg-[rgb(var(--rc-surface-2))]", !items);
+        itemsBtn.classList.toggle("it-suppliers-tab--active", items);
+        payBtn.classList.toggle("it-suppliers-tab--active", !items);
+        itemsBtn.setAttribute("aria-selected", items ? "true" : "false");
+        payBtn.setAttribute("aria-selected", items ? "false" : "true");
       }
       itemsBtn.addEventListener("click", function () { setTab("items"); });
       payBtn.addEventListener("click", function () { setTab("payments"); });
@@ -288,6 +465,45 @@
     })();
 
     (function () {
+      function filterDetailRows(q) {
+        document.querySelectorAll(".it-supplier-detail-row").forEach(function (row) {
+          var blob = String(row.getAttribute("data-detail-search") || "");
+          row.classList.toggle("hidden", !!q && blob.indexOf(q) === -1);
+        });
+      }
+      document.addEventListener("input", function (ev) {
+        if (!ev.target || ev.target.id !== "it-supplier-detail-search") return;
+        filterDetailRows((ev.target.value || "").trim().toLowerCase());
+      });
+    })();
+
+    (function () {
+      var sellerName = {{ seller_name|tojson }};
+      var sellerPhone = {{ seller_phone|tojson }};
+      var filterShopId = {{ filter_shop_id|tojson }};
+      var paymentUrl = "/it_support/stock-reports/suppliers/seller/payment";
+
+      function postSupplierPayment(amount, onDone) {
+        var fd = new FormData();
+        fd.append("seller_name", sellerName);
+        fd.append("seller_phone", sellerPhone);
+        fd.append("additional_payment", String(amount));
+        if (filterShopId) fd.append("shop_id", String(filterShopId));
+        fetch(paymentUrl, { method: "POST", body: fd })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              alert((data && data.error) || "Failed to update payment.");
+              return;
+            }
+            if (typeof onDone === "function") onDone(data);
+            else window.location.reload();
+          })
+          .catch(function () {
+            alert("Failed to update payment.");
+          });
+      }
+
       var modal = document.getElementById("payment-modal");
       var openBtns = document.querySelectorAll(".js-payment-open");
       var closeBtn = document.getElementById("payment-modal-close");
@@ -295,14 +511,12 @@
       var form = document.getElementById("payment-form");
       if (!modal || !openBtns.length || !form) return;
 
-      var txIdEl = document.getElementById("pay-tx-id");
       var additionalEl = document.getElementById("pay-additional");
       var itemEl = document.getElementById("pay-item");
       var buyingEl = document.getElementById("pay-buying-price");
       var qtyEl = document.getElementById("pay-qty");
       var totalEl = document.getElementById("pay-total");
       var alreadyEl = document.getElementById("pay-already");
-      var currentTxScope = "shop";
 
       function fmt(v) { return Number(v || 0).toFixed(2); }
       function parseNum(el) {
@@ -316,9 +530,6 @@
 
       openBtns.forEach(function (btn) {
         btn.addEventListener("click", function () {
-          txIdEl.value = btn.getAttribute("data-tx-id") || "";
-          currentTxScope = (btn.getAttribute("data-tx-scope") || "shop").trim().toLowerCase();
-          if (currentTxScope !== "company") currentTxScope = "shop";
           itemEl.textContent = btn.getAttribute("data-item-name") || "-";
           buyingEl.textContent = fmt(btn.getAttribute("data-buying-price"));
           qtyEl.textContent = btn.getAttribute("data-qty") || "0";
@@ -334,31 +545,65 @@
 
       form.addEventListener("submit", function (e) {
         e.preventDefault();
-        var txId = txIdEl.value;
         var add = parseNum(additionalEl);
-        if (!txId || add === null || add <= 0) {
+        if (add === null || add <= 0) {
+          alert("Enter a valid payment amount.");
+          return;
+        }
+        postSupplierPayment(add);
+      });
+    })();
+
+    (function () {
+      var sellerName = {{ seller_name|tojson }};
+      var sellerPhone = {{ seller_phone|tojson }};
+      var filterShopId = {{ filter_shop_id|tojson }};
+      var paymentUrl = "/it_support/stock-reports/suppliers/seller/payment";
+      var openBtn = document.getElementById("pay-all-open");
+      var modal = document.getElementById("pay-all-modal");
+      var form = document.getElementById("pay-all-form");
+      var closeBtn = document.getElementById("pay-all-close");
+      var cancelBtn = document.getElementById("pay-all-cancel");
+      var amountEl = document.getElementById("pay-all-amount");
+      if (!openBtn || !modal || !form || !amountEl) return;
+
+      function parseNum(el) {
+        var s = (el && el.value) ? String(el.value).trim() : "";
+        if (s === "") return null;
+        var n = parseFloat(s);
+        return isNaN(n) ? null : n;
+      }
+      function openModal() { modal.classList.remove("hidden"); }
+      function closeModal() { modal.classList.add("hidden"); }
+
+      openBtn.addEventListener("click", openModal);
+      if (closeBtn) closeBtn.addEventListener("click", closeModal);
+      if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var add = parseNum(amountEl);
+        if (add === null || add <= 0) {
           alert("Enter a valid payment amount.");
           return;
         }
         var fd = new FormData();
+        fd.append("seller_name", sellerName);
+        fd.append("seller_phone", sellerPhone);
         fd.append("additional_payment", String(add));
-        fd.append("fifo", "1");
-        fd.append("tx_scope", currentTxScope);
-        fetch("/it_support/stock-status/manual-stock-ins/" + encodeURIComponent(txId) + "/payment", {
-          method: "POST",
-          body: fd
-        })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            alert((data && data.error) || "Failed to update payment.");
-            return;
-          }
-          window.location.reload();
-        })
-        .catch(function () {
-          alert("Failed to update payment.");
-        });
+        if (filterShopId) fd.append("shop_id", String(filterShopId));
+        fetch(paymentUrl, { method: "POST", body: fd })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              alert((data && data.error) || "Failed to update payment.");
+              return;
+            }
+            window.location.reload();
+          })
+          .catch(function () {
+            alert("Failed to update payment.");
+          });
       });
     })();
 
