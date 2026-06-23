@@ -10,30 +10,50 @@
 >
   <div class="wsf-card__media">
     {% if p.image_url %}
-      <img src="{{ p.image_url }}" alt="" class="wsf-card__img" loading="lazy" decoding="async" width="92" height="92" />
+      <img src="{{ p.image_url }}" alt="" class="wsf-card__img" loading="lazy" decoding="async" width="160" height="160" />
     {% else %}
       <div class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</div>
     {% endif %}
+
     {% if p.on_sale %}
-      <span class="wsf-card__badge">−{{ p.discount_percent }}%</span>
+    <span class="wsf-card__badge wsf-card__offer-tag" aria-label="On offer, {{ p.discount_percent }} percent off">
+      <span class="wsf-card__offer-label">Offer</span>
+      <span class="wsf-card__offer-pct">−{{ p.discount_percent }}%</span>
+    </span>
     {% endif %}
-    <div class="wsf-card__overlay" aria-hidden="true">
+
+    <div class="wsf-card__hover-panel" aria-hidden="true">
+      {% if p.description %}
+      <p class="wsf-card__desc-float">{{ p.description }}</p>
+      {% else %}
+      <p class="wsf-card__desc-float wsf-card__desc-float--empty">{{ p.name }}</p>
+      {% endif %}
       <span class="wsf-card__quick">Add to quote</span>
     </div>
+
     <button type="button" class="wsf-card__add wsf-add-btn wsf-product-card__cart" tabindex="-1" aria-hidden="true">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
     </button>
   </div>
+
   <div class="wsf-card__body">
     {% if p.category %}
       <p class="wsf-card__cat">{{ p.category }}</p>
     {% endif %}
     <h3 class="wsf-card__name">{{ p.name }}</h3>
-    <div class="wsf-card__price-row">
+    <div class="wsf-card__price-row{% if p.on_sale %} wsf-card__price-row--deal{% endif %}">
       {% if p.on_sale %}
         <span class="wsf-card__price-was">KES {{ '%.0f'|format(p.original_price) }}</span>
+        <span class="wsf-card__price-deal">
+          <span class="wsf-card__price-deal-label">Deal</span>
+          <span class="wsf-card__price">KES {{ '%.0f'|format(p.price) }}</span>
+        </span>
+        {% if p.discount_amount %}
+        <span class="wsf-card__save">Save KES {{ '%.0f'|format(p.discount_amount) }}</span>
+        {% endif %}
+      {% else %}
+        <span class="wsf-card__price">KES {{ '%.0f'|format(p.price) }}</span>
       {% endif %}
-      <span class="wsf-card__price">KES {{ '%.0f'|format(p.price) }}</span>
     </div>
   </div>
 </article>

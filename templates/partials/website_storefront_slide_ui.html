@@ -1,0 +1,47 @@
+{# Slideshow caption + dot controls. Expects shop/product loops matching bg slideshow. #}
+{% set _ui_shops = shops if shops is defined else website_public_shops|default([]) %}
+{% set _ui_products = products if products is defined else website_featured_products|default([]) %}
+{% set _ui_dot = namespace(v=0) %}
+{% set _ui_has_slides = namespace(v=false) %}
+{% for shop in _ui_shops %}
+  {% if shop.shop_logo_url %}{% set _ui_has_slides.v = true %}{% endif %}
+{% endfor %}
+{% if not _ui_has_slides.v %}
+  {% for p in _ui_products %}
+    {% if p.image_url %}{% set _ui_has_slides.v = true %}{% endif %}
+  {% endfor %}
+{% endif %}
+{% if _ui_has_slides.v %}
+<div class="wsf-pagehead__slide-ui">
+  <p class="wsf-pagehead__slide-kicker">Our locations</p>
+  <p class="wsf-pagehead__slide-caption" data-wsf-slide-caption aria-live="polite"></p>
+  <div class="wsf-pagehead__dots" role="tablist" aria-label="Background slideshow">
+    {% for shop in _ui_shops %}
+      {% if shop.shop_logo_url %}
+    <button
+      type="button"
+      class="wsf-pagehead__dot{% if _ui_dot.v == 0 %} is-active{% endif %}"
+      role="tab"
+      aria-label="{{ shop.shop_name }}"
+      data-wsf-slide-dot="{{ _ui_dot.v }}"
+    ></button>
+    {% set _ui_dot.v = _ui_dot.v + 1 %}
+      {% endif %}
+    {% endfor %}
+    {% if _ui_dot.v == 0 %}
+      {% for p in _ui_products %}
+        {% if p.image_url and _ui_dot.v < 8 %}
+    <button
+      type="button"
+      class="wsf-pagehead__dot{% if _ui_dot.v == 0 %} is-active{% endif %}"
+      role="tab"
+      aria-label="{{ p.name }}"
+      data-wsf-slide-dot="{{ _ui_dot.v }}"
+    ></button>
+    {% set _ui_dot.v = _ui_dot.v + 1 %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}

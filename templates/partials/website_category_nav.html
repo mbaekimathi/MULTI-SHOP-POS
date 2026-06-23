@@ -1,22 +1,76 @@
-{# Category chips — horizontal scroll #}
+{# Category navigation — top seller image per category. Expects ``cats`` as category dicts. #}
 {% set _cat_nav_catalog = category_nav_catalog_links|default(false) %}
+{% set _cat_nav_home = category_nav_homepage|default(false) %}
 {% set _cat_nav_compact = category_nav_compact|default(false) %}
-<nav class="wsf-chips{% if _cat_nav_compact %} wsf-chips--compact{% endif %}" aria-label="Browse categories">
-  <div class="wsf-chips__track">
+{% set _cat_nav_show_all = category_nav_show_all|default(true) %}
+{% set _cat_nav_pills = category_nav_pills|default(false) %}
+{% set _cat_nav_cards = _cat_nav_home and not _cat_nav_compact and not _cat_nav_pills %}
+<nav class="wsf-cat-visual{% if _cat_nav_pills %} wsf-cat-visual--pills{% elif _cat_nav_cards %} wsf-cat-visual--home{% elif _cat_nav_compact %} wsf-cat-visual--compact{% endif %}" aria-label="Browse categories">
+  <div class="wsf-cat-visual__scroll">
+    {% if _cat_nav_show_all %}
     <a
       href="{{ _catalog_url if _cat_nav_catalog else '#wsf-products' }}"
-      class="wsf-chip{% if not _cat_nav_catalog %} is-active{% endif %}"
-      {% if not _cat_nav_catalog %}data-wsf-cat-nav="all"{% endif %}
-    >All</a>
+      class="wsf-cat-tile{% if not _cat_nav_catalog %} is-active{% endif %}{% if _cat_nav_pills %} wsf-cat-tile--pill{% elif _cat_nav_cards %} wsf-cat-tile--card{% elif _cat_nav_compact %} wsf-cat-tile--compact{% endif %}"
+      {% if not _cat_nav_catalog or _cat_nav_pills %}data-wsf-cat-nav="all"{% endif %}
+    >
+      {% if _cat_nav_pills %}
+      <span class="wsf-cat-tile__label">All products</span>
+      {% elif _cat_nav_cards %}
+      <span class="wsf-cat-tile__card">
+        <span class="wsf-cat-tile__inner wsf-cat-tile__inner--all" aria-hidden="true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="28" height="28">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </span>
+        <span class="wsf-cat-tile__shade" aria-hidden="true"></span>
+      </span>
+      <span class="wsf-cat-tile__label">All products</span>
+      {% else %}
+      <span class="wsf-cat-tile__ring">
+        <span class="wsf-cat-tile__inner wsf-cat-tile__inner--all" aria-hidden="true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="{% if _cat_nav_compact %}16{% else %}22{% endif %}" height="{% if _cat_nav_compact %}16{% else %}22{% endif %}">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </span>
+      </span>
+      <span class="wsf-cat-tile__label">All products</span>
+      {% endif %}
+    </a>
+    {% endif %}
     {% for cat in cats %}
       {% set cat_name = cat.name if cat is mapping else cat %}
       {% set cat_key = cat.key if cat is mapping else (cat_name|upper) %}
+      {% set cat_img = cat.image_url if cat is mapping else '' %}
+      {% set cat_alt = (cat.top_product_name if cat is mapping else cat_name) or cat_name %}
       <a
         href="{{ (_catalog_url ~ '?cat=' ~ (cat_name|urlencode)) if _cat_nav_catalog else ('#wsf-cat-' ~ loop.index0|string) }}"
-        class="wsf-chip"
-        {% if not _cat_nav_catalog %}data-wsf-cat-nav="{{ cat_key }}" data-wsf-cat-label="{{ cat_name|urlencode }}"{% endif %}
+        class="wsf-cat-tile{% if _cat_nav_pills %} wsf-cat-tile--pill{% elif _cat_nav_cards %} wsf-cat-tile--card{% elif _cat_nav_compact %} wsf-cat-tile--compact{% endif %}"
+        {% if not _cat_nav_catalog or _cat_nav_pills %}data-wsf-cat-nav="{{ cat_key }}" data-wsf-cat-label="{{ cat_name|urlencode }}"{% endif %}
         title="{{ cat_name }}"
-      >{{ cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name }}</a>
+      >
+        {% if _cat_nav_pills %}
+        <span class="wsf-cat-tile__label">{{ cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name }}</span>
+        {% elif _cat_nav_cards %}
+        <span class="wsf-cat-tile__card">
+          {% if cat_img %}
+            <img src="{{ cat_img }}" alt="{{ cat_alt }}" class="wsf-cat-tile__img" loading="lazy" />
+          {% else %}
+            <span class="wsf-cat-tile__inner wsf-cat-tile__inner--ph">{{ cat_name[:1]|upper }}</span>
+          {% endif %}
+          <span class="wsf-cat-tile__shade" aria-hidden="true"></span>
+        </span>
+        <span class="wsf-cat-tile__label">{{ cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name }}</span>
+        {% else %}
+        <span class="wsf-cat-tile__ring">
+          {% if cat_img %}
+            <img src="{{ cat_img }}" alt="{{ cat_alt }}" class="wsf-cat-tile__img" loading="lazy" />
+          {% else %}
+            <span class="wsf-cat-tile__inner wsf-cat-tile__inner--ph">{{ cat_name[:1]|upper }}</span>
+          {% endif %}
+        </span>
+        <span class="wsf-cat-tile__label">{{ cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name }}</span>
+        {% endif %}
+      </a>
     {% endfor %}
   </div>
 </nav>

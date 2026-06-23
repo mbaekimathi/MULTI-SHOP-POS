@@ -1,0 +1,31 @@
+{# Full-bleed background slideshow — shop logos first, then product images. #}
+{% set _bg_shops = shops if shops is defined else website_public_shops|default([]) %}
+{% set _bg_products = products if products is defined else website_featured_products|default([]) %}
+{% set _bg_slide_n = namespace(v=0) %}
+<div class="wsf-pagehead__slideshow" data-wsf-pagehead-slideshow aria-hidden="true">
+  {% for shop in _bg_shops %}
+    {% if shop.shop_logo_url %}
+    <div
+      class="wsf-pagehead__slide{% if _bg_slide_n.v == 0 %} is-active{% endif %}"
+      style="--wsf-slide-img: url('{{ shop.shop_logo_url }}');"
+      data-wsf-slide-label="{{ shop.shop_name }}"
+    ></div>
+    {% set _bg_slide_n.v = _bg_slide_n.v + 1 %}
+    {% endif %}
+  {% endfor %}
+  {% if _bg_slide_n.v == 0 %}
+    {% for p in _bg_products %}
+      {% if p.image_url and _bg_slide_n.v < 8 %}
+    <div
+      class="wsf-pagehead__slide{% if _bg_slide_n.v == 0 %} is-active{% endif %}"
+      style="--wsf-slide-img: url('{{ p.image_url }}');"
+      data-wsf-slide-label="{{ p.name }}"
+    ></div>
+    {% set _bg_slide_n.v = _bg_slide_n.v + 1 %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+</div>
+{% if _bg_slide_n.v == 0 %}
+<div class="wsf-pagehead__bg" aria-hidden="true"></div>
+{% endif %}
