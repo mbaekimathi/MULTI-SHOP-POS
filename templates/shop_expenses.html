@@ -291,5 +291,6 @@
     window.__SHOP_EXPENSE_PAYMENT_API = {{ url_for('shop_expenses_payment_update', shop_id=shop.id, expense_id=0)|tojson }};
     window.__SELLER_LOOKUP_API = {{ url_for('seller_lookup')|tojson }};
   </script>
-  <script defer src="{{ url_for('static', filename='js/shop-expenses-form.js') }}?v=6"></script>
+  <script src="{{ url_for('static', filename='js/kenya-phone.js') }}?v=1"></script>
+  <script defer src="{{ url_for('static', filename='js/shop-expenses-form.js') }}?v=7"></script>
 {% endblock %}

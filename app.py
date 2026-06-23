@@ -800,6 +800,41 @@ def _company_report_shop_filter_from_request() -> Optional[int]:
     return shop_filter_arg if shop_filter_arg and shop_filter_arg > 0 else None
 
 
+def _customer_phone_from_request(source: str = "args", key: str = "customer_phone") -> str:
+    """Normalize customer phone to canonical 254… when recognizable."""
+    from database import normalize_customer_phone
+
+    bag = request.args if source == "args" else request.form
+    raw = (bag.get(key) or "").strip() or "-"
+    return normalize_customer_phone(raw)
+
+
+def _supplier_phone_from_request(source: str = "args", key: str = "seller_phone") -> str:
+    """Normalize supplier/seller phone to canonical 254… when recognizable."""
+    from database import normalize_supplier_phone
+
+    bag = request.args if source == "args" else request.form
+    raw = (bag.get(key) or "").strip()
+    return normalize_supplier_phone(raw)
+
+
+def _redirect_if_customer_phone_canonicalized(
+    endpoint: str,
+    *,
+    raw_phone: str,
+    canonical_phone: str,
+    **url_kwargs,
+):
+    """Redirect once so credit pages always use 254… phone in the URL."""
+    raw = (raw_phone or "").strip() or "-"
+    canon = (canonical_phone or "").strip() or "-"
+    if raw in ("", "-") or raw == canon:
+        return None
+    qs = dict(url_kwargs)
+    qs["customer_phone"] = canon
+    return redirect(url_for(endpoint, **qs))
+
+
 def _analytics_filter_is_today(analytics_filter: dict) -> bool:
     """True when the filter is single-day and that day is today (live report refresh)."""
     af = analytics_filter or {}
@@ -845,7 +880,10 @@ def _analytics_nav_kwargs() -> dict:
         "year": f["year"],
         "analytics_scope": _analytics_scope_from_request(),
     }
-    # shop_id / shop_view are set per-link in shop sidebar templates (not here) to avoid
+    shop_id = _company_report_shop_filter_from_request()
+    if shop_id:
+        out["shop_id"] = shop_id
+    # shop_view is set per-link in shop sidebar templates (not here) to avoid
     # duplicate url_for kwargs when merging with **_anav.
     return out
 
@@ -4177,7 +4215,12 @@ def _website_catalog_categories() -> list[dict]:
 
 
 def _normalize_storefront_phone(raw: str) -> str:
-    return re.sub(r"\D+", "", (raw or "").strip())
+    from database import normalize_customer_phone
+
+    normed = normalize_customer_phone((raw or "").strip())
+    if normed == "-":
+        return ""
+    return normed
 
 
 def _normalize_whatsapp_phone(raw: str) -> str:
@@ -10184,11 +10227,18 @@ def _render_it_support_analytics_page(view_key: str):
     credit_data = None
     customer_data = None
     shops = []
-    selected_shop_id = request.args.get("shop_id", type=int)
+    filter_shop_id = _company_report_shop_filter_from_request()
+    selected_shop_id = filter_shop_id
     shop_view = (request.args.get("shop_view") or "revenue").strip().lower()
     if shop_view not in ("revenue", "item", "sales", "credit", "period", "stock", "customer"):
         shop_view = "revenue"
     shop_view_data = None
+    try:
+        from database import list_shops
+
+        shops = list_shops(limit=1000) or []
+    except Exception:
+        shops = []
     if view_key == "revenue":
         try:
             from database import get_it_support_revenue_analytics
@@ -10196,6 +10246,7 @@ def _render_it_support_analytics_page(view_key: str):
             revenue_data = get_it_support_revenue_analytics(
                 analytics_filter=analytics_filter,
                 analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
                 transactions_limit=120,
                 transactions_offset=0,
                 include_transactions=True,
@@ -10226,6 +10277,7 @@ def _render_it_support_analytics_page(view_key: str):
             item_data = get_it_support_item_analytics(
                 analytics_filter=analytics_filter,
                 analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
                 lines_limit=120,
                 lines_offset=0,
                 include_lines=True,
@@ -10252,7 +10304,9 @@ def _render_it_support_analytics_page(view_key: str):
             from database import get_it_support_period_analytics
 
             period_data = get_it_support_period_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
             )
         except Exception:
             period_data = {
@@ -10270,7 +10324,9 @@ def _render_it_support_analytics_page(view_key: str):
             from database import get_it_support_employee_analytics
 
             employee_data = get_it_support_employee_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
             )
         except Exception:
             employee_data = {
@@ -10288,7 +10344,9 @@ def _render_it_support_analytics_page(view_key: str):
             from database import get_it_support_sales_analytics
 
             sales_data = get_it_support_sales_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
             )
         except Exception:
             sales_data = {
@@ -10307,7 +10365,9 @@ def _render_it_support_analytics_page(view_key: str):
             from database import get_it_support_credit_analytics
 
             credit_data = get_it_support_credit_analytics(
-                analytics_filter=analytics_filter, analytics_scope=analytics_scope
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
             )
         except Exception:
             credit_data = {
@@ -10329,6 +10389,7 @@ def _render_it_support_analytics_page(view_key: str):
             customer_data = get_it_support_customer_analytics(
                 analytics_filter=analytics_filter,
                 analytics_scope=analytics_scope,
+                shop_id=filter_shop_id,
                 customers_limit=120,
                 customers_offset=0,
                 include_customers=True,
@@ -10348,12 +10409,7 @@ def _render_it_support_analytics_page(view_key: str):
                 },
             }
     if view_key == "shop":
-        try:
-            from database import list_shops
-
-            shops = list_shops(limit=1000)
-        except Exception:
-            shops = []
+        selected_shop_id = request.args.get("shop_id", type=int)
         valid_ids = {int(s.get("id")) for s in shops if s.get("id") is not None}
         if selected_shop_id not in valid_ids:
             selected_shop_id = int((shops or [{}])[0].get("id") or 0) or None
@@ -10514,12 +10570,14 @@ def _serialize_revenue_analytics_json(data: dict) -> dict:
 
 def _fetch_it_support_analytics_payload(view_key: str, analytics_filter: dict, analytics_scope: str) -> dict:
     """Load analytics data for API / live updates."""
+    shop_id = _company_report_shop_filter_from_request()
     if view_key == "revenue":
         from database import get_it_support_revenue_analytics
 
         return get_it_support_revenue_analytics(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
+            shop_id=shop_id,
             **_revenue_tx_params_from_request(),
         )
     if view_key == "item":
@@ -10528,6 +10586,7 @@ def _fetch_it_support_analytics_payload(view_key: str, analytics_filter: dict, a
         return get_it_support_item_analytics(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
+            shop_id=shop_id,
             **_item_lines_params_from_request(),
         )
     if view_key == "customer":
@@ -10536,31 +10595,32 @@ def _fetch_it_support_analytics_payload(view_key: str, analytics_filter: dict, a
         return get_it_support_customer_analytics(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
+            shop_id=shop_id,
             **_customer_bulk_params_from_request(),
         )
     if view_key == "period":
         from database import get_it_support_period_analytics
 
         return get_it_support_period_analytics(
-            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope, shop_id=shop_id
         )
     if view_key == "employee":
         from database import get_it_support_employee_analytics
 
         return get_it_support_employee_analytics(
-            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope, shop_id=shop_id
         )
     if view_key == "sales":
         from database import get_it_support_sales_analytics
 
         return get_it_support_sales_analytics(
-            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope, shop_id=shop_id
         )
     if view_key == "credit":
         from database import get_it_support_credit_analytics
 
         return get_it_support_credit_analytics(
-            analytics_filter=analytics_filter, analytics_scope=analytics_scope
+            analytics_filter=analytics_filter, analytics_scope=analytics_scope, shop_id=shop_id
         )
     if view_key == "shop":
         return _fetch_shop_analytics_payload(analytics_filter, analytics_scope)
@@ -10671,8 +10731,8 @@ def it_support_customer_analytics():
 def it_support_customer_transactions():
     _it_support_or_super_admin_only()
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
-    scoped_shop_id = request.args.get("shop_id", type=int)
+    customer_phone = _customer_phone_from_request()
+    scoped_shop_id = _company_report_shop_filter_from_request()
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
     try:
@@ -11017,7 +11077,7 @@ def it_support_credit_payments_upcoming_due():
 def it_support_credit_payments_customer():
     _it_support_or_super_admin_only()
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
     shop_id = request.args.get("shop_id", type=int)
     if shop_id:
         shop = _get_shop_or_404(shop_id)
@@ -11065,7 +11125,7 @@ def it_support_credit_payments_customer():
 def it_support_credit_payments_customer_pdf():
     _it_support_or_super_admin_only()
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
     shop_id = request.args.get("shop_id", type=int)
     company_name = ""
     primary_color = ""
@@ -11114,7 +11174,7 @@ def company_credit_payments_customer():
     if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
         abort(403)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
     back_shop_id = request.args.get("back_shop_id", type=int)
     if back_shop_id:
         bshop = _get_shop_or_404(back_shop_id)
@@ -11142,7 +11202,7 @@ def company_credit_payments_customer_pdf():
     if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
         abort(403)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
     note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
     company_name = ""
     primary_color = ""
@@ -11176,7 +11236,7 @@ def company_credit_payments_pay():
     if role_key not in ("admin", "it_support", "super_admin", "company_manager"):
         abort(403)
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request(source="form")
     back_shop_id = request.form.get("back_shop_id", type=int)
     if back_shop_id:
         bshop = _get_shop_or_404(back_shop_id)
@@ -11245,7 +11305,7 @@ def it_support_credit_payments_pay():
     except Exception:
         shop_id = 0
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request(source="form")
     return_to = (request.form.get("return_to") or "customer").strip().lower()
     sale_id = request.form.get("sale_id", type=int)
     amount_raw = (request.form.get("amount") or "").strip()
@@ -11389,7 +11449,7 @@ def company_credit_sale_detail():
     shop_id = request.args.get("shop_id", type=int)
     sale_id = request.args.get("sale_id", type=int)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
     back_shop_id = request.args.get("back_shop_id", type=int)
     if not shop_id or not sale_id:
         abort(404)
@@ -12789,21 +12849,23 @@ def seller_lookup():
 
 
 def _seller_lookup_by_phone_payload(phone: str) -> dict:
-    try:
-        from database import get_seller_by_phone
+    from database import get_seller_by_phone, normalize_supplier_phone
 
-        row = get_seller_by_phone(phone)
+    canon = normalize_supplier_phone(phone)
+    try:
+        row = get_seller_by_phone(canon or phone)
     except Exception:
         row = None
     if not row:
         return {"ok": True, "registered": False, "seller": None}
+    stored_phone = normalize_supplier_phone(row.get("phone") or canon) or canon
     return {
         "ok": True,
         "registered": True,
         "seller": {
             "id": int(row.get("id") or 0),
             "seller_name": (row.get("seller_name") or "").strip(),
-            "phone": (row.get("phone") or "").strip(),
+            "phone": stored_phone,
         },
     }
 
@@ -12899,14 +12961,14 @@ def shop_pos_customer_upsert(shop_id: int):
         return gate
 
     data = request.get_json(force=True, silent=True) or {}
-    phone = (data.get("phone") or "").strip()
+    from database import get_shop_customer_by_phone, normalize_customer_phone, upsert_shop_customer
+
+    phone = normalize_customer_phone((data.get("phone") or "").strip())
     name = (data.get("customer_name") or "").strip()
-    if len(re.sub(r"\D", "", phone)) < 7:
+    if not phone or phone == "-" or len(re.sub(r"\D", "", phone)) < 9:
         return jsonify({"ok": False, "error": "Enter a valid phone number."}), 400
     if len(name) < 2:
         return jsonify({"ok": False, "error": "Enter customer name."}), 400
-
-    from database import get_shop_customer_by_phone, upsert_shop_customer
 
     if not upsert_shop_customer(shop_id, name, phone):
         return jsonify({"ok": False, "error": "Could not save customer."}), 500
@@ -13771,8 +13833,12 @@ def shop_pos_record_sale(shop_id: int):
             if stk_row and int(stk_row.get("shop_id") or 0) in (0, shop_id):
                 mpesa_receipt_number = _mpesa_stk_receipt_number(stk_row)
     try:
-        from database import create_shop_pos_sale
+        from database import create_shop_pos_sale, normalize_customer_phone
 
+        raw_cust_phone = (data.get("customer_phone") or "").strip()
+        cust_phone = normalize_customer_phone(raw_cust_phone) if raw_cust_phone else None
+        if cust_phone == "-":
+            cust_phone = None
         ok, sale_err, sale_id, receipt_number = create_shop_pos_sale(
             shop_id=shop_id,
             sale_type=sale_type,
@@ -13782,7 +13848,7 @@ def shop_pos_record_sale(shop_id: int):
             total_amount=total_amount,
             item_count=item_count,
             customer_name=(data.get("customer_name") or "").strip() or None,
-            customer_phone=(data.get("customer_phone") or "").strip() or None,
+            customer_phone=cust_phone,
             employee_id=emp.get("id"),
             employee_code=(emp.get("employee_code") or "").strip() or None,
             employee_name=(emp.get("full_name") or "").strip() or None,
@@ -16522,35 +16588,16 @@ def shop_credit_payments(shop_id: int):
         return gate
     if not _shop_pos_allow_credit_sale(shop):
         return redirect(url_for("shop_dashboard", shop_id=shop_id))
-    role_key = (session.get("employee_role") or "").strip().lower()
-    company_credit_mode = role_key == "admin"
     try:
-        if company_credit_mode:
-            from database import list_company_credit_customers
+        from database import list_shop_credit_customers_with_balance
 
-            rows = list_company_credit_customers(limit=2000, analytics_filter=None, shop_id=None, customer_q=None)
-            customers = [
-                {
-                    "customer_name": r.get("customer_name") or "WALK IN",
-                    "customer_phone": r.get("customer_phone") or "-",
-                    "tx_count": int(r.get("tx_count") or 0),
-                    "credit_total": float(r.get("total_amount") or 0),
-                    "paid_total": float(r.get("paid_amount") or 0),
-                    "balance": float(r.get("remaining_amount") or 0),
-                }
-                for r in (rows or [])
-            ]
-        else:
-            from database import list_shop_credit_customers_with_balance
-
-            customers = list_shop_credit_customers_with_balance(shop_id=shop_id, limit=2000)
+        customers = list_shop_credit_customers_with_balance(shop_id=shop_id, limit=2000)
     except Exception:
         customers = []
     return render_template(
         "shop_credit_payments.html",
         shop=shop,
         customers=customers,
-        company_credit_mode=company_credit_mode,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -16985,7 +17032,17 @@ def shop_credit_payments_customer(shop_id: int):
     if not _shop_pos_allow_credit_sale(shop):
         return redirect(url_for("shop_dashboard", shop_id=shop_id))
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    raw_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
+    canon_redirect = _redirect_if_customer_phone_canonicalized(
+        "shop_credit_payments_customer",
+        raw_phone=raw_phone,
+        canonical_phone=customer_phone,
+        shop_id=shop_id,
+        customer_name=customer_name,
+    )
+    if canon_redirect is not None:
+        return canon_redirect
     note_ctx = _shop_customer_credit_note_context(
         shop_id, customer_name, customer_phone, analytics_filter=None
     )
@@ -17015,7 +17072,17 @@ def shop_credit_payments_customer_pdf(shop_id: int):
     if not _shop_pos_allow_credit_sale(shop):
         abort(404)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    raw_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
+    canon_redirect = _redirect_if_customer_phone_canonicalized(
+        "shop_credit_payments_customer_pdf",
+        raw_phone=raw_phone,
+        canonical_phone=customer_phone,
+        shop_id=shop_id,
+        customer_name=customer_name,
+    )
+    if canon_redirect is not None:
+        return canon_redirect
     note_ctx = _shop_customer_credit_note_context(
         shop_id, customer_name, customer_phone, analytics_filter=None
     )
@@ -17050,7 +17117,7 @@ def shop_credit_payments_pay(shop_id: int):
         flash("Credit sales are disabled for this shop.", "error")
         return redirect(url_for("shop_dashboard", shop_id=shop_id))
     customer_name = (request.form.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.form.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request(source="form")
     amount_raw = (request.form.get("amount") or "").strip()
     note = (request.form.get("note") or "").strip() or None
     try:
@@ -19531,7 +19598,7 @@ def shop_customer_analytics_detail(shop_id: int):
     if gate is not None:
         return gate
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
-    customer_phone = (request.args.get("customer_phone") or "").strip() or "-"
+    customer_phone = _customer_phone_from_request()
     analytics_filter = _build_analytics_filter()
     analytics_scope = _analytics_scope_from_request()
     items_by_sale_id: Dict[int, list] = {}

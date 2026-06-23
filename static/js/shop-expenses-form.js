@@ -300,9 +300,13 @@
     var timer = null;
     function lookup() {
       var phone = String(phoneEl.value || "").trim();
-      if (phone.indexOf("+254") === 0) phone = "254" + phone.slice(4);
+      if (window.KenyaPhone && typeof window.KenyaPhone.normalize === "function") {
+        phone = window.KenyaPhone.normalize(phone) || phone;
+      } else if (phone.indexOf("+254") === 0) {
+        phone = "254" + phone.slice(4);
+      }
       phone = phone.replace(/\s+/g, "");
-      if (phoneEl.value !== phone) phoneEl.value = phone;
+      if (phone && phoneEl.value !== phone) phoneEl.value = phone;
       var digits = phone.replace(/\D/g, "");
       if (!phone) {
         if (hintEl) hintEl.textContent = "";
@@ -336,6 +340,10 @@
           if (hintEl) hintEl.textContent = "";
         });
     }
+    phoneEl.addEventListener("blur", function () {
+      if (window.KenyaPhone) window.KenyaPhone.applyToInput(phoneEl);
+      lookup();
+    });
     phoneEl.addEventListener("input", function () {
       clearTimeout(timer);
       timer = setTimeout(lookup, 220);

@@ -5,7 +5,7 @@
   {% set analytics_live = analytics_key in ['revenue', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
   {% if analytics_live %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=23" />
-  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=5"></script>
   <script>
     window.IT_SUPPORT_ANALYTICS = {
       key: {{ analytics_key|tojson }},
@@ -17,15 +17,16 @@
     window.IT_REVENUE_ANALYTICS = { dataUrl: window.IT_SUPPORT_ANALYTICS.dataUrl, txPageSize: 120 };
     {% endif %}
   </script>
-  <script src="{{ url_for('static', filename='js/it-support-revenue-analytics-live.js') }}?v=8" defer></script>
+  <script src="{{ url_for('static', filename='js/it-support-revenue-analytics-live.js') }}?v=9" defer></script>
   {% if analytics_key == 'shop' %}
   <script src="{{ url_for('static', filename='js/it-support-shop-credit-modal.js') }}?v=1" defer></script>
   {% endif %}
   {% endif %}
 {% endblock %}
 {% block sidebar_links %}
+  {% set _anav = analytics_nav or {} %}
   {% include "partials/it_support_analytics_sidebar_links.html" %}
-  <a href="{{ url_for('it_support_receipts') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Receipts</a>
+  <a href="{{ url_for('it_support_receipts', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Receipts</a>
   {% if company_pos_cart_mode_withhold|default(false) %}
   <a href="{{ url_for('it_support_withheld_holds') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_withheld_holds' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Withheld orders</a>
   {% endif %}

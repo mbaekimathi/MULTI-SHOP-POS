@@ -198,6 +198,32 @@ def _analytics_where_clause(analytics_filter: dict, alias: str = ""):
     return "1=1", []
 
 
+def _analytics_shop_filter_clause(alias: str, shop_id: Optional[int]):
+    """Optional single-shop scope for IT support analytics queries."""
+    if shop_id is None:
+        return "", []
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return "", []
+    if sid <= 0:
+        return "", []
+    return f" AND {alias}.shop_id = %s", [sid]
+
+
+def _analytics_shops_row_filter(shop_id: Optional[int], shop_alias: str = "sh"):
+    """Restrict shop breakdown rows when one branch is selected."""
+    if shop_id is None:
+        return "", []
+    try:
+        sid = int(shop_id)
+    except (TypeError, ValueError):
+        return "", []
+    if sid <= 0:
+        return "", []
+    return f" WHERE {shop_alias}.id = %s", [sid]
+
+
 def _analytics_business_date_where(analytics_filter: dict, column: str = "business_date"):
     """Return SQL and params for filtering DATE columns to the analytics period."""
     f = analytics_filter or {}
@@ -4813,7 +4839,7 @@ def _apply_stock_transaction_on_cursor(
             after,
             buying_price if buying_price is not None else None,
             place_brought_from or None,
-            seller_phone or None,
+            _stored_seller_phone(seller_phone),
             stock_out_reason or None,
             1 if refunded else 0,
             refund_amount if refund_amount is not None else None,
@@ -6031,7 +6057,7 @@ def _apply_store_stock_transaction_on_cursor(
             after,
             buying_price if buying_price is not None else None,
             place_brought_from or None,
-            seller_phone or None,
+            _stored_seller_phone(seller_phone),
             stock_out_reason or None,
             1 if refunded else 0,
             refund_amount if refund_amount is not None else None,
@@ -6131,8 +6157,8 @@ def shop_manual_store_stock_in(
     place_brought_from = (place_brought_from or "").strip()
     if not place_brought_from:
         return False
-    seller_phone = _normalize_phone(seller_phone)
-    if len(re.sub(r"\D", "", seller_phone)) < 7:
+    seller_phone = normalize_supplier_phone(seller_phone)
+    if len(re.sub(r"\D", "", seller_phone)) < 9:
         return False
 
     if buying_price is None:
@@ -6448,7 +6474,7 @@ def get_seller_by_phone(phone: str):
 
 def upsert_seller(seller_name: str, phone: str) -> bool:
     name = (seller_name or "").strip()
-    p = _normalize_phone(phone)
+    p = normalize_supplier_phone(phone)
     if len(name) < 2 or not _is_valid_seller_phone(p):
         return False
     sql = """
@@ -6472,7 +6498,7 @@ def resolve_seller_name_and_phone(seller_phone: str, seller_name: str) -> tuple[
     - If phone is registered, return registered name + phone.
     - If not registered and name provided, auto-register and return it.
     """
-    p = _normalize_phone(seller_phone)
+    p = normalize_supplier_phone(seller_phone)
     if not _is_valid_seller_phone(p):
         return (None, None)
     existing = get_seller_by_phone(p) or {}
@@ -6484,7 +6510,8 @@ def resolve_seller_name_and_phone(seller_phone: str, seller_name: str) -> tuple[
                 nm = alt
         if len(nm) < 2:
             return (None, None)
-        return (nm, (existing.get("phone") or p))
+        stored = normalize_supplier_phone(existing.get("phone") or p) or p
+        return (nm, stored)
     n = (seller_name or "").strip().upper()
     if len(n) < 2:
         return (None, None)
@@ -6581,8 +6608,8 @@ def lookup_storefront_customer_by_phone(phone: str):
 
 def upsert_public_customer(customer_name: str, phone: str) -> bool:
     name = (customer_name or "").strip()
-    p = (phone or "").strip()
-    if len(name) < 2 or not p:
+    p = normalize_customer_phone(phone)
+    if len(name) < 2 or not p or p == "-":
         return False
     sql = """
     INSERT INTO public_customers (customer_name, phone)
@@ -7313,9 +7340,8 @@ def list_shop_credit_customers_with_balance(shop_id: int, limit: int = 2000):
 def get_shop_customer_credit_transactions(shop_id: int, customer_name: str, customer_phone: str, limit: int = 3000):
     """Credit transactions for one customer in a shop."""
     ensure_shop_credit_payments_schema()
-    n = (customer_name or "").strip() or "WALK IN"
-    p = (customer_phone or "").strip() or "-"
-    sql = """
+    identity_where, identity_params = _customer_identity_where_sql(customer_name, customer_phone)
+    sql = f"""
     SELECT
         id,
         sale_type,
@@ -7329,14 +7355,13 @@ def get_shop_customer_credit_transactions(shop_id: int, customer_name: str, cust
     FROM shop_pos_sales
     WHERE shop_id=%s
       AND sale_type='credit'
-      AND COALESCE(NULLIF(customer_name, ''), 'WALK IN')=%s
-      AND COALESCE(NULLIF(customer_phone, ''), '-')=%s
+      AND {identity_where}
     ORDER BY created_at ASC, id ASC
     LIMIT %s
     """
     try:
         with get_cursor() as cur:
-            cur.execute(sql, (int(shop_id), n, p, int(limit)))
+            cur.execute(sql, (int(shop_id), *identity_params, int(limit)))
             rows = cur.fetchall() or []
         out = []
         for r in rows:
@@ -7373,20 +7398,18 @@ def get_shop_customer_credit_payments(
 ):
     """Payment receipts recorded against a customer's credit at one shop."""
     ensure_shop_credit_payments_schema()
-    n = (customer_name or "").strip() or "WALK IN"
-    p = (customer_phone or "").strip() or "-"
-    sql = """
+    identity_where, identity_params = _customer_identity_where_sql(customer_name, customer_phone)
+    sql = f"""
     SELECT id, amount, note, created_at
     FROM shop_credit_payments
     WHERE shop_id=%s
-      AND COALESCE(NULLIF(customer_name, ''), 'WALK IN')=%s
-      AND COALESCE(NULLIF(customer_phone, ''), '-')=%s
+      AND {identity_where}
     ORDER BY created_at ASC, id ASC
     LIMIT %s
     """
     try:
         with get_cursor() as cur:
-            cur.execute(sql, (int(shop_id), n, p, int(limit)))
+            cur.execute(sql, (int(shop_id), *identity_params, int(limit)))
             rows = cur.fetchall() or []
         return [
             {
@@ -7418,15 +7441,15 @@ def apply_shop_credit_payment_fifo(
         return {"ok": False, "error": "Amount must be greater than 0."}
 
     n = (customer_name or "").strip() or "WALK IN"
-    p = (customer_phone or "").strip() or "-"
+    p = normalize_customer_phone(customer_phone)
 
-    select_sql = """
+    identity_where, identity_params = _customer_identity_where_sql(n, p)
+    select_sql = f"""
     SELECT id, total_amount, credit_paid_amount
     FROM shop_pos_sales
     WHERE shop_id=%s
       AND sale_type='credit'
-      AND COALESCE(NULLIF(customer_name, ''), 'WALK IN')=%s
-      AND COALESCE(NULLIF(customer_phone, ''), '-')=%s
+      AND {identity_where}
       AND (total_amount - credit_paid_amount) > 0.0001
     ORDER BY created_at ASC, id ASC
     FOR UPDATE
@@ -7448,7 +7471,7 @@ def apply_shop_credit_payment_fifo(
             # record payment
             cur.execute(insert_payment_sql, (int(shop_id), n, p, pay_amt, (note or None)))
 
-            cur.execute(select_sql, (int(shop_id), n, p))
+            cur.execute(select_sql, (int(shop_id), *identity_params))
             rows = cur.fetchall() or []
             for r in rows:
                 if remaining_payment <= 0.0001:
@@ -7492,14 +7515,14 @@ def apply_company_credit_payment_fifo(
         return {"ok": False, "error": "Amount must be greater than 0."}
 
     n = (customer_name or "").strip() or "WALK IN"
-    p = (customer_phone or "").strip() or "-"
+    p = normalize_customer_phone(customer_phone)
 
-    select_sql = """
+    identity_where, identity_params = _customer_identity_where_sql(n, p, name_col="customer_name", phone_col="customer_phone")
+    select_sql = f"""
     SELECT id, shop_id, total_amount, credit_paid_amount
     FROM shop_pos_sales
     WHERE sale_type='credit'
-      AND COALESCE(NULLIF(customer_name, ''), 'WALK IN')=%s
-      AND COALESCE(NULLIF(customer_phone, ''), '-')=%s
+      AND {identity_where}
       AND (total_amount - credit_paid_amount) > 0.0001
     ORDER BY created_at ASC, id ASC
     FOR UPDATE
@@ -7523,7 +7546,7 @@ def apply_company_credit_payment_fifo(
     remaining_payment = pay_amt
     try:
         with get_cursor(commit=True) as cur:
-            cur.execute(select_sql, (n, p))
+            cur.execute(select_sql, tuple(identity_params))
             rows = cur.fetchall() or []
             for r in rows:
                 if remaining_payment <= 0.0001:
@@ -10607,7 +10630,7 @@ def create_shop_pos_sale(
                     amount,
                     count,
                     (customer_name or "").strip()[:190] or None,
-                    (customer_phone or "").strip()[:40] or None,
+                    _stored_customer_phone(customer_phone),
                     int(employee_id) if employee_id is not None else None,
                     (employee_code or "").strip()[:6] or None,
                     (employee_name or "").strip()[:190] or None,
@@ -11391,6 +11414,7 @@ def bulk_mark_shop_pos_receipts(
 def get_it_support_revenue_analytics(
     analytics_filter: dict,
     analytics_scope: str = "general",
+    shop_id: Optional[int] = None,
     *,
     transactions_limit: int = 150,
     transactions_offset: int = 0,
@@ -11412,8 +11436,10 @@ def get_it_support_revenue_analytics(
 
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
-    where_sql = f"{range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("sps", shop_id)
+    shop_row_filter, shop_row_params = _analytics_shops_row_filter(shop_id, "s")
+    where_sql = f"{range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
     totals_sql = f"""
     SELECT
         COUNT(*) AS tx_count,
@@ -11437,6 +11463,7 @@ def get_it_support_revenue_analytics(
         COALESCE(SUM(CASE WHEN sps.sale_type IN ('sale','credit') THEN sps.total_amount ELSE 0 END), 0) AS total_amount
     FROM shops s
     LEFT JOIN shop_pos_sales sps ON sps.shop_id = s.id AND ({where_sql})
+    {shop_row_filter}
     GROUP BY s.id, s.shop_name, s.shop_code
     ORDER BY total_amount DESC, s.shop_name ASC
     LIMIT 500
@@ -11506,7 +11533,7 @@ def get_it_support_revenue_analytics(
             out["mpesa_paid_total"] = float(t.get("mpesa_paid_total") or 0)
             out["transactions_meta"]["total_count"] = out["tx_count"]
 
-            cur.execute(by_shop_sql, tuple(params))
+            cur.execute(by_shop_sql, tuple(params + shop_row_params))
             out["shops"] = [
                 {
                     "shop_id": r.get("shop_id"),
@@ -11575,6 +11602,7 @@ def get_it_support_item_analytics(
     analytics_filter: dict,
     analytics_scope: str = "general",
     top_items_limit: int = 100,
+    shop_id: Optional[int] = None,
     *,
     lines_limit: int = 150,
     lines_offset: int = 0,
@@ -11601,8 +11629,10 @@ def get_it_support_item_analytics(
     lim = max(1, min(50000, tl_raw)) if not no_limit else 0
     range_where, range_params = _analytics_where_clause(analytics_filter, "s")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "s")
-    where_sql = f"{range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("s", shop_id)
+    shop_row_filter, shop_row_params = _analytics_shops_row_filter(shop_id, "sh")
+    where_sql = f"{range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
 
     # Two aggregations merged in Python: avoids a single GROUP BY + LEFT JOIN shape that can
     # fail or mis-aggregate under strict SQL modes; matches lines with catalog id directly,
@@ -11662,6 +11692,7 @@ def get_it_support_item_analytics(
     FROM shops sh
     LEFT JOIN shop_pos_sales s ON s.shop_id = sh.id AND ({where_sql})
     LEFT JOIN shop_pos_sale_items si ON si.sale_id = s.id
+    {shop_row_filter}
     GROUP BY sh.id, sh.shop_name, sh.shop_code
     ORDER BY total_revenue DESC, sh.shop_name ASC
     LIMIT 500
@@ -11759,7 +11790,7 @@ def get_it_support_item_analytics(
                 rows_sorted = rows_sorted[:lim]
             out["top_items"] = rows_sorted
 
-            cur.execute(by_shop_sql, tuple(params))
+            cur.execute(by_shop_sql, tuple(params + shop_row_params))
             out["shops"] = [
                 {
                     "shop_id": r.get("shop_id"),
@@ -12092,13 +12123,15 @@ def get_it_support_item_detail_analytics(item_id: int, analytics_filter: dict) -
 
 
 def get_it_support_period_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict, analytics_scope: str = "general", shop_id: Optional[int] = None
 ):
     """Period sales analytics across all shops for IT support/super admin."""
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
-    where_sql = f"{range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("sps", shop_id)
+    shop_row_filter, shop_row_params = _analytics_shops_row_filter(shop_id, "sh")
+    where_sql = f"{range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
 
     totals_sql = f"""
     SELECT
@@ -12150,6 +12183,7 @@ def get_it_support_period_analytics(
         COALESCE(SUM(sps.total_amount), 0) AS revenue
     FROM shops sh
     LEFT JOIN shop_pos_sales sps ON sps.shop_id = sh.id AND ({where_sql})
+    {shop_row_filter}
     GROUP BY sh.id, sh.shop_name, sh.shop_code
     ORDER BY revenue DESC, tx_count DESC, sh.shop_name ASC
     LIMIT 500
@@ -12208,7 +12242,7 @@ def get_it_support_period_analytics(
                 for r in (cur.fetchall() or [])
             ]
 
-            cur.execute(shop_sql, tuple(params))
+            cur.execute(shop_sql, tuple(params + shop_row_params))
             out["shops"] = [
                 {
                     "shop_id": r.get("shop_id"),
@@ -12225,13 +12259,14 @@ def get_it_support_period_analytics(
 
 
 def get_it_support_employee_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict, analytics_scope: str = "general", shop_id: Optional[int] = None
 ):
     """Employee sales analytics across all shops for IT support/super admin."""
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
-    where_sql = f"{range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("sps", shop_id)
+    where_sql = f"{range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
 
     totals_sql = f"""
     SELECT
@@ -12367,13 +12402,15 @@ def get_it_support_employee_analytics(
 
 
 def get_it_support_sales_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict, analytics_scope: str = "general", shop_id: Optional[int] = None
 ):
     """Sales-only analytics across all shops (excludes credit)."""
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
-    where_sql = f"sps.sale_type='sale' AND {range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("sps", shop_id)
+    shop_row_filter, shop_row_params = _analytics_shops_row_filter(shop_id, "sh")
+    where_sql = f"sps.sale_type='sale' AND {range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
 
     totals_sql = f"""
     SELECT
@@ -12412,6 +12449,7 @@ def get_it_support_sales_analytics(
         COALESCE(SUM(sps.total_amount), 0) AS revenue
     FROM shops sh
     LEFT JOIN shop_pos_sales sps ON sps.shop_id = sh.id AND ({where_sql})
+    {shop_row_filter}
     GROUP BY sh.id, sh.shop_name, sh.shop_code
     ORDER BY revenue DESC, tx_count DESC, sh.shop_name ASC
     LIMIT 500
@@ -12487,7 +12525,7 @@ def get_it_support_sales_analytics(
             if out["hourly"]:
                 out["peak_hour"] = max(out["hourly"], key=lambda x: (x["revenue"], x["tx_count"]))
 
-            cur.execute(by_shop_sql, tuple(params))
+            cur.execute(by_shop_sql, tuple(params + shop_row_params))
             out["shops"] = [
                 {
                     "shop_id": r.get("shop_id"),
@@ -12529,13 +12567,15 @@ def get_it_support_sales_analytics(
 
 
 def get_it_support_credit_analytics(
-    analytics_filter: dict, analytics_scope: str = "general"
+    analytics_filter: dict, analytics_scope: str = "general", shop_id: Optional[int] = None
 ):
     """Credit-only analytics across all shops (excludes cash sales)."""
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
-    where_sql = f"sps.sale_type='credit' AND {range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("sps", shop_id)
+    shop_row_filter, shop_row_params = _analytics_shops_row_filter(shop_id, "sh")
+    where_sql = f"sps.sale_type='credit' AND {range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
 
     totals_sql = f"""
     SELECT
@@ -12574,6 +12614,7 @@ def get_it_support_credit_analytics(
         COALESCE(SUM(sps.total_amount), 0) AS revenue
     FROM shops sh
     LEFT JOIN shop_pos_sales sps ON sps.shop_id = sh.id AND ({where_sql})
+    {shop_row_filter}
     GROUP BY sh.id, sh.shop_name, sh.shop_code
     ORDER BY revenue DESC, tx_count DESC, sh.shop_name ASC
     LIMIT 500
@@ -12662,7 +12703,7 @@ def get_it_support_credit_analytics(
             if out["hourly"]:
                 out["peak_hour"] = max(out["hourly"], key=lambda x: (x["revenue"], x["tx_count"]))
 
-            cur.execute(by_shop_sql, tuple(params))
+            cur.execute(by_shop_sql, tuple(params + shop_row_params))
             out["shops"] = [
                 {
                     "shop_id": r.get("shop_id"),
@@ -12717,6 +12758,7 @@ def get_it_support_credit_analytics(
 def get_it_support_customer_analytics(
     analytics_filter: dict,
     analytics_scope: str = "general",
+    shop_id: Optional[int] = None,
     *,
     customers_limit: int = 150,
     customers_offset: int = 0,
@@ -12733,8 +12775,9 @@ def get_it_support_customer_analytics(
         cust_off = 0
     range_where, range_params = _analytics_where_clause(analytics_filter, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
-    where_sql = f"{range_where} AND {scope_where}"
-    params = list(range_params) + list(scope_params)
+    shop_clause, shop_params = _analytics_shop_filter_clause("sps", shop_id)
+    where_sql = f"{range_where} AND {scope_where}{shop_clause}"
+    params = list(range_params) + list(scope_params) + list(shop_params)
     totals_sql = f"""
     SELECT
         COUNT(*) AS tx_count,
@@ -12821,11 +12864,14 @@ def get_it_support_customer_transactions(
 ):
     """All transactions for one customer identity (including WALK IN placeholder)."""
     n = (customer_name or "").strip() or "WALK IN"
-    p = (customer_phone or "").strip() or "-"
+    p = normalize_customer_phone(customer_phone)
     range_where, range_params = _analytics_where_clause(analytics_filter or {}, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
     shop_scope = " AND sps.shop_id=%s" if shop_id else ""
-    sql = """
+    identity_where, identity_params = _customer_identity_where_sql(
+        n, p, name_col="sps.customer_name", phone_col="sps.customer_phone"
+    )
+    sql = f"""
     SELECT
         sps.id,
         sps.shop_id,
@@ -12841,17 +12887,16 @@ def get_it_support_customer_transactions(
         sps.created_at
     FROM shop_pos_sales sps
     LEFT JOIN shops sh ON sh.id = sps.shop_id
-    WHERE COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN')=%s
-      AND COALESCE(NULLIF(sps.customer_phone, ''), '-')=%s
+    WHERE {identity_where}
       AND {range_where}
       AND {scope_where}
       {shop_scope}
     ORDER BY sps.created_at DESC, sps.id DESC
     LIMIT %s
-    """.format(range_where=range_where, scope_where=scope_where, shop_scope=shop_scope)
+    """
     try:
         with get_cursor() as cur:
-            args = [n, p, *range_params, *scope_params]
+            args = [*identity_params, *range_params, *scope_params]
             if shop_id:
                 args.append(int(shop_id))
             args.append(int(limit))
@@ -12888,11 +12933,14 @@ def get_it_support_customer_transaction_items(
 ):
     """Item-level transactions for one customer identity."""
     n = (customer_name or "").strip() or "WALK IN"
-    p = (customer_phone or "").strip() or "-"
+    p = normalize_customer_phone(customer_phone)
     range_where, range_params = _analytics_where_clause(analytics_filter or {}, "sps")
     scope_where, scope_params = _analytics_receipt_scope_clause(analytics_scope, "sps")
     shop_scope = " AND sps.shop_id=%s" if shop_id else ""
-    sql = """
+    identity_where, identity_params = _customer_identity_where_sql(
+        n, p, name_col="sps.customer_name", phone_col="sps.customer_phone"
+    )
+    sql = f"""
     SELECT
         sps.id AS sale_id,
         sps.shop_id,
@@ -12908,17 +12956,16 @@ def get_it_support_customer_transaction_items(
     FROM shop_pos_sales sps
     JOIN shop_pos_sale_items si ON si.sale_id = sps.id
     LEFT JOIN shops sh ON sh.id = sps.shop_id
-    WHERE COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN')=%s
-      AND COALESCE(NULLIF(sps.customer_phone, ''), '-')=%s
+    WHERE {identity_where}
       AND {range_where}
       AND {scope_where}
       {shop_scope}
     ORDER BY sps.created_at DESC, sps.id DESC, si.id DESC
     LIMIT %s
-    """.format(range_where=range_where, scope_where=scope_where, shop_scope=shop_scope)
+    """
     try:
         with get_cursor() as cur:
-            args = [n, p, *range_params, *scope_params]
+            args = [*identity_params, *range_params, *scope_params]
             if shop_id:
                 args.append(int(shop_id))
             args.append(int(limit))
@@ -13281,9 +13328,21 @@ def get_shop_customer_analytics(
 
 
 def get_shop_item_analytics(
-    shop_id: int, analytics_filter: dict, analytics_scope: str = "general"
+    shop_id: int,
+    analytics_filter: dict,
+    analytics_scope: str = "general",
+    top_items_limit: int = 0,
 ):
-    """Return item analytics: totals, top items, and peak day/hour sold."""
+    """Return item analytics: totals, sold items, and peak day/hour sold.
+
+    ``top_items_limit`` caps the grouped item list (0 = no limit, show all sold items).
+    """
+    try:
+        tl_raw = int(top_items_limit) if top_items_limit is not None else 0
+    except (TypeError, ValueError):
+        tl_raw = 0
+    no_limit = tl_raw <= 0
+    lim = max(1, min(50000, tl_raw)) if not no_limit else 0
     sid = int(shop_id)
     inv_mode = resolve_shop_pos_inventory_mode(sid)
     range_where, range_params = _analytics_where_clause(analytics_filter, "s")
@@ -13331,8 +13390,9 @@ def get_shop_item_analytics(
     WHERE {where_sql}
     GROUP BY si.item_id, si.item_name
     ORDER BY qty_sold DESC, revenue DESC
-    LIMIT 20
     """
+    if not no_limit:
+        top_items_sql += f"\n    LIMIT {lim}"
     totals_sql = f"""
     SELECT
         COALESCE(SUM(si.qty), 0) AS total_qty,
@@ -13890,11 +13950,93 @@ def _canonical_kenya_phone(phone: str) -> str:
     """Prefer 254… storage for Kenyan mobiles when recognizable."""
     p = _normalize_phone(phone or "")
     digits = re.sub(r"\D", "", p)
+    if not digits:
+        return (phone or "").strip() or "-"
+    if digits == "-":
+        return "-"
     if len(digits) == 10 and digits.startswith(("07", "01")):
         return "254" + digits[1:]
     if len(digits) == 12 and digits.startswith("254"):
         return digits
-    return p
+    if len(digits) == 9 and digits[0] in ("7", "1"):
+        return "254" + digits
+    return digits
+
+
+def _is_meaningful_customer_phone(phone: str) -> bool:
+    p = (phone or "").strip()
+    if not p or p == "-":
+        return False
+    digits = re.sub(r"\D", "", p)
+    return len(digits) >= 9
+
+
+def _customer_phone_lookup_keys(phone: str) -> list[str]:
+    """Possible stored customer_phone values for the same Kenyan subscriber."""
+    p = (phone or "").strip() or "-"
+    if p == "-" or not _is_meaningful_customer_phone(p):
+        return ["-"]
+    keys = list(_seller_phone_lookup_keys(p))
+    canon = _canonical_kenya_phone(p)
+    if canon and canon not in keys:
+        keys.insert(0, canon)
+    return keys
+
+
+def _customer_identity_where_sql(
+    customer_name: str,
+    customer_phone: str,
+    *,
+    name_col: str = "customer_name",
+    phone_col: str = "customer_phone",
+) -> tuple[str, list]:
+    """Match walk-in by name+phone; otherwise all rows for the same phone (any format)."""
+    n = (customer_name or "").strip() or "WALK IN"
+    p = (customer_phone or "").strip() or "-"
+    if _is_meaningful_customer_phone(p):
+        keys = _customer_phone_lookup_keys(p)
+        placeholders = ",".join(["%s"] * len(keys))
+        return (
+            f"COALESCE(NULLIF({phone_col}, ''), '-') IN ({placeholders})",
+            list(keys),
+        )
+    return (
+        f"COALESCE(NULLIF({name_col}, ''), 'WALK IN')=%s AND COALESCE(NULLIF({phone_col}, ''), '-')=%s",
+        [n, p],
+    )
+
+
+def normalize_customer_phone(phone: str) -> str:
+    """Public helper — canonical 254… for Kenyan mobiles, else stripped input."""
+    raw = (phone or "").strip()
+    if not raw or raw == "-":
+        return "-"
+    canon = _canonical_kenya_phone(raw)
+    return canon if canon else raw
+
+
+def normalize_supplier_phone(phone: str) -> str:
+    """Canonical 254… for supplier/seller phones."""
+    raw = (phone or "").strip()
+    if not raw or raw == "-":
+        return ""
+    canon = _canonical_kenya_phone(raw)
+    return canon if canon and canon != "-" else raw
+
+
+def _stored_seller_phone(phone: Optional[str]) -> Optional[str]:
+    raw = (phone or "").strip()
+    if not raw or raw == "-":
+        return None
+    canon = normalize_supplier_phone(raw)
+    return (canon or raw)[:40]
+
+
+def _stored_customer_phone(phone: Optional[str]) -> Optional[str]:
+    raw = (phone or "").strip()
+    if not raw or raw == "-":
+        return None
+    return normalize_customer_phone(raw)[:40]
 
 
 def search_shop_customers_for_pos(shop_id: int, query: str, limit: int = 10):
@@ -13954,8 +14096,8 @@ def get_shop_customer_by_phone(shop_id: int, phone: str):
 
 def upsert_shop_customer(shop_id: int, customer_name: str, phone: str) -> bool:
     name = (customer_name or "").strip()
-    ph = _canonical_kenya_phone((phone or "").strip())
-    if not name or not ph:
+    ph = normalize_customer_phone((phone or "").strip())
+    if not name or not ph or ph == "-":
         return False
     sql = """
     INSERT INTO shop_customers (shop_id, customer_name, phone)
@@ -18660,8 +18802,8 @@ def update_shop_manual_stock_in(
     if place_clean or phone_raw:
         if not place_clean:
             return False, "Seller name is required when a phone is provided.", None
-        seller_phone_norm = _normalize_phone(seller_phone)
-        if len(re.sub(r"\D", "", seller_phone_norm)) < 7:
+        seller_phone_norm = _stored_seller_phone(seller_phone)
+        if not seller_phone_norm:
             return False, "Seller phone must have at least 7 digits.", None
         place_clean = place_clean.upper()
     else:
@@ -18822,8 +18964,8 @@ def update_company_stock_in(
     if place_clean or phone_raw:
         if not place_clean:
             return False, "Seller name is required when a phone is provided.", None
-        seller_phone_norm = _normalize_phone(seller_phone)
-        if len(re.sub(r"\D", "", seller_phone_norm)) < 7:
+        seller_phone_norm = _stored_seller_phone(seller_phone)
+        if not seller_phone_norm:
             return False, "Seller phone must have at least 7 digits.", None
         place_clean = place_clean.upper()
     else:
@@ -19189,8 +19331,8 @@ def shop_manual_stock_in(
     if place_clean or phone_raw:
         if not place_clean:
             return False
-        seller_phone_norm = _normalize_phone(seller_phone)
-        if len(re.sub(r"\D", "", seller_phone_norm)) < 7:
+        seller_phone_norm = _stored_seller_phone(seller_phone)
+        if not seller_phone_norm:
             return False
         place_clean = place_clean.upper()
     else:

@@ -1,3 +1,4 @@
+<script src="{{ url_for('static', filename='js/kenya-phone.js') }}?v=1"></script>
 <script>
   window.shopStockWorkspaceSettings = {{ (stock_workspace_settings or {})|tojson }};
   window.shopStockWsRequired = function (key) {
@@ -168,8 +169,16 @@
 
     function normalizePhoneValue(raw) {
       var val = String(raw || "").trim();
+      if (window.KenyaPhone && typeof window.KenyaPhone.normalize === "function") {
+        return window.KenyaPhone.normalize(val) || val.replace(/\s+/g, "");
+      }
       if (val.indexOf("+254") === 0) val = "254" + val.slice(4);
-      return val.replace(/\s+/g, "");
+      val = val.replace(/\s+/g, "");
+      var digits = val.replace(/\D/g, "");
+      if (digits.indexOf("254") === 0 && digits.length >= 12) return digits.slice(0, 12);
+      if (digits.charAt(0) === "0" && digits.length >= 10) return "254" + digits.slice(1, 11);
+      if (digits.length === 9 && (digits.charAt(0) === "7" || digits.charAt(0) === "1")) return "254" + digits;
+      return val;
     }
 
     function sellerLookup(phone, cb) {
@@ -690,8 +699,16 @@
 
     function normalizePhoneValue(raw) {
       var val = String(raw || "").trim();
+      if (window.KenyaPhone && typeof window.KenyaPhone.normalize === "function") {
+        return window.KenyaPhone.normalize(val) || val.replace(/\s+/g, "");
+      }
       if (val.indexOf("+254") === 0) val = "254" + val.slice(4);
-      return val.replace(/\s+/g, "");
+      val = val.replace(/\s+/g, "");
+      var digits = val.replace(/\D/g, "");
+      if (digits.indexOf("254") === 0 && digits.length >= 12) return digits.slice(0, 12);
+      if (digits.charAt(0) === "0" && digits.length >= 10) return "254" + digits.slice(1, 11);
+      if (digits.length === 9 && (digits.charAt(0) === "7" || digits.charAt(0) === "1")) return "254" + digits;
+      return val;
     }
 
     function lookupSeller(phone, cb) {

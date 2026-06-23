@@ -90,7 +90,7 @@
     }
   }
 
-  /** Keys synced onto every analytics nav link (period + scope). */
+  /** Keys synced onto every analytics nav link (period + scope + optional shop). */
   var FILTER_KEYS = [
     "analytics_scope",
     "mode",
@@ -99,14 +99,35 @@
     "end_date",
     "month",
     "year",
+    "shop_id",
   ];
 
   function isShopAnalyticsHref(base) {
     return /\/it_support\/analytics\/shop\/?$/i.test(String(base || "").replace(/\/+$/, ""));
   }
 
+  function isReceiptsHref(base) {
+    return /\/it_support\/receipts\/?$/i.test(String(base || "").replace(/\/+$/, ""));
+  }
+
+  function isAnalyticsHref(base) {
+    return /\/it_support\/analytics\//i.test(String(base || ""));
+  }
+
   function isCreditHubHref(base) {
     return /\/it_support\/credit-payments/i.test(String(base || ""));
+  }
+
+  function applyShopIdToParams(existing, q, base) {
+    if (isShopAnalyticsHref(base) || isAnalyticsHref(base) || isReceiptsHref(base) || isCreditHubHref(base)) {
+      if (q.shop_id != null && String(q.shop_id).trim() !== "") {
+        existing.set("shop_id", String(q.shop_id));
+      } else {
+        existing.delete("shop_id");
+      }
+      return;
+    }
+    existing.delete("shop_id");
   }
 
   /**
@@ -149,24 +170,22 @@
         existing.delete("analytics_scope");
       }
 
+      applyShopIdToParams(existing, q, base);
+
       if (isShopAnalyticsHref(base)) {
-        if (q.shop_id != null && String(q.shop_id).trim() !== "") {
-          existing.set("shop_id", String(q.shop_id));
-        }
+        /* shop_view stays on per-link hrefs */
       } else if (creditHub) {
-        if (q.shop_id != null && String(q.shop_id).trim() !== "") {
-          existing.set("shop_id", String(q.shop_id));
-        } else {
-          existing.delete("shop_id");
-        }
         if (q.customer_q != null && String(q.customer_q).trim() !== "") {
           existing.set("customer_q", String(q.customer_q));
         } else {
           existing.delete("customer_q");
         }
         existing.delete("shop_view");
+      } else if (isAnalyticsHref(base) || isReceiptsHref(base)) {
+        existing.delete("shop_view");
+        existing.delete("customer_q");
+        existing.delete("all_time");
       } else {
-        existing.delete("shop_id");
         existing.delete("shop_view");
         existing.delete("customer_q");
         existing.delete("all_time");

@@ -6328,7 +6328,7 @@ var saleType = "sale";
         var nameEl = document.getElementById("pos-customer-name");
         var phoneEl = document.getElementById("pos-customer-phone");
         var customerName = ((nameEl && nameEl.value) || "").trim();
-        var customerPhone = normalizePhone((phoneEl && phoneEl.value) || "");
+        var customerPhone = normalizeWhatsappPhone((phoneEl && phoneEl.value) || "") || "-";
         var sub = 0;
         var discountTotal = 0;
         (lines || []).forEach(function (l) {
@@ -9733,6 +9733,8 @@ var saleType = "sale";
           updateCustomerSectionState();
         });
         customerPhoneEl.addEventListener("blur", function () {
+          var n = normalizeWhatsappPhone(customerPhoneEl.value || "");
+          if (n) customerPhoneEl.value = n;
           runCustomerLookupNow();
         });
       }

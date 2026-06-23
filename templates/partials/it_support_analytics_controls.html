@@ -111,6 +111,22 @@
         <div class="rev-filters rev-filters--period">
           <p class="rev-filters-heading">Report period</p>
 
+          {% if analytics_key != 'shop' and shops %}
+          <div class="rev-field">
+            <label for="it-analytics-shop-select" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
+            <select
+              id="it-analytics-shop-select"
+              name="shop_id"
+              class="block w-full min-h-10 min-w-[12rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30"
+            >
+              <option value="" {% if not selected_shop_id %}selected{% endif %}>All shops</option>
+              {% for s in shops %}
+                <option value="{{ s.id }}" {% if selected_shop_id and selected_shop_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
           <div class="rev-field">
             <label for="analytics-filter-mode" class="block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period type</label>
             <select

@@ -89,6 +89,10 @@
     }
     if (mode === "month" && month && month.value) params.set("month", month.value);
     if (mode === "year" && year && year.value) params.set("year", year.value);
+    var shopEl =
+      document.getElementById("it-analytics-shop-select") ||
+      document.getElementById("shop-analytics-select");
+    if (shopEl && shopEl.value) params.set("shop_id", shopEl.value);
     return params;
   }
   function setLoading(loading) {
@@ -463,6 +467,14 @@
     loadMoreBtn.addEventListener("click", loadMoreTransactions);
   }
 
+  var revenueShopSelect = document.getElementById("it-analytics-shop-select");
+  if (revenueShopSelect) {
+    revenueShopSelect.addEventListener("change", function () {
+      clearTimeout(debounceTimer);
+      fetchLive();
+    });
+  }
+
   if (jsonEl && jsonEl.textContent) {
     try {
       var initialPayload = JSON.parse(jsonEl.textContent);
@@ -575,6 +587,9 @@
       var sid = shopSelect && shopSelect.value ? shopSelect.value : "";
       if (sid) params.set("shop_id", sid);
       if (shopView && shopView.value) params.set("shop_view", shopView.value);
+    } else {
+      var filterShop = document.getElementById("it-analytics-shop-select");
+      if (filterShop && filterShop.value) params.set("shop_id", filterShop.value);
     }
     return params;
   }
@@ -988,8 +1003,10 @@
     });
   }
 
-  var shopSelect = document.getElementById("shop-analytics-select");
-  if (pageKey === "shop" && shopSelect) {
+  var shopSelect =
+    document.getElementById("it-analytics-shop-select") ||
+    (pageKey === "shop" ? document.getElementById("shop-analytics-select") : null);
+  if (shopSelect) {
     shopSelect.addEventListener("change", function () {
       clearTimeout(debounceTimer);
       fetchLive();

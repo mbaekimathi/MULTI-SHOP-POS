@@ -141,7 +141,7 @@
       </article>
     </div>
     <section class="rev-panel">
-      <div class="rev-panel__head"><h3 class="rev-panel__title">Top sold items</h3><span class="rev-panel__count">Quantity and revenue</span></div>
+      <div class="rev-panel__head"><h3 class="rev-panel__title">Items sold</h3><span class="rev-panel__count">{{ (svd.top_items or [])|length }} item{% if (svd.top_items or [])|length != 1 %}s{% endif %}</span></div>
       {% if not svd.top_items %}<p class="rev-empty">No item sales for this period.</p>{% else %}
       <div class="rev-scroll rev-scroll--hint">
         <table class="rev-data rev-data--wide">

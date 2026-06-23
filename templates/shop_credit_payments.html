@@ -22,14 +22,10 @@
       <div class="it-credit-hero-top px-4 py-4 sm:px-6 sm:py-5">
         <p class="it-credit-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Credit payments</p>
         <h2 class="it-credit-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">
-          {% if company_credit_mode %}Company credit customers{% else %}Customers with credit balances{% endif %}
+          Customers with credit balances
         </h2>
         <p class="it-credit-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-          {% if company_credit_mode %}
-            Admin view combines credit balances across all shops by customer (same name and phone).
-          {% else %}
-            Click a customer to view transactions and receive payments (FIFO clearing).
-          {% endif %}
+          Credit balances for {{ shop.shop_name }}. Click a customer to view transactions and receive payments (FIFO clearing).
         </p>
       </div>
     </section>
@@ -57,7 +53,7 @@
 
     <section class="it-credit-panel">
       {% if not customers %}
-        <p class="text-sm text-[rgb(var(--rc-muted))]">{% if company_credit_mode %}No company credit balances.{% else %}No outstanding credit balances.{% endif %}</p>
+        <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances for this shop.</p>
       {% else %}
         <div class="it-credit-table-wrap">
           <div class="it-credit-table-wrap__scroll">
@@ -83,15 +79,9 @@
                   <td class="text-right tabular-nums it-credit-amount--paid">{{ "%.2f"|format(c.paid_total) }}</td>
                   <td class="text-right tabular-nums it-credit-amount--balance">{{ "%.2f"|format(c.balance) }}</td>
                   <td>
-                    {% if not company_credit_mode %}
                     <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}" class="it-credit-action-btn" aria-label="View customer">
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" /></svg>
                     </a>
-                    {% else %}
-                    <a href="{{ url_for('company_credit_payments_customer', customer_name=c.customer_name, customer_phone=c.customer_phone, back_shop_id=shop.id) }}" class="it-credit-action-btn" aria-label="View customer">
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" /></svg>
-                    </a>
-                    {% endif %}
                   </td>
                 </tr>
                 {% endfor %}
