@@ -1,0 +1,283 @@
+/**
+ * Unified portal pages — consistent appearance & auto-responsive behavior.
+ * Applies inside .portal-shell--modern .portal-main (employee + shop portals).
+ */
+
+/* ── Layout content shell ── */
+.rc-portal-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.rc-portal-content > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ── Shared card / panel appearance (legacy class aliases) ── */
+.portal-shell--modern .portal-main :is(
+  .rc-card,
+  .hr-mgmt-card,
+  .hr-settings-card,
+  .hr-auth-card,
+  .hr-an-card,
+  .hr-an-chart-card,
+  .salaries-card,
+  .expenses-card,
+  .incomes-card,
+  .exp-card,
+  .cr-card,
+  .ka-card,
+  .shop-co-card,
+  .expenses-card,
+  .it-stock-mgmt-card
+) {
+  border-color: rgba(var(--rc-border), 0.9);
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+}
+
+.portal-shell--modern .portal-main :is(
+  .hr-mgmt-hero,
+  .hr-settings-hero,
+  .hr-auth-hero,
+  .hr-an-hero,
+  .salaries-hero-header,
+  .ka-hero
+) {
+  background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
+}
+
+.portal-shell--modern .portal-main :is(
+  .hr-mgmt-stat,
+  .hr-auth-stat,
+  .hr-an-stat,
+  .expenses-stat,
+  .incomes-stat,
+  .ka-stat,
+  .rc-stat-card
+) {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Scrollable tables (all legacy *-table-wrap aliases) ── */
+.portal-shell--modern .portal-main :is(
+  [class*="-table-wrap"],
+  .rc-table-wrap,
+  .it-analytics-table-wrap,
+  .shop-mgmt-table-wrap,
+  .sa-stock-table-wrap
+) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Inside data cards, height is controlled by rc-portal-pages card shell */
+.portal-shell--modern .portal-main :is(.rc-card, [class*="-card"]):has([class*="-table-wrap"]) :is(
+  [class*="-table-wrap"],
+  .rc-table-wrap
+) {
+  max-height: var(--rc-card-body-max-h, min(calc(100dvh - 12rem), 52rem));
+}
+
+.portal-shell--modern .portal-main :is(
+  [class*="-table-wrap"] thead tr,
+  .rc-table-wrap--sticky-head thead tr
+) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.portal-shell--modern .portal-main :is(.rc-card, [class*="-card"]) :is([class*="-table-wrap"], .rc-table-wrap) tbody td {
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: top;
+  line-height: 1.35;
+}
+
+/* ── Analytics / revenue pages ── */
+.portal-shell--modern .portal-main .it-analytics-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  box-sizing: border-box;
+}
+
+.portal-shell--modern .portal-main .it-analytics-page .rev-page,
+.portal-shell--modern .portal-main .it-analytics-page .rev-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ── Stock workspace ── */
+.portal-shell--modern .portal-main .sa-stock-analytics,
+.portal-shell--modern .portal-main .sa-stock-workspace,
+.portal-shell--modern .portal-main .shop-stock-settings-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.portal-shell--modern .portal-main .sa-stock-hero,
+.portal-shell--modern .portal-main .sa-stock-section,
+.portal-shell--modern .portal-main .sa-stock-panel {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* ── System settings ── */
+.portal-shell--modern .portal-main #it-settings-form {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.portal-shell--modern .portal-main #it-settings-form [data-panel] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.portal-shell--modern .portal-main .rc-appearance-layout,
+.portal-shell--modern .portal-main #appearance-preset-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ── Toolbars & filter rows ── */
+.portal-shell--modern .portal-main .flex.flex-wrap,
+.portal-shell--modern .portal-main .inline-flex.flex-wrap {
+  gap: 0.5rem;
+}
+
+.portal-shell--modern .portal-main .flex.items-center.justify-between.gap-3,
+.portal-shell--modern .portal-main .flex.flex-wrap.items-center.justify-between {
+  row-gap: 0.65rem;
+}
+
+/* ── Tablet (640px – 1023px) ── */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .portal-shell--modern .portal-main {
+    font-size: 0.84375rem;
+  }
+
+  .portal-shell--modern .portal-main .grid-cols-3,
+  .portal-shell--modern .portal-main .grid-cols-4,
+  .portal-shell--modern .portal-main .grid-cols-5,
+  .portal-shell--modern .portal-main .grid-cols-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-shell--modern .portal-main .lg\:grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-shell--modern .portal-main .lg\:grid-cols-4,
+  .portal-shell--modern .portal-main .lg\:grid-cols-5,
+  .portal-shell--modern .portal-main .lg\:grid-cols-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-shell--modern .portal-main .p-8,
+  .portal-shell--modern .portal-main .sm\:p-8 {
+    padding: 1.15rem !important;
+  }
+
+  .portal-shell--modern .portal-main [class*="-table-wrap"],
+  .portal-shell--modern .portal-main .rc-table-wrap {
+    max-height: min(62vh, 680px);
+  }
+
+  .portal-shell--modern .portal-main .it-analytics-page .rev-kpi__value {
+    font-size: 1.125rem !important;
+  }
+}
+
+/* ── Mobile (≤639px) ── */
+@media (max-width: 639px) {
+  .portal-shell--modern .portal-main .payroll-page.-mx-4,
+  .portal-shell--modern .portal-main .-mx-4.sm\:-mx-6 {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .portal-shell--modern .portal-main .payroll-page {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .portal-shell--modern .portal-main .sm\:flex-row:not(.flex-col-reverse) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .portal-shell--modern .portal-main .sm\:flex-row-reverse {
+    flex-direction: column-reverse !important;
+  }
+
+  .portal-shell--modern .portal-main .w-full.sm\:w-auto,
+  .portal-shell--modern .portal-main .min-w-\[12rem\] {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .portal-shell--modern .portal-main .shop-stock-settings-groups {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-shell--modern .portal-main #appearance-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-shell--modern .portal-main .rc-appearance-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-shell--modern .portal-main .it-analytics-toolbar,
+  .portal-shell--modern .portal-main .kitchen-analytics-toolbar,
+  .portal-shell--modern .portal-main .kitchen-presentation-toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .portal-shell--modern .portal-main .it-analytics-toolbar > *,
+  .portal-shell--modern .portal-main .rev-toolbar > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .portal-shell--modern .portal-main [class*="-table-wrap"]:not(.rc-card [class*="-table-wrap"]),
+  .portal-shell--modern .portal-main .rc-table-wrap:not(.rc-card .rc-table-wrap) {
+    max-height: var(--rc-card-body-max-h, min(calc(100dvh - 12rem), 52rem));
+  }
+
+  .portal-shell--modern .portal-main .rc-card [class*="-table-wrap"],
+  .portal-shell--modern .portal-main .rc-card .rc-table-wrap,
+  .portal-shell--modern .portal-main [class*="-card"] [class*="-table-wrap"] {
+    max-height: var(--rc-card-body-max-h, min(calc(100dvh - 12rem), 52rem));
+  }
+
+  .portal-shell--modern .portal-main .mx-auto.max-w-5xl,
+  .portal-shell--modern .portal-main .mx-auto.max-w-6xl,
+  .portal-shell--modern .portal-main .mx-auto.max-w-7xl {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* ── Very small phones ── */
+@media (max-width: 380px) {
+  .portal-shell--modern .portal-main #appearance-preset-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

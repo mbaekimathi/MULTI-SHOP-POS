@@ -1,93 +1,20 @@
 {% extends "base.html" %}
 {% block body %}
-  <style>
-    #shop-shell #shop-sidebar nav a {
-      position: relative;
-      border: 1px solid transparent;
-      transition: all 0.18s ease;
-    }
-    #shop-shell #shop-sidebar nav a::before {
-      content: "";
-      position: absolute;
-      left: 0.5rem;
-      top: 50%;
-      width: 0.32rem;
-      height: 0.32rem;
-      border-radius: 999px;
-      transform: translateY(-50%) scale(0.85);
-      opacity: 0;
-      background: linear-gradient(135deg, rgba(249, 115, 22, 0.9), rgba(56, 189, 248, 0.85));
-      transition: all 0.18s ease;
-      pointer-events: none;
-    }
-    #shop-shell #shop-sidebar nav a:hover {
-      transform: translateX(2px);
-      border-color: rgba(var(--rc-border), 0.8);
-      background-color: rgba(var(--rc-surface-2), 0.9);
-    }
-    #shop-shell #shop-sidebar nav a:hover::before {
-      opacity: 1;
-      transform: translateY(-50%) scale(1);
-    }
-    #shop-shell #shop-sidebar nav a[class*="bg-brand-"],
-    #shop-shell #shop-sidebar nav a[class*="bg-[rgb(var(--rc-surface-2))]"] {
-      border-color: rgba(var(--rc-primary), 0.35);
-      box-shadow: 0 10px 18px -16px rgba(15, 23, 42, 0.65);
-    }
-    #shop-shell #shop-sidebar nav a[class*="bg-brand-"]::before,
-    #shop-shell #shop-sidebar nav a[class*="bg-[rgb(var(--rc-surface-2))]"]::before {
-      opacity: 1;
-      transform: translateY(-50%) scale(1);
-    }
-    #shop-shell main .rounded-2xl.border {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #shop-shell main .rounded-xl.border {
-      border-color: rgba(var(--rc-border), 0.85);
-    }
-    #shop-shell main input,
-    #shop-shell main select,
-    #shop-shell main textarea {
-      min-height: 2.45rem;
-    }
-    #shop-shell main table tbody tr {
-      transition: background-color 0.16s ease;
-    }
-    #shop-shell main table tbody tr:hover {
-      background-color: rgba(148, 163, 184, 0.08);
-    }
-    #shop-shell main .overflow-x-auto table thead {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-    html[data-theme="dark"] #shop-shell #shop-sidebar nav a:hover {
-      border-color: rgba(148, 163, 184, 0.35);
-      background-color: rgba(30, 41, 59, 0.75);
-    }
-    @media (max-width: 768px) {
-      #shop-shell main {
-        padding-top: 1.25rem;
-        padding-bottom: 1.25rem;
-      }
-    }
-  </style>
-  <div id="shop-shell" class="flex min-h-screen flex-col md:h-screen md:max-h-screen md:min-h-0 md:flex-row">
+  <div id="shop-shell" class="portal-shell--modern flex min-h-screen flex-col md:h-screen md:max-h-screen md:min-h-0 md:flex-row">
     <div
       id="shop-sidebar-backdrop"
-      class="fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
+      class="portal-sidebar-backdrop fixed inset-0 z-30 bg-black/60 opacity-0 pointer-events-none transition-opacity duration-200 md:hidden"
       aria-hidden="true"
     ></div>
 
     <aside
       id="shop-sidebar"
-      class="fixed inset-y-0 left-0 z-40 flex min-h-0 w-72 -translate-x-full flex-col border-r border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-xl backdrop-blur-md transition-transform duration-200 ease-out md:sticky md:top-0 md:z-0 md:h-screen md:max-h-screen md:shrink-0 md:self-start md:overflow-hidden md:translate-x-0"
+      class="portal-sidebar--modern fixed inset-y-0 left-0 z-40 flex min-h-0 w-72 -translate-x-full flex-col border-r border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-xl backdrop-blur-md transition-transform duration-200 ease-out md:sticky md:top-0 md:z-0 md:h-screen md:max-h-screen md:shrink-0 md:self-start md:overflow-hidden md:translate-x-0"
       aria-label="Shop navigation"
     >
-      <div class="flex h-14 items-center gap-2 border-b border-[rgb(var(--rc-border))] px-4 md:h-16">
+      <div class="portal-sidebar__brand flex h-14 items-center gap-2 border-b border-[rgb(var(--rc-border))] px-4 md:h-16">
         <span
-          class="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-lg shadow-black/20"
+          class="portal-sidebar__logo flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-lg shadow-black/20"
           style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
         >S</span>
         <div class="min-w-0 leading-tight">
@@ -97,7 +24,7 @@
         <button
           type="button"
           id="shop-sidebar-close"
-          class="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] md:hidden"
+          class="portal-sidebar__close ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-page-fg))] md:hidden"
           aria-label="Close shop sidebar"
         >
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -106,7 +33,7 @@
         </button>
       </div>
       <nav class="flex min-h-0 flex-1 flex-col p-3">
-        <p class="shrink-0 px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.25em] text-[rgb(var(--rc-muted))]">
+        <p class="portal-sidebar__nav-label shrink-0 px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.25em] text-[rgb(var(--rc-muted))]">
           Navigation
         </p>
         <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
@@ -192,13 +119,13 @@
       </nav>
     </aside>
 
-    <div class="flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0">
-      <header class="sticky top-0 z-40 flex min-h-14 shrink-0 flex-wrap items-center gap-x-2 gap-y-2 overflow-visible border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/95 px-3 py-2 backdrop-blur-md sm:gap-x-3 sm:px-4 md:h-16 md:flex-nowrap md:py-0 md:px-6" style="padding-top: env(safe-area-inset-top, 0px)">
+    <div class="portal-content-column flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0">
+      <header class="portal-header--modern sticky top-0 z-40 flex min-h-14 shrink-0 flex-wrap items-center gap-x-2 gap-y-2 overflow-visible border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/95 px-3 py-2 backdrop-blur-md sm:gap-x-3 sm:px-4 md:h-16 md:flex-nowrap md:py-0 md:px-6" style="padding-top: env(safe-area-inset-top, 0px)">
         <div class="flex min-w-0 flex-1 items-center gap-3 md:flex-none md:max-w-[min(40vw,24rem)]">
           <button
             type="button"
             id="shop-sidebar-open"
-            class="inline-flex shrink-0 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 text-[rgb(var(--rc-page-fg))] md:hidden"
+            class="portal-header__menu-btn inline-flex shrink-0 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 text-[rgb(var(--rc-page-fg))] md:hidden"
             aria-expanded="false"
             aria-controls="shop-sidebar"
           >
@@ -207,7 +134,7 @@
             </svg>
           </button>
           <div class="min-w-0">
-            <h1 class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))] md:text-base">
+            <h1 class="portal-header__title truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))] md:text-base">
               {% block shop_page_title %}Shop{% endblock %}
             </h1>
             {% if shop_role_preview_active and shop_role_preview_label %}
@@ -225,7 +152,7 @@
             class="order-last flex w-full basis-full justify-center sm:order-none sm:flex-1 sm:basis-auto sm:px-2 md:max-w-md md:flex-none lg:flex-1"
           >
             <input type="hidden" name="next" value="{{ request.full_path }}" />
-            <div class="flex w-full max-w-md items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">
+            <div class="portal-header__role-preview flex w-full max-w-md items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">
               <label for="shop-role-preview-select" class="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
                 View as
               </label>
@@ -257,14 +184,16 @@
         </div>
       </header>
 
-      <main class="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+      <main class="portal-main min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip px-4 py-6 sm:px-6 lg:px-8">
         {% include "partials/auth_login_toast.html" %}
-        {% block shop_content %}{% endblock %}
+        <div class="rc-portal-content">
+          {% block shop_content %}{% endblock %}
+        </div>
       </main>
 
-      <footer class="shrink-0 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-xs text-[rgb(var(--rc-muted))] sm:px-6">
-        <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name if shop else "SHOP" }}</span>
-        <span class="ml-1">session</span>
+      <footer class="portal-footer--modern shrink-0 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-xs text-[rgb(var(--rc-muted))] sm:px-6">
+        <span class="portal-footer__brand font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name if shop else "SHOP" }}</span>
+        <span class="portal-footer__meta ml-1">session</span>
       </footer>
     </div>
   </div>

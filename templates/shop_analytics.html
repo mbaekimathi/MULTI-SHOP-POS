@@ -24,10 +24,13 @@
   {% include "partials/shop_analytics_sidebar.html" %}
 {% endblock %}
 
-{% block shop_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=23" />
+{% block head %}
+  {{ super() }}
+  {% include "partials/portal_revenue_analytics_css.html" %}
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+{% endblock %}
 
+{% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set svd = shop_view_data or {} %}
   {% set _anav = analytics_nav or {} %}
@@ -36,40 +39,6 @@
   {% set shop_portal = true %}
   {% set selected_shop_id = shop.id %}
   {% set show_analytics_toggle = true %}
-
-  <style>
-    .it-analytics-page {
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: clip;
-      box-sizing: border-box;
-    }
-    .it-analytics-page .rev-scroll,
-    .it-analytics-raw .rev-scroll {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    @media (min-width: 900px) {
-      .it-analytics-page .rev-scroll--lg {
-        max-height: min(50dvh, 24rem);
-        overflow-y: auto;
-      }
-    }
-    .it-analytics-visual .rounded-2xl .relative {
-      height: min(42dvh, 13.5rem) !important;
-      max-height: min(42dvh, 13.5rem);
-      min-height: 9.5rem;
-    }
-    .it-analytics-visual .relative.max-h-\[85vh\] {
-      max-height: min(48dvh, 15rem) !important;
-      height: min(48dvh, 15rem) !important;
-    }
-  </style>
 
   <div class="it-analytics-page it-analytics-page--modern it-analytics-page--revenue">
     <div class="rev-page rev-page--fluid mx-auto w-full min-w-0 max-w-6xl px-0 sm:px-1">
@@ -92,7 +61,7 @@
       </script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
       <script src="{{ url_for('static', filename='js/it-support-analytics-charts.js') }}"></script>
-      <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=5" defer></script>
+      <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=6" defer></script>
 
       <script>
         (function () {

@@ -34,7 +34,10 @@
   var RECEIPTS_LIST_API = BOOT.apis.receiptsList;
   var RECEIPTS_MARK_API = BOOT.apis.receiptsMark;
   var RECEIPTS_DETAIL_API = BOOT.apis.receiptsDetail;
+  var RECEIPTS_REPRINT_API = BOOT.apis.receiptsReprint || "";
   var RECEIPTS_RETURN_LINES_API = BOOT.apis.receiptsReturnLines;
+  var CAN_RETURN_RECEIPT_ITEMS = BOOT.canReturnReceiptItems === true;
+  var RECEIPT_RETURN_VERIFY_ROLES = { manager: 1, admin: 1, super_admin: 1, it_support: 1 };
   var POS_INVENTORY_MODE = BOOT.inventoryMode;
   window.POS_INVENTORY_MODE = POS_INVENTORY_MODE;
   var PRINTER_API = BOOT.apis.printer;
@@ -278,6 +281,7 @@ var saleType = "sale";
       var receiptsReturnBtn = document.getElementById("pos-receipts-return");
       var selectedReceiptId = 0;
       var receiptsRowsCache = [];
+      var receiptsRangeLabel = "";
       var networkStateIndicatorEl = document.getElementById("pos-network-state-indicator");
       var offlineSyncBadgeEl = document.getElementById("pos-offline-sync-badge");
       var offlineSyncNowBtn = document.getElementById("pos-offline-sync-now");
@@ -369,13 +373,109 @@ var saleType = "sale";
         }
         return null;
       }
+      function updateReceiptsSelectionSubtitle() {
+        if (!receiptsSubtitle) return;
+        var prefix = receiptsRangeLabel ? receiptsRangeLabel + " " : "";
+        var row = selectedReceiptRow();
+        if (!row || !selectedReceiptId) {
+          receiptsSubtitle.textContent =
+            prefix + "Tap a receipt to select it. Any staff can reprint with the row printer icon or Reprint selected.";
+          return;
+        }
+        var rec = row.receipt_number || ("#" + String(selectedReceiptId));
+        receiptsSubtitle.textContent =
+          prefix +
+          "Selected: " +
+          String(rec) +
+          " — Reprint selected (any staff)" +
+          (CAN_RETURN_RECEIPT_ITEMS ? ", Return items," : "") +
+          " or Cancel.";
+      }
+      function updateReceiptActionButtonsState() {
+        var hasSelection = !!selectedReceiptId;
+        if (receiptsReprintBtn) receiptsReprintBtn.disabled = !hasSelection;
+        if (receiptsCancelBtn) receiptsCancelBtn.disabled = !hasSelection;
+        if (receiptsReturnBtn) receiptsReturnBtn.disabled = !hasSelection;
+      }
+      function receiptReprintBadgeHtml(count) {
+        var n = parseInt(count || 0, 10) || 0;
+        if (n <= 0) {
+          return '<span class="inline-flex min-w-[1.5rem] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[rgb(var(--rc-muted))]">0</span>';
+        }
+        return (
+          '<span class="inline-flex min-w-[1.5rem] justify-center rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-amber-800 dark:text-amber-200" title="Reprinted ' +
+          String(n) +
+          ' time' +
+          (n === 1 ? "" : "s") +
+          '">' +
+          String(n) +
+          "</span>"
+        );
+      }
+      function applyReceiptReprintCount(saleId, count) {
+        var sid = parseInt(saleId || 0, 10) || 0;
+        var n = parseInt(count || 0, 10) || 0;
+        if (!sid) return;
+        for (var i = 0; i < receiptsRowsCache.length; i++) {
+          if (parseInt(receiptsRowsCache[i].sale_id || 0, 10) === sid) {
+            receiptsRowsCache[i].reprint_count = n;
+            break;
+          }
+        }
+        renderReceiptsRows(receiptsRowsCache);
+      }
+      function recordReceiptReprint(saleId) {
+        if (!RECEIPTS_REPRINT_API) return Promise.resolve(null);
+        return fetch(RECEIPTS_REPRINT_API, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ sale_id: parseInt(saleId || 0, 10) || 0 }),
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (j && j.ok) return parseInt(j.reprint_count || 0, 10) || 0;
+            return null;
+          })
+          .catch(function () { return null; });
+      }
+      function reprintReceiptBySaleId(saleId) {
+        var sid = parseInt(saleId || 0, 10) || 0;
+        if (!sid) {
+          setReceiptsMsg("Select a receipt first.", "error");
+          return Promise.resolve();
+        }
+        setReceiptsMsg("Sending receipt to printer...", "muted");
+        return fetch(RECEIPTS_DETAIL_API + "?sale_id=" + encodeURIComponent(sid), {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (j) {
+            if (!j || !j.ok) throw new Error((j && j.error) || "Could not load receipt detail.");
+            var payload = buildPersistedReceiptPayload(j.sale || {}, j.items || []);
+            return runConfiguredPrinterAction(payload, { receiptVariants: receiptVariantsForCheckout() });
+          })
+          .then(function () {
+            return recordReceiptReprint(sid);
+          })
+          .then(function (newCount) {
+            if (newCount != null) applyReceiptReprintCount(sid, newCount);
+            setReceiptsMsg("Reprint sent.", "ok");
+          })
+          .catch(function (err) {
+            setReceiptsMsg((err && err.message) ? err.message : "Could not print receipt.", "error");
+          });
+      }
       function renderReceiptsRows(rows) {
         receiptsRowsCache = Array.isArray(rows) ? rows : [];
         if (!receiptsListBody) return;
         if (!receiptsRowsCache.length) {
           receiptsListBody.innerHTML =
-            "<tr><td colspan='5' class='px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]'>No receipts found for today.</td></tr>";
+            "<tr><td colspan='8' class='px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]'>No receipts found for today.</td></tr>";
           selectedReceiptId = 0;
+          updateReceiptsSelectionSubtitle();
+          updateReceiptActionButtonsState();
           return;
         }
         receiptsListBody.innerHTML = receiptsRowsCache
@@ -385,22 +485,68 @@ var saleType = "sale";
             var when = row.created_at || row.created_at_iso || "-";
             var amount = Number(row.total_amount || 0);
             var emp = row.employee_name || "-";
+            var reprints = parseInt(row.reprint_count || 0, 10) || 0;
             var active = sid === selectedReceiptId;
+            var rowTone =
+              reprints > 0
+                ? " border-l-[3px] border-l-amber-400/90 bg-amber-500/[0.06] dark:bg-amber-500/[0.08]"
+                : "";
             return (
-              "<tr class='cursor-pointer " + (active ? "bg-[rgb(var(--rc-primary))]/10" : "hover:bg-[rgb(var(--rc-surface-2))]/40") + "' data-pos-receipt-row data-sale-id='" + String(sid) + "'>" +
-              "<td class='px-3 py-2.5 font-mono font-bold text-[rgb(var(--rc-page-fg))]'>" + receiptEsc(rec) + "</td>" +
-              "<td class='px-3 py-2.5 text-[rgb(var(--rc-muted))]'>" + receiptEsc(when) + "</td>" +
-              "<td class='px-3 py-2.5 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]'>" + receiptEsc(amount.toFixed(2)) + "</td>" +
-              "<td class='px-3 py-2.5 text-[rgb(var(--rc-muted))]'>" + receiptEsc(emp) + "</td>" +
-              "<td class='px-3 py-2.5'>" + receiptStatusChip(row.receipt_mark_status) + "</td>" +
-              "</tr>"
+              "<tr class='" +
+              (active ? "bg-[rgb(var(--rc-primary))]/10 ring-1 ring-inset ring-[rgb(var(--rc-primary))]/35" : "hover:bg-[rgb(var(--rc-surface-2))]/40") +
+              rowTone +
+              "' data-pos-receipt-row data-sale-id='" +
+              String(sid) +
+              "' data-reprint-count='" +
+              String(reprints) +
+              "'>" +
+              "<td class='cursor-pointer px-2 py-2.5 text-center' data-pos-receipt-pick>" +
+              "<input type='radio' name='pos-receipt-pick' class='pos-receipt-pick-radio h-4 w-4 cursor-pointer accent-[rgb(var(--rc-primary))]' value='" +
+              String(sid) +
+              "'" +
+              (active ? " checked" : "") +
+              " aria-label='Select receipt " +
+              receiptEsc(rec) +
+              "' /></td>" +
+              "<td class='cursor-pointer px-3 py-2.5 font-mono font-bold text-[rgb(var(--rc-page-fg))]' data-pos-receipt-pick>" +
+              receiptEsc(rec) +
+              "</td>" +
+              "<td class='cursor-pointer px-3 py-2.5 text-[rgb(var(--rc-muted))]' data-pos-receipt-pick>" +
+              receiptEsc(when) +
+              "</td>" +
+              "<td class='cursor-pointer px-3 py-2.5 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]' data-pos-receipt-pick>" +
+              receiptEsc(amount.toFixed(2)) +
+              "</td>" +
+              "<td class='cursor-pointer px-3 py-2.5 text-[rgb(var(--rc-muted))]' data-pos-receipt-pick>" +
+              receiptEsc(emp) +
+              "</td>" +
+              "<td class='cursor-pointer px-3 py-2.5' data-pos-receipt-pick>" +
+              receiptStatusChip(row.receipt_mark_status) +
+              "</td>" +
+              "<td class='cursor-pointer px-2 py-2.5 text-center' data-pos-receipt-pick>" +
+              receiptReprintBadgeHtml(reprints) +
+              "</td>" +
+              "<td class='px-2 py-2 text-center'>" +
+              "<button type='button' class='pos-receipt-reprint-row inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] text-[rgb(var(--rc-primary))] transition hover:bg-[rgb(var(--rc-primary))]/10' data-sale-id='" +
+              String(sid) +
+              "' title='Reprint this receipt' aria-label='Reprint receipt " +
+              receiptEsc(rec) +
+              "'>" +
+              "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2'/><path stroke-linecap='round' stroke-linejoin='round' d='M7 17h10v4a2 2 0 01-2 2H9a2 2 0 01-2-2v-4z'/><path stroke-linecap='round' stroke-linejoin='round' d='M9 3v4h6V3'/></svg>" +
+              "</button></td></tr>"
             );
           })
           .join("");
-        if (!selectedReceiptId && receiptsRowsCache.length) {
-          selectedReceiptId = parseInt(receiptsRowsCache[0].sale_id || 0, 10) || 0;
-          renderReceiptsRows(receiptsRowsCache);
-        }
+        receiptsListBody.querySelectorAll(".pos-receipt-pick-radio").forEach(function (radio) {
+          radio.addEventListener("change", function () {
+            if (!radio.checked) return;
+            selectedReceiptId = parseInt(radio.value || "0", 10) || 0;
+            renderReceiptsRows(receiptsRowsCache);
+            setReceiptsMsg("", "muted");
+          });
+        });
+        updateReceiptsSelectionSubtitle();
+        updateReceiptActionButtonsState();
       }
       function loadPosReceiptsList() {
         var q = "?mode=single_day&single_day=" + encodeURIComponent(todayIso());
@@ -411,9 +557,9 @@ var saleType = "sale";
           .then(function (j) {
             if (!j || !j.ok) throw new Error((j && j.error) || "Could not load receipts.");
             renderReceiptsRows(j.rows || []);
-            if (receiptsSubtitle) {
-              receiptsSubtitle.textContent = (j.range_label ? String(j.range_label) + " · " : "") + String((j.rows || []).length) + " receipt(s).";
-            }
+            receiptsRangeLabel =
+              (j.range_label ? String(j.range_label) + " · " : "") + String((j.rows || []).length) + " receipt(s).";
+            updateReceiptsSelectionSubtitle();
           })
           .catch(function (err) {
             renderReceiptsRows([]);
@@ -428,6 +574,7 @@ var saleType = "sale";
       }
       function hideReceiptsModal() {
         if (!receiptsModal) return;
+        hideReturnReceiptPanel();
         receiptsModal.classList.add("hidden");
         receiptsModal.setAttribute("aria-hidden", "true");
       }
@@ -621,7 +768,74 @@ var saleType = "sale";
           t.indexOf("load failed") !== -1
         );
       }
-      function verifyReceiptActionCode(rawCode) {
+      function parseReceiptReturnQty(q) {
+        var n = parseFloat(q);
+        if (isNaN(n) || n < 0) return 0;
+        return n;
+      }
+      function receiptReturnQtyDisplay(q) {
+        var n = parseReceiptReturnQty(q);
+        if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+        return String(n);
+      }
+      function bindPosReturnLineInputs(scope) {
+        if (!scope) return;
+        scope.querySelectorAll(".pos-return-line").forEach(function (cb) {
+          function syncRowState() {
+            var row = cb.closest(".pos-return-item");
+            if (row) {
+              row.classList.toggle("is-selected", !!cb.checked);
+              row.classList.toggle("border-[rgb(var(--rc-primary))]/45", !!cb.checked);
+              row.classList.toggle("bg-[rgb(var(--rc-primary))]/5", !!cb.checked);
+            }
+            var qtyInput = row ? row.querySelector(".pos-return-qty") : null;
+            if (qtyInput) {
+              qtyInput.disabled = !cb.checked;
+              if (cb.checked && !String(qtyInput.value || "").trim()) {
+                qtyInput.value = qtyInput.getAttribute("data-max") || "1";
+              }
+            }
+          }
+          cb.addEventListener("change", syncRowState);
+          syncRowState();
+        });
+      }
+      function collectPosLineReturns(msgEl, scope) {
+        var root = scope || document;
+        var lineReturns = [];
+        var checked = root.querySelectorAll(".pos-return-line:checked");
+        for (var i = 0; i < checked.length; i++) {
+          var cb = checked[i];
+          var lineId = parseInt(cb.value || "0", 10) || 0;
+          if (lineId <= 0) continue;
+          var row = cb.closest("[data-line-id]");
+          var maxQty = parseReceiptReturnQty(row ? row.getAttribute("data-max-qty") : 0);
+          if (maxQty <= 0) continue;
+          var returnQty = maxQty;
+          if (maxQty > 1) {
+            var qtyInput = row ? row.querySelector(".pos-return-qty") : null;
+            returnQty = parseReceiptReturnQty(qtyInput ? qtyInput.value : maxQty);
+            if (returnQty <= 0 || returnQty > maxQty + 1e-9) {
+              if (msgEl) {
+                msgEl.textContent =
+                  "Enter a return quantity between 1 and " + receiptReturnQtyDisplay(maxQty) + " for each selected item.";
+              }
+              return null;
+            }
+          }
+          lineReturns.push({ line_id: lineId, qty: returnQty });
+        }
+        return lineReturns;
+      }
+      function roleAllowedForReceiptAction(role, allowedMap) {
+        return !!(allowedMap && allowedMap[String(role || "").trim().toLowerCase()]);
+      }
+      function verifyReceiptActionCode(rawCode, allowedRoles) {
+        var allowed = allowedRoles || { manager: 1, admin: 1, super_admin: 1 };
+        var roleErr =
+          allowed.it_support
+            ? "Only manager, admin, super admin, or IT support can do this action."
+            : "Only manager, admin, or super admin can do this action.";
         var code = String(rawCode || "").replace(/\D/g, "").slice(0, 6);
         if (!/^\d{6}$/.test(code)) {
           return Promise.reject(new Error("Enter a valid 6-digit code."));
@@ -637,8 +851,8 @@ var saleType = "sale";
             if (!j || !j.ok) throw new Error((j && j.error) || "Authorization failed.");
             employeeAuthCacheUpsert(j.employee || null);
             var role = String((j.employee && j.employee.role) || "").trim().toLowerCase();
-            if (role !== "manager" && role !== "admin" && role !== "super_admin") {
-              throw new Error("Only manager, admin, or super admin can do this action.");
+            if (!roleAllowedForReceiptAction(role, allowed)) {
+              throw new Error(roleErr);
             }
             return j.employee || {};
           })
@@ -647,8 +861,8 @@ var saleType = "sale";
             var cached = employeeAuthCacheFindByCode(code);
             if (!cached) throw new Error("Offline: employee code not in local cache. Connect once to sync employees.");
             var role = String(cached.role || "").trim().toLowerCase();
-            if (role !== "manager" && role !== "admin" && role !== "super_admin") {
-              throw new Error("Only manager, admin, or super admin can do this action.");
+            if (!roleAllowedForReceiptAction(role, allowed)) {
+              throw new Error(roleErr);
             }
             return cached;
           });
@@ -732,65 +946,143 @@ var saleType = "sale";
           };
         }
       }
+      function getReceiptReturnLayer() {
+        return document.getElementById("pos-receipt-return-layer");
+      }
+      function hideReturnReceiptPanel() {
+        var layer = getReceiptReturnLayer();
+        if (!layer) return;
+        var footer = document.getElementById("pos-receipt-return-footer");
+        var body = document.getElementById("pos-receipt-return-body");
+        var msg = document.getElementById("pos-receipt-return-msg");
+        if (footer) footer.innerHTML = "";
+        if (body) body.innerHTML = "";
+        if (msg) msg.textContent = "";
+        layer.classList.add("hidden");
+        layer.classList.remove("flex");
+        layer.setAttribute("aria-hidden", "true");
+      }
+      function prepareReturnVerifyCodeInput(input) {
+        if (!input) return;
+        input.value = "";
+        input.defaultValue = "";
+        input.disabled = false;
+        input.type = "password";
+        input.setAttribute("autocomplete", "off");
+        input.setAttribute("autocapitalize", "off");
+        input.setAttribute("autocorrect", "off");
+        input.setAttribute("spellcheck", "false");
+        input.setAttribute("readonly", "readonly");
+        input.setAttribute("data-1p-ignore", "true");
+        input.setAttribute("data-lpignore", "true");
+        setTimeout(function () {
+          input.removeAttribute("readonly");
+          try {
+            input.focus({ preventScroll: true });
+          } catch (e) {
+            input.focus();
+          }
+        }, 60);
+      }
+      function showReturnReceiptPanel() {
+        var layer = getReceiptReturnLayer();
+        if (!layer) return null;
+        layer.classList.remove("hidden");
+        layer.classList.add("flex");
+        layer.setAttribute("aria-hidden", "false");
+        return layer;
+      }
       function openReturnReceiptModal(sale, items) {
         var saleId = parseInt((sale && sale.id) || 0, 10) || 0;
         var recNo = (sale && sale.receipt_number) || ("#" + String(saleId));
-        var modal = ensureReceiptActionModal();
-        var title = document.getElementById("pos-receipt-action-title");
-        var subtitle = document.getElementById("pos-receipt-action-subtitle");
-        var body = document.getElementById("pos-receipt-action-body");
-        var msg = document.getElementById("pos-receipt-action-msg");
-        if (title) title.textContent = "Return items";
-        if (subtitle) subtitle.textContent = "Receipt " + String(recNo) + " · select items then enter 6-digit code";
-        var rows = (items || []).map(function (it) {
-          var lineId = parseInt(it.line_id || 0, 10) || 0;
-          var qty = parseFloat(it.qty || 0);
-          if (isNaN(qty) || qty < 0) qty = 0;
-          var qtyDisplay = fmtQty(qty);
-          var total = Number(it.line_total || 0);
-          return (
-            "<tr class='border-t border-[rgb(var(--rc-border))]/50 hover:bg-[rgb(var(--rc-surface-2))]/40'>" +
-            "<td class='py-3 px-2 text-center'><input type='checkbox' class='pos-return-line h-4 w-4 rounded border-[rgb(var(--rc-border))]' value='" + escHtml(lineId) + "'" + (qty <= 0 ? " disabled" : "") + " /></td>" +
-            "<td class='py-3 px-2 text-[rgb(var(--rc-page-fg))]'><div class='font-semibold'>" + escHtml(it.item_name || "Item") + "</div></td>" +
-            "<td class='py-3 px-2 text-right tabular-nums font-semibold'>" + escHtml(qtyDisplay) + "</td>" +
-            "<td class='py-3 px-2 text-right tabular-nums'>" + escHtml(total.toFixed(2)) + "</td>" +
-            "</tr>"
-          );
-        }).join("");
+        var layer = showReturnReceiptPanel();
+        if (!layer) return;
+        var subtitle = document.getElementById("pos-receipt-return-subtitle");
+        var body = document.getElementById("pos-receipt-return-body");
+        var footer = document.getElementById("pos-receipt-return-footer");
+        var msg = document.getElementById("pos-receipt-return-msg");
+        if (subtitle) subtitle.textContent = "Receipt " + String(recNo);
+        var itemCards = (items || [])
+          .map(function (it) {
+            var lineId = parseInt(it.line_id || 0, 10) || 0;
+            var qty = parseReceiptReturnQty(it.qty);
+            var qtyDisplay = receiptReturnQtyDisplay(qty);
+            var total = Number(it.line_total || 0);
+            var unit = qty > 0 ? total / qty : 0;
+            var disabled = qty <= 0;
+            var qtyField =
+              qty > 1
+                ? '<div class="mt-2 flex items-center gap-2">' +
+                  '<span class="text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Return qty</span>' +
+                  '<input type="number" class="pos-return-qty w-[4.5rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-[rgb(var(--rc-primary))]/60 focus:ring-1 focus:ring-[rgb(var(--rc-primary))]/25" data-max="' +
+                  escHtml(qtyDisplay) +
+                  '" min="1" max="' +
+                  escHtml(qtyDisplay) +
+                  '" step="any" value="' +
+                  escHtml(qtyDisplay) +
+                  '" disabled />' +
+                  '<span class="text-[10px] text-[rgb(var(--rc-muted))]">of ' +
+                  escHtml(qtyDisplay) +
+                  "</span></div>"
+                : "";
+            return (
+              '<div class="pos-return-item flex gap-3 rounded-lg border border-[rgb(var(--rc-border))]/60 px-2.5 py-2.5 transition" data-line-id="' +
+              escHtml(lineId) +
+              '" data-max-qty="' +
+              escHtml(qty) +
+              '">' +
+              '<input type="checkbox" class="pos-return-line mt-0.5 h-4 w-4 shrink-0 rounded border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]" value="' +
+              escHtml(lineId) +
+              '"' +
+              (disabled ? " disabled" : "") +
+              " />" +
+              '<div class="min-w-0 flex-1">' +
+              '<div class="text-sm font-semibold leading-snug text-[rgb(var(--rc-page-fg))]">' +
+              escHtml(it.item_name || "Item") +
+              "</div>" +
+              '<div class="mt-0.5 text-[11px] tabular-nums text-[rgb(var(--rc-muted))]">' +
+              escHtml(qtyDisplay) +
+              " sold · " +
+              escHtml(total.toFixed(2)) +
+              (qty > 1 ? " · " + escHtml(unit.toFixed(2)) + " ea" : "") +
+              "</div>" +
+              qtyField +
+              "</div></div>"
+            );
+          })
+          .join("");
         if (body) {
-          body.innerHTML =
-            '<div class="space-y-3 rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-gradient-to-br from-[rgb(var(--rc-surface-2))]/65 to-[rgb(var(--rc-surface))] p-3 sm:p-4">' +
-            '<div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))]/90 px-3 py-2.5">' +
-            '<p class="text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Choose specific lines to return.</p>' +
-            '<label class="inline-flex items-center gap-2 rounded-lg border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))]"><input id="pos-return-select-all" type="checkbox" class="h-4 w-4 rounded border-[rgb(var(--rc-border))]" />All</label>' +
-            "</div>" +
-            '<div class="overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface))] shadow-sm">' +
-            "<table class='min-w-full text-xs sm:text-sm'><thead><tr class='text-left text-[rgb(var(--rc-muted))]'>" +
-            "<th class='py-2.5 px-2 text-center font-bold uppercase tracking-wider'>Pick</th>" +
-            "<th class='py-2.5 px-2 font-bold uppercase tracking-wider'>Item</th>" +
-            "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Qty</th>" +
-            "<th class='py-2.5 px-2 text-right font-bold uppercase tracking-wider'>Total</th>" +
-            "</tr></thead><tbody>" + rows + "</tbody></table></div>" +
-            '<div class="rounded-xl border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-surface))] p-3 shadow-sm">' +
-            '<label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))]">6-digit verification code</label>' +
-            '<div class="relative">' +
-            '<input id="pos-receipt-return-code" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="Enter 6 digits" class="w-full rounded-xl border border-[rgb(var(--rc-primary))]/45 bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 pr-11 text-sm font-semibold tracking-[0.26em] text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/70 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />' +
-            '<button type="button" id="pos-receipt-return-code-toggle" class="absolute inset-y-0 right-1 inline-flex h-full items-center justify-center px-2 text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))]" aria-label="Show code" title="Show code">' +
+          if (!items || !items.length) {
+            body.innerHTML = '<p class="py-6 text-center text-sm text-[rgb(var(--rc-muted))]">No returnable items on this receipt.</p>';
+          } else {
+            body.innerHTML =
+              '<div class="mb-2 flex items-center justify-between gap-2">' +
+              '<p class="text-[11px] text-[rgb(var(--rc-muted))]">Select items to return.</p>' +
+              '<label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[rgb(var(--rc-page-fg))]">' +
+              '<input id="pos-return-select-all" type="checkbox" class="h-3.5 w-3.5 rounded border-[rgb(var(--rc-border))]" />' +
+              "All</label></div>" +
+              '<div class="space-y-2">' +
+              itemCards +
+              "</div>";
+            bindPosReturnLineInputs(body);
+          }
+        }
+        if (footer) {
+          footer.innerHTML =
+            '<label class="mb-1.5 block text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Staff verification code</label>' +
+            '<div class="flex flex-col gap-2 sm:flex-row sm:items-center">' +
+            '<div class="relative min-w-0 flex-1">' +
+            '<input id="pos-receipt-return-code" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit code" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" value="" name="pos-return-verify-code" data-1p-ignore="true" data-lpignore="true" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5 pr-10 text-sm font-semibold tracking-[0.22em] text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/60 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/15" />' +
+            '<button type="button" id="pos-receipt-return-code-toggle" class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center text-[rgb(var(--rc-muted))] transition hover:text-[rgb(var(--rc-page-fg))]" aria-label="Show code" title="Show code">' +
             '<svg id="pos-receipt-return-code-eye-open" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>' +
             '<svg id="pos-receipt-return-code-eye-closed" class="hidden h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l18 18"></path><path d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58"></path><path d="M9.36 5.37A10.94 10.94 0 0112 5c6.5 0 10 7 10 7a14.57 14.57 0 01-4.08 4.92"></path><path d="M6.23 6.23A14.54 14.54 0 002 12s3.5 7 10 7a10.94 10.94 0 005.27-1.37"></path></svg>' +
-            "</button>" +
+            "</button></div>" +
+            '<button type="button" id="pos-receipt-return-submit" class="btn-rc btn-rc-danger w-full shrink-0 rounded-lg px-4 py-2.5 text-xs font-bold uppercase tracking-wider sm:w-auto">Return items</button>' +
             "</div>" +
-            '<p id="pos-return-picked-hint" class="mt-1.5 text-[11px] text-[rgb(var(--rc-muted))]">0 item lines selected.</p>' +
-            '<p id="pos-return-code-hint" class="mt-0.5 text-[11px] text-[rgb(var(--rc-muted))]">Verification runs automatically on the 6th digit.</p>' +
-            "</div>" +
-            '<div class="sticky bottom-0 flex items-center justify-between gap-2 rounded-xl border border-[rgb(var(--rc-border))]/70 bg-[rgb(var(--rc-surface))]/90 px-3 py-2">' +
-            '<span class="text-[11px] font-semibold text-[rgb(var(--rc-muted))]">Auto submit after valid code</span>' +
-            '<button type="button" id="pos-receipt-return-submit" class="btn-rc btn-rc-danger rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Return now</button>' +
-            "</div>" +
-            "</div>";
+            '<p id="pos-return-picked-hint" class="mt-2 text-[11px] text-[rgb(var(--rc-muted))]">0 items selected</p>' +
+            '<p id="pos-return-code-hint" class="text-[10px] text-[rgb(var(--rc-muted))]">Code is checked automatically on the 6th digit.</p>';
         }
-        if (msg) msg.textContent = "Select lines, then enter 6-digit code.";
-        modal.classList.remove("hidden");
+        if (msg) msg.textContent = "";
         var submit = document.getElementById("pos-receipt-return-submit");
         var codeInput = document.getElementById("pos-receipt-return-code");
         var codeToggle = document.getElementById("pos-receipt-return-code-toggle");
@@ -801,22 +1093,18 @@ var saleType = "sale";
         var codeHint = document.getElementById("pos-return-code-hint");
         var returnAuthInFlight = false;
         var returnLast6 = "";
-        function selectedLineIds() {
-          return Array.prototype.slice
-            .call(document.querySelectorAll(".pos-return-line:checked"))
-            .map(function (cb) { return parseInt(cb.value || "0", 10) || 0; })
-            .filter(function (n) { return n > 0; });
-        }
+        prepareReturnVerifyCodeInput(codeInput);
         function updatePickedHint() {
-          var count = selectedLineIds().length;
+          var count = layer.querySelectorAll(".pos-return-line:checked").length;
           if (pickedHint) {
-            pickedHint.textContent = String(count) + " item line" + (count === 1 ? "" : "s") + " selected.";
+            pickedHint.textContent = String(count) + " item" + (count === 1 ? "" : "s") + " selected";
           }
         }
         function runAutoReturnFromCode(source) {
           if (returnAuthInFlight) return;
-          var picks = selectedLineIds();
-          if (!picks.length) {
+          var lineReturns = collectPosLineReturns(msg, layer);
+          if (!lineReturns || !lineReturns.length) {
+            if (!lineReturns) return;
             if (msg) msg.textContent = "Select at least one item to return.";
             return;
           }
@@ -830,67 +1118,66 @@ var saleType = "sale";
           returnAuthInFlight = true;
           if (submit) submit.disabled = true;
           if (codeInput) codeInput.disabled = true;
-          if (msg) msg.textContent = "Verifying code...";
-          verifyReceiptActionCode(code)
+          if (msg) msg.textContent = "Verifying code…";
+          verifyReceiptActionCode(code, RECEIPT_RETURN_VERIFY_ROLES)
             .then(function () {
-              if (msg) msg.textContent = "Code valid. Returning selected items...";
+              if (msg) msg.textContent = "Processing return…";
               return fetch(RECEIPTS_RETURN_LINES_API, {
                 method: "POST",
                 credentials: "same-origin",
                 headers: { "Content-Type": "application/json", Accept: "application/json" },
-                body: JSON.stringify({ sale_id: saleId, line_ids: picks }),
+                body: JSON.stringify({ sale_id: saleId, line_returns: lineReturns }),
               });
             })
             .then(function (r) { return r.json().catch(function () { return {}; }); })
             .then(function (j) {
               if (!j || !j.ok) throw new Error((j && j.error) || "Could not return receipt.");
-              modal.classList.add("hidden");
-              setReceiptsMsg("Return processed.", "ok");
+              hideReturnReceiptPanel();
+              var units = (j.meta && j.meta.returned_qty) || lineReturns.length;
+              setReceiptsMsg("Returned " + String(units) + " unit(s).", "ok");
               loadPosReceiptsList();
             })
             .catch(function (err) {
               if (msg) msg.textContent = (err && err.message) ? err.message : "Could not process return.";
-              if (codeHint) codeHint.textContent = "Fix the code and retry.";
+              if (codeHint) codeHint.textContent = "Enter a fresh 6-digit code and try again.";
               returnAuthInFlight = false;
+              returnLast6 = "";
               if (submit) submit.disabled = false;
-              if (codeInput) {
-                codeInput.disabled = false;
-                codeInput.focus();
-              }
+              prepareReturnVerifyCodeInput(codeInput);
             });
         }
         if (selectAll) {
-          selectAll.addEventListener("change", function () {
-            Array.prototype.slice.call(document.querySelectorAll(".pos-return-line")).forEach(function (cb) {
-              if (!cb.disabled) cb.checked = !!selectAll.checked;
+          selectAll.onchange = function () {
+            layer.querySelectorAll(".pos-return-line").forEach(function (cb) {
+              if (!cb.disabled) {
+                cb.checked = !!selectAll.checked;
+                cb.dispatchEvent(new Event("change", { bubbles: true }));
+              }
             });
             updatePickedHint();
-          });
+          };
         }
-        Array.prototype.slice.call(document.querySelectorAll(".pos-return-line")).forEach(function (cb) {
-          cb.addEventListener("change", updatePickedHint);
+        layer.querySelectorAll(".pos-return-line").forEach(function (cb) {
+          cb.onchange = updatePickedHint;
         });
         updatePickedHint();
         if (codeInput) {
-          codeInput.focus();
-          codeInput.select();
-          codeInput.addEventListener("input", function () {
+          codeInput.oninput = function () {
             var val = (codeInput.value || "").replace(/\D/g, "").slice(0, 6);
             codeInput.value = val;
             if (codeHint) {
-              codeHint.textContent = val.length < 6
-                ? "Verification runs automatically on the 6th digit."
-                : "Verifying now...";
+              codeHint.textContent =
+                val.length < 6 ? "Code is checked automatically on the 6th digit." : "Verifying…";
             }
             if (val.length === 6) {
               setTimeout(function () { runAutoReturnFromCode("auto"); }, 120);
             } else {
               returnLast6 = "";
             }
-          });
+          };
         }
         if (codeToggle && codeInput) {
-          codeToggle.addEventListener("click", function () {
+          codeToggle.onclick = function () {
             var show = codeInput.type === "password";
             codeInput.type = show ? "text" : "password";
             codeToggle.setAttribute("aria-label", show ? "Hide code" : "Show code");
@@ -898,13 +1185,9 @@ var saleType = "sale";
             if (codeEyeOpen) codeEyeOpen.classList.toggle("hidden", show);
             if (codeEyeClosed) codeEyeClosed.classList.toggle("hidden", !show);
             codeInput.focus();
-          });
-        }
-        if (submit) {
-          submit.onclick = function () {
-            runAutoReturnFromCode("manual");
           };
         }
+        if (submit) submit.onclick = function () { runAutoReturnFromCode("manual"); };
       }
       if (openReceiptsBtn) {
         openReceiptsBtn.addEventListener("click", function () {
@@ -913,9 +1196,26 @@ var saleType = "sale";
       }
       if (receiptsCloseBtn) receiptsCloseBtn.addEventListener("click", hideReceiptsModal);
       if (receiptsBackdrop) receiptsBackdrop.addEventListener("click", hideReceiptsModal);
+      (function () {
+        var returnClose = document.getElementById("pos-receipt-return-close");
+        var returnBackdrop = document.getElementById("pos-receipt-return-backdrop");
+        if (returnClose) returnClose.addEventListener("click", hideReturnReceiptPanel);
+        if (returnBackdrop) returnBackdrop.addEventListener("click", hideReturnReceiptPanel);
+      })();
       if (receiptsListBody) {
         receiptsListBody.addEventListener("click", function (e) {
-          var row = e.target && e.target.closest ? e.target.closest("[data-pos-receipt-row]") : null;
+          var reprintBtn = e.target && e.target.closest ? e.target.closest(".pos-receipt-reprint-row") : null;
+          if (reprintBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            var reprintId = parseInt(reprintBtn.getAttribute("data-sale-id") || "0", 10) || 0;
+            reprintReceiptBySaleId(reprintId);
+            return;
+          }
+          var pickCell = e.target && e.target.closest ? e.target.closest("[data-pos-receipt-pick]") : null;
+          if (!pickCell) return;
+          if (e.target && e.target.classList && e.target.classList.contains("pos-receipt-pick-radio")) return;
+          var row = pickCell.closest("[data-pos-receipt-row]");
           if (!row) return;
           selectedReceiptId = parseInt(row.getAttribute("data-sale-id") || "0", 10) || 0;
           renderReceiptsRows(receiptsRowsCache);
@@ -932,8 +1232,12 @@ var saleType = "sale";
           openCancelReceiptModal(selectedReceiptId, row.receipt_number || ("#" + String(selectedReceiptId)));
         });
       }
-      if (receiptsReturnBtn) {
+      if (receiptsReturnBtn && CAN_RETURN_RECEIPT_ITEMS) {
         receiptsReturnBtn.addEventListener("click", function () {
+          if (!selectedReceiptId) {
+            setReceiptsMsg("Select a receipt first.", "error");
+            return;
+          }
           withSelectedReceiptDetail(function (sale, items) {
             openReturnReceiptModal(sale || {}, items || []);
           });
@@ -941,21 +1245,22 @@ var saleType = "sale";
       }
       if (receiptsReprintBtn) {
         receiptsReprintBtn.addEventListener("click", function () {
-          withSelectedReceiptDetail(function (sale, items) {
-            setReceiptsMsg("Sending receipt to printer...", "muted");
-            var payload = buildPersistedReceiptPayload(sale, items);
-            return runConfiguredPrinterAction(payload, { receiptVariants: receiptVariantsForCheckout() })
-              .then(function () {
-                setReceiptsMsg("Reprint sent.", "ok");
-              })
-              .catch(function () {
-                setReceiptsMsg("Could not print receipt.", "error");
-              });
-          });
+          if (!selectedReceiptId) {
+            setReceiptsMsg("Select a receipt first.", "error");
+            return;
+          }
+          reprintReceiptBySaleId(selectedReceiptId);
         });
       }
       document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape" && receiptsModal && !receiptsModal.classList.contains("hidden")) {
+        if (e.key !== "Escape") return;
+        var returnLayer = getReceiptReturnLayer();
+        if (returnLayer && !returnLayer.classList.contains("hidden")) {
+          hideReturnReceiptPanel();
+          e.preventDefault();
+          return;
+        }
+        if (receiptsModal && !receiptsModal.classList.contains("hidden")) {
           hideReceiptsModal();
         }
       });
@@ -3624,19 +3929,21 @@ var saleType = "sale";
             "</div>";
         }
         return (
-          '<div class="pos-cart-line-item group flex min-w-0 items-center gap-2">' +
-          '<div class="min-w-0 flex-1">' +
-          '<p class="truncate text-[13px] font-semibold leading-tight text-[rgb(var(--rc-page-fg))]">' +
+          '<article class="pos-cart-line-card pos-cart-line-item group">' +
+          '<div class="pos-cart-line-card__main min-w-0 flex-1">' +
+          '<p class="pos-cart-line-card__name truncate text-[13px] font-semibold leading-tight text-[rgb(var(--rc-page-fg))]">' +
           escapeHtml(line.name) +
           "</p>" +
+          '<div class="pos-cart-line-card__meta">' +
           priceRow +
           "</div>" +
-          '<div class="flex shrink-0 items-center gap-2">' +
+          "</div>" +
+          '<div class="pos-cart-line-card__aside flex shrink-0 flex-col items-end gap-1.5">' +
           '<span class="pos-cart-line-total text-xs font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">' +
           lt +
           "</span>" +
           qtyControlsHtml +
-          "</div></div>"
+          "</div></article>"
         );
       }
 
@@ -3663,9 +3970,12 @@ var saleType = "sale";
         });
 
         var empty =
-          '<div class="flex flex-col items-center justify-center py-8 text-center">' +
-          '<svg class="mb-2 h-7 w-7 text-[rgb(var(--rc-muted))] opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>' +
-          '<p class="text-[11px] font-medium text-[rgb(var(--rc-muted))]">Tap items to add</p></div>';
+          '<div class="pos-cart-empty flex flex-col items-center justify-center py-10 text-center">' +
+          '<span class="pos-cart-empty__icon mb-3 flex h-14 w-14 items-center justify-center rounded-2xl" aria-hidden="true">' +
+          '<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>' +
+          "</span>" +
+          '<p class="pos-cart-empty__title text-sm font-bold text-[rgb(var(--rc-page-fg))]">Your cart is empty</p>' +
+          '<p class="pos-cart-empty__hint mt-1 max-w-[14rem] text-[11px] font-medium leading-snug text-[rgb(var(--rc-muted))]">Tap products in the catalog to add them here</p></div>';
 
         var inner = lines.length ? html : empty;
 
@@ -3704,6 +4014,14 @@ var saleType = "sale";
               lines.length + " line" + (lines.length !== 1 ? "s" : "") + " · " + fmtQty(units) + " unit" + (Math.abs(units - 1) < 1e-9 ? "" : "s");
           } else {
             lineCountEl.textContent = "";
+          }
+        }
+        var headerSub = document.getElementById("pos-cart-header-sub");
+        if (headerSub) {
+          if (lines.length) {
+            headerSub.textContent = lineCountEl && lineCountEl.textContent ? lineCountEl.textContent : lines.length + " items";
+          } else {
+            headerSub.textContent = "Tap items to add";
           }
         }
 
@@ -5106,9 +5424,7 @@ var saleType = "sale";
         card.classList.toggle("hidden", !show);
         if (hint) {
           var stkRef = String(mpesaStkReceiptRef || "").trim();
-          hint.textContent = stkRef
-            ? "Filled from STK Push. You can edit if needed."
-            : "Enter the code from the customer's M-Pesa SMS for manual till or paybill payments. STK Push fills this automatically.";
+          hint.textContent = stkRef ? "Filled from STK Push. You can edit if needed." : "";
         }
       }
 
@@ -9403,6 +9719,8 @@ var saleType = "sale";
         var id = chip.getAttribute("data-target");
         var el = id ? document.getElementById(id) : null;
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        var drawer = document.getElementById("pos-categories-drawer");
+        if (drawer && drawer.open) drawer.open = false;
       }
 
       function updateChipsNavButtons() {
@@ -9465,6 +9783,14 @@ var saleType = "sale";
         if (chipsScrollEl) {
           chipsScrollEl.addEventListener("scroll", updateChipsNavButtons, { passive: true });
           updateChipsNavButtons();
+        }
+        var categoriesDrawer = document.getElementById("pos-categories-drawer");
+        if (categoriesDrawer) {
+          categoriesDrawer.addEventListener("toggle", function () {
+            if (categoriesDrawer.open) {
+              requestAnimationFrame(updateChipsNavButtons);
+            }
+          });
         }
         document.addEventListener("keydown", function (e) {
           if (posCatalogTypingTarget(e.target) && e.key !== "Escape") return;

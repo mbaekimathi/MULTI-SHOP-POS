@@ -1,0 +1,149 @@
+/**
+ * IT Support — Point of sale settings tab (system settings).
+ */
+
+.pos-settings {
+  width: 100%;
+  max-width: 36rem;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.pos-settings__hero {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.85);
+}
+
+.pos-settings__title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgb(var(--rc-page-fg));
+}
+
+.pos-settings__lead {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgb(var(--rc-muted));
+}
+
+.pos-settings__lead a {
+  color: rgb(var(--rc-primary));
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pos-settings__lead a:hover {
+  text-decoration: underline;
+}
+
+.pos-settings__grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pos-settings__section {
+  border: 1px solid rgba(var(--rc-border), 0.9);
+  border-radius: 0.75rem;
+  background: rgba(var(--rc-surface-2), 0.35);
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.pos-settings__section-head {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.55);
+  background: rgba(var(--rc-surface-2), 0.65);
+}
+
+.pos-settings__section-title {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-page-fg));
+}
+
+.pos-settings__section-note {
+  margin: 0.15rem 0 0;
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: rgb(var(--rc-muted));
+}
+
+.pos-settings__rows {
+  padding: 0;
+}
+
+.pos-settings__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.4);
+}
+
+.pos-settings__row:last-child {
+  border-bottom: none;
+}
+
+.pos-settings__row-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgb(var(--rc-page-fg));
+}
+
+.pos-settings__chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem 0.65rem;
+}
+
+.pos-settings__chip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(var(--rc-border), 0.75);
+  border-radius: 0.55rem;
+  background: rgba(var(--rc-surface), 0.65);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgb(var(--rc-page-fg));
+}
+
+#it-settings-form:has(#pos:not(.hidden)) {
+  border-color: rgba(var(--rc-border), 0.9);
+  box-shadow: none;
+}
+
+@media (max-width: 639px) {
+  .pos-settings {
+    max-width: none;
+  }
+
+  .pos-settings__title {
+    font-size: 1rem;
+  }
+
+  .pos-settings__lead {
+    font-size: 0.6875rem;
+  }
+
+  .pos-settings__chips {
+    grid-template-columns: 1fr;
+  }
+
+  .pos-settings__row-label {
+    font-size: 0.75rem;
+  }
+}

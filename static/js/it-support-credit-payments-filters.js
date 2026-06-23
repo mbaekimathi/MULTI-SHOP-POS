@@ -1,136 +1,95 @@
 /**
- * IT Support credit payments — live GET filters with clean analytics-aligned URLs.
+ * IT Support credit hub — live GET filters (no full page reload).
  */
 (function () {
-  function init() {
-    var form = document.getElementById("it-analytics-filter-form");
-    var toolbar = document.getElementById("cp-credit-toolbar");
-    if (!form || form.getAttribute("data-live-filter") !== "credit-payments") return;
+  function creditBuildParams(form) {
+    var liveKey = form.getAttribute("data-live-filter");
+    var params = new URLSearchParams();
 
-    var modeEl = document.getElementById("analytics-filter-mode");
-    var filterDay = document.getElementById("filter-single-day");
-    var filterPeriod = document.getElementById("filter-period");
-    var filterMonth = document.getElementById("filter-month");
-    var filterYear = document.getElementById("filter-year");
-    var debounceTimer = null;
-    var searchTimer = null;
-
-    function syncModeFields() {
-      if (!modeEl) return;
-      var m = modeEl.value || "single_day";
-      if (filterDay) filterDay.classList.toggle("hidden", m !== "single_day");
-      if (filterPeriod) filterPeriod.classList.toggle("hidden", m !== "period");
-      if (filterMonth) filterMonth.classList.toggle("hidden", m !== "month");
-      if (filterYear) filterYear.classList.toggle("hidden", m !== "year");
-    }
-
-    function buildCleanParams() {
-      var params = new URLSearchParams();
-      var shopEl = document.getElementById("cp-filter-shop");
+    if (liveKey === "credit-due") {
+      var daysEl = document.getElementById("cp-due-days");
+      if (daysEl && daysEl.value) params.set("days", daysEl.value);
+      var shopEl = document.getElementById("cp-due-shop");
       if (shopEl && shopEl.value) params.set("shop_id", shopEl.value);
-
-      var customerEl = document.getElementById("cp-customer-q");
+      var customerEl = document.getElementById("cp-due-customer-q");
       var cq = customerEl ? (customerEl.value || "").trim() : "";
       if (cq) params.set("customer_q", cq);
-
-      var mode = modeEl ? modeEl.value || "single_day" : "single_day";
-      params.set("mode", mode);
-
-      if (mode === "single_day") {
-        var sd = document.getElementById("analytics-single-day");
-        if (sd && sd.value) params.set("single_day", sd.value);
-      } else if (mode === "period") {
-        var start = document.getElementById("analytics-start-date");
-        var end = document.getElementById("analytics-end-date");
-        if (start && start.value) params.set("start_date", start.value);
-        if (end && end.value) params.set("end_date", end.value);
-      } else if (mode === "month") {
-        var month = document.getElementById("analytics-month");
-        if (month && month.value) params.set("month", month.value);
-      } else if (mode === "year") {
-        var year = document.getElementById("analytics-year");
-        if (year && year.value) params.set("year", year.value);
-      }
-
       return params;
     }
 
-    function setLoading(loading) {
-      if (!toolbar) return;
-      toolbar.classList.toggle("cp-credit-toolbar--loading", loading);
-      toolbar.setAttribute("aria-busy", loading ? "true" : "false");
-    }
-
-    function persistAndSubmit() {
-      var params = buildCleanParams();
-      if (window.itSupportAnalyticsFilter && typeof window.itSupportAnalyticsFilter.save === "function") {
-        window.itSupportAnalyticsFilter.save(params);
+    if (liveKey === "credit-audit") {
+      var allTime = document.getElementById("cp-audit-all-time");
+      if (allTime && allTime.checked) {
+        params.set("all_time", "1");
+        return params;
       }
-      setLoading(true);
-      var base = form.getAttribute("action") || form.action || window.location.pathname;
-      var qs = params.toString();
-      window.location.href = qs ? base + "?" + qs : base;
+      var shopElA = document.getElementById("cp-audit-shop");
+      if (shopElA && shopElA.value) params.set("shop_id", shopElA.value);
+      var customerElA = document.getElementById("cp-audit-customer-q");
+      var cqa = customerElA ? (customerElA.value || "").trim() : "";
+      if (cqa) params.set("customer_q", cqa);
+      var scopeEl = document.getElementById("cp-audit-payment-scope");
+      if (scopeEl && scopeEl.value) params.set("payment_scope", scopeEl.value);
+      var modeElA = document.getElementById("cp-audit-mode");
+      var modeA = modeElA ? modeElA.value || "single_day" : "single_day";
+      params.set("mode", modeA);
+      if (modeA === "single_day") {
+        var sdA = document.getElementById("cp-audit-day");
+        if (sdA && sdA.value) params.set("single_day", sdA.value);
+      } else if (modeA === "period") {
+        var startA = document.getElementById("cp-audit-start");
+        var endA = document.getElementById("cp-audit-end");
+        if (startA && startA.value) params.set("start_date", startA.value);
+        if (endA && endA.value) params.set("end_date", endA.value);
+      } else if (modeA === "month") {
+        var monthA = document.getElementById("cp-audit-month-input");
+        if (monthA && monthA.value) params.set("month", monthA.value);
+      } else if (modeA === "year") {
+        var yearA = document.getElementById("cp-audit-year-input");
+        if (yearA && yearA.value) params.set("year", yearA.value);
+      }
+      return params;
     }
 
-    function scheduleSubmit(delay) {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        debounceTimer = null;
-        persistAndSubmit();
-      }, delay == null ? 280 : delay);
+    var shopEl = document.getElementById("cp-filter-shop");
+    if (shopEl && shopEl.value) params.set("shop_id", shopEl.value);
+    var customerEl = document.getElementById("cp-customer-q");
+    var cq = customerEl ? (customerEl.value || "").trim() : "";
+    if (cq) params.set("customer_q", cq);
+    var modeEl = document.getElementById("analytics-filter-mode");
+    var mode = modeEl ? modeEl.value || "single_day" : "single_day";
+    params.set("mode", mode);
+    if (mode === "single_day") {
+      var sd = document.getElementById("analytics-single-day");
+      if (sd && sd.value) params.set("single_day", sd.value);
+    } else if (mode === "period") {
+      var start = document.getElementById("analytics-start-date");
+      var end = document.getElementById("analytics-end-date");
+      if (start && start.value) params.set("start_date", start.value);
+      if (end && end.value) params.set("end_date", end.value);
+    } else if (mode === "month") {
+      var month = document.getElementById("analytics-month");
+      if (month && month.value) params.set("month", month.value);
+    } else if (mode === "year") {
+      var year = document.getElementById("analytics-year");
+      if (year && year.value) params.set("year", year.value);
     }
+    return params;
+  }
 
-    form.addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      persistAndSubmit();
+  function initCreditForm(form) {
+    if (!form || !window.PortalLiveFilters) return;
+    window.PortalLiveFilters.wireForm(form, {
+      buildParams: function () {
+        return creditBuildParams(form);
+      },
     });
+  }
 
-    if (modeEl) {
-      modeEl.addEventListener("change", function () {
-        syncModeFields();
-        scheduleSubmit(80);
-      });
-    }
-
-    form.querySelectorAll("select").forEach(function (el) {
-      if (el === modeEl) return;
-      el.addEventListener("change", function () {
-        scheduleSubmit(120);
-      });
-    });
-
-    form.querySelectorAll('input[type="date"], input[type="month"]').forEach(function (el) {
-      el.addEventListener("change", function () {
-        scheduleSubmit();
-      });
-    });
-
-    var yearInput = document.getElementById("analytics-year");
-    if (yearInput) {
-      yearInput.addEventListener("change", function () {
-        scheduleSubmit();
-      });
-      yearInput.addEventListener("input", function () {
-        if (searchTimer) clearTimeout(searchTimer);
-        searchTimer = setTimeout(function () {
-          searchTimer = null;
-          var y = parseInt(yearInput.value, 10);
-          if (y >= 2000 && y <= 2100) scheduleSubmit(0);
-        }, 450);
-      });
-    }
-
-    form.querySelectorAll('input[type="search"]').forEach(function (el) {
-      el.addEventListener("input", function () {
-        if (searchTimer) clearTimeout(searchTimer);
-        searchTimer = setTimeout(function () {
-          searchTimer = null;
-          scheduleSubmit(200);
-        }, 500);
-      });
-    });
-
-    syncModeFields();
+  function init() {
+    initCreditForm(document.getElementById("it-analytics-filter-form"));
+    initCreditForm(document.getElementById("credit-audit-filter-form"));
+    initCreditForm(document.getElementById("credit-due-filter-form"));
   }
 
   if (document.readyState === "loading") {

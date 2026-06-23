@@ -8,63 +8,20 @@
 {% block head %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
-  <style>
-    #incomes-page .incomes-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #incomes-page .incomes-stat::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto auto 0;
-      width: 100%;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(16, 185, 129, 0.85), rgba(56, 189, 248, 0.85));
-    }
-    #incomes-page .incomes-table-wrap {
-      max-height: min(70vh, 760px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #incomes-page .incomes-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   {% set rows = income_rows or [] %}
-  <div id="incomes-page" class="mx-auto max-w-7xl space-y-6">
-    <div class="incomes-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
-      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Accounts · Income</p>
-      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Cash &amp; M-Pesa incomes</h2>
-      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-        POS cash sales, M-Pesa sales, split-tender receipts, and credit account settlements paid by cash or M-Pesa.
-        Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
-      </p>
-
-      <div class="mt-5 grid gap-3 sm:grid-cols-3">
-        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Cash total</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_cash or 0) }}</div>
-        </div>
-        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">M-Pesa total</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_mpesa or 0) }}</div>
-        </div>
-        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Combined</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_income or 0) }}</div>
-          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ income_totals.count or 0 }} payment{{ '' if (income_totals.count or 0) == 1 else 's' }}</div>
-        </div>
-      </div>
-    </div>
-
+  <div id="incomes-page" class="portal-live-root mx-auto max-w-7xl space-y-6">
     <div class="incomes-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
       <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h3>
-      <form method="get" action="{{ url_for('it_support_accounts_incomes') }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+      <form
+        method="get"
+        action="{{ url_for('it_support_accounts_incomes') }}"
+        data-portal-live-filter
+        data-portal-live-content="#portal-live-content"
+        class="portal-filter-toolbar--legacy mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end"
+      >
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period mode</label>
           <select id="incomes-filter-mode" name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
@@ -112,10 +69,35 @@
           </select>
         </div>
         <div class="flex gap-2">
-          <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Apply</button>
-          <a href="{{ url_for('it_support_accounts_incomes') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Reset</a>
+          <a href="{{ url_for('it_support_accounts_incomes') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold portal-live-keep-submit">Reset</a>
         </div>
       </form>
+    </div>
+
+    <div id="portal-live-content" data-portal-live-content class="space-y-6">
+    <div class="incomes-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Accounts · Income</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Cash &amp; M-Pesa incomes</h2>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        POS cash sales, M-Pesa sales, split-tender receipts, and credit account settlements paid by cash or M-Pesa.
+        Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+      </p>
+
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Cash total</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_cash or 0) }}</div>
+        </div>
+        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">M-Pesa total</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_mpesa or 0) }}</div>
+        </div>
+        <div class="incomes-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Combined</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(income_totals.total_income or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ income_totals.count or 0 }} payment{{ '' if (income_totals.count or 0) == 1 else 's' }}</div>
+        </div>
+      </div>
     </div>
 
     <div class="incomes-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">

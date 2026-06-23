@@ -3,32 +3,32 @@
 {% set payments_total = namespace(value=0) %}
 {% for p in payments %}{% set payments_total.value = payments_total.value + (p.amount|float) %}{% endfor %}
 
-<section id="shop-credit-payments" class="shop-cust-tx-section no-print" aria-labelledby="shop-cust-tx-payments-heading">
-  <div class="shop-cust-tx-section__head">
-    <div>
-      <h3 id="shop-cust-tx-payments-heading" class="shop-cust-tx-section__title">Payment history</h3>
-      <p class="shop-cust-tx-section__desc">{{ payments|length }} payment{% if payments|length != 1 %}s{% endif %} · {{ "%.2f"|format(payments_total.value) }} received</p>
-    </div>
+<section id="shop-credit-payments" class="rc-card rc-card--scroll overflow-hidden shop-cust-tx-section no-print" aria-labelledby="shop-cust-tx-payments-heading">
+  <div class="rc-card__head shop-cust-tx-section__head">
+    <h3 id="shop-cust-tx-payments-heading" class="rc-section-title shop-cust-tx-section__title">Payment history</h3>
+    <p class="rc-section-lead shop-cust-tx-section__desc">{{ payments|length }} payment{% if payments|length != 1 %}s{% endif %} · {{ "%.2f"|format(payments_total.value) }} received</p>
   </div>
 
   {% if not payments %}
-  <p class="shop-cust-tx-empty">{% if public_credit_pay|default(false) %}No payments recorded yet.{% else %}No payments recorded yet. Use <strong>Update payment</strong> above when the customer pays.{% endif %}</p>
+  <div class="rc-card__body px-4 py-8 sm:px-5">
+    <p class="shop-cust-tx-empty">{% if public_credit_pay|default(false) %}No payments recorded yet.{% else %}No payments recorded yet. Use <strong>Update payment</strong> above when the customer pays.{% endif %}</p>
+  </div>
   {% else %}
-  <div class="shop-cn-items-table-wrap">
-    <table class="shop-cn-items-table shop-cn-items-table--payments">
+  <div class="rc-table-wrap rc-table-wrap--sticky-head shop-cn-items-table-wrap">
+    <table class="rc-data-table shop-cn-items-table shop-cn-items-table--payments min-w-[28rem]">
       <thead>
         <tr>
           <th scope="col">Date</th>
           <th scope="col">Note</th>
-          <th scope="col" class="num">Amount</th>
+          <th scope="col" class="text-right">Amount</th>
         </tr>
       </thead>
       <tbody>
         {% for p in payments|reverse %}
         <tr>
-          <td class="whitespace-nowrap">{{ p.created_at or '—' }}</td>
-          <td>{{ p.note or '—' }}</td>
-          <td class="num tabular-nums shop-cn-pay-amount">{{ "%.2f"|format(p.amount or 0) }}</td>
+          <td class="whitespace-nowrap tabular-nums">{{ p.created_at or '—' }}</td>
+          <td class="rc-cell-wrap">{{ p.note or '—' }}</td>
+          <td class="text-right tabular-nums rc-amount--paid">{{ "%.2f"|format(p.amount or 0) }}</td>
         </tr>
         {% endfor %}
       </tbody>

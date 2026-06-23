@@ -1,53 +1,138 @@
 {% extends "employee_layout.html" %}
 {% block title %}My shops — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}My shops{% endblock %}
+{% block sidebar_links %}{% endblock %}
 {% block employee_content %}
-  <div class="mx-auto max-w-6xl space-y-6">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 sm:p-8">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+  {% set shop_list = shops or [] %}
+  {% set n_total = shop_list|length %}
+  {% set n_displayed = shop_list|selectattr('status', 'equalto', 'active')|list|length %}
+  {% set n_hidden = n_total - n_displayed %}
+  {% set n_till_open = shop_list|selectattr('till_state', 'equalto', 'open')|list|length %}
+
+  <div id="register-shop-page" class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {# Hero #}
+    <div class="relative overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] via-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-lg shadow-black/5 ring-1 ring-[rgb(var(--rc-border))]/60 sm:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="pointer-events-none absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-sky-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex min-w-0 flex-1 gap-4">
+          <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-600 ring-1 ring-brand-500/25 dark:text-brand-400">
+            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10l1-5h16l1 5M5 10v9a2 2 0 002 2h10a2 2 0 002-2v-9M9 14h6" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Store management</p>
+            <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">My shops</h2>
+            <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Register branches, manage portal visibility, open or close till days, and jump into POS or shop dashboards.
+              Shop name, location, and location description are stored in <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">uppercase</strong>.
+            </p>
+          </div>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            id="toggle-shop-form"
+            class="btn-rc btn-rc-primary inline-flex min-h-[2.75rem] items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-md shadow-brand-500/20"
+            aria-expanded="false"
+            aria-controls="shop-form-wrap"
+            data-form-closed-class="btn-rc-primary"
+            data-form-open-class="btn-rc-secondary"
+          >
+            <span id="toggle-shop-form-icon-add" aria-hidden="true">
+              <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </span>
+            <span id="toggle-shop-form-icon-close" class="hidden" aria-hidden="true">
+              <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </span>
+            <span id="toggle-shop-form-label">Add shop</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="relative mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 ring-1 ring-sky-400/20 dark:text-sky-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-2 0h-4m-5 0H3m2 0h4M9 7h1m-1 4h1m4-4h1m-1 4h1" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Total shops</div>
+            <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ n_total }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-400/20 dark:text-emerald-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Displayed</div>
+            <div class="text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">{{ n_displayed }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-500/15 text-slate-600 ring-1 ring-slate-400/20 dark:text-slate-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Hidden</div>
+            <div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ n_hidden }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 px-4 py-3">
+          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 ring-1 ring-violet-400/20 dark:text-violet-400">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" /></svg>
+          </span>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-widest text-[rgb(var(--rc-muted))]">Till open today</div>
+            <div class="text-2xl font-extrabold tabular-nums text-violet-600 dark:text-violet-400">{{ n_till_open }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% include "partials/flashes.html" %}
+
+    {# Add shop form #}
+    <div
+      id="shop-form-wrap"
+      class="register-shop-form-panel hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6"
+      hidden
+      aria-hidden="true"
+    >
+      <div class="mb-5 flex items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))]/80 pb-4">
         <div>
-          <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">My shops</h2>
-          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-            Register a new shop with required details. Shop name, location, and location description are stored in uppercase.
-          </p>
-          <p class="mt-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/60 px-3 py-2 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
-            <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Shop tools:</span>
-            Use the <span class="font-medium text-[rgb(var(--rc-page-fg))]">Login as</span> dropdown to open as shop admin (direct dashboard) or shop manager (employee sign-in).
-            Use <span class="font-medium text-[rgb(var(--rc-page-fg))]">POS</span> for the point-of-sale screen.
-            <span class="font-medium text-[rgb(var(--rc-page-fg))]">Till day</span> shows whether today&apos;s opening/closing balances are set — use <span class="font-medium text-[rgb(var(--rc-page-fg))]">Open till</span> or <span class="font-medium text-[rgb(var(--rc-page-fg))]">Close till</span> to enter balances in a popup when required.
-          </p>
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Register a new shop</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Fill in branch details, set a 6-digit till code, and upload an optional logo.</p>
         </div>
         <button
           type="button"
-          id="toggle-shop-form"
-          class="btn-rc btn-rc-primary h-10 w-10 p-0"
-          aria-expanded="false"
-          aria-controls="shop-form-wrap"
-          title="Show add shop form"
+          class="js-close-shop-form inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] text-[rgb(var(--rc-muted))] transition hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]"
+          aria-label="Close register shop form"
         >
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-
-      {% include "partials/flashes.html" %}
-
-      <div id="shop-form-wrap" class="mt-6 hidden">
       <form method="post" action="{{ url_for('it_support_register_shop') }}" enctype="multipart/form-data" class="space-y-5">
         <div class="grid gap-5 md:grid-cols-2">
           <div>
-            <label for="shop_name" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop name</label>
+            <label for="shop_name" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop name</label>
             <input
               id="shop_name"
               name="shop_name"
               required
-              class="js-shop-uppercase w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase"
+              class="js-shop-uppercase w-full min-h-[2.75rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none uppercase focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
               placeholder="E.G. MAIN STREET BRANCH"
             />
           </div>
           <div>
-            <label for="shop_code" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop code</label>
+            <label for="shop_code" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop code</label>
             <input
               id="shop_code"
               name="shop_code"
@@ -56,36 +141,33 @@
               maxlength="6"
               pattern="\d{6}"
               autocomplete="off"
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
-              placeholder="E.G. 123456"
+              class="w-full min-h-[2.75rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-mono tracking-wider text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+              placeholder="123456"
             />
-            <p id="shop-code-help" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Enter a unique 6-digit code (for till login — not shown on the website).</p>
+            <p id="shop-code-help" class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Unique 6-digit code for till login (not shown on the website).</p>
           </div>
           <div>
-            <label for="shop_phone" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop phone</label>
+            <label for="shop_phone" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop phone</label>
             <input
               id="shop_phone"
               name="shop_phone"
               type="tel"
               inputmode="tel"
               autocomplete="tel"
-              class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+              class="w-full min-h-[2.75rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
               placeholder="e.g. 0712 345 678"
             />
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Shown on the public homepage. Leave blank to use the company phone.</p>
           </div>
-        </div>
-
-        <div class="grid gap-5 md:grid-cols-2">
           <div>
-            <label for="shop_password" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Shop password</label>
+            <label for="shop_password" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop password</label>
             <div class="relative">
               <input
                 id="shop_password"
                 name="shop_password"
                 type="password"
                 required
-                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 pr-12 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                class="w-full min-h-[2.75rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 pr-12 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
                 placeholder="Enter secure password"
               />
               <button
@@ -110,93 +192,95 @@
         </div>
 
         {% include "partials/shop_location_fields.html" %}
-
         {% include "partials/shop_logo_upload_field.html" %}
 
-        <div class="flex flex-wrap gap-3 pt-2">
-          <button
-            type="submit"
-            class="btn-rc btn-rc-primary px-6 py-2.5 text-sm"
-          >
+        <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
+          <button type="submit" class="btn-rc btn-rc-primary inline-flex min-h-[2.75rem] items-center gap-2 px-5 py-2.5 text-sm font-semibold">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
             Add shop
           </button>
-          <a
-            href="{{ url_for('employee_dashboard', role=(portal_employee.role_key if portal_employee else 'it_support')) }}"
-            class="btn-rc btn-rc-ghost px-6 py-2.5 text-sm font-medium"
-          >
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7 7-7m-7 7h18" />
-            </svg>
-            Back to dashboard
-          </a>
+          <button type="button" id="cancel-shop-form" class="js-close-shop-form btn-rc btn-rc-ghost min-h-[2.75rem] px-5 py-2.5 text-sm font-semibold">Cancel</button>
         </div>
       </form>
-      </div>
     </div>
 
-    <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-      <div class="flex items-center justify-between border-b border-[rgb(var(--rc-border))] px-5 py-4">
-        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Registered shops</h3>
-        <span class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ (shops or [])|length }} total</span>
+    {# Tips #}
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))]/80 bg-[rgb(var(--rc-surface-2))]/40 px-4 py-3 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+      <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Quick tips:</span>
+      Use <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Login as</strong> to open a shop as admin or manager.
+      <strong class="font-medium text-[rgb(var(--rc-page-fg))]">POS</strong> opens the till screen.
+      <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Till day</strong> tracks today&apos;s opening/closing balances — use <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Open till</strong> or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Close till</strong> when prompted.
+    </div>
+
+    {# Shops table #}
+    <div class="rc-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-5 py-4">
+        <div>
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Registered shops</h3>
+          <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Manage visibility, till day, and branch access.</p>
+        </div>
+        <span class="rounded-full border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ n_total }} total</span>
       </div>
-      {% if not shops %}
-        <p class="px-5 py-4 text-sm text-[rgb(var(--rc-muted))]">No shops registered yet.</p>
+
+      {% if not shop_list %}
+        <div class="flex flex-col items-center justify-center px-6 py-16 text-center">
+          <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))] ring-1 ring-[rgb(var(--rc-border))]">
+            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10l1-5h16l1 5M5 10v9a2 2 0 002 2h10a2 2 0 002-2v-9M9 14h6" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">No shops yet</h3>
+          <p class="mt-2 max-w-sm text-sm text-[rgb(var(--rc-muted))]">Register your first branch to start selling on POS and managing stock per shop.</p>
+          <button type="button" class="btn-rc btn-rc-primary mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold js-open-add-shop">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            Add shop
+          </button>
+        </div>
       {% else %}
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
+        <div class="rc-table-wrap rc-table-wrap--tall rc-table-wrap--sticky-head">
+          <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Image</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop name</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Shop code</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Portal</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Till day</th>
-                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wider">Actions</th>
+                <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider">Shop</th>
+                <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider">Code</th>
+                <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider">Portal</th>
+                <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider">Till day</th>
+                <th class="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-              {% for s in shops %}
-                <tr class="js-shop-row" data-shop-id="{{ s.id }}" data-shop-name="{{ s.shop_name }}" data-till-state="{{ s.till_state|default('not_opened') }}">
+            <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+              {% for s in shop_list %}
+                <tr class="js-shop-row transition hover:bg-[rgb(var(--rc-surface-2))]/40" data-shop-id="{{ s.id }}" data-shop-name="{{ s.shop_name }}" data-till-state="{{ s.till_state|default('not_opened') }}">
                   <td class="px-4 py-3">
-                    <div class="h-10 w-10 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
-                      {% if s.shop_logo %}
-                        <img src="{{ url_for('static', filename=s.shop_logo) }}" alt="" class="h-full w-full object-cover" />
-                      {% else %}
-                        <div class="flex h-full w-full items-center justify-center text-xs font-bold text-[rgb(var(--rc-muted))]">{{ s.shop_name[:1] }}</div>
-                      {% endif %}
+                    <div class="flex items-center gap-3">
+                      <div class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]">
+                        {% if s.shop_logo %}
+                          <img src="{{ url_for('static', filename=s.shop_logo) }}" alt="" class="h-full w-full object-cover" />
+                        {% else %}
+                          <div class="flex h-full w-full items-center justify-center text-xs font-bold text-[rgb(var(--rc-muted))]">{{ s.shop_name[:1] }}</div>
+                        {% endif %}
+                      </div>
+                      <div class="min-w-0">
+                        <div class="truncate font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</div>
+                        {% if s.shop_location %}
+                          <div class="truncate text-xs text-[rgb(var(--rc-muted))]">{{ s.shop_location }}</div>
+                        {% endif %}
+                      </div>
                     </div>
                   </td>
-                  <td class="px-4 py-3 font-semibold text-[rgb(var(--rc-page-fg))]">{{ s.shop_name }}</td>
                   <td class="px-4 py-3 font-mono text-sm font-semibold tracking-wider text-[rgb(var(--rc-page-fg))]">{{ s.shop_code }}</td>
                   <td class="px-4 py-3">
                     {% if s.status == 'active' %}
-                      <span
-                        class="inline-flex min-w-[8.5rem] items-center gap-2.5 rounded-xl border border-emerald-500/35 bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-emerald-100 shadow-sm shadow-emerald-500/15 ring-1 ring-emerald-400/30"
-                        title="This shop is visible on POS and staff portals"
-                      >
-                        <span class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
-                          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50"></span>
-                          <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-950/20"></span>
-                        </span>
-                        <svg class="h-4 w-4 shrink-0 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        <span>Displayed</span>
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300" title="Visible on POS and staff portals">
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                        Displayed
                       </span>
                     {% else %}
-                      <span
-                        class="inline-flex min-w-[8.5rem] items-center gap-2.5 rounded-xl border border-slate-500/35 bg-gradient-to-br from-slate-500/20 via-slate-500/10 to-transparent px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-slate-200 shadow-sm shadow-black/10 ring-1 ring-slate-400/25"
-                        title="This shop is hidden from POS and staff portals"
-                      >
-                        <span class="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400 ring-2 ring-slate-950/20" aria-hidden="true"></span>
-                        <svg class="h-4 w-4 shrink-0 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                        </svg>
-                        <span>Hidden</span>
+                      <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300" title="Hidden from POS and staff portals">
+                        <span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                        Hidden
                       </span>
                     {% endif %}
                   </td>
@@ -204,13 +288,13 @@
                     {% set _ts = s.till_state|default('not_opened') %}
                     {% set _tl = s.till_label|default('Not opened') %}
                     {% if _ts == 'open' %}
-                      <span class="js-till-badge inline-flex min-w-[7.5rem] items-center justify-center rounded-xl border border-emerald-500/35 bg-emerald-500/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">{{ _tl }}</span>
+                      <span class="js-till-badge inline-flex min-w-[7rem] items-center justify-center rounded-full border border-emerald-500/35 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">{{ _tl }}</span>
                     {% elif _ts == 'closed' %}
-                      <span class="js-till-badge inline-flex min-w-[7.5rem] items-center justify-center rounded-xl border border-violet-500/35 bg-violet-500/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">{{ _tl }}</span>
+                      <span class="js-till-badge inline-flex min-w-[7rem] items-center justify-center rounded-full border border-violet-500/35 bg-violet-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">{{ _tl }}</span>
                     {% elif _ts == 'pending_closing' %}
-                      <span class="js-till-badge inline-flex min-w-[7.5rem] items-center justify-center rounded-xl border border-orange-500/35 bg-orange-500/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-800 dark:text-orange-200">{{ _tl }}</span>
+                      <span class="js-till-badge inline-flex min-w-[7rem] items-center justify-center rounded-full border border-orange-500/35 bg-orange-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-orange-800 dark:text-orange-200">{{ _tl }}</span>
                     {% else %}
-                      <span class="js-till-badge inline-flex min-w-[7.5rem] items-center justify-center rounded-xl border border-amber-500/35 bg-amber-500/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">{{ _tl }}</span>
+                      <span class="js-till-badge inline-flex min-w-[7rem] items-center justify-center rounded-full border border-amber-500/35 bg-amber-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">{{ _tl }}</span>
                     {% endif %}
                     <div class="js-till-toggle-cell mt-2">
                       {% if s.can_close_till|default(false) %}
@@ -265,7 +349,7 @@
     </div>
   </div>
 
-  {% if shops %}
+  {% if shop_list %}
   <div
     id="shop-edit-modal"
     class="fixed inset-0 z-[100] hidden"
@@ -283,8 +367,8 @@
       <div class="relative z-[1] flex max-h-[min(92vh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl shadow-black/25">
         <div class="flex shrink-0 items-start justify-between gap-3 border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
           <div class="min-w-0">
-            <p class="text-xs font-semibold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Edit shop</p>
-            <h2 id="shop-edit-modal-title" class="mt-0.5 truncate text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Shop details</h2>
+            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-brand-600/90 dark:text-brand-400/90">Edit shop</p>
+            <h2 id="shop-edit-modal-title" class="mt-0.5 truncate text-lg font-bold text-[rgb(var(--rc-page-fg))]">Shop details</h2>
           </div>
           <button
             type="button"
@@ -297,7 +381,7 @@
           </button>
         </div>
         <div id="shop-edit-modal-body" class="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          {% for s in shops %}
+          {% for s in shop_list %}
             <div id="edit-shop-panel-{{ s.id }}" class="edit-shop-panel hidden" data-shop-id="{{ s.id }}">
               {% include "partials/it_support_edit_shop_form.html" %}
             </div>
@@ -329,19 +413,63 @@
     (function () {
       var btn = document.getElementById("toggle-shop-form");
       var wrap = document.getElementById("shop-form-wrap");
+      var labelEl = document.getElementById("toggle-shop-form-label");
+      var iconAdd = document.getElementById("toggle-shop-form-icon-add");
+      var iconClose = document.getElementById("toggle-shop-form-icon-close");
+      var startOpen = {{ (open_register_form or false)|tojson }};
       if (!btn || !wrap) return;
 
-      function sync() {
-        var open = !wrap.classList.contains("hidden");
+      function isOpen() {
+        return !wrap.hidden && !wrap.classList.contains("hidden");
+      }
+
+      function setOpen(open, opts) {
+        opts = opts || {};
+        wrap.hidden = !open;
+        wrap.classList.toggle("hidden", !open);
+        wrap.setAttribute("aria-hidden", open ? "false" : "true");
         btn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (labelEl) labelEl.textContent = open ? "Close form" : "Add shop";
+        if (iconAdd) iconAdd.classList.toggle("hidden", open);
+        if (iconClose) iconClose.classList.toggle("hidden", !open);
+        btn.classList.remove("btn-rc-primary", "btn-rc-secondary");
+        btn.classList.add(open ? "btn-rc-secondary" : "btn-rc-primary");
+        if (open && opts.focus !== false) {
+          var first = wrap.querySelector("input:not([type='hidden'])");
+          if (first) first.focus();
+        }
+        if (open && opts.scroll) {
+          wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       }
 
       btn.addEventListener("click", function () {
-        wrap.classList.toggle("hidden");
-        sync();
+        setOpen(!isOpen(), { focus: true });
       });
 
-      sync();
+      document.querySelectorAll(".js-close-shop-form").forEach(function (el) {
+        el.addEventListener("click", function () {
+          setOpen(false);
+          btn.focus();
+        });
+      });
+
+      document.querySelectorAll(".js-open-add-shop").forEach(function (el) {
+        el.addEventListener("click", function () {
+          setOpen(true, { focus: true, scroll: true });
+        });
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && isOpen()) {
+          var editModal = document.getElementById("shop-edit-modal");
+          if (editModal && !editModal.classList.contains("hidden")) return;
+          setOpen(false);
+          btn.focus();
+        }
+      });
+
+      setOpen(!!startOpen, { focus: startOpen, scroll: startOpen });
     })();
 
     (function () {

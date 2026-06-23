@@ -1,39 +1,41 @@
 {# Shop portal analytics sidebar — preserves period/scope in links #}
 {% set av = analytics_view or 'revenue' %}
 {% set _anav = analytics_nav or {} %}
-<a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'revenue' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" /></svg>
+{% set _active = 'bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25' %}
+{% set _idle = 'text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]' %}
+<a href="{{ url_for('shop_revenue_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'revenue' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'revenue' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" /></svg>
   Revenue analytics
 </a>
-<a href="{{ url_for('shop_item_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'item' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" /></svg>
+<a href="{{ url_for('shop_item_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'item' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'item' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" /></svg>
   Item analytics
 </a>
-<a href="{{ url_for('shop_period_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'period' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+<a href="{{ url_for('shop_period_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'period' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'period' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
   Period analytics
 </a>
-<a href="{{ url_for('shop_sales_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'sales' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h5M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" /></svg>
+<a href="{{ url_for('shop_sales_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'sales' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'sales' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h5M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" /></svg>
   Sales analytics
 </a>
 {% if pos_allow_credit_sale %}
-<a href="{{ url_for('shop_credit_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'credit' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" /></svg>
+<a href="{{ url_for('shop_credit_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'credit' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'credit' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" /></svg>
   Credit analytics
 </a>
 {% endif %}
-<a href="{{ url_for('shop_customer_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'customer' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+<a href="{{ url_for('shop_customer_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'customer' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'customer' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
   Customer analytics
 </a>
-<a href="{{ url_for('shop_stock_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'stock' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" /></svg>
+<a href="{{ url_for('shop_stock_analytics', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if av == 'stock' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if av == 'stock' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" /></svg>
   Stock status
 </a>
 {% if shop_shell_can('receipts_nav') %}
-<a href="{{ url_for('shop_receipts', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_receipts' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))]{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}">
-  <svg class="h-4 w-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+<a href="{{ url_for('shop_receipts', shop_id=shop.id, **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'shop_receipts' %}{{ _active }}{% else %}{{ _idle }}{% endif %}" {% if request.endpoint == 'shop_receipts' %}aria-current="page"{% endif %}>
+  <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
   Receipts
 </a>
 {% endif %}

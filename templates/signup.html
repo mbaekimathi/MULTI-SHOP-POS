@@ -2,6 +2,7 @@
 {% from "partials/signup_picker_icons.html" import signup_email_brand, signup_country_flag %}
 {% block title %}Sign up — {{ pub_brand_name }}{% endblock %}
 {% block head %}
+  {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/signup-page.css') }}?v=3" />
 {% endblock %}
 {% block body %}

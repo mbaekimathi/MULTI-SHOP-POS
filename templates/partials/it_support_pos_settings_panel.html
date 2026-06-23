@@ -1,0 +1,159 @@
+{# Point of sale tab — system settings (compact layout) #}
+{% set ps = printing_settings %}
+{% set pos_cart_mode = ps.pos_cart_mode if ps.pos_cart_mode in ('direct', 'withhold') else 'direct' %}
+{% set pos_inv_exclusive = 'dual' if ps.pos_inventory_use_both else ('kitchen' if ps.pos_kitchen_portions else 'shop') %}
+
+<header class="pos-settings__hero">
+  <h2 class="pos-settings__title">Point of sale</h2>
+  <p class="pos-settings__lead">
+    Company-wide POS defaults.
+    <a href="{{ url_for('it_support_system_settings', tab='receipt') }}">Receipt format</a>
+    for layout and tax rate.
+  </p>
+</header>
+
+<div class="pos-settings__grid">
+  <section class="pos-settings__section" aria-labelledby="pos-sec-workflow">
+    <div class="pos-settings__section-head">
+      <h3 id="pos-sec-workflow" class="pos-settings__section-title">Cart workflow</h3>
+      <p class="pos-settings__section-note">One mode active at a time.</p>
+    </div>
+    <input type="hidden" name="pos_cart_mode" value="{{ pos_cart_mode }}" />
+    <div class="pos-settings__rows">
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Direct POS</p>
+        <input type="checkbox" class="rc-receipt-switch js-pos-cart-mode-toggle" data-pos-cart-mode="direct" aria-label="Direct POS" {% if pos_cart_mode == 'direct' %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Withhold POS</p>
+        <input type="checkbox" class="rc-receipt-switch js-pos-cart-mode-toggle" data-pos-cart-mode="withhold" aria-label="Withhold POS" {% if pos_cart_mode == 'withhold' %}checked{% endif %} />
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-settings__section" aria-labelledby="pos-sec-txn">
+    <div class="pos-settings__section-head">
+      <h3 id="pos-sec-txn" class="pos-settings__section-title">Transaction types</h3>
+      <p class="pos-settings__section-note">At least one required.</p>
+    </div>
+    <div class="pos-settings__rows">
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Sale</p>
+        <input type="checkbox" name="pos_allow_cash_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_cash_sale %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Credit</p>
+        <input type="checkbox" name="pos_allow_credit_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_credit_sale %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Quotation</p>
+        <input type="checkbox" name="pos_allow_quotations" value="1" class="rc-receipt-switch" {% if ps.pos_allow_quotations %}checked{% endif %} />
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-settings__section" aria-labelledby="pos-sec-pay">
+    <div class="pos-settings__section-head">
+      <h3 id="pos-sec-pay" class="pos-settings__section-title">Payment methods</h3>
+      <p class="pos-settings__section-note">Cash sale checkout.</p>
+    </div>
+    <div class="pos-settings__rows">
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Cash</p>
+        <input type="checkbox" name="pos_payment_cash" value="1" class="rc-receipt-switch" {% if ps.pos_payment_cash %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">M-Pesa</p>
+        <input type="checkbox" name="pos_payment_mpesa" value="1" class="rc-receipt-switch" {% if ps.pos_payment_mpesa %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Cash + M-Pesa</p>
+        <input type="checkbox" name="pos_payment_both" value="1" class="rc-receipt-switch" {% if ps.pos_payment_both %}checked{% endif %} />
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-settings__section" aria-labelledby="pos-sec-options">
+    <div class="pos-settings__section-head">
+      <h3 id="pos-sec-options" class="pos-settings__section-title">Cart &amp; checkout</h3>
+    </div>
+    <div class="pos-settings__rows">
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Buy items (header)</p>
+        <input type="checkbox" name="pos_show_buy_items_link" value="1" class="rc-receipt-switch" {% if ps.pos_show_buy_items_link %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Customer details</p>
+        <input type="checkbox" name="pos_show_customer_details_sale" value="1" class="rc-receipt-switch" {% if ps.pos_show_customer_details_sale %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Amount sets quantity</p>
+        <input type="checkbox" name="pos_cart_amount_sets_qty" value="1" class="rc-receipt-switch" {% if ps.pos_cart_amount_sets_qty %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Tax in totals</p>
+        <input type="checkbox" name="pos_include_tax" value="1" class="rc-receipt-switch" {% if ps.pos_include_tax %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Line price discounts</p>
+        <input type="checkbox" name="pos_allow_line_price_edit" value="1" class="rc-receipt-switch" {% if ps.allow_line_price_edit %}checked{% endif %} />
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-settings__section" aria-labelledby="pos-sec-inv">
+    <div class="pos-settings__section-head">
+      <h3 id="pos-sec-inv" class="pos-settings__section-title">Inventory</h3>
+      <p class="pos-settings__section-note">Default for all branches.</p>
+    </div>
+    <input type="hidden" name="pos_inventory_exclusive" value="{{ pos_inv_exclusive }}" />
+    <div class="pos-settings__rows">
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Shop stock</p>
+        <input type="checkbox" class="rc-receipt-switch js-pos-inv-exclusive-toggle" data-pos-inv-exclusive="shop" aria-label="Shop stock" {% if pos_inv_exclusive == 'shop' %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Kitchen portions</p>
+        <input type="checkbox" class="rc-receipt-switch js-pos-inv-exclusive-toggle" data-pos-inv-exclusive="kitchen" aria-label="Kitchen portions" {% if pos_inv_exclusive == 'kitchen' %}checked{% endif %} />
+      </div>
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Both</p>
+        <input type="checkbox" class="rc-receipt-switch js-pos-inv-exclusive-toggle" data-pos-inv-exclusive="dual" aria-label="Kitchen and shelf" {% if pos_inv_exclusive == 'dual' %}checked{% endif %} />
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-settings__section" aria-labelledby="pos-sec-print">
+    <div class="pos-settings__section-head">
+      <h3 id="pos-sec-print" class="pos-settings__section-title">Printing</h3>
+    </div>
+    <div class="pos-settings__rows">
+      <div class="pos-settings__row">
+        <p class="pos-settings__row-label">Compulsory on sale</p>
+        <input
+          type="checkbox"
+          name="printing_compulsory_sale"
+          value="1"
+          class="rc-receipt-switch js-printing-compulsory-sale"
+          {% if ps.print_compulsory_sale %}checked{% endif %}
+          {% if not (ps.printer_allow_bluetooth or ps.printer_allow_network or ps.printer_allow_usb) %}disabled{% endif %}
+          title="Enable at least one printer type below."
+        />
+      </div>
+    </div>
+    <div class="pos-settings__chips">
+      <label class="pos-settings__chip">
+        <span>Bluetooth</span>
+        <input type="checkbox" name="printing_allow_bluetooth" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_bluetooth %}checked{% endif %} />
+      </label>
+      <label class="pos-settings__chip">
+        <span>Network</span>
+        <input type="checkbox" name="printing_allow_network" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_network %}checked{% endif %} />
+      </label>
+      <label class="pos-settings__chip">
+        <span>USB</span>
+        <input type="checkbox" name="printing_allow_usb" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_usb %}checked{% endif %} />
+      </label>
+    </div>
+  </section>
+</div>

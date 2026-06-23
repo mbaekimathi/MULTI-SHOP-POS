@@ -2,22 +2,23 @@
 {% block title %}{{ analytics_title }} — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}{{ analytics_title }}{% endblock %}
 {% block head %}
-  {% set analytics_live = analytics_key in ['revenue', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
+  {{ super() }}
+  {% set analytics_live = analytics_key in ['revenue', 'expense', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
   {% if analytics_live %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=23" />
+  {% include "partials/portal_revenue_analytics_css.html" %}
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=5"></script>
   <script>
     window.IT_SUPPORT_ANALYTICS = {
       key: {{ analytics_key|tojson }},
       dataUrl: {{ url_for('it_support_analytics_data', view_key=analytics_key)|tojson }},
       pageSize: 120,
-      bulkKind: {{ ('lines' if analytics_key == 'item' else ('customers' if analytics_key == 'customer' else none))|tojson }}
+      bulkKind: {{ ('customers' if analytics_key == 'customer' else none)|tojson }}
     };
     {% if analytics_key == 'revenue' %}
     window.IT_REVENUE_ANALYTICS = { dataUrl: window.IT_SUPPORT_ANALYTICS.dataUrl, txPageSize: 120 };
     {% endif %}
   </script>
-  <script src="{{ url_for('static', filename='js/it-support-revenue-analytics-live.js') }}?v=9" defer></script>
+  <script src="{{ url_for('static', filename='js/it-support-revenue-analytics-live.js') }}?v=10" defer></script>
   {% if analytics_key == 'shop' %}
   <script src="{{ url_for('static', filename='js/it-support-shop-credit-modal.js') }}?v=1" defer></script>
   {% endif %}
@@ -26,9 +27,19 @@
 {% block sidebar_links %}
   {% set _anav = analytics_nav or {} %}
   {% include "partials/it_support_analytics_sidebar_links.html" %}
-  <a href="{{ url_for('it_support_receipts', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Receipts</a>
+  <a href="{{ url_for('it_support_receipts', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_receipts' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}" {% if request.endpoint == 'it_support_receipts' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+    Receipts
+  </a>
   {% if company_pos_cart_mode_withhold|default(false) %}
-  <a href="{{ url_for('it_support_withheld_holds') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_withheld_holds' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}">Withheld orders</a>
+  <a href="{{ url_for('it_support_withheld_holds') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if request.endpoint == 'it_support_withheld_holds' %}bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}" {% if request.endpoint == 'it_support_withheld_holds' %}aria-current="page"{% endif %}>
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    Withheld orders
+  </a>
   {% endif %}
 {% endblock %}
 {% block employee_content %}
@@ -39,136 +50,13 @@
   {% set edata = employee_data or {} %}
   {% set sdata = sales_data or {} %}
   {% set cdata = credit_data or {} %}
+  {% set xdata = expense_data or {} %}
   {% set cust = customer_data or {} %}
   {% set sv = shop_view or 'revenue' %}
   {% set svd = shop_view_data or {} %}
   {% set analytics_scope = analytics_scope or 'general' %}
   {% set show_analytics_toggle = analytics_key in ['revenue', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
-  {% set analytics_live = analytics_key in ['revenue', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
-  <style>
-    .it-analytics-page {
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: clip;
-      box-sizing: border-box;
-    }
-    .it-analytics-page > *,
-    .it-analytics-raw,
-    .it-analytics-visual,
-    .it-analytics-revenue,
-    .it-analytics-panel,
-    .rev-page,
-    .rev-content {
-      max-width: 100%;
-      min-width: 0;
-      box-sizing: border-box;
-    }
-
-    .it-analytics-page--revenue .rev-scroll,
-    .it-analytics-page--revenue .rev-scroll--lg {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: auto;
-      overflow-y: visible;
-      overscroll-behavior-x: contain;
-      overscroll-behavior-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    @media (max-width: 899px) {
-      .it-analytics-page--revenue .rev-scroll,
-      .it-analytics-page--revenue .rev-scroll--lg {
-        max-height: none;
-      }
-    }
-
-    @media (min-width: 900px) {
-      .it-analytics-page--revenue .rev-scroll--lg {
-        max-height: min(50dvh, 24rem);
-        overflow-y: auto;
-        overscroll-behavior: contain;
-      }
-    }
-    .it-analytics-scroll-x,
-    .it-analytics-table-wrap,
-    .it-analytics-raw .overflow-x-auto {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior-x: contain;
-    }
-    .it-analytics-table-wrap,
-    .it-analytics-raw .overflow-x-auto {
-      max-height: min(55dvh, 20rem);
-      overflow-y: auto;
-    }
-    .it-analytics-raw > .mt-4.rounded-2xl,
-    .it-analytics-raw .mt-4.rounded-2xl {
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow: hidden;
-    }
-    .it-analytics-raw .overflow-hidden.rounded-xl {
-      max-width: 100%;
-      min-width: 0;
-      overflow: hidden;
-    }
-    .it-analytics-table,
-    .it-analytics-raw:not(.it-analytics-raw--revenue) table {
-      width: max-content;
-      min-width: 100%;
-      max-width: none;
-    }
-    .it-analytics-raw--revenue table.rev-data {
-      width: 100%;
-      min-width: 100%;
-      max-width: 100%;
-      table-layout: auto;
-    }
-    @media (max-width: 899px) {
-      .it-analytics-raw--revenue .rev-scroll table.rev-data {
-        width: max-content;
-        min-width: 100%;
-        max-width: none;
-      }
-    }
-    .it-analytics-summary-table {
-      width: 100%;
-      min-width: 0 !important;
-      max-width: 100%;
-      table-layout: fixed;
-    }
-    @media (max-width: 639px) {
-      .it-analytics-summary-table {
-        font-size: 0.6875rem;
-      }
-      .it-analytics-summary-table th,
-      .it-analytics-summary-table td {
-        padding: 0.35rem 0.2rem;
-        white-space: normal;
-        word-break: break-word;
-      }
-      .it-analytics-summary-table tbody td {
-        font-size: 0.75rem;
-      }
-    }
-    .it-analytics-visual .rounded-2xl .relative {
-      height: min(42dvh, 13.5rem) !important;
-      max-height: min(42dvh, 13.5rem);
-      min-height: 9.5rem;
-    }
-    .it-analytics-visual .relative.max-h-\[85vh\] {
-      max-height: min(48dvh, 15rem) !important;
-      height: min(48dvh, 15rem) !important;
-    }
-  </style>
+  {% set analytics_live = analytics_key in ['revenue', 'expense', 'item', 'period', 'employee', 'sales', 'credit', 'customer', 'shop'] %}
   <div class="it-analytics-page{% if analytics_live %} it-analytics-page--revenue it-analytics-page--modern{% endif %}">
   {% if analytics_live %}
   <div class="rev-page rev-page--fluid mx-auto w-full min-w-0 max-w-6xl px-0 sm:px-1">
@@ -176,282 +64,6 @@
   {% endif %}
 
   {% if show_analytics_toggle %}
-    <style>
-      @keyframes rc-analytics-pulse-dot {
-        0%,
-        100% {
-          opacity: 1;
-          transform: scale(1);
-          box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
-        }
-        50% {
-          opacity: 0.85;
-          transform: scale(1.15);
-          box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
-        }
-      }
-      @keyframes rc-analytics-bar-bounce {
-        0%,
-        100% {
-          transform: scaleY(1);
-        }
-        50% {
-          transform: scaleY(0.72);
-        }
-      }
-      @keyframes rc-analytics-table-shimmer {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.55;
-        }
-      }
-      .rc-analytics-live-dot {
-        animation: rc-analytics-pulse-dot 2s ease-in-out infinite;
-      }
-      [data-it-analytics-view="visual"] .rc-analytics-icon-chart .rc-analytics-bar-1 {
-        animation: rc-analytics-bar-bounce 1.1s ease-in-out infinite;
-        transform-origin: bottom center;
-      }
-      [data-it-analytics-view="visual"] .rc-analytics-icon-chart .rc-analytics-bar-2 {
-        animation: rc-analytics-bar-bounce 1.1s ease-in-out infinite 0.12s;
-        transform-origin: bottom center;
-      }
-      [data-it-analytics-view="visual"] .rc-analytics-icon-chart .rc-analytics-bar-3 {
-        animation: rc-analytics-bar-bounce 1.1s ease-in-out infinite 0.24s;
-        transform-origin: bottom center;
-      }
-      [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row {
-        animation: rc-analytics-table-shimmer 1.6s ease-in-out infinite;
-      }
-      [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row:nth-child(2) {
-        animation-delay: 0.2s;
-      }
-      [data-it-analytics-view="raw"] .rc-analytics-icon-table .rc-analytics-table-row:nth-child(3) {
-        animation-delay: 0.4s;
-      }
-      .it-analytics-toolbar {
-        background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 38%);
-      }
-      .it-analytics-raw,
-      .it-analytics-visual {
-        --it-accent-a: rgba(249, 115, 22, 0.18);
-        --it-accent-b: rgba(56, 189, 248, 0.16);
-        --it-accent-c: rgba(52, 211, 153, 0.16);
-      }
-      html[data-theme="dark"] .it-analytics-raw,
-      html[data-theme="dark"] .it-analytics-visual {
-        --it-accent-a: rgba(251, 146, 60, 0.22);
-        --it-accent-b: rgba(125, 211, 252, 0.2);
-        --it-accent-c: rgba(110, 231, 183, 0.2);
-      }
-      .it-analytics-panel {
-        border: 1px solid rgba(var(--rc-border), 0.85);
-        border-radius: 0.5rem;
-        background: rgb(var(--rc-surface));
-        overflow: hidden;
-      }
-      .it-analytics-panel--toolbar {
-        padding: 0.65rem 0.75rem;
-      }
-      .it-analytics-panel__head {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        border-bottom: 1px solid rgba(var(--rc-border), 0.75);
-        background: rgb(var(--rc-surface-2));
-      }
-      .it-analytics-panel__title {
-        margin: 0;
-        font-size: 0.8125rem;
-        font-weight: 700;
-        color: rgb(var(--rc-page-fg));
-      }
-      .it-analytics-panel__meta {
-        font-size: 0.6875rem;
-        font-weight: 600;
-        color: rgb(var(--rc-muted));
-      }
-      .it-analytics-revenue {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        margin-top: 0.75rem;
-      }
-      .it-analytics-scroll-x {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-x: contain;
-      }
-      .it-analytics-table-wrap {
-        overflow: auto;
-        max-height: min(55dvh, 20rem);
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
-      }
-      .it-analytics-table {
-        border-collapse: collapse;
-        font-size: 0.8125rem;
-        line-height: 1.35;
-        width: max-content;
-        min-width: 100%;
-      }
-      .it-analytics-table th,
-      .it-analytics-table td {
-        border: 1px solid rgba(var(--rc-border), 0.65);
-        padding: 0.45rem 0.55rem;
-        vertical-align: middle;
-      }
-      .it-analytics-table thead th {
-        background: rgb(var(--rc-surface-2));
-        font-size: 0.625rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: rgb(var(--rc-muted));
-        white-space: nowrap;
-      }
-      .it-analytics-table tbody tr:nth-child(even) {
-        background: rgba(var(--rc-surface-2), 0.35);
-      }
-      .it-analytics-table tbody tr:hover {
-        background: rgba(var(--rc-primary), 0.06);
-      }
-      .it-analytics-summary-table thead th {
-        text-align: center;
-      }
-      .it-analytics-summary-table tbody td {
-        text-align: center;
-        font-weight: 800;
-        font-size: 0.9375rem;
-      }
-      .it-analytics-empty {
-        padding: 0.75rem;
-        font-size: 0.8125rem;
-        color: rgb(var(--rc-muted));
-      }
-      .it-analytics-filter .btn-rc-primary {
-        min-height: 2.35rem;
-      }
-      .it-analytics-filter input,
-      .it-analytics-filter select {
-        min-height: 2.35rem;
-      }
-      .it-analytics-filter > .flex.flex-wrap {
-        gap: 0.5rem;
-        padding: 0.65rem 0.75rem 0.75rem;
-      }
-      .it-analytics-table-wrap .it-analytics-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-      }
-      .it-analytics-chart-canvas {
-        position: relative;
-      }
-      .it-analytics-chart-canvas canvas {
-        display: block;
-        width: 100% !important;
-        height: 100% !important;
-      }
-      .it-analytics-visual .it-analytics-charts {
-        display: grid;
-        gap: 0.75rem;
-      }
-      @media (min-width: 1024px) {
-        .it-analytics-visual .it-analytics-charts {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .it-analytics-visual .it-analytics-charts__wide {
-          grid-column: 1 / -1;
-        }
-      }
-      .it-analytics-chart-panel .it-analytics-panel__head p {
-        margin: 0.15rem 0 0;
-        font-size: 0.6875rem;
-        font-weight: 500;
-        color: rgb(var(--rc-muted));
-      }
-      .it-analytics-chart-canvas {
-        position: relative;
-        height: 11rem;
-        padding: 0.5rem 0.65rem 0.65rem;
-      }
-      .it-analytics-chart-canvas--tall {
-        height: 13.5rem;
-      }
-      @media (min-width: 640px) {
-        .it-analytics-chart-canvas {
-          height: 12.5rem;
-        }
-        .it-analytics-chart-canvas--tall {
-          height: 15rem;
-        }
-      }
-      .it-analytics-raw .rounded-2xl > h3,
-      .it-analytics-visual .rounded-2xl > h3 {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-      }
-      .it-analytics-raw .rounded-2xl > h3::before,
-      .it-analytics-visual .rounded-2xl > h3::before {
-        content: "";
-        width: 0.5rem;
-        height: 0.5rem;
-        border-radius: 999px;
-        background: linear-gradient(135deg, var(--it-accent-a), var(--it-accent-b));
-        box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.1);
-      }
-      .it-analytics-raw .rounded-xl.border,
-      .it-analytics-visual .rounded-xl.border {
-        border-color: rgba(var(--rc-border), 0.85);
-      }
-      .it-analytics-raw .it-analytics-table tbody tr,
-      .it-analytics-visual .it-analytics-table tbody tr {
-        transition: background-color 0.18s ease;
-      }
-      .it-analytics-visual .relative {
-        overflow: hidden;
-        border-radius: 0.9rem;
-      }
-      .it-analytics-visual .rounded-2xl {
-        background-image: radial-gradient(circle at top right, rgba(148, 163, 184, 0.1), transparent 42%),
-          linear-gradient(160deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.92));
-      }
-      @media (max-width: 1024px) {
-        .it-analytics-toolbar {
-          gap: 0.75rem;
-        }
-        .it-analytics-toolbar > div {
-          width: 100%;
-        }
-        .it-analytics-toolbar .inline-flex,
-        .it-analytics-toolbar .flex.items-center.gap-1 {
-          width: 100%;
-        }
-        .it-analytics-toolbar button {
-          flex: 1 1 0%;
-          justify-content: center;
-        }
-      }
-      @media (max-width: 640px) {
-        .it-analytics-filter .contents {
-          display: block;
-        }
-        .it-analytics-filter .contents > div {
-          margin-top: 0.625rem;
-        }
-        .it-analytics-visual .relative {
-          min-height: 13.5rem;
-        }
-      }
-    </style>
     <div id="analytics-view-raw" class="analytics-view-raw it-analytics-raw{% if analytics_live %} it-analytics-raw--revenue{% endif %}">
   {% endif %}
 
@@ -461,6 +73,113 @@
 
   {% if analytics_key != 'revenue' and analytics_key != 'shop' and analytics_live %}
   <div id="it-analytics-live-root" class="rev-content it-analytics-live-root" aria-live="polite" aria-busy="false">
+  {% endif %}
+
+  {% if analytics_key == 'expense' %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total expenses</div>
+        <div class="mt-2 text-2xl font-extrabold text-rose-500">{{ "%.2f"|format(xdata.total_amount or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Stock purchases</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(xdata.stock_amount or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Operational bills</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(xdata.operational_amount or 0) }}</div>
+      </div>
+      <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4">
+        <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Stock out</div>
+        <div class="mt-2 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(xdata.stock_out_amount or 0) }}</div>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Expenses by shop</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (xdata.shops or [])|length }} shops
+        </span>
+      </div>
+      {% if not xdata.shops %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop expenses for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[640px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Operational</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Stock out</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in xdata.shops %}
+                  <tr>
+                    <td class="px-3 py-2 font-semibold text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(row.stock_amount or 0) }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(row.operational_amount or 0) }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(row.stock_out_amount or 0) }}</td>
+                    <td class="px-3 py-2 text-right font-semibold tabular-nums text-rose-500">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Expense lines</h3>
+        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
+          {{ (xdata.lines or [])|length }} / {{ xdata.line_count or 0 }}
+        </span>
+      </div>
+      {% if not xdata.lines %}
+        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No expense lines for this filter.</p>
+      {% else %}
+        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
+          <div class="overflow-x-auto">
+            <table class="min-w-[960px] w-full text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Kind</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item / bill</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Category</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Amount</th>
+                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Paid</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Status</th>
+                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Supplier</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+                {% for row in xdata.lines %}
+                  <tr>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ row.created_at }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ row.shop_name }}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ row.expense_kind|replace('_', ' ')|title }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.name }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.category }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums text-rose-500">{{ "%.2f"|format(row.total_amount or 0) }}</td>
+                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(row.amount_paid or 0) }}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ (row.payment_status or '—')|replace('_', ' ')|title }}</td>
+                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.supplier }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+    </div>
   {% endif %}
 
   {% if analytics_key == 'item' %}
@@ -495,88 +214,6 @@
         </div>
       {% endif %}
     </div>
-
-    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Item performance by shop</h3>
-      {% if not idata.shops %}
-        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shop item data found for this filter.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[760px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty sold</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Lines</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for row in idata.shops %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.total_qty }}</td>
-                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.total_revenue) }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.line_count }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">All item transaction lines</h3>
-        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
-          <span id="it-bulk-count-lines">{{ (idata.lines_meta or {}).get('loaded_count', (idata.lines or [])|length) }} / {{ (idata.lines_meta or {}).get('total_count', idata.line_count or 0) }}</span>
-        </span>
-      </div>
-      {% if not idata.lines %}
-        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No item lines found for this filter.</p>
-      {% else %}
-        <div id="it-bulk-body-lines" class="rev-tx-body mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto rev-scroll rev-scroll--lg">
-            <table class="min-w-[1200px] w-full text-sm rev-data">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Time</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Item</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Qty</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Unit price</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Line total</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Type</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Employee</th>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Customer</th>
-                </tr>
-              </thead>
-              <tbody id="it-bulk-tbody-lines" class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for row in idata.lines %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))] whitespace-nowrap">{{ row.created_at }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ row.shop_name }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.item_name }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.qty }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ "%.2f"|format(row.unit_price) }}</td>
-                    <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.line_total) }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap {% if row.sale_type == 'sale' %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ row.sale_type|upper }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.employee_name or '-' }}</td>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.customer_name or '-' }}{% if row.customer_phone %} ({{ row.customer_phone }}){% endif %}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-      <div class="rev-tx-footer">
-        <button type="button" class="rev-tx-load-more" id="it-bulk-load-more-lines" data-label-default="Load more lines" {% if not (idata.lines_meta or {}).get('has_more') %}hidden{% endif %}>Load more lines</button>
-      </div>
-    </div>
   {% endif %}
 
   {% if analytics_key == 'period' %}
@@ -588,12 +225,13 @@
         {% else %}
           <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
             <div class="overflow-x-auto">
-              <table class="min-w-[420px] w-full text-sm">
+              <table class="min-w-[520px] w-full text-sm">
                 <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
                   <tr>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Day</th>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -601,7 +239,8 @@
                     <tr>
                       <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.day }}</td>
                       <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
-                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount or 0) }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount or 0) }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -618,12 +257,13 @@
         {% else %}
           <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
             <div class="overflow-x-auto">
-              <table class="min-w-[420px] w-full text-sm">
+              <table class="min-w-[520px] w-full text-sm">
                 <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
                   <tr>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Hour</th>
                     <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Tx</th>
-                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Revenue</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Sales</th>
+                    <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Credit</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[rgb(var(--rc-border))]">
@@ -631,7 +271,8 @@
                     <tr>
                       <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))]">{{ row.hour }}</td>
                       <td class="px-3 py-2 text-[rgb(var(--rc-muted))]">{{ row.tx_count }}</td>
-                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.revenue) }}</td>
+                      <td class="px-3 py-2 text-emerald-400">{{ "%.2f"|format(row.sale_amount or 0) }}</td>
+                      <td class="px-3 py-2 text-amber-400">{{ "%.2f"|format(row.credit_amount or 0) }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -748,43 +389,6 @@
           </div>
         {% endif %}
       </div>
-    </div>
-
-    <div class="mt-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Sales by shop</h3>
-        <span class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-muted))]">
-          {{ (sdata.transactions or [])|length }} shops (max 500)
-        </span>
-      </div>
-      {% if not sdata.transactions %}
-        <p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No sales data by shop for this filter.</p>
-      {% else %}
-        <div class="mt-3 overflow-hidden rounded-xl border border-[rgb(var(--rc-border))]">
-          <div class="overflow-x-auto">
-            <table class="min-w-[480px] w-full text-sm">
-              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Shop</th>
-                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Transactions</th>
-                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Amount</th>
-                  <th class="px-3 py-2 text-right text-xs font-bold uppercase tracking-wider">Items</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-                {% for tx in sdata.transactions %}
-                  <tr>
-                    <td class="px-3 py-2 text-[rgb(var(--rc-page-fg))] whitespace-nowrap">{{ tx.shop_name }}</td>
-                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.tx_count }}</td>
-                    <td class="px-3 py-2 text-right font-semibold tabular-nums text-emerald-400">{{ "%.2f"|format(tx.total_amount) }}</td>
-                    <td class="px-3 py-2 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ (tx.item_count or 0)|int }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
     </div>
   {% endif %}
 
@@ -1016,14 +620,14 @@
       {% elif analytics_key == 'period' %}
         <div class="grid gap-4 lg:grid-cols-2">
           <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily revenue</h3>
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Calendar view of performance.</p>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Daily sales &amp; credit</h3>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Calendar view of cash sales and credit.</p>
             <div class="relative mt-4 h-56 sm:h-64">
               <canvas id="it-chart-per-daily" aria-label="Daily period chart"></canvas>
             </div>
           </div>
           <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm">
-            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly revenue</h3>
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Hourly sales &amp; credit</h3>
             <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Staff and opening hours decisions.</p>
             <div class="relative mt-4 h-56 sm:h-64">
               <canvas id="it-chart-per-hourly" aria-label="Hourly period chart"></canvas>

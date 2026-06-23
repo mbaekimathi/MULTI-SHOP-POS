@@ -7,55 +7,6 @@
 {% endblock %}
 {% block shop_content %}
   {% include "partials/shop_stock_workspace_assets.html" %}
-  <style>
-    .shop-current-stock-page .shop-current-stock-legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem 0.75rem;
-      margin-top: 0.75rem;
-    }
-    .shop-current-stock-page .shop-current-stock-legend__item {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.6875rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-muted));
-    }
-    .shop-current-stock-page .shop-current-stock-legend__swatch {
-      width: 0.55rem;
-      height: 0.55rem;
-      border-radius: 9999px;
-    }
-    .shop-current-stock-page .shop-current-stock-qty {
-      display: inline-flex;
-      min-width: 2.5rem;
-      justify-content: flex-end;
-      border-radius: 0.45rem;
-      padding: 0.15rem 0.45rem;
-      font-weight: 800;
-    }
-    .shop-current-stock-page .shop-current-stock-qty--enough {
-      color: rgb(5 150 105);
-      background: rgba(16, 185, 129, 0.12);
-    }
-    .shop-current-stock-page .shop-current-stock-qty--attention {
-      color: rgb(180 83 9);
-      background: rgba(245, 158, 11, 0.16);
-    }
-    .shop-current-stock-page .shop-current-stock-qty--below {
-      color: rgb(190 18 60);
-      background: rgba(244, 63, 94, 0.14);
-    }
-    .shop-current-stock-page .js-current-stock-row--attention {
-      background: rgba(245, 158, 11, 0.05);
-    }
-    .shop-current-stock-page .js-current-stock-row--below {
-      background: rgba(244, 63, 94, 0.06);
-    }
-  </style>
   <div class="sa-stock-analytics shop-current-stock-page">
   <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
     <section class="sa-stock-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">

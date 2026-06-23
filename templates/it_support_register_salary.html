@@ -10,43 +10,6 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    .payroll-page {
-      --payroll-accent: 16 185 129;
-      --payroll-accent2: 14 165 233;
-      background-image:
-        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.08), transparent 50%),
-        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.06), transparent 45%);
-    }
-    .dark .payroll-page {
-      background-image:
-        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.12), transparent 50%),
-        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.1), transparent 45%);
-    }
-    @keyframes payroll-shimmer {
-      0% {
-        background-position: 0% 50%;
-      }
-      100% {
-        background-position: 200% 50%;
-      }
-    }
-    .payroll-hero-bar {
-      background: linear-gradient(
-        90deg,
-        rgb(var(--payroll-accent) / 0.85),
-        rgb(var(--payroll-accent2) / 0.75),
-        rgb(var(--payroll-accent) / 0.65)
-      );
-      background-size: 200% auto;
-      animation: payroll-shimmer 8s ease infinite;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .payroll-hero-bar {
-        animation: none;
-      }
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
   {% set pm = request.form.get('preferred_payment_method', '') %}

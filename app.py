@@ -273,6 +273,7 @@ SHOP_DAY_CLOSING_SUBMIT_ROLES = frozenset(
 )
 # Till opening/closing popups belong on POS + report only — not shop dashboard hub or employee portal pages.
 SHOP_TILL_DAY_MODAL_ENDPOINTS = frozenset({"shop_pos", "shop_report"})
+SHOP_POS_RECEIPT_RETURN_ROLES = frozenset({"super_admin", "admin", "manager", "it_support"})
 
 
 def _is_shop_till_day_modal_page() -> bool:
@@ -307,6 +308,27 @@ def _session_shop_shell_it_without_preview() -> bool:
         return False
     preview_raw = str(session.get("shop_role_preview") or "").strip().lower()
     return preview_raw not in SHOP_UI_PREVIEW_ROLE_SET
+
+
+def _session_can_pos_return_receipt_items() -> bool:
+    """POS Today's receipts — return items (session gate; API also enforces roles)."""
+    role_key = str(session.get("employee_role") or "").strip().lower()
+    if role_key in SHOP_POS_RECEIPT_RETURN_ROLES:
+        return True
+    uid = session.get("employee_id")
+    if uid:
+        try:
+            from database import get_employee_by_id
+
+            emp = get_employee_by_id(int(uid))
+            rk = str((emp or {}).get("role") or role_key or "").strip().lower()
+            return rk in SHOP_POS_RECEIPT_RETURN_ROLES
+        except Exception:
+            return False
+    # Shared shop-password till session: allow opening return flow (6-digit code verifies role).
+    if session.get("shop_id"):
+        return True
+    return False
 
 
 @app.template_global()
@@ -863,6 +885,102 @@ def _shop_report_period_label(analytics_filter: dict) -> str:
     return (af.get("range_label") or "Selected period").strip()
 
 
+def _empty_dashboard_report_data() -> dict:
+    return {
+        "total_revenue": 0.0,
+        "sale_revenue": 0.0,
+        "credit_revenue": 0.0,
+        "paid_credit": 0.0,
+        "unpaid_credit": 0.0,
+        "cash_revenue": 0.0,
+        "mpesa_revenue": 0.0,
+        "collected_revenue": 0.0,
+        "total_expenditure": 0.0,
+        "paid_expenditure": 0.0,
+        "balance_expenditure": 0.0,
+        "accrual_cogs": 0.0,
+        "accrual_net_profit": 0.0,
+        "accrual_net_profit_collected": 0.0,
+        "summary_revenue_total": 0.0,
+        "summary_expenditure_total": 0.0,
+        "summary_collected_revenue": 0.0,
+        "summary_cash_mpesa": 0.0,
+        "items_sold": [],
+        "till_summary": {},
+    }
+
+
+def _build_portal_dashboard_report_context(*, shop_id: Optional[int] = None) -> dict:
+    """Live visual dashboard widgets backed by company or shop period report."""
+    analytics_filter = _build_analytics_filter()
+    analytics_scope = _analytics_scope_from_request()
+    report_data = _empty_dashboard_report_data()
+    shop_revenue_rows: list = []
+    sid = int(shop_id) if shop_id else None
+    try:
+        if sid:
+            from database import get_shop_report
+
+            report_data = get_shop_report(
+                shop_id=sid,
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+        else:
+            from database import get_company_report, get_it_support_revenue_analytics
+
+            report_data = get_company_report(
+                analytics_filter=analytics_filter,
+                analytics_scope=analytics_scope,
+            )
+            rev = get_it_support_revenue_analytics(
+                analytics_filter,
+                analytics_scope,
+                include_transactions=False,
+            )
+            shop_revenue_rows = rev.get("shops") or []
+    except Exception:
+        logger.exception(
+            "portal dashboard report failed shop_id=%s",
+            sid,
+        )
+    share_qs = request.query_string.decode("utf-8") if request.query_string else ""
+    if sid:
+        report_json_url = url_for("shop_report_json", shop_id=sid)
+        full_report_url = url_for("shop_report", shop_id=sid)
+    else:
+        report_json_url = url_for("it_support_company_report_json")
+        full_report_url = url_for("it_support_company_report")
+    if share_qs:
+        report_json_url = f"{report_json_url}?{share_qs}"
+        full_report_url = f"{full_report_url}?{share_qs}"
+    company_name = ""
+    if not sid:
+        try:
+            from database import get_site_settings
+
+            company_name = (get_site_settings(["company_name"]).get("company_name") or "").strip()
+        except Exception:
+            company_name = ""
+    return {
+        "dashboard_report_enabled": True,
+        "dashboard_report_scope": "shop" if sid else "company",
+        "analytics_filter": analytics_filter,
+        "analytics_scope": analytics_scope,
+        "report_data": report_data,
+        "shop_revenue_rows": shop_revenue_rows,
+        "report_json_url": report_json_url,
+        "report_live_enabled": _shop_report_live_enabled(analytics_filter),
+        "report_period_label": _shop_report_period_label(analytics_filter),
+        "report_today_iso": date.today().isoformat(),
+        "report_is_single_day": (analytics_filter.get("mode") or "single_day") == "single_day",
+        "report_company_name": company_name,
+        "dashboard_full_report_url": full_report_url,
+        "pos_allow_credit_sale": report_data.get("pos_allow_credit_sale", True),
+        "pos_inventory_mode": report_data.get("pos_inventory_mode", "shop"),
+    }
+
+
 def _analytics_scope_from_request() -> str:
     scope = (request.args.get("analytics_scope") or "general").strip().lower()
     return scope if scope in ("general", "actual") else "general"
@@ -959,6 +1077,7 @@ _IT_SUPPORT_ANALYTICS_NAV_ENDPOINTS = frozenset(
     {
         "it_support_analytics",
         "it_support_revenue_analytics",
+        "it_support_expense_analytics",
         "it_support_item_analytics_page",
         "it_support_sales_analytics",
         "it_support_credit_analytics",
@@ -2429,11 +2548,19 @@ def employee_dashboard(role):
     if role_key not in VALID_ROLES:
         role_key = "employee"
     if role != role_key:
-        return redirect(url_for("employee_dashboard", role=role_key))
+        target = url_for("employee_dashboard", role=role_key)
+        qs = request.query_string.decode("utf-8") if request.query_string else ""
+        if qs:
+            target = f"{target}?{qs}"
+        return redirect(target)
 
     session["employee_role"] = role_key
     session["employee_name"] = row["full_name"]
-    return render_template("employee_dashboard.html")
+    ctx: dict = {}
+    if role_key in ("it_support", "super_admin", "company_manager"):
+        ctx = _build_portal_dashboard_report_context()
+        ctx["dashboard_filter_action"] = url_for("employee_dashboard", role=role_key)
+    return render_template("employee_dashboard.html", **ctx)
 
 
 def _normalize_receipt_width_value(raw: object) -> str:
@@ -10209,6 +10336,7 @@ def _render_it_support_analytics_page(view_key: str):
     analytics_scope = _analytics_scope_from_request()
     labels = {
         "revenue": "Revenue analytics",
+        "expense": "Expense analytics",
         "item": "Item analytics",
         "sales": "Sales analytics",
         "credit": "Credit analytics",
@@ -10226,6 +10354,7 @@ def _render_it_support_analytics_page(view_key: str):
     sales_data = None
     credit_data = None
     customer_data = None
+    expense_data = None
     shops = []
     filter_shop_id = _company_report_shop_filter_from_request()
     selected_shop_id = filter_shop_id
@@ -10269,6 +10398,25 @@ def _render_it_support_analytics_page(view_key: str):
                     "total_count": 0,
                     "has_more": False,
                 },
+            }
+    if view_key == "expense":
+        try:
+            from database import get_it_support_expense_analytics
+
+            expense_data = get_it_support_expense_analytics(
+                analytics_filter=analytics_filter,
+                shop_id=filter_shop_id,
+                lines_limit=120,
+            )
+        except Exception:
+            expense_data = {
+                "total_amount": 0.0,
+                "stock_amount": 0.0,
+                "operational_amount": 0.0,
+                "stock_out_amount": 0.0,
+                "line_count": 0,
+                "shops": [],
+                "lines": [],
             }
     if view_key == "item":
         try:
@@ -10483,6 +10631,7 @@ def _render_it_support_analytics_page(view_key: str):
         sales_data=sales_data,
         credit_data=credit_data,
         customer_data=customer_data,
+        expense_data=expense_data,
         shops=shops,
         selected_shop_id=selected_shop_id,
         shop_view=shop_view,
@@ -10580,6 +10729,14 @@ def _fetch_it_support_analytics_payload(view_key: str, analytics_filter: dict, a
             shop_id=shop_id,
             **_revenue_tx_params_from_request(),
         )
+    if view_key == "expense":
+        from database import get_it_support_expense_analytics
+
+        return get_it_support_expense_analytics(
+            analytics_filter=analytics_filter,
+            shop_id=shop_id,
+            lines_limit=120,
+        )
     if view_key == "item":
         from database import get_it_support_item_analytics
 
@@ -10651,6 +10808,12 @@ def it_support_revenue_analytics():
     return _render_it_support_analytics_page("revenue")
 
 
+@app.route("/it_support/analytics/expense")
+@login_required
+def it_support_expense_analytics():
+    return _render_it_support_analytics_page("expense")
+
+
 @app.route("/it_support/analytics/revenue/data")
 @login_required
 def it_support_revenue_analytics_data():
@@ -10665,6 +10828,7 @@ def it_support_analytics_data(view_key: str):
     _it_support_or_super_admin_only()
     labels = (
         "revenue",
+        "expense",
         "item",
         "sales",
         "credit",
@@ -11498,22 +11662,22 @@ def it_support_register_shop():
 
         if not shop_name or not shop_code or not shop_password or not shop_location:
             flash("Please fill shop name, shop code, shop password, and shop location.", "error")
-            return redirect(url_for("it_support_register_shop"))
+            return redirect(url_for("it_support_register_shop", register=1))
         if not CODE_RE.match(shop_code):
             flash("Shop code must be exactly 6 digits.", "error")
-            return redirect(url_for("it_support_register_shop"))
+            return redirect(url_for("it_support_register_shop", register=1))
 
         logo_path, _, logo_err = _resolve_shop_logo_upload()
         if logo_err:
             flash(logo_err, "error")
-            return redirect(url_for("it_support_register_shop"))
+            return redirect(url_for("it_support_register_shop", register=1))
 
         try:
             from database import create_shop, shop_code_available
 
             if not shop_code_available(shop_code):
                 flash("Shop code already exists. Use a different code.", "error")
-                return redirect(url_for("it_support_register_shop"))
+                return redirect(url_for("it_support_register_shop", register=1))
 
             create_shop(
                 shop_name=shop_name,
@@ -11528,11 +11692,11 @@ def it_support_register_shop():
         except RuntimeError as e:
             app.logger.error("Register shop schema error: %s", e)
             flash("Could not save location description — database update required. Restart the app or contact support.", "error")
-            return redirect(url_for("it_support_register_shop"))
+            return redirect(url_for("it_support_register_shop", register=1))
         except Exception:
             app.logger.exception("Could not register shop")
             flash("Could not register shop. Check database connection.", "error")
-            return redirect(url_for("it_support_register_shop"))
+            return redirect(url_for("it_support_register_shop", register=1))
 
         flash("Shop registered.", "success")
         return redirect(url_for("it_support_register_shop"))
@@ -11558,7 +11722,11 @@ def it_support_register_shop():
                 }
             )
         shops.append(row)
-    return render_template("it_support_register_shop.html", shops=shops)
+    return render_template(
+        "it_support_register_shop.html",
+        shops=shops,
+        open_register_form=(request.args.get("register") or "").strip().lower() in ("1", "true", "yes"),
+    )
 
 
 @app.route("/it_support/shops/<int:shop_id>/day-status.json")
@@ -11940,6 +12108,7 @@ def shop_pos(shop_id: int):
         shop_company_settings=shop_co,
         shop_opening_hours_status=opening_hours,
         shop_day_opening_boot=day_opening,
+        can_return_receipt_items=_session_can_pos_return_receipt_items(),
         **_shop_theme_template_vars(shop),
     )
 
@@ -15656,17 +15825,21 @@ def shop_dashboard(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
-    return render_template(
-        "shop_dashboard.html",
-        shop=shop,
-        pos_allow_credit_sale=_shop_pos_allow_credit_sale(shop),
-        pos_inventory_mode=_pos_inventory_mode(shop),
-        theme_key=f"richcom-theme-shop-{shop['id']}",
-        theme_default=shop.get("default_theme") or "dark",
-        font_family=shop.get("font_family") or "Plus Jakarta Sans",
-        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
-        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    ctx = _build_portal_dashboard_report_context(shop_id=shop_id)
+    ctx["dashboard_filter_action"] = url_for("shop_dashboard", shop_id=shop_id)
+    ctx.update(
+        {
+            "shop": shop,
+            "pos_allow_credit_sale": _shop_pos_allow_credit_sale(shop),
+            "pos_inventory_mode": _pos_inventory_mode(shop),
+            "theme_key": f"richcom-theme-shop-{shop['id']}",
+            "theme_default": shop.get("default_theme") or "dark",
+            "font_family": shop.get("font_family") or "Plus Jakarta Sans",
+            "primary_color_rgb": _hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+            "accent_color_rgb": _hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+        }
     )
+    return render_template("shop_dashboard.html", **ctx)
 
 
 @app.route("/shops/<int:shop_id>/shop-expenses/search.json")
@@ -16425,6 +16598,29 @@ def shop_receipts_detail(shop_id: int):
     return jsonify({"ok": True, "sale": d.get("sale") or {}, "items": d.get("items") or []})
 
 
+@app.route("/shops/<int:shop_id>/shop-receipts/reprint", methods=["POST"])
+def shop_receipts_record_reprint(shop_id: int):
+    """Record a receipt reprint (any staff with shop access)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    data = request.get_json(force=True, silent=True) or {}
+    sale_id = int(data.get("sale_id") or 0)
+    if sale_id <= 0:
+        return jsonify({"ok": False, "error": "Invalid receipt reference."}), 400
+    try:
+        from database import record_shop_pos_sale_reprint
+
+        ok, err, count = record_shop_pos_sale_reprint(shop_id=int(shop_id), sale_id=sale_id)
+    except Exception:
+        logger.exception("shop_receipts_record_reprint failed shop_id=%s sale_id=%s", shop_id, sale_id)
+        return jsonify({"ok": False, "error": "Could not record reprint."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not record reprint."}), 400
+    return jsonify({"ok": True, "reprint_count": int(count or 0)})
+
+
 @app.route("/shops/<int:shop_id>/shop-receipts/return-lines", methods=["POST"])
 def shop_receipts_return_lines(shop_id: int):
     shop = _get_shop_or_404(shop_id)
@@ -16432,8 +16628,21 @@ def shop_receipts_return_lines(shop_id: int):
     if gate is not None:
         return gate
     role_key = (session.get("employee_role") or "").strip().lower()
-    if role_key not in ("admin", "manager", "super_admin", "it_support", "company_manager"):
-        return jsonify({"ok": False, "error": "Only admin or manager can return items."}), 403
+    uid = session.get("employee_id")
+    if role_key not in SHOP_POS_RECEIPT_RETURN_ROLES and uid:
+        try:
+            from database import get_employee_by_id
+
+            emp = get_employee_by_id(int(uid))
+            role_key = str((emp or {}).get("role") or role_key or "").strip().lower()
+        except Exception:
+            pass
+    if role_key not in SHOP_POS_RECEIPT_RETURN_ROLES:
+        # Shared shop-password till: client verifies 6-digit code before calling API.
+        if not uid and int(session.get("shop_id") or 0) == int(shop_id):
+            pass
+        else:
+            return jsonify({"ok": False, "error": "Only admin, manager, IT support, or super admin can return items."}), 403
     data = request.get_json(force=True, silent=True) or {}
     sale_id = int(data.get("sale_id") or 0)
     line_ids = data.get("line_ids")
@@ -21156,19 +21365,28 @@ def it_support_company_report_json():
         "till_summary": {},
     }
     try:
-        from database import get_company_report
+        from database import get_company_report, get_it_support_revenue_analytics
 
         report_data = get_company_report(
             analytics_filter=analytics_filter,
             analytics_scope=analytics_scope,
             shop_id=shop_filter_id,
         )
+        rev = get_it_support_revenue_analytics(
+            analytics_filter,
+            analytics_scope,
+            shop_id=shop_filter_id,
+            include_transactions=False,
+        )
+        shop_revenue_rows = rev.get("shops") or []
     except Exception:
         logger.exception("it_support_company_report_json failed")
+        shop_revenue_rows = []
     return jsonify(
         {
             "ok": True,
             "report": report_data,
+            "shops": shop_revenue_rows,
             "generated_at": datetime.now().strftime("%d %b %Y %H:%M"),
             "live_enabled": _shop_report_live_enabled(analytics_filter),
         }

@@ -71,6 +71,7 @@
               <th scope="col" class="num">Credit</th>
               <th scope="col" class="num">Cash</th>
               <th scope="col" class="num">M-Pesa</th>
+              <th scope="col" class="num">Expenses</th>
               <th scope="col" class="num">Total</th>
             </tr>
           </thead>
@@ -82,6 +83,7 @@
                 <td class="num cell-credit">{{ "%.2f"|format(row.credit_amount) }}</td>
                 <td class="num">{{ "%.2f"|format(row.cash_paid or 0) }}</td>
                 <td class="num">{{ "%.2f"|format(row.mpesa_paid or 0) }}</td>
+                <td class="num cell-expense">{{ "%.2f"|format(row.expense_amount or 0) }}</td>
                 <td class="num cell-strong">{{ "%.2f"|format(row.total_amount) }}</td>
               </tr>
             {% endfor %}

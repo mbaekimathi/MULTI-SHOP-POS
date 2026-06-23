@@ -2,9 +2,10 @@
 {% block title %}Credit payments — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Credit payments{% endblock %}
 {% block head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=11" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-credit-payments.css') }}?v=8" />
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=25" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=12" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-credit-payments.css') }}?v=10" />
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
 {% endblock %}
 {% block sidebar_links %}
@@ -19,39 +20,6 @@
   {% set filter_clear_url = url_for('it_support_credit_payments') %}
   {% set show_print = true %}
 
-  <style>
-    .it-analytics-page--credit {
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: clip;
-      box-sizing: border-box;
-    }
-    .it-analytics-page--credit .rev-scroll,
-    .it-analytics-page--credit .rev-scroll--lg {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    @media print {
-      .cp-credit-toolbar,
-      .rev-toolbar,
-      .rcpt-hero,
-      nav,
-      header,
-      aside,
-      .rev-btn { display: none !important; }
-      .it-analytics-page--credit .rev-panel {
-        border: none;
-        box-shadow: none;
-      }
-      .it-analytics-page--credit .rev-col-action { display: none; }
-    }
-  </style>
-
   <div class="it-analytics-page it-analytics-page--modern it-analytics-page--revenue it-analytics-page--credit">
     <div class="rev-page rev-page--fluid mx-auto w-full min-w-0 max-w-6xl px-0 sm:px-1">
       {% include "partials/it_support_credit_payments_hero.html" %}
@@ -63,7 +31,7 @@
 {% endblock %}
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/it-support-credit-payments-filters.js') }}?v=5" defer></script>
+  <script src="{{ url_for('static', filename='js/it-support-credit-payments-filters.js') }}?v=7" defer></script>
   {% if credit_should_print %}
   <script>
     window.addEventListener("load", function () { window.print(); });

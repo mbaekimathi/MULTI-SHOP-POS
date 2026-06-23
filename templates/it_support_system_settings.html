@@ -1,567 +1,9 @@
 {% extends "employee_layout.html" %}
 {% block head %}
+  {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}" />
-  <style>
-    #it-settings-form {
-      min-width: 0;
-      max-width: 100%;
-    }
-    #it-settings-form [data-panel] {
-      min-width: 0;
-    }
-    #theme #appearance-active-summary {
-      text-align: left;
-      max-width: none;
-    }
-    .rc-receipt-switch {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 2.75rem;
-      height: 1.5rem;
-      border-radius: 9999px;
-      background: rgb(var(--rc-border));
-      cursor: pointer;
-      position: relative;
-      flex-shrink: 0;
-      transition: background 0.2s ease;
-    }
-    .rc-receipt-switch:checked {
-      background: rgb(var(--rc-primary));
-    }
-    .rc-receipt-switch::after {
-      content: "";
-      position: absolute;
-      top: 2px;
-      left: 3px;
-      width: 1.125rem;
-      height: 1.125rem;
-      border-radius: 9999px;
-      background: #fff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-      transition: transform 0.2s ease;
-    }
-    .rc-receipt-switch:checked::after {
-      transform: translateX(1.15rem);
-    }
-    .rc-appearance-hero {
-      position: relative;
-      overflow: hidden;
-      border-radius: 1.25rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: linear-gradient(
-        135deg,
-        rgba(var(--rc-surface-2) / 0.95) 0%,
-        rgba(var(--rc-surface) / 0.98) 55%,
-        rgba(var(--rc-primary) / 0.06) 100%
-      );
-      padding: 1rem 1.15rem;
-    }
-    .rc-appearance-hero::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse 70% 80% at 100% 0%, rgba(var(--rc-primary) / 0.14), transparent 55%),
-        radial-gradient(ellipse 50% 60% at 0% 100%, rgba(var(--rc-accent) / 0.1), transparent 50%);
-      pointer-events: none;
-    }
-    .rc-appearance-hero__inner {
-      position: relative;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-    }
-    .rc-appearance-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      border-radius: 999px;
-      border: 1px solid rgba(var(--rc-primary) / 0.25);
-      background: rgba(var(--rc-primary) / 0.1);
-      padding: 0.2rem 0.65rem;
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-primary));
-    }
-    .rc-appearance-layout {
-      display: grid;
-      gap: 1.25rem;
-      margin-top: 1.25rem;
-    }
-    #appearance-preset-grid {
-      gap: 0.5rem;
-    }
-    @media (min-width: 640px) {
-      #appearance-preset-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-      #theme #appearance-active-summary {
-        text-align: right;
-        max-width: 12rem;
-      }
-    }
-    @media (min-width: 1024px) {
-      #appearance-preset-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-    }
-    @media (min-width: 1280px) {
-      #appearance-preset-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-      }
-      .rc-appearance-layout {
-        grid-template-columns: minmax(0, 1fr) minmax(13.5rem, 16rem);
-        align-items: start;
-      }
-      .rc-appearance-stage-wrap {
-        position: sticky;
-        top: 5.5rem;
-      }
-    }
-    .rc-appearance-section-label {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-muted));
-    }
-    .rc-appearance-section-label svg {
-      width: 1rem;
-      height: 1rem;
-      opacity: 0.7;
-    }
-    .rc-appearance-preset {
-      position: relative;
-      cursor: pointer;
-      border-radius: 0.75rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface));
-      padding: 0;
-      text-align: left;
-      overflow: hidden;
-      transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .rc-appearance-preset:hover {
-      border-color: rgba(var(--rc-primary) / 0.35);
-      transform: translateY(-2px);
-      box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.45);
-    }
-    .rc-appearance-preset.is-selected {
-      border-color: rgba(var(--rc-primary) / 0.65);
-      box-shadow: 0 0 0 1px rgba(var(--rc-primary) / 0.4), 0 20px 48px -28px rgba(var(--rc-primary) / 0.45);
-    }
-    .rc-appearance-preset__check {
-      position: absolute;
-      top: 0.35rem;
-      right: 0.35rem;
-      z-index: 2;
-      display: flex;
-      height: 1rem;
-      width: 1rem;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      background: rgb(var(--rc-primary));
-      color: #fff;
-      opacity: 0;
-      transform: scale(0.6);
-      transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-    .rc-appearance-preset.is-selected .rc-appearance-preset__check {
-      opacity: 1;
-      transform: scale(1);
-    }
-    .rc-appearance-preset__frame {
-      position: relative;
-      margin: 0.4rem 0.4rem 0;
-      border-radius: 0.45rem;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      box-shadow: 0 4px 14px -10px rgba(0, 0, 0, 0.35);
-      aspect-ratio: 2 / 1;
-      max-height: 3.25rem;
-      display: flex;
-      flex-direction: column;
-    }
-    .rc-appearance-preset__titlebar {
-      display: flex;
-      align-items: center;
-      gap: 0.2rem;
-      padding: 0.2rem 0.35rem;
-      flex-shrink: 0;
-    }
-    .rc-appearance-preset__traffic {
-      width: 0.3rem;
-      height: 0.3rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.22);
-    }
-    .rc-appearance-preset__canvas {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 28% 1fr;
-      gap: 0.2rem;
-      padding: 0.25rem;
-      min-height: 0;
-    }
-    .rc-appearance-preset__rail {
-      border-radius: 0.35rem;
-      opacity: 0.92;
-    }
-    .rc-appearance-preset__content {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-    }
-    .rc-appearance-preset__block {
-      border-radius: 0.3rem;
-      flex: 1;
-      min-height: 0.5rem;
-    }
-    .rc-appearance-preset__block--sm {
-      flex: 0 0 28%;
-    }
-    .rc-appearance-preset__meta {
-      padding: 0.4rem 0.5rem 0.5rem;
-    }
-    .rc-appearance-preset__name {
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: rgb(var(--rc-page-fg));
-      letter-spacing: -0.01em;
-      line-height: 1.2;
-    }
-    .rc-appearance-preset__tag {
-      margin-top: 0.1rem;
-      font-size: 0.6rem;
-      line-height: 1.25;
-      color: rgb(var(--rc-muted));
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    .rc-appearance-preset__chips {
-      display: flex;
-      gap: 0.2rem;
-      margin-top: 0.35rem;
-    }
-    .rc-appearance-preset__chip {
-      height: 0.35rem;
-      width: 0.9rem;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }
-    .rc-appearance-mode {
-      display: inline-flex;
-      padding: 0.2rem;
-      border-radius: 0.85rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface-2));
-      gap: 0.15rem;
-    }
-    .rc-appearance-mode__btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      border-radius: 0.65rem;
-      border: none;
-      background: transparent;
-      padding: 0.45rem 0.85rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: rgb(var(--rc-muted));
-      cursor: pointer;
-      transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-    }
-    .rc-appearance-mode__btn.is-active {
-      background: rgb(var(--rc-surface));
-      color: rgb(var(--rc-page-fg));
-      box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.25);
-    }
-    .rc-appearance-mode__btn svg {
-      width: 0.95rem;
-      height: 0.95rem;
-      opacity: 0.85;
-    }
-    .rc-appearance-brand-grid {
-      display: grid;
-      gap: 0.5rem;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      max-width: 100%;
-    }
-    @media (min-width: 640px) {
-      .rc-appearance-brand-grid {
-        max-width: 20rem;
-      }
-    }
-    .rc-appearance-brand-card {
-      border-radius: 0.65rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface-2));
-      padding: 0.5rem 0.55rem;
-      transition: border-color 0.2s ease;
-    }
-    .rc-appearance-brand-card:focus-within {
-      border-color: rgba(var(--rc-primary) / 0.45);
-    }
-    .rc-appearance-brand-card__swatch {
-      height: 1.75rem;
-      border-radius: 0.4rem;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      margin-bottom: 0.4rem;
-      overflow: hidden;
-      position: relative;
-    }
-    .rc-appearance-brand-card__swatch input[type="color"] {
-      position: absolute;
-      inset: -8px;
-      width: calc(100% + 16px);
-      height: calc(100% + 16px);
-      cursor: pointer;
-      border: none;
-      padding: 0;
-    }
-    .rc-appearance-brand-card__hex {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.65rem;
-      font-weight: 600;
-      color: rgb(var(--rc-page-fg));
-      letter-spacing: 0.04em;
-    }
-    .rc-appearance-fonts {
-      display: grid;
-      gap: 0.35rem;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    @media (min-width: 480px) {
-      .rc-appearance-fonts {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-    }
-    @media (min-width: 640px) {
-      .rc-appearance-fonts {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-    }
-    @media (min-width: 1024px) {
-      .rc-appearance-fonts {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-      }
-    }
-    .rc-appearance-font {
-      position: relative;
-      cursor: pointer;
-      border-radius: 0.65rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface));
-      padding: 0.45rem 0.4rem 0.5rem;
-      text-align: left;
-      transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
-    }
-    .rc-appearance-font:hover {
-      border-color: rgba(var(--rc-primary) / 0.35);
-      transform: translateY(-1px);
-    }
-    .rc-appearance-font.is-selected {
-      border-color: rgba(var(--rc-primary) / 0.55);
-      background: linear-gradient(160deg, rgba(var(--rc-primary) / 0.12), rgba(var(--rc-surface) / 0.5));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    }
-    .rc-appearance-font__glyph {
-      font-size: 1.1rem;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: -0.03em;
-      color: rgb(var(--rc-page-fg));
-    }
-    .rc-appearance-font__name {
-      margin-top: 0.2rem;
-      font-size: 0.55rem;
-      line-height: 1.2;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 600;
-      color: rgb(var(--rc-muted));
-    }
-    .rc-appearance-font__pill {
-      position: absolute;
-      top: 0.35rem;
-      right: 0.35rem;
-      font-size: 0.5rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: rgb(var(--rc-primary));
-      opacity: 0;
-    }
-    .rc-appearance-font.is-selected .rc-appearance-font__pill {
-      opacity: 1;
-    }
-    .rc-appearance-font__cat {
-      display: block;
-      font-size: 0.5rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: rgb(var(--rc-muted));
-      opacity: 0.85;
-    }
-    .rc-appearance-font__tagline {
-      display: block;
-      margin-top: 0.15rem;
-      font-size: 0.5rem;
-      line-height: 1.2;
-      color: rgb(var(--rc-muted));
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .rc-appearance-stage {
-      border-radius: 0.85rem;
-      border: 1px solid rgb(var(--rc-border));
-      overflow: hidden;
-      background: rgb(var(--rc-surface));
-      box-shadow: 0 24px 64px -32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-    }
-    .rc-appearance-stage__label {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding: 0.65rem 0.85rem;
-      font-size: 0.65rem;
-      font-weight: 600;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      border-bottom: 1px solid rgb(var(--rc-border));
-      color: rgb(var(--rc-muted));
-    }
-    .rc-appearance-stage__live {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      color: rgb(var(--rc-primary));
-    }
-    .rc-appearance-stage__live::before {
-      content: "";
-      width: 0.4rem;
-      height: 0.4rem;
-      border-radius: 999px;
-      background: currentColor;
-      animation: rc-appearance-pulse 1.8s ease-in-out infinite;
-    }
-    @keyframes rc-appearance-pulse {
-      0%,
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-      50% {
-        opacity: 0.45;
-        transform: scale(0.85);
-      }
-    }
-    .rc-appearance-preview {
-      min-height: 9.5rem;
-    }
-    .rc-appearance-preview__topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding: 0.65rem 0.85rem;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    }
-    .rc-appearance-preview__search {
-      flex: 1;
-      max-width: 8rem;
-      height: 0.45rem;
-      border-radius: 999px;
-      opacity: 0.35;
-    }
-    .rc-appearance-preview__avatar {
-      width: 1.25rem;
-      height: 1.25rem;
-      border-radius: 999px;
-      flex-shrink: 0;
-    }
-    .rc-appearance-preview__body {
-      display: grid;
-      grid-template-columns: 2.75rem 1fr;
-      min-height: 7.5rem;
-    }
-    .rc-appearance-preview__nav {
-      padding: 0.65rem 0.4rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-      border-right: 1px solid rgba(0, 0, 0, 0.05);
-    }
-    .rc-appearance-preview__nav-item {
-      height: 0.4rem;
-      border-radius: 0.25rem;
-    }
-    .rc-appearance-preview__nav-item--active {
-      width: 85% !important;
-      opacity: 1 !important;
-    }
-    .rc-appearance-preview__main {
-      padding: 0.75rem 0.85rem 1rem;
-    }
-    .rc-appearance-preview__stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.4rem;
-      margin-top: 0.55rem;
-    }
-    .rc-appearance-preview__stat {
-      border-radius: 0.5rem;
-      padding: 0.45rem 0.5rem;
-      font-size: 0.55rem;
-      line-height: 1.3;
-    }
-    .rc-appearance-preview__stat strong {
-      display: block;
-      font-size: 0.7rem;
-      font-weight: 700;
-      margin-top: 0.15rem;
-    }
-    .rc-appearance-preview__hero-card {
-      border-radius: 0.65rem;
-      padding: 0.65rem 0.75rem;
-      margin-top: 0.55rem;
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 0.5rem;
-    }
-    .rc-appearance-preview__btn {
-      flex-shrink: 0;
-      padding: 0.3rem 0.6rem;
-      border-radius: 0.4rem;
-      font-size: 0.6rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.35);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .rc-appearance-stage__live::before {
-        animation: none;
-      }
-      .rc-appearance-preset:hover,
-      .rc-appearance-font:hover {
-        transform: none;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-pos-settings.css') }}?v=3" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-system-settings.css') }}?v=2" />
   {% if appearance_fonts_google_url %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -571,12 +13,16 @@
 {% block title %}System settings — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}System settings{% endblock %}
 {% block sidebar_links %}
+  {% set _st = (initial_settings_tab or 'system')|lower %}
+  {% if _st == 'printing' %}{% set _st = 'receipt' %}{% endif %}
+  {% if _st == 'website' %}{% set _st = 'theme' %}{% endif %}
   {# Default: full settings nav — hidden while viewing POS / receipt sub-areas #}
-  <div id="settings-sidebar-default" class="flex flex-col gap-1">
+  <div id="settings-sidebar-default" class="flex flex-col gap-1{% if _st in ('pos', 'receipt') %} hidden{% endif %}">
     <a
       href="{{ url_for('it_support_system_settings', tab='system') }}"
       data-settings-tab="system"
-      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _st == 'system' %}bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+      {% if _st == 'system' %}aria-current="page"{% endif %}
     >
       <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -587,7 +33,8 @@
     <a
       href="{{ url_for('it_support_system_settings', tab='theme') }}"
       data-settings-tab="theme"
-      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _st == 'theme' %}bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+      {% if _st == 'theme' %}aria-current="page"{% endif %}
     >
       <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
@@ -597,7 +44,8 @@
     <a
       href="{{ url_for('it_support_system_settings', tab='company') }}"
       data-settings-tab="company"
-      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _st == 'company' %}bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+      {% if _st == 'company' %}aria-current="page"{% endif %}
     >
       <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M9 8h6m-6 4h6m-6 4h6M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16" />
@@ -607,7 +55,8 @@
     <a
       href="{{ url_for('it_support_system_settings', tab='pos') }}"
       data-settings-tab="pos"
-      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+      class="settings-tab settings-tab--default flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _st == 'pos' %}bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+      {% if _st == 'pos' %}aria-current="page"{% endif %}
     >
       <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
@@ -645,12 +94,13 @@
   </div>
 
   {# POS area only: replace sidebar while hash is #pos or #receipt #}
-  <div id="settings-sidebar-pos" class="hidden flex flex-col gap-1">
+  <div id="settings-sidebar-pos" class="flex flex-col gap-1{% if _st not in ('pos', 'receipt') %} hidden{% endif %}">
     <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Point of sale</p>
     <a
       href="{{ url_for('it_support_system_settings', tab='pos') }}"
       data-settings-tab="pos"
-      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _st == 'pos' %}bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+      {% if _st == 'pos' %}aria-current="page"{% endif %}
     >
       <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
@@ -660,7 +110,8 @@
     <a
       href="{{ url_for('it_support_system_settings', tab='receipt') }}"
       data-settings-tab="receipt"
-      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]"
+      class="settings-tab settings-tab--pos flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if _st == 'receipt' %}bg-brand-500/15 font-semibold text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25{% else %}text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]{% endif %}"
+      {% if _st == 'receipt' %}aria-current="page"{% endif %}
     >
       <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -676,24 +127,31 @@
   </div>
 {% endblock %}
 {% block employee_content %}
-  <form
-    id="it-settings-form"
-    method="post"
-    enctype="multipart/form-data"
-    action="{{ url_for('it_support_system_settings') }}"
-    class="min-w-0 max-w-full rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 sm:p-6"
-    onsubmit="return false;"
-  >
-    <input type="hidden" name="return_hash" id="return_hash" value="#system" />
-    <div id="system" data-panel="system" class="scroll-mt-24">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">System settings</h2>
-      <p class="mt-2 max-w-3xl text-sm text-[rgb(var(--rc-muted))]">M-Pesa (Daraja) API credentials and payment integration. Set your hosted domain under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Company settings</strong> for callback URLs.</p>
-      <div class="mt-6">
-        {% include "partials/daraja_settings_section.html" %}
-      </div>
-    </div>
+  {% set _st = (initial_settings_tab or 'system')|lower %}
+  {% if _st == 'printing' %}{% set _st = 'receipt' %}{% endif %}
+  {% if _st == 'website' %}{% set _st = 'theme' %}{% endif %}
 
-    <div id="theme" data-panel="theme" class="hidden scroll-mt-24">
+  <div id="it-settings-page" class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {% include "partials/it_support_settings_page_hero.html" %}
+    {% include "partials/flashes.html" %}
+
+    <form
+      id="it-settings-form"
+      method="post"
+      enctype="multipart/form-data"
+      action="{{ url_for('it_support_system_settings') }}"
+      class="min-w-0 space-y-6"
+      onsubmit="return false;"
+    >
+      <input type="hidden" name="return_hash" id="return_hash" value="#system" />
+
+      <div id="system" data-panel="system" class="scroll-mt-24{% if _st != 'system' %} hidden{% endif %}">
+        <div class="it-settings-panel-card p-5 sm:p-6">
+          {% include "partials/daraja_settings_section.html" %}
+        </div>
+      </div>
+
+      <div id="theme" data-panel="theme" class="scroll-mt-24{% if _st != 'theme' %} hidden{% endif %}">
       {% set _cur_preset = site_settings.theme_preset if site_settings and site_settings.theme_preset else 'eye-comfort' %}
       {% set _cur_mode = site_settings.default_theme if site_settings else 'dark' %}
       <input type="hidden" name="theme_preset" id="theme_preset" value="{{ _cur_preset }}" />
@@ -720,6 +178,7 @@
         </div>
       </div>
 
+      <div class="it-settings-panel-card mt-4 p-5 sm:p-6">
       <div class="rc-appearance-layout">
         <div class="space-y-7">
           <section>
@@ -924,17 +383,16 @@
           </p>
         </div>
       </div>
+      </div>
 
-      <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
+      <div class="it-settings-panel-card mt-6 p-5 sm:p-6">
         {% include "partials/website_theme_settings_overview.html" %}
       </div>
     </div>
 
-    <div id="company" data-panel="company" class="hidden scroll-mt-24">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</h2>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Company identity, contact details, and opening hours.</p>
-
-      <div class="mt-6 grid gap-4 md:grid-cols-2">
+    <div id="company" data-panel="company" class="scroll-mt-24{% if _st != 'company' %} hidden{% endif %}">
+      <div class="it-settings-panel-card space-y-8 p-5 sm:p-6">
+        <div class="grid gap-4 md:grid-cols-2">
         <div class="md:col-span-2">
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Company name</label>
           <input
@@ -992,263 +450,25 @@
         {% set location_lat = site_settings.company_latitude if site_settings else '' %}
         {% set location_lng = site_settings.company_longitude if site_settings else '' %}
         {% include "partials/company_location_picker.html" %}
-      </div>
-
-      <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
-        {% include "partials/company_opening_hours.html" %}
-      </div>
-    </div>
-
-    <div id="pos" data-panel="pos" class="hidden scroll-mt-24">
-      {% set ps = printing_settings %}
-      {% set pos_cart_mode = ps.pos_cart_mode if ps.pos_cart_mode in ('direct', 'withhold') else 'direct' %}
-      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Point of sale settings</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Cart modes, customer fields, tax on totals, discounts, compulsory printing, and which printer connection types POS may use — receipt layout stays under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Receipt format</strong>.
-        </p>
-      </div>
-
-      <div class="mt-6 space-y-6">
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Cart type (POS workflow)</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-            Pick exactly one mode (toggle one on — the other turns off automatically).
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Direct POS</strong> finalizes each cart at checkout (current behavior — no save / reopen).
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Withhold POS</strong> lets staff <strong class="font-medium text-[rgb(var(--rc-page-fg))]">save (hold)</strong> the current cart as an open order — items are deducted from <strong class="font-medium text-[rgb(var(--rc-page-fg))]">shop stock</strong> or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen portions</strong> when held (per <strong class="font-medium text-[rgb(var(--rc-page-fg))]">POS inventory</strong> below), and a company receipt is printed for the saved batch only if compulsory printing is on. Staff can then start other orders, return to update a held order (each update prints a company receipt for the <em>new</em> lines and deducts only those), and complete the sale as usual when the customer pays.
-            On the shop POS cart, staff choose <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Direct sale</strong> (normal checkout) or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Hold tab</strong> (save &amp; hold) for each cart; when company mode is <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Direct POS</strong> below, only direct checkout is available.
-          </p>
-          <input type="hidden" name="pos_cart_mode" value="{{ pos_cart_mode }}" />
-          <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Direct POS</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Single cart per checkout — finalize, print, and clear.</p>
-            </div>
-            <input
-              type="checkbox"
-              class="rc-receipt-switch js-pos-cart-mode-toggle"
-              data-pos-cart-mode="direct"
-              aria-label="Direct POS cart"
-              {% if pos_cart_mode == 'direct' %}checked{% endif %}
-            />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Withhold POS</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Save (hold) the cart; deduct stock per save; reopen to add more items; finalize payment when the customer is ready.</p>
-            </div>
-            <input
-              type="checkbox"
-              class="rc-receipt-switch js-pos-cart-mode-toggle"
-              data-pos-cart-mode="withhold"
-              aria-label="Withhold POS cart (held orders)"
-              {% if pos_cart_mode == 'withhold' %}checked{% endif %}
-            />
-          </div>
         </div>
 
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Transactional types (POS cart)</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">At least one</strong> must stay on or checkout cannot complete — if all three would be off, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Sale</strong> turns back on automatically.
-            When only one is on, staff do not see a transaction-type row in the cart; POS uses that mode automatically.
-          </p>
-          <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Sale</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Cash / M-Pesa checkout (records a completed sale).</p>
-            </div>
-            <input type="checkbox" name="pos_allow_cash_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_cash_sale %}checked{% endif %} />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Credit</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Credit checkout and related POS flows.</p>
-            </div>
-            <input type="checkbox" name="pos_allow_credit_sale" value="1" class="rc-receipt-switch" {% if ps.pos_allow_credit_sale %}checked{% endif %} />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Quotation</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Quote-only checkout (lead / no inventory movement).</p>
-            </div>
-            <input type="checkbox" name="pos_allow_quotations" value="1" class="rc-receipt-switch" {% if ps.pos_allow_quotations %}checked{% endif %} />
-          </div>
-        </div>
-
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Payment methods (cash sale)</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">At least one</strong> must stay on — if all three would be off, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Cash</strong> turns back on automatically.
-            When only one method is enabled, checkout uses it without showing a payment row in the cart.
-          </p>
-          <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Full amount paid in cash.</p>
-            </div>
-            <input type="checkbox" name="pos_payment_cash" value="1" class="rc-receipt-switch" {% if ps.pos_payment_cash %}checked{% endif %} />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">M-Pesa</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Full amount on M-Pesa.</p>
-            </div>
-            <input type="checkbox" name="pos_payment_mpesa" value="1" class="rc-receipt-switch" {% if ps.pos_payment_mpesa %}checked{% endif %} />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cash + M-Pesa (split)</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Split tender between cash and M-Pesa.</p>
-            </div>
-            <input type="checkbox" name="pos_payment_both" value="1" class="rc-receipt-switch" {% if ps.pos_payment_both %}checked{% endif %} />
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Buy items (POS header)</p>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">
-              When on, staff see <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Buy items</strong> in the POS header to record stock purchased from sellers. Stock-in stays available from stock management whether this is off or on.
-            </p>
-          </div>
-          <input type="checkbox" name="pos_show_buy_items_link" value="1" class="rc-receipt-switch" {% if ps.pos_show_buy_items_link %}checked{% endif %} />
-        </div>
-
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Customer details (cash sale)</p>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">When off, the customer phone/name block is hidden for normal sales. Credit and quotation still show customer fields when needed.</p>
-          </div>
-          <input type="checkbox" name="pos_show_customer_details_sale" value="1" class="rc-receipt-switch" {% if ps.pos_show_customer_details_sale %}checked{% endif %} />
-        </div>
-
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Cart: amount sets quantity</p>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, each cart line shows a money <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Amount</strong> field instead of quantity. POS divides by the unit price to set quantity (respects stock caps). Lines with zero unit price keep the quantity field. <strong class="font-medium text-[rgb(var(--rc-page-fg))]">−</strong> / <strong class="font-medium text-[rgb(var(--rc-page-fg))]">+</strong> still adjust by one unit of quantity.</p>
-          </div>
-          <input type="checkbox" name="pos_cart_amount_sets_qty" value="1" class="rc-receipt-switch" {% if ps.pos_cart_amount_sets_qty %}checked{% endif %} />
-        </div>
-
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Tax in POS totals</p>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">When on (or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Include tax on receipt</strong> under Receipt format), the tax rate set there is added to sale, credit, and quotation amounts — you must enter a tax rate on that tab. When both this and that option are off, cart and checkout use line totals with no tax.</p>
-          </div>
-          <input type="checkbox" name="pos_include_tax" value="1" class="rc-receipt-switch" {% if ps.pos_include_tax %}checked{% endif %} />
-        </div>
-
-        {% set pos_inv_exclusive = 'dual' if ps.pos_inventory_use_both else ('kitchen' if ps.pos_kitchen_portions else 'shop') %}
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">POS inventory</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-            Default for all branches: pick exactly one mode (toggle one on — the others turn off automatically).
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Shop stock</strong> deducts shelf quantity at checkout;
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Kitchen portions</strong> deducts portion counts;
-            <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Both</strong> deducts portions at checkout while shelf quantities are maintained separately for items registered under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Stock management</strong>.
-            A shop can override this under <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Shop settings → POS printing</strong> when “Customize POS printing for this shop” is on.
-          </p>
-          <input type="hidden" name="pos_inventory_exclusive" value="{{ pos_inv_exclusive }}" />
-          <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Shop stock</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Deduct shelf quantity on sale.</p>
-            </div>
-            <input
-              type="checkbox"
-              class="rc-receipt-switch js-pos-inv-exclusive-toggle"
-              data-pos-inv-exclusive="shop"
-              aria-label="Shop stock at checkout"
-              {% if pos_inv_exclusive == 'shop' %}checked{% endif %}
-            />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portions</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Deduct portion counts on sale.</p>
-            </div>
-            <input
-              type="checkbox"
-              class="rc-receipt-switch js-pos-inv-exclusive-toggle"
-              data-pos-inv-exclusive="kitchen"
-              aria-label="Kitchen portions at checkout"
-              {% if pos_inv_exclusive == 'kitchen' %}checked{% endif %}
-            />
-          </div>
-          <div class="mt-3 flex items-center justify-between gap-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Both (kitchen + shelf)</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">Checkout uses portions; shelf qty via Stock management for registered items.</p>
-            </div>
-            <input
-              type="checkbox"
-              class="rc-receipt-switch js-pos-inv-exclusive-toggle"
-              data-pos-inv-exclusive="dual"
-              aria-label="Kitchen and shelf inventory mode"
-              {% if pos_inv_exclusive == 'dual' %}checked{% endif %}
-            />
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Discounts (edit line prices)</p>
-            <p class="text-xs text-[rgb(var(--rc-muted))]">When on, cashiers can change the unit price of each line in the cart.</p>
-          </div>
-          <input type="checkbox" name="pos_allow_line_price_edit" value="1" class="rc-receipt-switch" {% if ps.allow_line_price_edit %}checked{% endif %} />
-        </div>
-
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Printer section</p>
-          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-            Choose whether staff may pair <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</strong>, <strong class="font-medium text-[rgb(var(--rc-page-fg))]">network</strong>, or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">USB</strong> printers on the shop POS. You can allow printers but leave <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</strong> off so checkout does not require a saved printer. If all three types are off, compulsory printing turns off automatically (nothing to configure).
-          </p>
-          <div class="mt-4 flex items-center justify-between gap-4 border-t border-[rgb(var(--rc-border))] pt-4">
-            <div>
-              <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</p>
-              <p class="text-xs text-[rgb(var(--rc-muted))]">
-                When on, staff cannot complete <strong class="font-medium text-[rgb(var(--rc-page-fg))]">standard sale</strong> checkout (6-digit code) until POS treats the printer as <strong class="font-medium text-[rgb(var(--rc-page-fg))]">ready</strong>: <strong class="font-medium text-[rgb(var(--rc-page-fg))]">network or USB</strong> need a profile saved in the shop’s Printer panel; <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</strong> needs that profile saved and <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Connect printer</strong> so the header shows linked (saved alone is not enough). Credit and quotation flows are not blocked. The server also rejects <strong class="font-medium text-[rgb(var(--rc-page-fg))]">recording</strong> a standard sale if this shop has no saved printer profile.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              name="printing_compulsory_sale"
-              value="1"
-              class="rc-receipt-switch js-printing-compulsory-sale"
-              {% if ps.print_compulsory_sale %}checked{% endif %}
-              {% if not (ps.printer_allow_bluetooth or ps.printer_allow_network or ps.printer_allow_usb) %}disabled{% endif %}
-              title="Turn on at least one allowed printer type to enable this option."
-            />
-          </div>
-          <p class="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--rc-muted))]">Allowed printer types (POS setup)</p>
-          <div class="mt-3 grid gap-3 sm:grid-cols-3">
-            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5">
-              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</span>
-              <input type="checkbox" name="printing_allow_bluetooth" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_bluetooth %}checked{% endif %} />
-            </div>
-            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5">
-              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Network</span>
-              <input type="checkbox" name="printing_allow_network" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_network %}checked{% endif %} />
-            </div>
-            <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2.5">
-              <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">USB</span>
-              <input type="checkbox" name="printing_allow_usb" value="1" class="rc-receipt-switch js-printing-allow-printer" {% if ps.printer_allow_usb %}checked{% endif %} />
-            </div>
-          </div>
+        <div class="border-t border-[rgb(var(--rc-border))] pt-8">
+          {% include "partials/company_opening_hours.html" %}
         </div>
       </div>
     </div>
 
-    <div id="receipt" data-panel="receipt" class="hidden scroll-mt-24">
+    <div id="pos" data-panel="pos" class="pos-settings scroll-mt-24{% if _st != 'pos' %} hidden{% endif %}">
+      <div class="it-settings-panel-card p-5 sm:p-6">
+        {% include "partials/it_support_pos_settings_panel.html" %}
+      </div>
+    </div>
+
+    <div id="receipt" data-panel="receipt" class="scroll-mt-24{% if _st != 'receipt' %} hidden{% endif %}">
       {% set rs = receipt_settings %}
       {% set ps = printing_settings %}
-      <div class="border-b border-[rgb(var(--rc-border))] pb-4">
-        <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Receipt format</h2>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">How many receipts print per checkout, plus the appearance and layout of each receipt.</p>
-      </div>
-
-      <div class="mt-6 space-y-6">
+      <div class="it-settings-panel-card space-y-6 p-5 sm:p-6">
+        <div class="space-y-6">
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Receipts to print per sale</label>
           <p class="mb-2 text-xs text-[rgb(var(--rc-muted))]">The shop POS prints one slip per variant (customer, optional company without prices, optional cashier). Browser / OS print uses one dialog with page breaks; ESC/POS sends each copy in sequence.</p>
@@ -1533,11 +753,11 @@
           </div>
         </div>
         <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Preview width follows “Receipt width”; font size follows “Font size”.</p>
+        </div>
       </div>
     </div>
-    <div
-      class="mt-8 flex flex-col gap-4 border-t border-[rgb(var(--rc-border))] pt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3"
-    >
+
+    <div class="it-settings-footer flex flex-col gap-4 p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:p-6">
       <p
         id="it-settings-live-status"
         class="min-h-[1.25rem] text-xs text-[rgb(var(--rc-muted))]"
@@ -1556,7 +776,8 @@
         Back to dashboard
       </a>
     </div>
-  </form>
+    </form>
+  </div>
 {% endblock %}
 
 {% block scripts %}
@@ -1583,21 +804,42 @@
           el.classList.toggle("hidden", el.getAttribute("data-panel") !== tab);
         });
 
+        var heroRoot = document.getElementById("it-settings-hero");
+        if (heroRoot) {
+          heroRoot.classList.toggle("hidden", tab === "theme");
+          heroRoot.querySelectorAll("[data-settings-hero]").forEach(function (el) {
+            el.classList.toggle("hidden", el.getAttribute("data-settings-hero") !== tab);
+          });
+        }
+
         var defEl = document.getElementById("settings-sidebar-default");
         var posEl = document.getElementById("settings-sidebar-pos");
         var inPosGroup = !!POS_TABS[tab];
         if (defEl) defEl.classList.toggle("hidden", inPosGroup);
         if (posEl) posEl.classList.toggle("hidden", !inPosGroup);
 
+        var activeTabClasses = [
+          "bg-brand-500/15",
+          "text-brand-700",
+          "ring-1",
+          "ring-brand-400/30",
+          "dark:text-brand-200",
+          "dark:ring-brand-400/25",
+          "font-semibold",
+        ];
         document.querySelectorAll("a[data-settings-tab]").forEach(function (a) {
           var g = a.closest("#settings-sidebar-default, #settings-sidebar-pos");
           if (g && g.classList.contains("hidden")) {
             a.setAttribute("aria-current", "false");
+            activeTabClasses.forEach(function (c) {
+              a.classList.remove(c);
+            });
             return;
           }
           var active = a.getAttribute("data-settings-tab") === tab;
-          a.classList.toggle("bg-[rgb(var(--rc-surface-2))]", active);
-          a.classList.toggle("text-[rgb(var(--rc-page-fg))]", true);
+          activeTabClasses.forEach(function (c) {
+            a.classList.toggle(c, active);
+          });
           a.setAttribute("aria-current", active ? "page" : "false");
         });
 

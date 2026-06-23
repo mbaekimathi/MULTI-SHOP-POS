@@ -3,57 +3,6 @@
 {% block portal_page_title %}Portion analytics{% endblock %}
 {% block employee_content %}
   {% set a = analytics %}
-  <style>
-    .ka-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    .ka-hero {
-      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
-    }
-    .ka-stat {
-      position: relative;
-      overflow: hidden;
-      border-color: rgba(var(--rc-border), 0.85);
-      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
-    }
-    .ka-stat::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto auto 0;
-      width: 100%;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
-    }
-    .ka-filter select,
-    .ka-filter input {
-      min-height: 2.55rem;
-    }
-    .ka-tabs a {
-      border: 1px solid transparent;
-    }
-    .ka-table-wrap {
-      max-height: min(72vh, 760px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .ka-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-    .ka-table tbody tr {
-      transition: background-color 0.16s ease;
-    }
-    .ka-table tbody tr:hover {
-      background: rgba(148, 163, 184, 0.08);
-    }
-    @media (max-width: 640px) {
-      .ka-table-wrap {
-        max-height: 68vh;
-      }
-    }
-  </style>
   <div class="space-y-6">
     <div class="ka-card ka-hero rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portion sales</h2>

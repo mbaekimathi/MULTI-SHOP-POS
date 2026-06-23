@@ -1,0 +1,930 @@
+/**
+ * Portal filters — unified modern interactive toolbar (appearance only).
+ */
+
+:root {
+  --pf-radius: 0.95rem;
+  --pf-radius-sm: 0.68rem;
+  --pf-field-h: 2.4rem;
+  --pf-accent: linear-gradient(
+    90deg,
+    rgb(var(--rc-primary)),
+    #38bdf8 38%,
+    #a78bfa 68%,
+    rgb(var(--rc-primary))
+  );
+  --pf-surface: linear-gradient(
+    155deg,
+    rgba(var(--rc-primary), 0.1) 0%,
+    rgba(56, 189, 248, 0.06) 28%,
+    rgba(var(--rc-surface), 0.98) 52%,
+    rgb(var(--rc-surface)) 100%
+  );
+  --pf-surface-solid: rgb(var(--rc-surface));
+  --pf-border: rgba(var(--rc-primary), 0.22);
+  --pf-shadow:
+    0 16px 40px -24px rgba(var(--rc-primary), 0.28),
+    0 0 0 1px rgba(var(--rc-primary), 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --pf-shadow-hover:
+    0 20px 48px -22px rgba(var(--rc-primary), 0.34),
+    0 0 0 1px rgba(var(--rc-primary), 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  --pf-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --pf-live: #10b981;
+  --pf-live-glow: rgba(16, 185, 129, 0.35);
+  --pf-icon-filter: #0ea5e9;
+  --pf-icon-violet: #8b5cf6;
+  --pf-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230ea5e9' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --pf-icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+  --pf-icon-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%230ea5e9' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.35-4.35'/%3E%3C/svg%3E");
+}
+
+html[data-theme="dark"] {
+  --pf-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --pf-icon-calendar: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+  --pf-shadow:
+    0 16px 40px -24px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(var(--rc-primary), 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-portal-live-content] {
+  position: relative;
+}
+
+/* —— Filter header bar (icon + live badge) —— */
+.portal-filter-header {
+  display: flex;
+  flex: 0 0 100%;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin: -0.15rem 0 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: calc(var(--pf-radius-sm) + 2px);
+  border: 1px solid rgba(var(--rc-primary), 0.16);
+  background: linear-gradient(
+    120deg,
+    rgba(var(--rc-primary), 0.14) 0%,
+    rgba(56, 189, 248, 0.1) 42%,
+    rgba(139, 92, 246, 0.08) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.portal-filter-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.portal-filter-header__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  color: #fff;
+  background: linear-gradient(135deg, rgb(var(--rc-primary)), #0ea5e9 55%, #8b5cf6);
+  box-shadow:
+    0 8px 18px -8px rgba(var(--rc-primary), 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.portal-filter-header__svg {
+  display: block;
+}
+
+.portal-filter-header__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.portal-filter-header__title {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-page-fg));
+}
+
+.portal-filter-header__hint {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgb(var(--rc-muted));
+}
+
+.portal-filter-shell--colorful {
+  border-color: var(--pf-border) !important;
+  overflow: hidden;
+  padding-left: 1.05rem !important;
+}
+
+.portal-filter-shell--colorful::after {
+  content: "";
+  position: absolute;
+  top: 0.65rem;
+  bottom: 0.65rem;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #0ea5e9, rgb(var(--rc-primary)), #8b5cf6);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.portal-filter-header .portal-filter-actions {
+  margin-left: auto;
+  padding-bottom: 0;
+}
+
+/* —— Shared filter shells —— */
+.portal-filter-toolbar,
+form[data-portal-live-filter]:not(.rev-toolbar__inner),
+form.portal-live-filter:not(.rev-toolbar__inner),
+.portal-filter-toolbar--legacy,
+#shop-report-filter-form,
+#company-report-filter-form,
+#leads-filter-form,
+#leads-filter-form-it,
+#suppliers-filter-form,
+#item-analytics-filter-form,
+form[id$="-period-filter-form"],
+.ka-filter,
+.sa-stock-filter.portal-filter-toolbar--legacy {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid rgba(var(--rc-border), 0.92);
+  border-radius: var(--pf-radius);
+  background: var(--pf-surface);
+  box-shadow: var(--pf-shadow);
+  transition:
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition),
+    transform var(--pf-transition);
+}
+
+#leads-filter-form,
+#leads-filter-form-it {
+  display: block;
+}
+
+#leads-filter-form > .flex,
+#leads-filter-form-it > .flex {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.7rem;
+}
+
+.rc-card #shop-report-filter-form,
+.rc-card #company-report-filter-form {
+  margin-top: 0.85rem;
+}
+
+.portal-filter-toolbar--legacy.border-t,
+#shop-report-filter-form.border-t,
+#company-report-filter-form.border-t {
+  border-top: 1px solid rgba(var(--rc-border), 0.92);
+  padding-top: 0.9rem;
+}
+
+.portal-filter-toolbar:hover,
+form[data-portal-live-filter]:not(.rev-toolbar__inner):hover,
+form.portal-live-filter:not(.rev-toolbar__inner):hover,
+.portal-filter-toolbar--legacy:hover,
+#shop-report-filter-form:hover,
+#company-report-filter-form:hover,
+#leads-filter-form:hover,
+#leads-filter-form-it:hover,
+#suppliers-filter-form:hover,
+#item-analytics-filter-form:hover,
+form[id$="-period-filter-form"]:hover,
+.ka-filter:hover {
+  border-color: rgba(var(--rc-primary), 0.22);
+  box-shadow: var(--pf-shadow-hover);
+}
+
+.portal-filter-toolbar::before,
+form[data-portal-live-filter]:not(.rev-toolbar__inner)::before,
+form.portal-live-filter:not(.rev-toolbar__inner)::before,
+.portal-filter-toolbar--legacy::before,
+#shop-report-filter-form::before,
+#company-report-filter-form::before,
+#leads-filter-form::before,
+#leads-filter-form-it::before,
+#suppliers-filter-form::before,
+#item-analytics-filter-form::before,
+form[id$="-period-filter-form"]::before,
+.ka-filter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: var(--pf-radius) var(--pf-radius) 0 0;
+  background: var(--pf-accent);
+  pointer-events: none;
+  box-shadow: 0 2px 12px rgba(var(--rc-primary), 0.35);
+}
+
+.portal-filter-toolbar--legacy > div,
+#shop-report-filter-form > div,
+#company-report-filter-form > div,
+#leads-filter-form > div > div,
+#leads-filter-form-it > div > div,
+#suppliers-filter-form > div,
+#item-analytics-filter-form > div,
+form[id$="-period-filter-form"] > div,
+.ka-filter > div {
+  min-width: 0;
+}
+
+/* Field focus halo */
+.portal-filter-toolbar--legacy > div:has(select:focus),
+.portal-filter-toolbar--legacy > div:has(input:focus):not(:has(button)),
+#shop-report-filter-form > div:has(select:focus),
+#shop-report-filter-form > div:has(input:focus),
+#company-report-filter-form > div:has(select:focus),
+#company-report-filter-form > div:has(input:focus),
+#leads-filter-form > div > div:has(select:focus),
+#leads-filter-form > div > div:has(input:focus),
+#leads-filter-form-it > div > div:has(select:focus),
+#leads-filter-form-it > div > div:has(input:focus),
+#suppliers-filter-form > div:has(select:focus),
+#suppliers-filter-form > div:has(input:focus),
+.cp-credit-toolbar .rev-field:focus-within,
+.rev-toolbar .rev-field:focus-within {
+  border-radius: var(--pf-radius-sm);
+  background: rgba(var(--rc-primary), 0.05);
+  box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.1);
+}
+
+.portal-filter-field label,
+.portal-filter-toolbar--legacy label,
+#shop-report-filter-form label,
+#company-report-filter-form label,
+#leads-filter-form label,
+#leads-filter-form-it label,
+#suppliers-filter-form label,
+#item-analytics-filter-form label,
+form[id$="-period-filter-form"] label,
+.ka-filter label,
+.sa-stock-filter label {
+  display: block;
+  margin-bottom: 0.28rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+  transition: color var(--pf-transition);
+}
+
+.portal-filter-toolbar--legacy > div:focus-within label,
+#shop-report-filter-form > div:focus-within label,
+.cp-credit-toolbar .rev-field:focus-within label,
+.rev-toolbar .rev-field:focus-within label {
+  color: rgba(var(--rc-primary), 0.95);
+}
+
+.portal-filter-field input,
+.portal-filter-field select,
+.portal-filter-toolbar--legacy input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+.portal-filter-toolbar--legacy select,
+#shop-report-filter-form input:not([type="hidden"]),
+#shop-report-filter-form select,
+#company-report-filter-form input:not([type="hidden"]),
+#company-report-filter-form select,
+#leads-filter-form input:not([type="submit"]),
+#leads-filter-form select,
+#leads-filter-form-it input:not([type="submit"]),
+#leads-filter-form-it select,
+#suppliers-filter-form input:not([type="submit"]),
+#suppliers-filter-form select,
+#item-analytics-filter-form input,
+#item-analytics-filter-form select,
+form[id$="-period-filter-form"] input:not([type="hidden"]),
+form[id$="-period-filter-form"] select,
+.ka-filter input,
+.ka-filter select {
+  display: block;
+  width: 100%;
+  min-height: var(--pf-field-h);
+  padding: 0.42rem 0.68rem;
+  border-radius: var(--pf-radius-sm);
+  border: 2px solid rgb(var(--rc-border));
+  background-color: rgb(var(--rc-surface));
+  color: rgb(var(--rc-page-fg));
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  outline: none;
+  transition:
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition),
+    background-color var(--pf-transition),
+    transform var(--pf-transition);
+}
+
+.portal-filter-toolbar--legacy select,
+#shop-report-filter-form select,
+#company-report-filter-form select,
+#leads-filter-form select,
+#leads-filter-form-it select,
+#suppliers-filter-form select,
+#item-analytics-filter-form select,
+form[id$="-period-filter-form"] select,
+.ka-filter select,
+.sa-stock-filter select {
+  appearance: none;
+  padding-right: 2.1rem;
+  background-image: var(--pf-chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 1rem;
+  cursor: pointer;
+}
+
+.portal-filter-field input:hover:not(:disabled),
+.portal-filter-field select:hover:not(:disabled),
+.portal-filter-toolbar--legacy input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
+.portal-filter-toolbar--legacy select:hover:not(:disabled),
+#shop-report-filter-form input:hover:not(:disabled),
+#shop-report-filter-form select:hover:not(:disabled),
+#company-report-filter-form input:hover:not(:disabled),
+#company-report-filter-form select:hover:not(:disabled),
+#leads-filter-form input:hover:not(:disabled),
+#leads-filter-form select:hover:not(:disabled),
+#leads-filter-form-it input:hover:not(:disabled),
+#leads-filter-form-it select:hover:not(:disabled),
+.cp-credit-toolbar .rev-field input:hover,
+.cp-credit-toolbar .rev-field select:hover,
+.rev-toolbar .rev-field input:hover,
+.rev-toolbar .rev-field select:hover {
+  border-color: rgba(var(--rc-primary), 0.38);
+}
+
+.portal-filter-field input:focus,
+.portal-filter-field select:focus,
+.portal-filter-toolbar--legacy input:focus,
+.portal-filter-toolbar--legacy select:focus,
+#shop-report-filter-form input:focus,
+#shop-report-filter-form select:focus,
+#company-report-filter-form input:focus,
+#company-report-filter-form select:focus,
+.cp-credit-toolbar .rev-field input:focus,
+.cp-credit-toolbar .rev-field select:focus,
+.rev-toolbar .rev-field input:focus,
+.rev-toolbar .rev-field select:focus {
+  border-color: rgb(var(--rc-primary));
+  box-shadow:
+    0 0 0 3px rgba(var(--rc-primary), 0.16),
+    inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+/* Field type icons */
+.portal-filter-shell--colorful input[type="date"],
+.portal-filter-shell--colorful input[type="month"],
+#shop-report-filter-form input[type="date"],
+#shop-report-filter-form input[type="month"],
+#company-report-filter-form input[type="date"],
+#company-report-filter-form input[type="month"],
+.sa-stock-filter input[type="date"],
+.sa-stock-filter input[type="month"],
+.rev-toolbar input[type="date"],
+.rev-toolbar input[type="month"] {
+  padding-left: 2.2rem;
+  background-image: var(--pf-icon-calendar);
+  background-repeat: no-repeat;
+  background-position: left 0.6rem center;
+  background-size: 0.95rem;
+}
+
+.portal-filter-shell--colorful input[type="search"],
+.portal-filter-shell--colorful input[name="supplier_q"],
+.portal-filter-shell--colorful input[name="moved_by"],
+#suppliers-filter-form input[type="search"],
+.cp-credit-toolbar input[type="search"] {
+  padding-left: 2.2rem;
+  background-image: var(--pf-icon-search);
+  background-repeat: no-repeat;
+  background-position: left 0.6rem center;
+  background-size: 0.95rem;
+}
+
+.portal-filter-shell--colorful select,
+#shop-report-filter-form select,
+#suppliers-filter-form select {
+  border-color: rgba(14, 165, 233, 0.28);
+  background-color: rgba(14, 165, 233, 0.04);
+}
+
+/* Period mode quick-pick buttons */
+.portal-filter-toolbar--legacy [data-portal-set-mode],
+.portal-filter-toolbar--legacy [data-sr-set-mode],
+.portal-filter-toolbar--legacy [data-cr-set-mode],
+#shop-report-filter-form [data-sr-set-mode],
+#company-report-filter-form [data-cr-set-mode] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.85rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  border: 1.5px solid rgba(var(--rc-border), 0.95);
+  background: rgb(var(--rc-surface));
+  color: rgb(var(--rc-page-fg));
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color var(--pf-transition),
+    background var(--pf-transition),
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition),
+    transform 0.12s ease;
+}
+
+.portal-filter-toolbar--legacy [data-portal-set-mode]:hover,
+.portal-filter-toolbar--legacy [data-sr-set-mode]:hover,
+.portal-filter-toolbar--legacy [data-cr-set-mode]:hover,
+#shop-report-filter-form [data-sr-set-mode]:hover,
+#company-report-filter-form [data-cr-set-mode]:hover {
+  border-color: rgba(var(--rc-primary), 0.42);
+  background: rgba(var(--rc-primary), 0.08);
+  color: rgb(var(--rc-page-fg));
+  transform: translateY(-1px);
+}
+
+.portal-filter-toolbar--legacy [data-portal-set-mode]:active,
+.portal-filter-toolbar--legacy [data-sr-set-mode]:active,
+.portal-filter-toolbar--legacy [data-cr-set-mode]:active,
+#shop-report-filter-form [data-sr-set-mode]:active,
+#company-report-filter-form [data-cr-set-mode]:active {
+  transform: translateY(0);
+}
+
+/* Collapsible “other period” on reports */
+#shop-report-filter-form details,
+#company-report-filter-form details {
+  border-radius: var(--pf-radius-sm);
+  border: 1.5px solid rgba(var(--rc-border), 0.9);
+  background: rgba(var(--rc-surface-2), 0.45);
+  padding: 0.45rem 0.65rem;
+  transition:
+    border-color var(--pf-transition),
+    background var(--pf-transition),
+    box-shadow var(--pf-transition);
+}
+
+#shop-report-filter-form details[open],
+#company-report-filter-form details[open] {
+  border-color: rgba(var(--rc-primary), 0.28);
+  background: rgba(var(--rc-primary), 0.05);
+  box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.08);
+}
+
+#shop-report-filter-form details summary,
+#company-report-filter-form details summary {
+  list-style: none;
+  user-select: none;
+  transition: color var(--pf-transition);
+}
+
+#shop-report-filter-form details summary::-webkit-details-marker,
+#company-report-filter-form details summary::-webkit-details-marker {
+  display: none;
+}
+
+#shop-report-filter-form details summary::after,
+#company-report-filter-form details summary::after {
+  content: "▾";
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  opacity: 0.55;
+  transition: transform var(--pf-transition);
+}
+
+#shop-report-filter-form details[open] summary::after,
+#company-report-filter-form details[open] summary::after {
+  transform: rotate(180deg);
+}
+
+/* Live chip */
+.portal-live-chip,
+.rev-chip--live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.72rem 0.32rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(52, 211, 153, 0.1));
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #047857;
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.12),
+    0 4px 14px -6px var(--pf-live-glow);
+  animation: portal-live-chip-glow 2.4s ease-in-out infinite;
+}
+
+html[data-theme="dark"] .portal-live-chip,
+html[data-theme="dark"] .rev-chip--live {
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.42);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.24), rgba(16, 185, 129, 0.1));
+}
+
+.portal-live-chip__svg {
+  flex-shrink: 0;
+  color: #059669;
+  filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.45));
+}
+
+html[data-theme="dark"] .portal-live-chip__svg {
+  color: #34d399;
+}
+
+.portal-live-chip__text {
+  line-height: 1;
+}
+
+.portal-live-chip__dot,
+.rev-chip--live .rev-chip__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--pf-live);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+  animation: portal-live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes portal-live-chip-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.12),
+      0 4px 14px -6px var(--pf-live-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.22),
+      0 4px 18px -4px rgba(16, 185, 129, 0.45);
+  }
+}
+
+/* Scope / active filter chips */
+.rev-chip--scope,
+.cp-credit-toolbar .rev-chip:not(.rev-chip--live) {
+  transition:
+    border-color var(--pf-transition),
+    background var(--pf-transition),
+    transform 0.12s ease;
+}
+
+.cp-credit-toolbar .rev-chip:not(.rev-chip--live):hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--rc-primary), 0.35);
+}
+
+@keyframes portal-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+}
+
+/* Credit / audit compact toolbars */
+.rev-toolbar.portal-live-toolbar,
+.cp-credit-toolbar.rev-toolbar {
+  border-radius: var(--pf-radius);
+  border-color: rgba(var(--rc-primary), 0.2);
+  box-shadow: var(--pf-shadow);
+  background: linear-gradient(
+    165deg,
+    rgba(var(--rc-primary), 0.07) 0%,
+    rgb(var(--rc-surface)) 38%,
+    rgb(var(--rc-surface)) 100%
+  );
+  transition:
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition);
+}
+
+.rev-toolbar.portal-live-toolbar::before,
+.cp-credit-toolbar.rev-toolbar::before {
+  height: 4px;
+  background: var(--pf-accent);
+  box-shadow: 0 2px 10px rgba(var(--rc-primary), 0.35);
+}
+
+.rev-toolbar.portal-live-toolbar:hover,
+.cp-credit-toolbar.rev-toolbar:hover {
+  box-shadow: var(--pf-shadow-hover);
+}
+
+.cp-credit-toolbar .rev-field {
+  padding: 0.15rem 0.25rem 0.2rem;
+  border-radius: var(--pf-radius-sm);
+  transition:
+    background var(--pf-transition),
+    box-shadow var(--pf-transition);
+}
+
+.cp-credit-toolbar label:has(input[type="checkbox"]) {
+  border-radius: var(--pf-radius-sm);
+  transition:
+    border-color var(--pf-transition),
+    background var(--pf-transition),
+    box-shadow var(--pf-transition);
+}
+
+.cp-credit-toolbar label:has(input[type="checkbox"]:checked) {
+  border-color: rgba(var(--rc-primary), 0.42) !important;
+  background: rgba(var(--rc-primary), 0.1) !important;
+  box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.1);
+}
+
+.cp-credit-toolbar .rev-btn--ghost {
+  border-radius: var(--pf-radius-sm);
+  transition:
+    background var(--pf-transition),
+    border-color var(--pf-transition),
+    color var(--pf-transition),
+    transform 0.12s ease;
+}
+
+.cp-credit-toolbar .rev-btn--ghost:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--rc-primary), 0.3);
+  background: rgba(var(--rc-primary), 0.06);
+}
+
+/* Analytics rev-toolbar filter box */
+.it-analytics-page .rev-filters-box,
+.portal-live-root .rev-filters-box {
+  border-radius: var(--pf-radius-sm);
+  transition:
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition),
+    background var(--pf-transition);
+}
+
+.it-analytics-page .rev-filters-box:focus-within,
+.portal-live-root .rev-filters-box:focus-within {
+  border-color: rgba(var(--rc-primary), 0.45);
+  box-shadow:
+    0 0 0 3px rgba(var(--rc-primary), 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.it-analytics-page .rev-tabs__btn,
+.portal-live-root .rev-tabs__btn {
+  transition:
+    color var(--pf-transition),
+    background var(--pf-transition),
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition),
+    transform 0.12s ease;
+}
+
+.it-analytics-page .rev-tabs__btn:hover:not(.is-active):not([aria-pressed="true"]),
+.portal-live-root .rev-tabs__btn:hover:not(.is-active):not([aria-pressed="true"]) {
+  transform: translateY(-1px);
+}
+
+/* Stock hero filter strip */
+.sa-stock-hero .sa-stock-filter {
+  background: linear-gradient(
+    165deg,
+    rgba(var(--rc-primary), 0.08) 0%,
+    rgba(56, 189, 248, 0.05) 35%,
+    rgba(var(--rc-surface), 0.98) 100%
+  );
+  border-top-color: rgba(var(--rc-primary), 0.2) !important;
+}
+
+.sa-stock-hero .sa-stock-filter .sa-stock-filter-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--pf-radius-sm);
+  border: 1px solid rgba(var(--rc-primary), 0.16);
+  background: linear-gradient(120deg, rgba(var(--rc-primary), 0.12), rgba(56, 189, 248, 0.08));
+}
+
+.sa-stock-hero .sa-stock-filter .sa-stock-filter-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sa-stock-hero .sa-stock-filter .sa-stock-filter-eyebrow::before {
+  content: "";
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, rgb(var(--rc-primary)), #0ea5e9);
+  background-image: linear-gradient(135deg, rgb(var(--rc-primary)), #0ea5e9),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h16M7 12h10M10 18h4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  box-shadow: 0 4px 12px -6px rgba(var(--rc-primary), 0.5);
+}
+
+.sa-stock-hero .sa-stock-filter .sa-stock-filter-hint::after {
+  content: "Live";
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem 0.12rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z'/%3E%3C/svg%3E") no-repeat 0.35rem center;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #059669;
+  vertical-align: middle;
+  box-shadow: 0 0 10px -4px rgba(16, 185, 129, 0.4);
+}
+
+html[data-theme="dark"] .sa-stock-hero .sa-stock-filter .sa-stock-filter-hint::after {
+  color: #34d399;
+}
+
+.sa-stock-filter input,
+.sa-stock-filter select {
+  min-height: var(--pf-field-h);
+  border-width: 2px;
+  transition:
+    border-color var(--pf-transition),
+    box-shadow var(--pf-transition);
+}
+
+.sa-stock-filter select {
+  appearance: none;
+  padding-right: 2.1rem;
+  background-image: var(--pf-chevron);
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 1rem;
+}
+
+/* Filter card inside rc-card */
+.rc-card > h3.rc-section-title + form[data-portal-live-filter],
+.rc-card > h3.rc-section-title + .portal-filter-toolbar--legacy {
+  margin-top: 0.75rem;
+}
+
+.rc-card > h3.rc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rc-card > h3.rc-section-title::before {
+  content: "";
+  width: 0.32rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: var(--pf-accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(var(--rc-primary), 0.35);
+}
+
+/* Actions row */
+.portal-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  align-self: flex-end;
+  padding-bottom: 0.1rem;
+}
+
+/* Loading states */
+.portal-live-toolbar--loading,
+form.portal-live-filter.portal-live-toolbar--loading {
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.portal-live-toolbar--loading .portal-live-chip__dot,
+.portal-live-toolbar--loading .rev-chip--live .rev-chip__dot {
+  animation: portal-live-pulse 0.75s ease-in-out infinite;
+}
+
+[data-portal-live-content].portal-live-content--loading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+[data-portal-live-content].portal-live-content--loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--rc-primary), 0.06) 50%,
+    transparent 100%
+  );
+  animation: portal-live-shimmer 1.1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes portal-live-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.portal-live-root [type="submit"].portal-live-hide-submit,
+form[data-portal-live-filter] [type="submit"]:not(.portal-live-keep-submit) {
+  display: none !important;
+}
+
+/* Leads / suppliers reset links */
+#leads-filter-form a[href],
+#leads-filter-form-it a[href],
+#suppliers-filter-form a[href] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--pf-field-h);
+  padding: 0.42rem 0.9rem;
+  border-radius: var(--pf-radius-sm);
+  border: 2px solid rgb(var(--rc-border));
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    border-color var(--pf-transition),
+    background var(--pf-transition),
+    transform 0.12s ease;
+}
+
+#leads-filter-form a[href]:hover,
+#leads-filter-form-it a[href]:hover,
+#suppliers-filter-form a[href]:hover {
+  border-color: rgba(var(--rc-primary), 0.35);
+  background: rgba(var(--rc-primary), 0.06);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .portal-filter-toolbar--legacy,
+  form[data-portal-live-filter]:not(.rev-toolbar__inner),
+  #shop-report-filter-form,
+  #company-report-filter-form,
+  #leads-filter-form,
+  #leads-filter-form-it {
+    padding: 0.75rem 0.8rem 0.85rem;
+    gap: 0.55rem;
+  }
+
+  .portal-filter-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}

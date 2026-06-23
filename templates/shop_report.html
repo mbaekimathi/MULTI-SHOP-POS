@@ -6,43 +6,7 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    #shop-report-page .sr-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #shop-report-page .sr-table-wrap {
-      max-height: min(70vh, 720px);
-      overflow: auto;
-    }
-    #shop-report-page .sr-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    #shop-report-page .sr-print-header { display: none; }
-    @page { margin: 12mm; }
-    @media print {
-      body * { visibility: hidden; }
-      #shop-report-print, #shop-report-print * { visibility: visible; }
-      #shop-report-print {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        padding: 0;
-        margin: 0;
-      }
-      #shop-sidebar, #shop-sidebar-backdrop, #shop-shell > div > header, .no-print {
-        display: none !important;
-      }
-      #shop-report-page .sr-print-header { display: block !important; }
-      #shop-report-page .sr-table-wrap { max-height: none !important; overflow: visible !important; }
-      #shop-report-page details > summary { display: none; }
-      #shop-report-page details > :not(summary) { display: block !important; }
-    }
-  </style>
-  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=23" defer></script>
+  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=24" defer></script>
 {% endblock %}
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
@@ -55,7 +19,7 @@
   {% set inv_mode_label = inv_mode_labels.get(inv_mode, inv_mode|title) %}
   {% set period_label = report_period_label or 'Today' %}
   {% set today_iso = report_today_iso or '' %}
-  <div id="shop-report-page" class="mx-auto max-w-5xl space-y-5">
+  <div id="shop-report-page" class="rc-page rc-page--medium space-y-5">
     <div id="shop-report-print" class="space-y-5">
       <div class="sr-print-header mb-4 border-b border-black pb-3">
         <h1 class="text-xl font-bold text-black">{{ shop.shop_name }}</h1>
@@ -76,7 +40,7 @@
         {% endif %}
       </div>
 
-      <div class="sr-card no-print rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <div class="rc-card rc-card--pad no-print">
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Daily report</p>
@@ -97,7 +61,7 @@
           </div>
         </div>
 
-        <form id="shop-report-filter-form" method="get" action="{{ url_for('shop_report', shop_id=shop.id) }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
+      <form id="shop-report-filter-form" method="get" action="{{ url_for('shop_report', shop_id=shop.id) }}" data-portal-live-skip="true" class="mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
           <input type="hidden" name="mode" id="sr-filter-mode" value="{{ f.mode or 'single_day' }}" />
           <div id="sr-filter-single-day" class="{% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
             <label for="sr-filter-day" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date</label>
@@ -155,7 +119,7 @@
       {% endif %}
       </div>
 
-      <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="rc-card overflow-hidden">
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -172,7 +136,7 @@
             <input id="report-expenditure-search" type="search" autocomplete="off" placeholder="Search expenditure…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
           </div>
         </div>
-        <div class="sr-table-wrap overflow-x-auto">
+        <div class="rc-table-wrap rc-table-wrap--sticky-head overflow-x-auto">
           <table id="report-expenditure-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
@@ -229,7 +193,7 @@
       </div>
 
       {% if pos_allow_credit_sale|default(true) %}
-      <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="rc-card overflow-hidden">
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -244,7 +208,7 @@
             <input id="report-items-credit-search" type="search" autocomplete="off" placeholder="Search credit items…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
           </div>
         </div>
-        <div class="sr-table-wrap overflow-x-auto">
+        <div class="rc-table-wrap rc-table-wrap--sticky-head overflow-x-auto">
           <table id="report-items-credit-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
@@ -285,7 +249,7 @@
       </div>
       {% endif %}
 
-      <div class="sr-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="rc-card overflow-hidden">
         <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3 sm:px-5">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -298,7 +262,7 @@
             <input id="report-items-sale-search" type="search" autocomplete="off" placeholder="Search sale items…" class="no-print min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm sm:max-w-[14rem]" />
           </div>
         </div>
-        <div class="sr-table-wrap overflow-x-auto">
+        <div class="rc-table-wrap rc-table-wrap--sticky-head overflow-x-auto">
           <table id="report-items-sale-table" class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
             <thead class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
               <tr>
@@ -338,9 +302,6 @@
     {% include "partials/shop_day_closing_reminder_modal.html" %}
     <script defer src="{{ url_for('static', filename='js/shop-day-opening-modal.js') }}?v=5"></script>
     <script defer src="{{ url_for('static', filename='js/shop-day-closing-reminder.js') }}?v=3"></script>
-    <style>
-      body.pos-day-opening-modal-open { overflow: hidden; }
-    </style>
   {% endif %}
 
   <script>
@@ -362,26 +323,21 @@
         if (year) year.classList.toggle("hidden", m !== "year");
       }
 
-      function submitForm() {
-        if (!form) return;
-        if (typeof form.requestSubmit === "function") form.requestSubmit();
-        else form.submit();
-      }
-
-      if (modeInput) syncModePanels();
-
-      document.querySelectorAll("[data-sr-set-mode]").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          if (!modeInput) return;
-          modeInput.value = btn.getAttribute("data-sr-set-mode") || "single_day";
-          syncModePanels();
-          submitForm();
+      if (typeof window.initPeriodReportLive === "function") {
+        window.initPeriodReportLive({
+          jsonUrl: {{ (report_json_url or '')|tojson }},
+          liveEnabled: {{ (report_live_enabled or false)|tojson }},
+          pollMs: 45000,
         });
-      });
-
-      if (form) {
+      }
+      if (typeof window.wirePeriodReportFilterForm === "function") {
+        window.wirePeriodReportFilterForm(form);
+      } else if (form) {
         form.querySelectorAll("input, select").forEach(function (el) {
-          el.addEventListener("change", submitForm);
+          el.addEventListener("change", function () {
+            if (typeof form.requestSubmit === "function") form.requestSubmit();
+            else form.submit();
+          });
         });
       }
 
@@ -423,14 +379,6 @@
 
       var printBtn = document.querySelector("[data-shop-report-print]");
       if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
-
-      if (typeof window.initPeriodReportLive === "function") {
-        window.initPeriodReportLive({
-          jsonUrl: {{ (report_json_url or '')|tojson }},
-          liveEnabled: {{ (report_live_enabled or false)|tojson }},
-          pollMs: 45000,
-        });
-      }
 
       {% if report_should_print %}
       window.addEventListener("load", function () { window.print(); });

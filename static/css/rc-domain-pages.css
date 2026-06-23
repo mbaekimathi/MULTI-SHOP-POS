@@ -1,0 +1,871 @@
+/* Domain portal pages — extracted from inline template styles */
+
+/* ── templates/it_support_hr_management.html ── */
+@keyframes approve-modal-backdrop-in {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes approve-modal-panel-in {
+      from {
+        opacity: 0;
+        transform: translateY(1.125rem) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    @keyframes approve-modal-accent-shift {
+      0%,
+      100% {
+        filter: hue-rotate(0deg);
+      }
+      50% {
+        filter: hue-rotate(12deg);
+      }
+    }
+    #approve-modal:not(.hidden) .approve-modal__backdrop {
+      animation: approve-modal-backdrop-in 0.28s ease-out both;
+    }
+    #approve-modal:not(.hidden) .approve-modal__panel {
+      animation: approve-modal-panel-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #approve-modal .approve-modal__backdrop,
+      #approve-modal .approve-modal__panel,
+      #approve-modal .approve-modal__accent {
+        animation: none !important;
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      #approve-modal:not(.hidden) .approve-modal__accent {
+        animation: approve-modal-accent-shift 10s ease-in-out infinite;
+      }
+    }
+    #hr-management-page .hr-mgmt-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-management-page .hr-mgmt-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
+    }
+    #hr-management-page .hr-mgmt-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    #hr-management-page .hr-mgmt-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    #hr-management-page .hr-mgmt-table-wrap {
+      max-height: min(70vh, 720px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #hr-management-page .hr-mgmt-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #hr-management-page .hr-mgmt-table tbody tr {
+      transition: background-color 0.16s ease;
+    }
+    #hr-management-page .hr-mgmt-table tbody tr:hover {
+      background: rgba(148, 163, 184, 0.08);
+    }
+    #hr-management-page .hr-mgmt-mobile-card {
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    #hr-management-page .hr-mgmt-mobile-card:hover {
+      border-color: rgba(var(--rc-border), 1);
+      box-shadow: 0 12px 28px -20px rgba(15, 23, 42, 0.45);
+    }
+    @media (max-width: 768px) {
+      #hr-management-page .hr-mgmt-table-wrap {
+        max-height: none;
+      }
+    }
+
+/* ── templates/it_support_hr_settings.html ── */
+#hr-settings-page .hr-settings-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-settings-page .hr-settings-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
+    }
+    #hr-settings-page fieldset label.flex {
+      transition: box-shadow 0.16s ease;
+    }
+    #hr-settings-page fieldset label.flex:hover {
+      box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.4);
+    }
+    #hr-settings-page input[type='radio'],
+    #hr-settings-page button {
+      min-height: 2.5rem;
+    }
+
+/* ── templates/it_support_hr_analytics.html ── */
+#hr-analytics-page .hr-an-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-analytics-page .hr-an-hero {
+      background-image: linear-gradient(135deg, rgba(56, 189, 248, 0.08), transparent 42%);
+    }
+    #hr-analytics-page .hr-an-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    #hr-analytics-page .hr-an-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.85), rgba(168, 85, 247, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    #hr-analytics-page .hr-an-emp-card {
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
+      cursor: pointer;
+    }
+    #hr-analytics-page .hr-an-emp-card:hover {
+      border-color: rgba(var(--rc-primary), 0.45);
+      box-shadow: 0 18px 32px -22px rgba(15, 23, 42, 0.55);
+      transform: translateY(-1px);
+    }
+    #hr-analytics-page .hr-an-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #hr-analytics-page .hr-an-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #hr-analytics-page .hr-an-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.14s ease;
+    }
+    #hr-analytics-page .hr-an-table tbody tr:hover {
+      background: rgba(148, 163, 184, 0.10);
+    }
+    #hr-analytics-modal:not(.hidden) {
+      animation: hr-an-modal-fade 0.25s ease-out;
+    }
+    @keyframes hr-an-modal-fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    #hr-analytics-modal .hr-an-modal-panel {
+      animation: hr-an-modal-slide 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    @keyframes hr-an-modal-slide {
+      from {
+        opacity: 0;
+        transform: translateY(1.5rem) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #hr-analytics-modal,
+      #hr-analytics-modal .hr-an-modal-panel {
+        animation: none !important;
+      }
+    }
+    .hr-an-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.125rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      box-shadow: 0 0 0 1px rgba(var(--rc-border), 0.65);
+    }
+    #hr-analytics-page .hr-an-tab-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgb(var(--rc-muted));
+      transition: all 0.15s ease;
+    }
+    #hr-analytics-page .hr-an-tab-btn:hover {
+      color: rgb(var(--rc-page-fg));
+      background: rgba(var(--rc-surface-2), 0.6);
+    }
+    #hr-analytics-page .hr-an-tab-btn[aria-selected="true"] {
+      color: rgb(var(--rc-page-fg));
+      background: rgb(var(--rc-surface-2));
+      box-shadow: inset 0 0 0 1px rgba(var(--rc-border), 0.85);
+    }
+    #hr-analytics-page .hr-an-chart-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      background: rgb(var(--rc-surface));
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-analytics-page .hr-an-chart-canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: clamp(260px, 42vh, 380px);
+    }
+    #hr-analytics-page .hr-an-chart-canvas-wrap.hr-an-chart-tall {
+      height: clamp(320px, 60vh, 480px);
+    }
+    #hr-analytics-page .hr-an-chart-canvas-wrap canvas {
+      max-width: 100%;
+    }
+    #hr-analytics-page .hr-an-chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      color: rgb(var(--rc-muted));
+      font-size: 0.875rem;
+      border: 1px dashed rgba(var(--rc-border), 0.85);
+      border-radius: 0.75rem;
+    }
+    /* Responsive table column visibility for tablets/phones */
+    @media (max-width: 1023px) {
+      #hr-analytics-page .hr-an-table th.hr-an-col-lg,
+      #hr-analytics-page .hr-an-table td.hr-an-col-lg {
+        display: none;
+      }
+    }
+    @media (max-width: 859px) {
+      #hr-analytics-page .hr-an-table th.hr-an-col-md,
+      #hr-analytics-page .hr-an-table td.hr-an-col-md {
+        display: none;
+      }
+    }
+    /* Tab buttons fill the row on phones */
+    @media (max-width: 639px) {
+      #hr-analytics-page .hr-an-tab-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+      }
+    }
+    /* Snug heading + form layout on small screens */
+    @media (max-width: 639px) {
+      #hr-analytics-page .hr-an-hero-form {
+        width: 100%;
+      }
+      #hr-analytics-page .hr-an-hero-form input[type="number"] {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+    @keyframes hr-an-live-dot-pulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+      }
+      70% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+    }
+    .hr-an-live-pill .hr-an-live-dot {
+      animation: hr-an-live-dot-pulse 1.8s ease-in-out infinite;
+    }
+    .hr-an-live-pill[data-state="paused"] {
+      background: rgba(148, 163, 184, 0.18);
+      color: rgb(148, 163, 184);
+    }
+    .hr-an-live-pill[data-state="paused"] .hr-an-live-dot {
+      background: rgb(148, 163, 184);
+      animation: none;
+    }
+    .hr-an-live-pill[data-state="error"] {
+      background: rgba(244, 63, 94, 0.18);
+      color: rgb(248, 113, 113);
+    }
+    .hr-an-live-pill[data-state="error"] .hr-an-live-dot {
+      background: rgb(248, 113, 113);
+      animation: none;
+    }
+    @keyframes hr-an-flash-bg {
+      0% { background-color: rgba(16, 185, 129, 0.18); }
+      100% { background-color: transparent; }
+    }
+    .hr-an-flash {
+      animation: hr-an-flash-bg 1.5s ease-out 1;
+    }
+    @keyframes hr-an-row-flash {
+      0% { background-color: rgba(56, 189, 248, 0.18); }
+      100% { background-color: transparent; }
+    }
+    .hr-an-row-flash {
+      animation: hr-an-row-flash 1.5s ease-out 1;
+    }
+    .hr-an-ticking {
+      position: relative;
+    }
+    .hr-an-ticking::after {
+      content: "";
+      position: absolute;
+      right: -0.65rem;
+      top: 50%;
+      height: 0.32rem;
+      width: 0.32rem;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.95);
+      transform: translateY(-50%);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+      animation: hr-an-live-dot-pulse 1.4s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hr-an-live-pill .hr-an-live-dot,
+      .hr-an-flash,
+      .hr-an-row-flash,
+      .hr-an-ticking::after {
+        animation: none !important;
+      }
+    }
+
+/* ── templates/it_support_hr_authorization.html ── */
+#hr-auth-page .hr-auth-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #hr-auth-page .hr-auth-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
+    }
+    #hr-auth-page .hr-auth-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    #hr-auth-page .hr-auth-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    #hr-auth-page section.hr-auth-section > ul > li > a:focus-visible {
+      outline-offset: 2px;
+    }
+    #hr-auth-page section.hr-auth-section > ul > li {
+      transition: background-color 0.16s ease;
+    }
+
+/* ── templates/it_support_register_salary.html ── */
+.payroll-page {
+      --payroll-accent: 16 185 129;
+      --payroll-accent2: 14 165 233;
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.08), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.06), transparent 45%);
+    }
+    .dark .payroll-page {
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.12), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.1), transparent 45%);
+    }
+    @keyframes payroll-shimmer {
+      0% {
+        background-position: 0% 50%;
+      }
+      100% {
+        background-position: 200% 50%;
+      }
+    }
+    .payroll-hero-bar {
+      background: linear-gradient(
+        90deg,
+        rgb(var(--payroll-accent) / 0.85),
+        rgb(var(--payroll-accent2) / 0.75),
+        rgb(var(--payroll-accent) / 0.65)
+      );
+      background-size: 200% auto;
+      animation: payroll-shimmer 8s ease infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .payroll-hero-bar {
+        animation: none;
+      }
+    }
+
+/* ── templates/it_support_company_salaries.html ── */
+.payroll-page {
+      --payroll-accent: 16 185 129;
+      --payroll-accent2: 14 165 233;
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.08), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.06), transparent 45%);
+    }
+    .dark .payroll-page {
+      background-image:
+        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.12), transparent 50%),
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.1), transparent 45%);
+    }
+    #salaries-payroll-shell .salaries-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #salaries-payroll-shell .salaries-hero-header {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 40%);
+    }
+    #salaries-payroll-shell .salaries-table-wrap {
+      max-height: min(68vh, 720px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #salaries-payroll-shell .salaries-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #salaries-payroll-shell .salaries-table tbody tr {
+      transition: background-color 0.15s ease;
+    }
+    #salaries-payroll-shell form select {
+      min-height: 2.55rem;
+    }
+    @media (max-width: 768px) {
+      #salaries-payroll-shell .salaries-table-wrap {
+        max-height: none;
+      }
+    }
+
+/* ── templates/it_support_company_report.html ── */
+#company-report-page .cr-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #company-report-page .cr-table-wrap {
+      max-height: min(70vh, 720px);
+      overflow: auto;
+    }
+    #company-report-page .cr-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #company-report-page .cr-print-header { display: none; }
+    @page { margin: 12mm; }
+    @media print {
+      body * { visibility: hidden; }
+      #company-report-print, #company-report-print * { visibility: visible; }
+      #company-report-print {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+      }
+      #employee-sidebar, #employee-sidebar-backdrop, header, .no-print {
+        display: none !important;
+      }
+      #company-report-page .cr-print-header { display: block !important; }
+      #company-report-page .cr-table-wrap { max-height: none !important; overflow: visible !important; }
+      #company-report-page details > summary { display: none; }
+      #company-report-page details > :not(summary) { display: block !important; }
+    }
+
+/* ── templates/it_support_accounts_expenses.html ── */
+#expenses-page .expenses-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #expenses-page .expenses-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.85), rgba(239, 68, 68, 0.85));
+    }
+    #expenses-page .expenses-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #expenses-page .expenses-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+/* ── templates/it_support_accounts_incomes.html ── */
+#incomes-page .incomes-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #incomes-page .incomes-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.85), rgba(56, 189, 248, 0.85));
+    }
+    #incomes-page .incomes-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #incomes-page .incomes-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+/* ── templates/it_support_company_operational_expenses.html ── */
+#company-expenses-page .exp-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    #company-expenses-page .exp-table-wrap {
+      max-height: min(70vh, 760px);
+      overflow: auto;
+    }
+    #company-expenses-page .exp-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    #company-expenses-page .exp-pay-modal-backdrop {
+      background: rgba(0, 0, 0, 0.55);
+    }
+
+/* ── templates/shop_settings_shop.html ── */
+.shop-co-card {
+      border: 1px solid rgb(var(--rc-border));
+      border-radius: 1rem;
+      background: rgb(var(--rc-surface));
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+    }
+    .shop-co-section-label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+    }
+    .shop-co-divider {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgb(var(--rc-border));
+    }
+    .shop-co-field label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+    }
+    .shop-co-field input[type="text"],
+    .shop-co-field input[type="email"],
+    .shop-co-field input[type="url"] {
+      width: 100%;
+      border-radius: 0.75rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: rgb(var(--rc-surface-2));
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      color: rgb(var(--rc-page-fg));
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .shop-co-field input:focus {
+      border-color: rgb(var(--rc-primary) / 0.45);
+      box-shadow: 0 0 0 3px rgb(var(--rc-primary) / 0.12);
+    }
+    .shop-co-override {
+      display: flex;
+      cursor: pointer;
+      align-items: flex-start;
+      gap: 0.75rem;
+      border-radius: 0.9rem;
+      border: 1px solid rgb(var(--rc-border));
+      background: linear-gradient(180deg, rgb(var(--rc-surface-2) / 0.75), rgb(var(--rc-surface-2) / 0.35));
+      padding: 1rem 1.1rem;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .shop-co-override:has(input:checked) {
+      border-color: rgb(var(--rc-primary) / 0.35);
+      background: linear-gradient(180deg, rgb(var(--rc-primary) / 0.08), rgb(var(--rc-surface-2) / 0.35));
+    }
+
+/* ── templates/shop_stock_settings.html ── */
+.shop-stock-settings-page .sa-stock-hero-top {
+      padding: 0.625rem 0.75rem;
+    }
+    @media (min-width: 640px) {
+      .shop-stock-settings-page .sa-stock-hero-top {
+        padding: 0.75rem 1.25rem;
+      }
+    }
+    .shop-stock-settings-page .shop-stock-settings-branch::before {
+      content: "·";
+      margin-right: 0.35rem;
+      opacity: 0.55;
+    }
+    .shop-stock-settings-page .shop-stock-settings-intro {
+      margin-top: 0.75rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid rgba(var(--rc-border), 0.65);
+    }
+    .shop-stock-settings-page .shop-stock-settings-groups {
+      display: grid;
+      gap: 0.55rem;
+      margin-top: 0.65rem;
+    }
+    @media (min-width: 768px) {
+      .shop-stock-settings-page .shop-stock-settings-groups {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.65rem;
+      }
+    }
+    .shop-stock-settings-page .shop-stock-settings-group {
+      min-width: 0;
+      border-radius: 0.7rem;
+      border: 1px solid rgba(var(--rc-border), 0.85);
+      background: rgba(var(--rc-surface-2), 0.35);
+      overflow: hidden;
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--request {
+      border-color: rgba(14, 165, 233, 0.24);
+      background: rgba(14, 165, 233, 0.04);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--in {
+      border-color: rgba(16, 185, 129, 0.24);
+      background: rgba(16, 185, 129, 0.04);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--out {
+      border-color: rgba(244, 63, 94, 0.24);
+      background: rgba(244, 63, 94, 0.04);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group-label {
+      padding: 0.45rem 0.65rem 0.35rem;
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--request .shop-stock-settings-group-label { color: rgb(14 165 233); }
+    .shop-stock-settings-page .shop-stock-settings-group--in .shop-stock-settings-group-label { color: rgb(5 150 105); }
+    .shop-stock-settings-page .shop-stock-settings-group--out .shop-stock-settings-group-label { color: rgb(225 29 72); }
+    .shop-stock-settings-page .shop-stock-settings-group-body {
+      border-top: 1px solid rgba(var(--rc-border), 0.45);
+    }
+    .shop-stock-settings-page .shop-stock-settings-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      column-gap: 0.55rem;
+      row-gap: 0.1rem;
+      align-items: center;
+      padding: 0.45rem 0.65rem;
+      cursor: pointer;
+    }
+    .shop-stock-settings-page .shop-stock-settings-row + .shop-stock-settings-row {
+      border-top: 1px solid rgba(var(--rc-border), 0.4);
+    }
+    .shop-stock-settings-page .shop-stock-settings-row-title {
+      grid-column: 1;
+      grid-row: 1;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.25;
+      color: rgb(var(--rc-page-fg));
+    }
+    .shop-stock-settings-page .shop-stock-settings-row-desc {
+      grid-column: 1;
+      grid-row: 2;
+      font-size: 0.6875rem;
+      line-height: 1.35;
+      color: rgb(var(--rc-muted));
+    }
+    .shop-stock-settings-page .shop-stock-settings-row .rc-receipt-switch {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      align-self: center;
+      min-height: 0 !important;
+      width: 2.5rem;
+      height: 1.4rem;
+      flex-shrink: 0;
+    }
+    .shop-stock-settings-page .shop-stock-settings-row .rc-receipt-switch::after {
+      width: 1.05rem;
+      height: 1.05rem;
+      top: 2px;
+      left: 2px;
+    }
+    .shop-stock-settings-page .shop-stock-settings-row .rc-receipt-switch:checked::after {
+      transform: translateX(1.1rem);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--request .rc-receipt-switch:checked {
+      background: rgb(14 165 233);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--in .rc-receipt-switch:checked {
+      background: rgb(5 150 105);
+    }
+    .shop-stock-settings-page .shop-stock-settings-group--out .rc-receipt-switch:checked {
+      background: rgb(225 29 72);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: auto;
+      border-radius: 9999px;
+      border: 1px solid rgba(var(--rc-border), 0.9);
+      background: rgba(var(--rc-surface-2), 0.65);
+      padding: 0.3rem 0.65rem;
+      font-size: 0.625rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgb(var(--rc-muted));
+      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--saving {
+      border-color: rgba(14, 165, 233, 0.45);
+      background: rgba(14, 165, 233, 0.1);
+      color: rgb(14 165 233);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--saved {
+      border-color: rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.12);
+      color: rgb(5 150 105);
+      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--error {
+      border-color: rgba(244, 63, 94, 0.45);
+      background: rgba(244, 63, 94, 0.1);
+      color: rgb(225 29 72);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill__dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 9999px;
+      background: currentColor;
+      opacity: 0.55;
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill--saved .shop-stock-settings-save-pill__dot {
+      opacity: 1;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    .shop-stock-settings-page .shop-stock-settings-save-pill__spinner {
+      width: 0.75rem;
+      height: 0.75rem;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 9999px;
+      animation: shop-stock-settings-spin 0.65s linear infinite;
+    }
+    @keyframes shop-stock-settings-spin {
+      to { transform: rotate(360deg); }
+    }
+    .shop-stock-settings-page .js-shop-stock-settings-item-row--saved td {
+      animation: shop-stock-settings-row-flash 1.1s ease;
+    }
+    @keyframes shop-stock-settings-row-flash {
+      0%, 100% { background: transparent; }
+      25% { background: rgba(16, 185, 129, 0.12); }
+    }
+
+/* ── extracted from templates/it_support_kitchen_portion_analytics.html ── */
+.ka-card {
+      border-color: rgba(var(--rc-border), 0.9);
+      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+    }
+    .ka-hero {
+      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
+    }
+    .ka-stat {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(var(--rc-border), 0.85);
+      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
+    }
+    .ka-stat::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+    }
+    .ka-filter select,
+    .ka-filter input {
+      min-height: 2.55rem;
+    }
+    .ka-tabs a {
+      border: 1px solid transparent;
+    }
+    .ka-table-wrap {
+      max-height: min(72vh, 760px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .ka-table thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .ka-table tbody tr {
+      transition: background-color 0.16s ease;
+    }
+    .ka-table tbody tr:hover {
+      background: rgba(148, 163, 184, 0.08);
+    }
+    @media (max-width: 640px) {
+      .ka-table-wrap {
+        max-height: 68vh;
+      }
+    }
+
+/* ── extracted from templates/it_support_item_management.html ── */
+@keyframes rcImFade {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .rc-im-empty-animate {
+      animation: rcImFade 0.5s ease-out both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rc-im-empty-animate { animation: none; }
+    }
+
+/* ── extracted from templates/shop_notifications.html ── */
+#sn-review-modal .sn-step-code.hidden,
+    #sn-review-modal .sn-step-approve-fields.hidden {
+      display: none;
+    }

@@ -1,0 +1,639 @@
+/* Portal modal & component styles */
+
+/* ── extracted from templates/partials/ai_accountant_floating.html ── */
+/* ============================================================
+     LIVE LADY AVATAR (shared SVG used in FAB + modal)
+     ============================================================ */
+  .ma-lady {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .ma-lady * {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* Whole figure: subtle bob (breathing) */
+  .ma-lady .ma-figure {
+    animation: ma-figure-bob 3.6s ease-in-out infinite;
+  }
+  @keyframes ma-figure-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-0.6px); }
+  }
+
+  /* Head: gentle breathing + tiny tilt */
+  .ma-lady .ma-head {
+    animation: ma-head-breathe 4.4s ease-in-out infinite;
+  }
+  @keyframes ma-head-breathe {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50%      { transform: translateY(-0.4px) rotate(0.6deg); }
+  }
+
+  /* Hair sway */
+  .ma-lady .ma-hair-front {
+    transform-origin: 50% 20%;
+    animation: ma-hair-sway 5s ease-in-out infinite;
+  }
+  @keyframes ma-hair-sway {
+    0%, 100% { transform: rotate(-0.6deg); }
+    50%      { transform: rotate(0.6deg); }
+  }
+
+  /* Eyes: blink */
+  .ma-lady .ma-eye {
+    animation: ma-eye-blink 4.2s infinite;
+  }
+  .ma-lady .ma-eye--right { animation-delay: 0.04s; }
+  @keyframes ma-eye-blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    94%, 96%      { transform: scaleY(0.05); }
+  }
+
+  /* Pupils micro-movement (looking around) */
+  .ma-lady .ma-pupil {
+    animation: ma-pupil-shift 6s ease-in-out infinite;
+  }
+  @keyframes ma-pupil-shift {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(0.5px); }
+    50%      { transform: translateX(0); }
+    75%      { transform: translateX(-0.5px); }
+  }
+
+  /* Mouth: subtle smile pulse */
+  .ma-lady .ma-mouth {
+    animation: ma-smile-pulse 4.6s ease-in-out infinite;
+  }
+  @keyframes ma-smile-pulse {
+    0%, 100% { transform: scaleY(1) translateY(0); }
+    50%      { transform: scaleY(1.18) translateY(0.2px); }
+  }
+
+  /* Earrings sway */
+  .ma-lady .ma-earring {
+    transform-origin: 50% 0%;
+    animation: ma-earring-sway 2.6s ease-in-out infinite;
+  }
+  .ma-lady .ma-earring--right { animation-delay: 0.35s; }
+  @keyframes ma-earring-sway {
+    0%, 100% { transform: rotate(-6deg); }
+    50%      { transform: rotate(6deg); }
+  }
+
+  /* Blush soft pulse */
+  .ma-lady .ma-blush {
+    animation: ma-blush-fade 5s ease-in-out infinite;
+  }
+  @keyframes ma-blush-fade {
+    0%, 100% { opacity: 0.4; }
+    50%      { opacity: 0.7; }
+  }
+
+  /* Sparkle on glasses */
+  .ma-lady .ma-sparkle {
+    transform-origin: center;
+    animation: ma-sparkle 3.2s ease-in-out infinite;
+  }
+  .ma-lady .ma-sparkle--b { animation-delay: 1.4s; }
+  @keyframes ma-sparkle {
+    0%, 80%, 100% { opacity: 0; transform: scale(0.5); }
+    20%, 60%      { opacity: 1; transform: scale(1); }
+  }
+
+  /* ============================================================
+     FLOATING BUTTON
+     ============================================================ */
+  #my-accountant-fab {
+    --ma-fab-offset: 0px;
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--ma-fab-offset));
+    z-index: 9999;
+    transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #my-accountant-fab .ma-fab-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 1rem 0.4rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(56, 189, 248, 0.95) 100%);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    box-shadow:
+      0 12px 28px -10px rgba(16, 185, 129, 0.55),
+      0 4px 10px -4px rgba(15, 23, 42, 0.35);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  #my-accountant-fab .ma-fab-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.04);
+    box-shadow:
+      0 18px 36px -10px rgba(16, 185, 129, 0.6),
+      0 6px 14px -4px rgba(15, 23, 42, 0.4);
+  }
+  #my-accountant-fab .ma-fab-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+  #my-accountant-fab .ma-fab-avatar {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #my-accountant-fab .ma-fab-live-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: #22c55e;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.85);
+    animation: ma-pulse-dot 1.8s ease-out infinite;
+    z-index: 2;
+  }
+  @keyframes ma-pulse-dot {
+    0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.75); }
+    70%  { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+  #my-accountant-fab .ma-fab-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(56, 189, 248, 0.65);
+    opacity: 0;
+    pointer-events: none;
+    animation: ma-pulse-ring 2.4s ease-out infinite;
+  }
+  #my-accountant-fab .ma-fab-ring.delay {
+    animation-delay: 1.2s;
+  }
+  @keyframes ma-pulse-ring {
+    0%   { transform: scale(0.85); opacity: 0.7; }
+    80%  { transform: scale(1.15); opacity: 0; }
+    100% { transform: scale(1.15); opacity: 0; }
+  }
+  #my-accountant-fab .ma-fab-label-wrap {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.05;
+    text-align: left;
+  }
+  #my-accountant-fab .ma-fab-label-wrap small {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.92;
+    margin-top: 1px;
+  }
+  #my-accountant-fab .ma-fab-label-wrap small::before {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: 999px;
+    background: #d1fae5;
+    box-shadow: 0 0 6px #d1fae5;
+    animation: ma-blink-led 1.2s ease-in-out infinite;
+  }
+  @keyframes ma-blink-led {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+
+  /* ============================================================
+     MODAL
+     ============================================================ */
+  #my-accountant-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  #my-accountant-modal.is-open {
+    display: flex;
+  }
+  #my-accountant-modal .ma-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: ma-fade-in 0.18s ease-out;
+  }
+  #my-accountant-modal .ma-modal-card {
+    position: relative;
+    width: min(28rem, 100%);
+    border-radius: 1.25rem;
+    background: rgb(var(--rc-surface));
+    color: rgb(var(--rc-page-fg));
+    border: 1px solid rgb(var(--rc-border));
+    box-shadow:
+      0 30px 60px -20px rgba(15, 23, 42, 0.55),
+      0 12px 24px -10px rgba(15, 23, 42, 0.4);
+    overflow: hidden;
+    animation: ma-pop-in 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  }
+  #my-accountant-modal .ma-modal-hero {
+    position: relative;
+    padding: 1.5rem 1.5rem 1.25rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(56, 189, 248, 0.95) 100%);
+    color: #fff;
+    overflow: hidden;
+  }
+  #my-accountant-modal .ma-modal-hero::after {
+    content: "";
+    position: absolute;
+    right: -2rem;
+    top: -2rem;
+    width: 8rem;
+    height: 8rem;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(255,255,255,0.35), rgba(255,255,255,0));
+    pointer-events: none;
+  }
+  #my-accountant-modal .ma-modal-hero-row {
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    position: relative;
+  }
+  #my-accountant-modal .ma-modal-avatar {
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #my-accountant-modal .ma-modal-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  #my-accountant-modal .ma-modal-role {
+    margin-top: 2px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.92;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  #my-accountant-modal .ma-modal-role::before {
+    content: "";
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: #d1fae5;
+    box-shadow: 0 0 6px #d1fae5;
+    animation: ma-blink-led 1.2s ease-in-out infinite;
+  }
+  #my-accountant-modal .ma-modal-body {
+    padding: 1.1rem 1.25rem 1.25rem;
+    max-height: min(70vh, 36rem);
+    overflow-y: auto;
+  }
+  #my-accountant-modal .ma-modal-coming {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 0.7rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(56, 189, 248, 0.12));
+    border: 1px dashed rgba(16, 185, 129, 0.45);
+    color: rgb(var(--rc-page-fg));
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.85rem;
+  }
+  #my-accountant-modal .ma-modal-coming svg {
+    width: 1rem;
+    height: 1rem;
+    color: #10b981;
+    flex-shrink: 0;
+  }
+  #my-accountant-modal .ma-modal-section-label {
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(var(--rc-muted));
+    margin-bottom: 0.45rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  #my-accountant-modal .ma-modal-section-label::before {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-radius: 999px;
+    background: #10b981;
+  }
+  #my-accountant-modal .ma-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  #my-accountant-modal .ma-card {
+    display: grid;
+    grid-template-columns: 2.4rem 1fr auto;
+    align-items: start;
+    gap: 0.85rem;
+    padding: 0.85rem 0.95rem;
+    min-height: 4.5rem;
+    border-radius: 0.85rem;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface));
+    color: rgb(var(--rc-page-fg));
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  #my-accountant-modal .ma-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(16, 185, 129, 0.55);
+    background: rgb(var(--rc-surface-2));
+    box-shadow: 0 14px 28px -18px rgba(15, 23, 42, 0.55);
+  }
+  #my-accountant-modal .ma-card:focus-visible {
+    outline: 2px solid rgba(16, 185, 129, 0.7);
+    outline-offset: 2px;
+  }
+  #my-accountant-modal .ma-card-icon {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  #my-accountant-modal .ma-card-icon svg { width: 1.2rem; height: 1.2rem; }
+  #my-accountant-modal .ma-card-icon--revenue {
+    background: linear-gradient(135deg, #10b981, #14b8a6);
+    box-shadow: 0 8px 18px -10px rgba(16, 185, 129, 0.65);
+  }
+  #my-accountant-modal .ma-card-icon--credits {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    box-shadow: 0 8px 18px -10px rgba(245, 158, 11, 0.65);
+  }
+  #my-accountant-modal .ma-card-icon--stock {
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    box-shadow: 0 8px 18px -10px rgba(99, 102, 241, 0.6);
+  }
+  #my-accountant-modal .ma-card-icon--audits {
+    background: linear-gradient(135deg, #f43f5e, #b91c1c);
+    box-shadow: 0 8px 18px -10px rgba(244, 63, 94, 0.65);
+  }
+  #my-accountant-modal .ma-card-icon--stockouts {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    box-shadow: 0 8px 18px -10px rgba(249, 115, 22, 0.6);
+  }
+  #my-accountant-modal .ma-card-pill--danger {
+    background: rgba(244, 63, 94, 0.18);
+    color: #b91c1c;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill--danger {
+    color: #fecaca;
+  }
+  #my-accountant-modal .ma-card.is-hot {
+    border-color: rgba(244, 63, 94, 0.55);
+    background: linear-gradient(180deg, rgba(244, 63, 94, 0.06), rgb(var(--rc-surface)));
+    animation: ma-card-attn 2.4s ease-in-out infinite;
+  }
+  @keyframes ma-card-attn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.0); }
+    50%      { box-shadow: 0 0 0 6px rgba(244, 63, 94, 0.12); }
+  }
+
+  /* Context-aware filtering: hide cards that aren't relevant to the active page.
+     "all" (dashboards) shows every card. */
+  #my-accountant-modal[data-ma-context="stock"]     .ma-card:not([data-ma-relevance~="stock"]),
+  #my-accountant-modal[data-ma-context="receipts"]  .ma-card:not([data-ma-relevance~="receipts"]),
+  #my-accountant-modal[data-ma-context="analytics"] .ma-card:not([data-ma-relevance~="analytics"]),
+  #my-accountant-modal[data-ma-context="credits"]   .ma-card:not([data-ma-relevance~="credits"]) {
+    display: none !important;
+  }
+  /* Slight emphasis on the focused card when filtering is active */
+  #my-accountant-modal:not([data-ma-context="all"]) .ma-card {
+    border-color: rgba(16, 185, 129, 0.45);
+    box-shadow: 0 14px 28px -22px rgba(16, 185, 129, 0.4);
+  }
+  #my-accountant-modal .ma-card-body {
+    min-width: 0;
+    max-height: min(calc(100dvh - 18rem), 9rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-right: 0.15rem;
+  }
+  #my-accountant-modal .ma-card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: rgb(var(--rc-page-fg));
+    line-height: 1.1;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  #my-accountant-modal .ma-card-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    background: rgba(16, 185, 129, 0.15);
+    color: #047857;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill {
+    color: #a7f3d0;
+  }
+  #my-accountant-modal .ma-card-pill--warn {
+    background: rgba(245, 158, 11, 0.18);
+    color: #b45309;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill--warn {
+    color: #fcd34d;
+  }
+  #my-accountant-modal .ma-card-pill--info {
+    background: rgba(59, 130, 246, 0.18);
+    color: #1d4ed8;
+  }
+  html[data-theme="dark"] #my-accountant-modal .ma-card-pill--info {
+    color: #bfdbfe;
+  }
+  #my-accountant-modal .ma-card-value {
+    margin-top: 0.18rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: rgb(var(--rc-page-fg));
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  #my-accountant-modal .ma-card-meta {
+    margin-top: 0.18rem;
+    font-size: 0.72rem;
+    color: rgb(var(--rc-muted));
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.65rem;
+  }
+  #my-accountant-modal .ma-card-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  #my-accountant-modal .ma-card-meta b {
+    color: rgb(var(--rc-page-fg));
+    font-weight: 700;
+  }
+  #my-accountant-modal .ma-card-go {
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    border: 1px solid rgb(var(--rc-border));
+    background: rgb(var(--rc-surface-2));
+    color: rgb(var(--rc-page-fg));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  #my-accountant-modal .ma-card:hover .ma-card-go {
+    background: linear-gradient(135deg, #10b981, #14b8a6);
+    color: #fff;
+    border-color: transparent;
+    transform: translateX(2px);
+  }
+  #my-accountant-modal .ma-card-go svg { width: 0.95rem; height: 0.95rem; }
+  #my-accountant-modal .ma-skel {
+    display: inline-block;
+    height: 0.9rem;
+    width: 4.5rem;
+    border-radius: 0.4rem;
+    background: linear-gradient(90deg,
+      rgba(148, 163, 184, 0.18) 0%,
+      rgba(148, 163, 184, 0.35) 50%,
+      rgba(148, 163, 184, 0.18) 100%);
+    background-size: 200% 100%;
+    animation: ma-shimmer 1.4s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  @keyframes ma-shimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+  #my-accountant-modal .ma-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  #my-accountant-modal .ma-modal-foot-note {
+    font-size: 0.7rem;
+    color: rgb(var(--rc-muted));
+  }
+  #my-accountant-modal .ma-modal-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    border-radius: 0.65rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 1) 0%, rgba(56, 189, 248, 1) 100%);
+    color: #fff;
+  }
+  #my-accountant-modal .ma-modal-btn:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+  }
+  #my-accountant-modal .ma-modal-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    z-index: 2;
+  }
+  #my-accountant-modal .ma-modal-close:hover {
+    background: rgba(255, 255, 255, 0.32);
+  }
+
+  @keyframes ma-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes ma-pop-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @media (max-width: 480px) {
+    #my-accountant-fab .ma-fab-label-wrap { display: none; }
+    #my-accountant-fab .ma-fab-btn { padding: 0.3rem; gap: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ma-lady *,
+    #my-accountant-fab .ma-fab-live-dot,
+    #my-accountant-fab .ma-fab-ring,
+    #my-accountant-fab .ma-fab-label-wrap small::before,
+    #my-accountant-modal .ma-modal-role::before {
+      animation: none !important;
+    }
+  }

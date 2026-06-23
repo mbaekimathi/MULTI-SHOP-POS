@@ -2,7 +2,7 @@
 {% set _mode = f.mode or 'single_day' %}
 {% set _inp = 'block w-full min-h-9 rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1.5 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm outline-none focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/30' %}
 {% set _lbl = 'block text-[10px] font-bold uppercase tracking-[0.1em] text-[rgb(var(--rc-muted))] mb-0.5' %}
-<div class="rev-toolbar cp-credit-toolbar" id="cp-credit-toolbar">
+<div class="rev-toolbar cp-credit-toolbar portal-live-toolbar" id="cp-credit-toolbar">
   <form
     method="get"
     action="{{ url_for('it_support_credit_payments') }}"
@@ -10,6 +10,8 @@
     id="it-analytics-filter-form"
     data-analytics-key="credit-payments"
     data-live-filter="credit-payments"
+    data-portal-live-filter
+    data-portal-live-content="#credit-sales-print-area"
   >
     <div class="flex flex-wrap items-end justify-between gap-2" id="cp-credit-period-fields">
       <div class="flex min-w-0 flex-1 flex-wrap items-end gap-2">

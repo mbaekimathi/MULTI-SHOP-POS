@@ -67,12 +67,16 @@
   line-height: 1.35;
 }
 
-/* Let the customer table grow with the page instead of a short inner scroll box */
+/* Customer table — tall card with inner scroll when details exceed the viewport */
 @media (min-width: 900px) {
   .it-analytics-page--credit .rev-scroll--lg {
-    max-height: none;
-    overflow-y: visible;
-    overscroll-behavior: auto;
+    max-height: var(--rev-scroll-max-h, min(calc(100dvh - 12rem), 44rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .it-analytics-page--credit .rev-panel:has(.rev-scroll--lg) {
+    max-height: min(calc(100dvh - 9rem), var(--rev-scroll-max-h-lg, 52rem));
   }
 }
 
@@ -223,3 +227,35 @@
     display: none !important;
   }
 }
+
+/* ── extracted from templates/it_support_credit_payments.html ── */
+.it-analytics-page--credit {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: clip;
+      box-sizing: border-box;
+    }
+    .it-analytics-page--credit .rev-scroll,
+    .it-analytics-page--credit .rev-scroll--lg {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media print {
+      .cp-credit-toolbar,
+      .rev-toolbar,
+      .rcpt-hero,
+      nav,
+      header,
+      aside,
+      .rev-btn { display: none !important; }
+      .it-analytics-page--credit .rev-panel {
+        border: none;
+        box-shadow: none;
+      }
+      .it-analytics-page--credit .rev-col-action { display: none; }
+    }

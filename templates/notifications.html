@@ -3,61 +3,13 @@
 {% block portal_page_title %}Notifications{% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    #company-notifications-page .cn-hero {
-      background:
-        radial-gradient(ellipse 80% 60% at 100% 0%, rgb(var(--rc-primary) / 0.14), transparent 55%),
-        radial-gradient(ellipse 60% 50% at 0% 100%, rgb(var(--rc-accent, var(--rc-primary)) / 0.1), transparent 50%),
-        rgb(var(--rc-surface));
-    }
-    #company-notifications-page .cn-list-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8125rem;
-    }
-    #company-notifications-page .cn-list-table thead th {
-      padding: 0.625rem 0.875rem;
-      text-align: left;
-      font-size: 0.625rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-muted));
-      background: rgb(var(--rc-surface-2) / 0.85);
-      border-bottom: 1px solid rgb(var(--rc-border));
-      white-space: nowrap;
-    }
-    #company-notifications-page .cn-list-table tbody td {
-      padding: 0.75rem 0.875rem;
-      vertical-align: middle;
-      border-bottom: 1px solid rgb(var(--rc-border) / 0.65);
-      color: rgb(var(--rc-page-fg));
-    }
-    #company-notifications-page .cn-list-table tbody tr:last-child td {
-      border-bottom: none;
-    }
-    #company-notifications-page .cn-list-table tbody tr:hover td {
-      background: rgb(var(--rc-surface-2) / 0.45);
-    }
-    #company-notifications-page .cn-list-table .cn-msg {
-      max-width: 28rem;
-      color: rgb(var(--rc-muted));
-      line-height: 1.45;
-    }
-    #company-notifications-page .cn-actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.375rem;
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
   {% set pending_n = pending_request_count|default(0) %}
   {% set notif_n = (notifications or [])|length %}
 
-  <div id="company-notifications-page" class="mx-auto max-w-6xl space-y-6">
-    <div class="cn-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] p-5 shadow-sm sm:p-6">
+  <div id="company-notifications-page" class="rc-page space-y-6">
+    <div class="rc-page-hero rc-card--pad">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-primary))]">Company portal</p>
@@ -98,7 +50,7 @@
         </div>
       {% else %}
         <div class="overflow-x-auto">
-          <table class="cn-list-table">
+          <table class="rc-data-table">
             <thead>
               <tr>
                 <th>#</th>
@@ -137,7 +89,7 @@
                   </td>
                   <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
                   <td>
-                    <div class="cn-actions">
+                    <div class="rc-actions">
                       {% if r.can_review %}
                         {% if not r.can_approve_now %}
                           <span class="text-[10px] font-bold uppercase tracking-wide text-rose-300" title="Not enough stock at source">Low stock</span>
@@ -176,7 +128,7 @@
         </div>
       {% else %}
         <div class="overflow-x-auto">
-          <table class="cn-list-table">
+          <table class="rc-data-table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -201,7 +153,7 @@
                 <tr>
                   <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ n.created_at }}</td>
                   <td class="font-semibold">{{ n.title }}</td>
-                  <td><span class="cn-msg">{{ n.message }}</span></td>
+                  <td><span class="rc-cell-muted">{{ n.message }}</span></td>
                   <td>
                     <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ring-1
                       {% if tone == 'approved' %}bg-emerald-500/12 text-emerald-200 ring-emerald-400/25

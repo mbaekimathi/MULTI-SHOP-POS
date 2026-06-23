@@ -3,66 +3,10 @@
 {% block portal_page_title %}Kitchen portions{% endblock %}
 {% block employee_content %}
   {% set km = kitchen_matrix %}
-  <style>
-    #kitchen-matrix .kitchen-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #kitchen-matrix .kitchen-hero {
-      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
-    }
-    #kitchen-matrix .kitchen-stat {
-      position: relative;
-      overflow: hidden;
-      border-color: rgba(var(--rc-border), 0.85);
-      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
-    }
-    #kitchen-matrix .kitchen-stat::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto auto 0;
-      width: 100%;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
-    }
-    #kitchen-matrix .kitchen-table-wrap {
-      max-height: min(72vh, 780px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #kitchen-matrix .kitchen-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 25;
-    }
-    #kitchen-matrix .kitchen-table tbody tr {
-      transition: background-color 0.16s ease;
-    }
-    #kitchen-matrix .kitchen-table tbody tr:hover {
-      background: rgba(148, 163, 184, 0.08);
-    }
-    #kitchen-matrix .kitchen-input {
-      min-height: 2rem;
-      transition: all 0.16s ease;
-    }
-    #kitchen-matrix .kitchen-input:focus {
-      border-color: rgba(var(--rc-primary), 0.55);
-      box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.18);
-      background-color: rgba(var(--rc-surface), 1);
-    }
-    @media (max-width: 640px) {
-      #kitchen-matrix .kitchen-table-wrap {
-        max-height: 68vh;
-      }
-      #kitchen-matrix .kitchen-card {
-        border-radius: 1rem;
-      }
-    }
-  </style>
-  <div id="kitchen-matrix" class="space-y-6">
-    <div class="kitchen-card kitchen-hero rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portions by shop</h2>
-      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+  <div id="kitchen-matrix" class="rc-page space-y-6">
+    <div class="rc-card rc-page-hero rc-page-hero--accent-warm rc-card--pad">
+      <h2 class="rc-section-title text-base">Kitchen portions by shop</h2>
+      <p class="rc-page-lead">
         Each <strong class="font-medium text-[rgb(var(--rc-page-fg))]">column</strong> is a shop; each <strong class="font-medium text-[rgb(var(--rc-page-fg))]">row</strong> is an item on at least one POS.
         Cells show portions and <strong class="font-medium text-[rgb(var(--rc-page-fg))]">est. production price</strong> for that shop (— if the item is not on that shop’s POS). Editable cells apply when that shop’s POS is in
         <strong class="font-medium text-[rgb(var(--rc-page-fg))]">kitchen</strong> or <strong class="font-medium text-[rgb(var(--rc-page-fg))]">both</strong> mode.
@@ -75,31 +19,31 @@
       {% endif %}
 
       <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="kitchen-stat rounded-xl border p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Shops</div>
-          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ (km.shops or [])|length }}</div>
+        <div class="rc-stat-card rc-stat-card--kitchen">
+          <div class="rc-stat-card__label">Shops</div>
+          <div class="rc-stat-card__value">{{ (km.shops or [])|length }}</div>
         </div>
-        <div class="kitchen-stat rounded-xl border p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Items</div>
-          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ (km.matrix_rows or [])|length }}</div>
+        <div class="rc-stat-card rc-stat-card--kitchen">
+          <div class="rc-stat-card__label">Items</div>
+          <div class="rc-stat-card__value">{{ (km.matrix_rows or [])|length }}</div>
         </div>
-        <div class="kitchen-stat rounded-xl border p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Editable shops</div>
-          <div class="mt-1 text-2xl font-extrabold text-[rgb(var(--rc-page-fg))]">{{ (km.shop_editable or {}).values()|select|list|length }}</div>
+        <div class="rc-stat-card rc-stat-card--kitchen">
+          <div class="rc-stat-card__label">Editable shops</div>
+          <div class="rc-stat-card__value">{{ (km.shop_editable or {}).values()|select|list|length }}</div>
         </div>
-        <div class="kitchen-stat rounded-xl border p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Mode status</div>
+        <div class="rc-stat-card rc-stat-card--kitchen">
+          <div class="rc-stat-card__label">Mode status</div>
           <div class="mt-1 text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{% if km.any_editable %}Ready to update{% else %}Read only{% endif %}</div>
         </div>
       </div>
     </div>
 
     {% if km.shops and km.shops|length > 0 and km.matrix_rows and km.matrix_rows|length > 0 %}
-      <div class="kitchen-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+      <div class="rc-card rc-card--pad">
         {% if km.any_editable %}
           <form method="post" action="{{ url_for('it_support_kitchen_portions_save') }}" class="space-y-4">
         {% endif %}
-        <div class="kitchen-table-wrap rounded-xl border border-[rgb(var(--rc-border))] -mx-1 px-1">
+        <div class="rc-table-wrap rc-table-wrap--tall rc-table-wrap--sticky-head rounded-xl border border-[rgb(var(--rc-border))] -mx-1 px-1">
           <table class="kitchen-table min-w-max divide-y divide-[rgb(var(--rc-border))] text-sm">
             <thead>
               <tr class="bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">

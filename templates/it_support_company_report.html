@@ -4,43 +4,7 @@
 {% block sidebar_links %}{% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    #company-report-page .cr-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #company-report-page .cr-table-wrap {
-      max-height: min(70vh, 720px);
-      overflow: auto;
-    }
-    #company-report-page .cr-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    #company-report-page .cr-print-header { display: none; }
-    @page { margin: 12mm; }
-    @media print {
-      body * { visibility: hidden; }
-      #company-report-print, #company-report-print * { visibility: visible; }
-      #company-report-print {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        padding: 0;
-        margin: 0;
-      }
-      #employee-sidebar, #employee-sidebar-backdrop, header, .no-print {
-        display: none !important;
-      }
-      #company-report-page .cr-print-header { display: block !important; }
-      #company-report-page .cr-table-wrap { max-height: none !important; overflow: visible !important; }
-      #company-report-page details > summary { display: none; }
-      #company-report-page details > :not(summary) { display: block !important; }
-    }
-  </style>
-  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=23" defer></script>
+  <script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=24" defer></script>
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
@@ -87,7 +51,7 @@
           </div>
         </div>
 
-        <form id="company-report-filter-form" method="get" action="{{ url_for('it_support_company_report') }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
+        <form id="company-report-filter-form" method="get" action="{{ url_for('it_support_company_report') }}" data-portal-live-skip="true" class="mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
           <input type="hidden" name="mode" id="cr-filter-mode" value="{{ f.mode or 'single_day' }}" />
           <div id="cr-filter-single-day" class="{% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
             <label for="cr-filter-day" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date</label>
@@ -340,26 +304,31 @@
         if (year) year.classList.toggle("hidden", m !== "year");
       }
 
-      function submitForm() {
-        if (!form) return;
-        if (typeof form.requestSubmit === "function") form.requestSubmit();
-        else form.submit();
-      }
-
-      if (modeInput) syncModePanels();
-
-      document.querySelectorAll("[data-cr-set-mode]").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          if (!modeInput) return;
-          modeInput.value = btn.getAttribute("data-cr-set-mode") || "single_day";
-          syncModePanels();
-          submitForm();
+      if (typeof window.initPeriodReportLive === "function") {
+        window.initPeriodReportLive({
+          jsonUrl: {{ (report_json_url or '')|tojson }},
+          liveEnabled: {{ (report_live_enabled or false)|tojson }},
+          pollMs: 45000,
         });
-      });
-
-      if (form) {
+      }
+      if (typeof window.wirePeriodReportFilterForm === "function") {
+        window.wirePeriodReportFilterForm(form);
+      } else if (form) {
+        if (modeInput) syncModePanels();
+        document.querySelectorAll("[data-cr-set-mode]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            if (!modeInput) return;
+            modeInput.value = btn.getAttribute("data-cr-set-mode") || "single_day";
+            syncModePanels();
+            if (typeof form.requestSubmit === "function") form.requestSubmit();
+            else form.submit();
+          });
+        });
         form.querySelectorAll("input, select").forEach(function (el) {
-          el.addEventListener("change", submitForm);
+          el.addEventListener("change", function () {
+            if (typeof form.requestSubmit === "function") form.requestSubmit();
+            else form.submit();
+          });
         });
       }
 
@@ -401,14 +370,6 @@
 
       var printBtn = document.querySelector("[data-company-report-print]");
       if (printBtn) printBtn.addEventListener("click", function () { window.print(); });
-
-      if (typeof window.initPeriodReportLive === "function") {
-        window.initPeriodReportLive({
-          jsonUrl: {{ (report_json_url or '')|tojson }},
-          liveEnabled: {{ (report_live_enabled or false)|tojson }},
-          pollMs: 45000,
-        });
-      }
 
       {% if report_should_print %}
       window.addEventListener("load", function () { window.print(); });

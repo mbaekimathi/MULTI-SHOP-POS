@@ -7,11 +7,14 @@
   {% include "partials/shop_analytics_sidebar.html" %}
 {% endblock %}
 
-{% block shop_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=23" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
+{% block head %}
+  {{ super() }}
+  {% include "partials/portal_revenue_analytics_css.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+{% endblock %}
 
+{% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% set a = customer_analytics or {} %}
   {% set show_analytics_toggle = true %}

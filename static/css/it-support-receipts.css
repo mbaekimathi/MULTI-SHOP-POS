@@ -1560,3 +1560,74 @@ html[data-theme="dark"] .rcpt-mark-btn--cancelled {
     overflow-x: auto;
   }
 }
+
+/* ── extracted from templates/it_support_receipts.html ── */
+.it-analytics-page {
+
+      width: 100%;
+
+      max-width: 100%;
+
+      min-width: 0;
+
+      overflow-x: clip;
+
+      box-sizing: border-box;
+
+    }
+
+    .it-analytics-page .rev-scroll,
+
+    .it-analytics-page .rev-scroll--lg {
+
+      display: block;
+
+      width: 100%;
+
+      max-width: 100%;
+
+      min-width: 0;
+
+      overflow-x: auto;
+
+      -webkit-overflow-scrolling: touch;
+
+    }
+
+    @media (min-width: 900px) {
+
+      .it-analytics-page .rev-scroll--lg {
+
+        max-height: min(78dvh, 46rem);
+
+        overflow-y: auto;
+
+      }
+
+    }
+
+    @media (min-width: 1280px) {
+
+      .it-analytics-page .rev-scroll--lg {
+
+        max-height: min(82dvh, 56rem);
+
+      }
+
+    }
+
+    #receipt-page-msg:not(.hidden) {
+
+      display: block;
+
+      padding: 0.65rem 1rem;
+
+      border-radius: 0.75rem;
+
+      border: 1px solid rgba(245, 158, 11, 0.35);
+
+      background: rgba(245, 158, 11, 0.1);
+
+      font-size: 0.875rem;
+
+    }

@@ -1,7 +1,5 @@
 {# Credit payments hub — page intro (analytics / receipts style). #}
-{% set _fm = f.mode or 'single_day' %}
-<section class="rev-panel rcpt-hero">
-  <div class="rcpt-hero__accent" aria-hidden="true"></div>
+<section class="rev-panel rcpt-hero">  <div class="rcpt-hero__accent" aria-hidden="true"></div>
   <div class="rev-panel__head rcpt-hero__head">
     <div class="rcpt-hero__intro min-w-0">
       <div class="rcpt-hero__icon-wrap" aria-hidden="true">
@@ -16,7 +14,7 @@
       </div>
     </div>
     <div class="rcpt-hero__aside">
-      <span class="rcpt-hero__period">Live filters below</span>
+      <span class="rcpt-hero__period">{{ credit_shell_aside or 'Live filters below' }}</span>
     </div>
   </div>
 </section>

@@ -1,0 +1,17 @@
+/* Popup print — company stock status (thermal) */
+@page{size:80mm auto;margin:1.5mm}
+html,body{height:auto;overflow:visible}
+body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:7pt;line-height:1.1}
+.sheet{width:77mm;max-width:77mm}
+.co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:3px;margin-bottom:4px}
+.co-name{font-size:8pt;font-weight:700;margin:0 0 1px;line-height:1.1}
+.co-line{font-size:6pt;color:#222;font-weight:600;margin:0;line-height:1.15;word-wrap:break-word}
+h1{margin:0 0 2px;font-size:8pt;font-weight:700}
+p{margin:0 0 3px;font-size:6.5pt;font-weight:700;color:#222;line-height:1.15}
+table{width:100%;border-collapse:collapse;font-size:6.5pt;table-layout:fixed}
+th,td{border:1px solid #6b7280;padding:1px 2px;vertical-align:middle;font-weight:600;word-wrap:break-word;line-height:1.1}
+th{background:#e5e7eb;text-align:left;font-size:6pt}
+tbody tr:nth-child(even){background:#fafafa}
+thead{display:table-row-group}
+tr{page-break-inside:auto;break-inside:auto}
+td{height:11px}

@@ -3,7 +3,8 @@
 {% block portal_page_title %}Withheld orders{% endblock %}
 
 {% block head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=24" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=1" />
 {% endblock %}
 

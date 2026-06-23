@@ -1,0 +1,219 @@
+/**
+ * System theme — fonts, colors, forms, toggles (all base.html + POS shell pages).
+ * Load after portal-shell-modern + portal-responsive.
+ */
+
+/* ── Global typography & smoothing ── */
+html {
+  font-family: var(--rc-font-family, "Plus Jakarta Sans", system-ui, -apple-system, sans-serif);
+}
+
+body {
+  font-family: inherit;
+  color: rgb(var(--rc-page-fg));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea,
+optgroup {
+  font-family: inherit;
+}
+
+/* ── Toggle switches ── */
+.rc-receipt-switch {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-block;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  max-width: 2.75rem;
+  height: 1.5rem;
+  min-height: 1.5rem;
+  max-height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: rgb(var(--rc-border));
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  vertical-align: middle;
+  box-sizing: border-box;
+  transition: background 0.2s ease;
+}
+
+.rc-receipt-switch:checked {
+  background: rgb(var(--rc-primary));
+}
+
+.rc-receipt-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.rc-receipt-switch:checked::after {
+  transform: translateX(1.15rem);
+}
+
+.rc-receipt-switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rc-receipt-switch:focus-visible {
+  outline: 2px solid rgba(var(--rc-primary), 0.45);
+  outline-offset: 2px;
+}
+
+/* ── Portal main: normalize typography ── */
+.portal-shell--modern .portal-main {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgb(var(--rc-page-fg));
+}
+
+.portal-shell--modern .portal-main h1,
+.portal-shell--modern .portal-main h2,
+.portal-shell--modern .portal-main h3 {
+  color: rgb(var(--rc-page-fg));
+  letter-spacing: -0.02em;
+}
+
+.portal-shell--modern .portal-main label {
+  color: rgb(var(--rc-page-fg));
+}
+
+/* ── Portal main: form controls ── */
+.portal-shell--modern .portal-main select,
+.portal-shell--modern .portal-main textarea,
+.portal-shell--modern .portal-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="file"]) {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(var(--rc-border), 0.9);
+  background: rgb(var(--rc-surface));
+  color: rgb(var(--rc-page-fg));
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.portal-shell--modern .portal-main select,
+.portal-shell--modern .portal-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="file"]) {
+  min-height: 2.45rem;
+  padding: 0.5rem 0.85rem;
+}
+
+.portal-shell--modern .portal-main textarea {
+  min-height: 5rem;
+  padding: 0.65rem 0.85rem;
+}
+
+.portal-shell--modern .portal-main select:focus,
+.portal-shell--modern .portal-main textarea:focus,
+.portal-shell--modern .portal-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="file"]):focus {
+  border-color: rgba(var(--rc-primary), 0.55);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--rc-primary), 0.12);
+}
+
+/* Auth / standalone forms using theme tokens */
+.auth-simple-page input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+.auth-simple-page select,
+.auth-simple-page textarea,
+.myacct-frame input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+.myacct-frame select,
+.myacct-frame textarea {
+  font-family: inherit;
+  color: rgb(var(--rc-page-fg));
+}
+
+/* ── Portal panels & headers ── */
+.portal-shell--modern .portal-main .portal-panel,
+.portal-shell--modern .portal-main .rc-card {
+  border-color: rgba(var(--rc-border), 0.9);
+}
+
+.portal-shell--modern .portal-main .portal-page-header {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.85);
+}
+
+.portal-shell--modern .portal-main .portal-page-header__title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgb(var(--rc-page-fg));
+}
+
+.portal-shell--modern .portal-main .portal-page-header__lead {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgb(var(--rc-muted));
+}
+
+.portal-shell--modern .portal-main .portal-page-header__lead a {
+  color: rgb(var(--rc-primary));
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.portal-shell--modern .portal-main .portal-page-header__lead a:hover {
+  text-decoration: underline;
+}
+
+.portal-shell--modern #it-settings-form {
+  border-color: rgba(var(--rc-border), 0.9);
+}
+
+/* POS settings tab aliases shared theme */
+.pos-settings__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: rgb(var(--rc-page-fg));
+}
+
+.pos-settings__lead {
+  font-size: 0.75rem;
+  color: rgb(var(--rc-muted));
+}
+
+.pos-settings__section {
+  background: rgba(var(--rc-surface-2), 0.35);
+}
+
+@media (max-width: 639px) {
+  .portal-shell--modern .portal-main {
+    font-size: 0.8125rem;
+  }
+
+  .portal-shell--modern .portal-main select,
+  .portal-shell--modern .portal-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="file"]) {
+    min-height: 2.125rem;
+    font-size: 0.8125rem;
+  }
+
+  .portal-shell--modern .portal-main .portal-page-header__title,
+  .pos-settings__title {
+    font-size: 1rem;
+  }
+
+  .portal-shell--modern .portal-main .portal-page-header__lead,
+  .pos-settings__lead {
+    font-size: 0.6875rem;
+  }
+}

@@ -174,6 +174,9 @@
           '<td class="num">' +
           fmtMoney(row.mpesa_paid) +
           "</td>" +
+          '<td class="num cell-expense">' +
+          fmtMoney(row.expense_amount) +
+          "</td>" +
           '<td class="num cell-strong">' +
           fmtMoney(row.total_amount) +
           "</td>" +
@@ -184,7 +187,7 @@
     return (
       '<div class="rev-scroll rev-scroll--hint"><table class="rev-data rev-data--wide rev-data--shops"><thead><tr>' +
       '<th scope="col">Shop</th><th scope="col" class="num">Sales</th><th scope="col" class="num">Credit</th>' +
-      '<th scope="col" class="num">Cash</th><th scope="col" class="num">M-Pesa</th><th scope="col" class="num">Total</th>' +
+      '<th scope="col" class="num">Cash</th><th scope="col" class="num">M-Pesa</th><th scope="col" class="num">Expenses</th><th scope="col" class="num">Total</th>' +
       "</tr></thead><tbody>" +
       rows +
       "</tbody></table></div>"
@@ -647,6 +650,7 @@
     } else {
       payload[pageKey] = data;
       if (pageKey === "item") payload.item = data;
+      if (pageKey === "expense") payload.expense = data;
       if (pageKey === "customer") payload.customer = data;
       if (pageKey === "sales") payload.sales = data;
       if (pageKey === "credit") payload.credit = data;

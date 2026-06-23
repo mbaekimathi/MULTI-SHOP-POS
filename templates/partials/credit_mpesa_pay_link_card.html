@@ -2,11 +2,11 @@
 {% set pay_base = credit_pay_link_full if credit_pay_link_full is defined and credit_pay_link_full else (credit_pay_link if credit_pay_link is defined else '') %}
 {% set pay_balance = (account_balance_due or 0)|float %}
 {% if pay_base and pay_balance > 0.009 %}
-<section class="cr-sale-pay-card no-print" aria-labelledby="credit-mpesa-pay-heading" data-credit-mpesa-pay-card>
+<section class="rc-card cr-sale-pay-card no-print" aria-labelledby="credit-mpesa-pay-heading" data-credit-mpesa-pay-card>
   <div class="cr-sale-pay-card__accent"></div>
   <div class="cr-sale-pay-card__body">
     <div class="min-w-0 flex-1">
-      <h2 id="credit-mpesa-pay-heading" class="cr-sale-pay-card__title">M-Pesa payment link</h2>
+      <h2 id="credit-mpesa-pay-heading" class="rc-section-title cr-sale-pay-card__title">M-Pesa payment link</h2>
       <p class="cr-sale-pay-card__desc">Share with the customer or open on their phone. Balance due: <strong class="tabular-nums">{{ "%.2f"|format(pay_balance) }}</strong></p>
     </div>
     <div class="cr-sale-pay-card__actions" data-pay-link-base="{{ pay_base }}" data-pay-balance="{{ pay_balance }}">
@@ -23,7 +23,7 @@
         </svg>
         Pay with M-Pesa
       </a>
-      <button type="button" class="rev-btn rev-btn--ghost cr-sale-pay-card__btn cr-sale-pay-card__btn--copy" data-credit-mpesa-pay-copy title="Copy payment link">
+      <button type="button" class="btn-rc btn-rc-ghost cr-sale-pay-card__btn cr-sale-pay-card__btn--copy" data-credit-mpesa-pay-copy title="Copy payment link">
         Copy link
       </button>
     </div>

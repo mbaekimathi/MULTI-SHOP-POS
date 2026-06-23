@@ -21,6 +21,7 @@
     "holdEnabled": (pos_printing_settings.pos_cart_mode == 'withhold'),
     "openingHours": shop_opening_hours_status if shop_opening_hours_status is defined else {"is_open_now": true},
     "dayOpening": shop_day_opening_boot if shop_day_opening_boot is defined else {"completed": true, "can_submit": false, "requires_stock_confirmation": false},
+    "canReturnReceiptItems": can_return_receipt_items|default(false),
     "apis": {
       "stockIn": url_for('shop_pos_stock_in', shop_id=shop.id),
       "refillPortions": url_for('shop_pos_refill_kitchen_portions', shop_id=shop.id) if pos_inventory_mode in ('kitchen', 'both') else "",
@@ -38,6 +39,7 @@
       "receiptsList": url_for('shop_receipts_list_json', shop_id=shop.id),
       "receiptsMark": url_for('shop_receipts_mark', shop_id=shop.id),
       "receiptsDetail": url_for('shop_receipts_detail', shop_id=shop.id),
+      "receiptsReprint": url_for('shop_receipts_record_reprint', shop_id=shop.id),
       "receiptsReturnLines": url_for('shop_receipts_return_lines', shop_id=shop.id),
       "printer": url_for('shop_pos_printer', shop_id=shop.id),
       "printerQrEscpos": url_for('shop_pos_printer_qr_escpos', shop_id=shop.id),

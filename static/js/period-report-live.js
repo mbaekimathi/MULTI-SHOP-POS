@@ -333,12 +333,20 @@
 
   window.initPeriodReportLive = function (opts) {
     opts = opts || {};
-    var jsonUrl = opts.jsonUrl || "";
+    var jsonBase = opts.jsonUrl || "";
     var pollMs = opts.pollMs || 45000;
     var enabled = !!opts.liveEnabled;
-    if (!jsonUrl) return;
+    if (!jsonBase) return;
+
+    function currentJsonUrl() {
+      var base = jsonBase.split("?")[0];
+      var params = new URLSearchParams(window.location.search);
+      var qs = params.toString();
+      return qs ? base + "?" + qs : base;
+    }
 
     function refresh() {
+      var jsonUrl = currentJsonUrl();
       var sep = jsonUrl.indexOf("?") >= 0 ? "&" : "?";
       fetch(jsonUrl + sep + "_=" + Date.now(), {
         headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest", "Cache-Control": "no-cache" },
@@ -349,9 +357,94 @@
         .then(function (j) {
           if (!j || j.ok === false) return;
           applyReportPayload(j);
+          try {
+            document.dispatchEvent(
+              new CustomEvent("period-report:updated", { detail: j })
+            );
+          } catch (e) {}
+          if (typeof opts.onUpdate === "function") {
+            opts.onUpdate(j);
+          }
         })
         .catch(function () {});
     }
+
+    window.__periodReportRefresh = refresh;
+
+    window.wirePeriodReportFilterForm = function (form) {
+      if (!form) return;
+      form.setAttribute("data-portal-live-skip", "true");
+      form.classList.add("portal-filter-toolbar--legacy", "portal-live-filter");
+
+      function syncModePanels() {
+        var modeInput = form.querySelector("[name='mode'], #sr-filter-mode, #cr-filter-mode");
+        if (!modeInput) return;
+        var mode = modeInput.value || "single_day";
+        [
+          ["single_day", ["sr-filter-single-day", "cr-filter-single-day"]],
+          ["period", ["sr-filter-period-start", "sr-filter-period-end", "cr-filter-period-start", "cr-filter-period-end"]],
+          ["month", ["sr-filter-month", "cr-filter-month"]],
+          ["year", ["sr-filter-year", "cr-filter-year"]],
+        ].forEach(function (pair) {
+          var show = pair[0] === mode;
+          pair[1].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.toggle("hidden", !show);
+          });
+        });
+      }
+
+      function applyFilters() {
+        var params = new URLSearchParams(new FormData(form));
+        var action = form.getAttribute("action") || window.location.pathname;
+        var url = params.toString() ? action + "?" + params.toString() : action;
+        window.history.replaceState({ periodReport: true }, "", url);
+        refresh();
+      }
+
+      var debounceTimer;
+      function scheduleApply(delay) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(applyFilters, delay == null ? 280 : delay);
+      }
+
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        applyFilters();
+      });
+
+      form.querySelectorAll("[data-portal-set-mode], [data-sr-set-mode], [data-cr-set-mode]").forEach(function (btn) {
+        btn.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          var modeInput = form.querySelector("[name='mode'], #sr-filter-mode, #cr-filter-mode");
+          if (!modeInput) return;
+          modeInput.value =
+            btn.getAttribute("data-portal-set-mode") ||
+            btn.getAttribute("data-sr-set-mode") ||
+            btn.getAttribute("data-cr-set-mode") ||
+            "single_day";
+          syncModePanels();
+          scheduleApply(80);
+        });
+      });
+
+      form.querySelectorAll("input, select").forEach(function (el) {
+        el.addEventListener("change", function () {
+          syncModePanels();
+          scheduleApply();
+        });
+      });
+
+      if (!form.querySelector(".portal-live-chip")) {
+        var chip = document.createElement("span");
+        chip.className = "portal-live-chip ml-auto";
+        chip.title = "Filters apply automatically";
+        chip.innerHTML = '<span class="portal-live-chip__dot" aria-hidden="true"></span>Live';
+        form.appendChild(chip);
+      }
+
+      syncModePanels();
+    };
 
     if (enabled) {
       setInterval(refresh, pollMs);

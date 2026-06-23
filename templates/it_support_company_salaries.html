@@ -7,51 +7,9 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    .payroll-page {
-      --payroll-accent: 16 185 129;
-      --payroll-accent2: 14 165 233;
-      background-image:
-        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.08), transparent 50%),
-        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.06), transparent 45%);
-    }
-    .dark .payroll-page {
-      background-image:
-        radial-gradient(ellipse 120% 80% at 100% -20%, rgb(var(--payroll-accent) / 0.12), transparent 50%),
-        radial-gradient(ellipse 80% 60% at 0% 100%, rgb(var(--payroll-accent2) / 0.1), transparent 45%);
-    }
-    #salaries-payroll-shell .salaries-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #salaries-payroll-shell .salaries-hero-header {
-      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 40%);
-    }
-    #salaries-payroll-shell .salaries-table-wrap {
-      max-height: min(68vh, 720px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #salaries-payroll-shell .salaries-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    #salaries-payroll-shell .salaries-table tbody tr {
-      transition: background-color 0.15s ease;
-    }
-    #salaries-payroll-shell form select {
-      min-height: 2.55rem;
-    }
-    @media (max-width: 768px) {
-      #salaries-payroll-shell .salaries-table-wrap {
-        max-height: none;
-      }
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
-  <div id="salaries-payroll-shell" class="payroll-page -mx-4 rounded-2xl px-4 py-6 sm:-mx-6 sm:px-6 md:py-8">
+  <div id="salaries-payroll-shell" class="portal-live-root payroll-page -mx-4 rounded-2xl px-4 py-6 sm:-mx-6 sm:px-6 md:py-8">
     <div class="mx-auto max-w-7xl space-y-10">
       <header class="salaries-card salaries-hero-header rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm sm:p-8">
         <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-600/90 dark:text-emerald-400/90">Payroll · Roster</p>
@@ -65,7 +23,14 @@
 
       <section class="salaries-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
         <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h2>
-        <form method="get" action="{{ url_for('it_support_company_salaries') }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+        <form
+          id="salaries-filter-form"
+          method="get"
+          action="{{ url_for('it_support_company_salaries') }}"
+          data-portal-live-filter
+          data-portal-live-content="#portal-live-content"
+          class="portal-filter-toolbar--legacy mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end"
+        >
           <div class="min-w-[12rem] flex-1">
             <label for="pay_frequency" class="block text-xs font-medium text-[rgb(var(--rc-muted))]">Roster — pay frequency</label>
             <select
@@ -94,15 +59,11 @@
               <option value="daily" {% if history_pay_frequency == 'daily' %}selected{% endif %}>Daily only</option>
             </select>
           </div>
-          <button
-            type="submit"
-            class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-[rgb(var(--rc-surface))]"
-          >
-            Apply filters
-          </button>
+          </div>
         </form>
       </section>
 
+      <div id="portal-live-content" data-portal-live-content class="space-y-10">
       <section class="salaries-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm overflow-hidden">
         <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4 sm:px-6">
           <h2 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Employees &amp; current payroll</h2>
@@ -251,6 +212,7 @@
           </table>
         </div>
       </section>
+      </div>
     </div>
   </div>
 {% endblock %}

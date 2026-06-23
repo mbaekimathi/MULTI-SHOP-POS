@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block employee_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=14" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
 
   <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
     <div class="shop-cust-credit-page__toolbar no-print">
@@ -60,12 +60,6 @@
 
 {% block scripts %}
   {{ super() }}
-  <style>
-    @media print {
-      nav, header, aside, .shop-cust-credit-page__toolbar, .no-print { display: none !important; }
-      #client-statement-print { display: block !important; }
-    }
-  </style>
   {% if company_should_print %}
   <script>
     window.addEventListener("load", function () { window.print(); });

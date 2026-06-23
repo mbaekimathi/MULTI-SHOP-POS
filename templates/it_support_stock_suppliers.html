@@ -19,30 +19,9 @@
       {% set ns.payable = ns.payable + 1 %}
     {% endif %}
   {% endfor %}
-  <div class="mx-auto max-w-6xl space-y-4">
-    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-sm">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 class="flex items-center gap-2 text-lg font-semibold text-[rgb(var(--rc-page-fg))]">
-            <svg class="h-5 w-5 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" /></svg>
-            Suppliers transactions
-          </h2>
-          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-            Transactions for <span class="font-semibold">{{ f.range_label or 'selected period' }}</span>. Rows are grouped with partially paid first, then pending, then paid (newest first within each group).
-          </p>
-        </div>
-        <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock status</a>
-      </div>
-      <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Rows</div><div class="text-xl font-extrabold">{{ rows|length }}</div></div>
-        <div class="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Pending</div><div class="text-xl font-extrabold text-rose-300">{{ ns.pending }}</div></div>
-        <div class="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Partially paid</div><div class="text-xl font-extrabold text-amber-300">{{ ns.partial }}</div></div>
-        <div class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Paid</div><div class="text-xl font-extrabold text-emerald-300">{{ ns.paid }}</div></div>
-      </div>
-    </div>
-
-    <form id="suppliers-filter-form" method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
-      <p class="mb-3 text-[11px] text-[rgb(var(--rc-muted))]">All transactions are shown by default. Filters apply only after you click Apply filters.</p>
+  <div class="portal-live-root mx-auto max-w-6xl space-y-4">
+    <form id="suppliers-filter-form" method="get" data-portal-live-filter data-portal-live-content="#portal-live-content" class="portal-filter-toolbar--legacy rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+      <p class="mb-3 text-[11px] text-[rgb(var(--rc-muted))]">Filters update automatically as you change them.</p>
       <div class="flex flex-wrap items-end gap-2.5">
         <div class="min-w-[10rem] flex-1">
           <label for="suppliers-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Date range</label>
@@ -94,11 +73,32 @@
           </select>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Apply filters</button>
-          <a href="{{ url_for('it_support_stock_suppliers') }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Clear all</a>
+          <a href="{{ url_for('it_support_stock_suppliers') }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider portal-live-keep-submit">Clear all</a>
         </div>
       </div>
     </form>
+
+    <div id="portal-live-content" data-portal-live-content class="space-y-4">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 class="flex items-center gap-2 text-lg font-semibold text-[rgb(var(--rc-page-fg))]">
+            <svg class="h-5 w-5 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 7l1 12h10l1-12M9 7V5a3 3 0 016 0v2" /></svg>
+            Suppliers transactions
+          </h2>
+          <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
+            Transactions for <span class="font-semibold">{{ f.range_label or 'selected period' }}</span>. Rows are grouped with partially paid first, then pending, then paid (newest first within each group).
+          </p>
+        </div>
+        <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock status</a>
+      </div>
+      <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Rows</div><div class="text-xl font-extrabold">{{ rows|length }}</div></div>
+        <div class="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Pending</div><div class="text-xl font-extrabold text-rose-300">{{ ns.pending }}</div></div>
+        <div class="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Partially paid</div><div class="text-xl font-extrabold text-amber-300">{{ ns.partial }}</div></div>
+        <div class="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Paid</div><div class="text-xl font-extrabold text-emerald-300">{{ ns.paid }}</div></div>
+      </div>
+    </div>
 
     <div class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
       <div class="border-b border-[rgb(var(--rc-border))] px-4 py-3">
@@ -226,6 +226,7 @@
           </div>
         {% endfor %}
       </div>
+    </div>
     </div>
 
     <div id="payment-modal" class="fixed inset-0 z-50 hidden">

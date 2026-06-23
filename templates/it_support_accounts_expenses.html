@@ -8,80 +8,21 @@
 {% block head %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
-  <style>
-    #expenses-page .expenses-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #expenses-page .expenses-stat::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto auto 0;
-      width: 100%;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(245, 158, 11, 0.85), rgba(239, 68, 68, 0.85));
-    }
-    #expenses-page .expenses-table-wrap {
-      max-height: min(70vh, 760px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    #expenses-page .expenses-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}
   {% set rows = expense_rows or [] %}
   {% set mpesa = mpesa_payout or {} %}
-  <div id="expenses-page" class="mx-auto max-w-7xl space-y-6">
-    <div class="expenses-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
-      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-600/90 dark:text-amber-400/90">Accounts · Expenses</p>
-      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Stock purchases</h2>
-      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-        Items bought through company warehouse stock-in and shop manual receipts — with quantity, unit cost, total spent, and amount paid.
-        Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
-        {% if mpesa.payout_ready %}
-          Pay suppliers by M-Pesa from your company paybill when a purchase has a balance and supplier phone.
-        {% endif %}
-      </p>
-
-      {% if mpesa.enabled and not mpesa.payout_ready %}
-        <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-          M-Pesa payouts need <strong>Initiator name</strong>, <strong>Security credential</strong>, and a reachable
-          <strong>hosted HTTPS callback</strong> in
-          <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium underline-offset-2 hover:underline">System settings → Daraja</a>.
-          Your paybill must also have B2C disbursement enabled with Safaricom.
-        </div>
-      {% elif mpesa.payout_ready and mpesa.hosted_fallback %}
-        <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-          Payouts use your <strong>hosted</strong> callback URL — your live server must be online to receive Safaricom's confirmation.
-        </div>
-      {% endif %}
-
-      <div class="mt-5 grid gap-3 sm:grid-cols-3">
-        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total cost</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.total_cost or 0) }}</div>
-        </div>
-        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Amount paid</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.amount_paid or 0) }}</div>
-        </div>
-        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
-          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance remaining</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.balance or 0) }}</div>
-          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ expense_totals.count or 0 }} purchase line{{ '' if (expense_totals.count or 0) == 1 else 's' }}</div>
-        </div>
-      </div>
-    </div>
-
+  <div id="expenses-page" class="portal-live-root mx-auto max-w-7xl space-y-6">
     <div class="expenses-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
       <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters</h3>
-      <form method="get" action="{{ url_for('it_support_accounts_expenses') }}" class="mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+      <form
+        method="get"
+        action="{{ url_for('it_support_accounts_expenses') }}"
+        data-portal-live-filter
+        data-portal-live-content="#portal-live-content"
+        class="portal-filter-toolbar--legacy mt-4 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end"
+      >
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Period mode</label>
           <select id="expenses-filter-mode" name="mode" class="min-h-[2.55rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
@@ -125,10 +66,51 @@
           <input type="search" name="supplier_q" value="{{ supplier_q or '' }}" placeholder="Name or phone" class="min-h-[2.55rem] min-w-[10rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
         </div>
         <div class="flex gap-2">
-          <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Apply</button>
-          <a href="{{ url_for('it_support_accounts_expenses') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Reset</a>
+          <a href="{{ url_for('it_support_accounts_expenses') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold portal-live-keep-submit">Reset</a>
         </div>
       </form>
+    </div>
+
+    <div id="portal-live-content" data-portal-live-content class="space-y-6">
+    <div class="expenses-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+      <p class="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-600/90 dark:text-amber-400/90">Accounts · Expenses</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))]">Stock purchases</h2>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Items bought through company warehouse stock-in and shop manual receipts — with quantity, unit cost, total spent, and amount paid.
+        Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'Today' }}</strong>.
+        {% if mpesa.payout_ready %}
+          Pay suppliers by M-Pesa from your company paybill when a purchase has a balance and supplier phone.
+        {% endif %}
+      </p>
+
+      {% if mpesa.enabled and not mpesa.payout_ready %}
+        <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+          M-Pesa payouts need <strong>Initiator name</strong>, <strong>Security credential</strong>, and a reachable
+          <strong>hosted HTTPS callback</strong> in
+          <a href="{{ url_for('it_support_system_settings', tab='system') }}" class="font-medium underline-offset-2 hover:underline">System settings → Daraja</a>.
+          Your paybill must also have B2C disbursement enabled with Safaricom.
+        </div>
+      {% elif mpesa.payout_ready and mpesa.hosted_fallback %}
+        <div class="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+          Payouts use your <strong>hosted</strong> callback URL — your live server must be online to receive Safaricom's confirmation.
+        </div>
+      {% endif %}
+
+      <div class="mt-5 grid gap-3 sm:grid-cols-3">
+        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Total cost</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.total_cost or 0) }}</div>
+        </div>
+        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Amount paid</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.amount_paid or 0) }}</div>
+        </div>
+        <div class="expenses-stat relative overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/50 p-4">
+          <div class="text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">Balance remaining</div>
+          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(expense_totals.balance or 0) }}</div>
+          <div class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ expense_totals.count or 0 }} purchase line{{ '' if (expense_totals.count or 0) == 1 else 's' }}</div>
+        </div>
+      </div>
     </div>
 
     <div class="expenses-card overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
@@ -337,8 +319,9 @@
           });
       }
 
-      document.querySelectorAll(".expense-mpesa-pay-btn").forEach(function (btn) {
-        btn.addEventListener("click", function () { openModal(btn); });
+      document.getElementById("expenses-page").addEventListener("click", function (e) {
+        var btn = e.target.closest(".expense-mpesa-pay-btn");
+        if (btn) openModal(btn);
       });
 
       if (cancelBtn) cancelBtn.addEventListener("click", closeModal);

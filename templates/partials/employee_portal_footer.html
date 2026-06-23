@@ -1,7 +1,7 @@
-<footer class="shrink-0 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:px-6">
+<footer class="portal-footer--modern shrink-0 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] md:px-6">
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-    <p class="text-center text-xs leading-relaxed text-[rgb(var(--rc-muted))] sm:text-left">
-      © <span id="portal-footer-year"></span> {{ site_settings.company_name if site_settings else "Point of Sale" }}. Internal use.
+    <p class="portal-footer__meta text-center text-xs leading-relaxed text-[rgb(var(--rc-muted))] sm:text-left">
+      © <span id="portal-footer-year"></span> <span class="portal-footer__brand font-semibold text-[rgb(var(--rc-page-fg))]">{{ site_settings.company_name if site_settings else "Point of Sale" }}</span>. Internal use.
     </p>
     <div class="flex flex-col items-center gap-1 sm:items-end">
       <p class="text-center text-[11px] text-[rgb(var(--rc-muted))] sm:text-right">

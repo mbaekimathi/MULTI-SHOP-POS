@@ -21,9 +21,8 @@
   {% set f = analytics_filter or {} %}
   {% set catalog = catalog_items or [] %}
 
-  <div class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
-    {# Shared date filter #}
-    <form id="item-analytics-filter-form" method="get" class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+  <div class="portal-live-root mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    <form id="item-analytics-filter-form" method="get" data-portal-live-filter data-portal-live-content="#portal-live-content" class="portal-filter-toolbar--legacy rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
       {% if selected_item_id %}
         <input type="hidden" name="item_id" value="{{ selected_item_id }}" />
       {% endif %}
@@ -59,11 +58,11 @@
           <label for="ia-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
           <input id="ia-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-xs" />
         </div>
-        <button type="submit" class="btn-rc btn-rc-primary rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-wider">Apply period</button>
       </div>
-      <p class="mt-3 text-[11px] text-[rgb(var(--rc-muted))]">Analytics below use POS sales and stock movements dated within <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'the selected range' }}</span>.</p>
     </form>
 
+    <div id="portal-live-content" data-portal-live-content class="space-y-6">
+    <p class="text-[11px] text-[rgb(var(--rc-muted))]">Analytics below use POS sales and stock movements dated within <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or 'the selected range' }}</span>.</p>
     {% if detail %}
       {% set it = detail.item %}
       {% set s = detail.sales %}
@@ -381,6 +380,7 @@
         <p id="item-analytics-picker-empty" class="hidden py-8 text-center text-sm text-[rgb(var(--rc-muted))]">No items match your search.</p>
       {% endif %}
     {% endif %}
+    </div>
   </div>
 {% endblock %}
 

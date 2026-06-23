@@ -1,22 +1,32 @@
 {% extends "employee_layout.html" %}
 {% block title %}Upcoming credit due dates — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
 {% block portal_page_title %}Upcoming credit due dates{% endblock %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=25" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=12" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-credit-payments.css') }}?v=10" />
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+{% endblock %}
 {% block sidebar_links %}
   {% include "partials/it_support_credit_sidebar_nav.html" %}
 {% endblock %}
 {% block employee_content %}
   {% set shop_list = shops or [] %}
-  {% include "partials/it_support_credit_hub_assets.html" %}
-  <div class="it-credit-page it-credit-analytics">
-  <div class="it-credit-workspace mt-4 flex flex-col gap-2 sm:gap-4">
-    {% set credit_shell_title = 'Upcoming credit due dates' %}
-    {% set credit_shell_desc = 'Open credit with a due date on or before your horizon (includes past-due). Sorted by due date, soonest first.' %}
-    {% set filter_clear_url = url_for('it_support_credit_payments_upcoming_due') %}
-    {% include "partials/it_support_credit_hero_filter_due.html" %}
-    {% include "partials/it_support_credit_due_data.html" %}
-  </div>
+  {% set credit_shell_title = 'Upcoming credit due dates' %}
+  {% set credit_shell_desc = 'Open credit with a due date on or before your horizon (includes past-due). Sorted by due date, soonest first.' %}
+  {% set credit_shell_aside = 'Next ' ~ (due_days_ahead or 90) ~ ' days' %}
+  {% set filter_clear_url = url_for('it_support_credit_payments_upcoming_due') %}
+
+  <div class="it-analytics-page it-analytics-page--modern it-analytics-page--revenue it-analytics-page--credit">
+    <div class="rev-page rev-page--fluid mx-auto w-full min-w-0 max-w-6xl px-0 sm:px-1">
+      {% include "partials/it_support_credit_payments_hero.html" %}
+      {% include "partials/it_support_credit_due_controls.html" %}
+      {% include "partials/it_support_credit_due_data.html" %}
+    </div>
   </div>
 {% endblock %}
 {% block scripts %}
   {{ super() }}
+  <script src="{{ url_for('static', filename='js/it-support-credit-payments-filters.js') }}?v=7" defer></script>
 {% endblock %}

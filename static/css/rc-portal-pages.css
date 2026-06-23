@@ -1,0 +1,656 @@
+/**
+ * Shared portal page components — cards, heroes, tables, stats.
+ * Use with --rc-* theme tokens from base.html.
+ */
+
+/* ── Page shell ── */
+.rc-page {
+  width: 100%;
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+  color: rgb(var(--rc-page-fg));
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.rc-page--narrow {
+  max-width: 42rem;
+}
+
+.rc-page--medium {
+  max-width: 56rem;
+}
+
+/* ── Cards ── */
+.rc-card {
+  border: 1px solid rgba(var(--rc-border), 0.9);
+  border-radius: 1rem;
+  background: rgb(var(--rc-surface));
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
+  min-width: 0;
+}
+
+.rc-card--pad {
+  padding: 0.85rem 0.95rem;
+}
+
+@media (min-width: 640px) {
+  .rc-card--pad {
+    padding: 1rem 1.15rem;
+  }
+}
+
+/* ── Scrollable data cards (header fixed, body scrolls) ── */
+:root {
+  --rc-card-max-h: min(calc(100dvh - 7.5rem), 64rem);
+  --rc-card-body-max-h: min(calc(100dvh - 12rem), 52rem);
+  --rc-card-body-max-h-tall: min(calc(100dvh - 10rem), 56rem);
+}
+
+.rc-card__head {
+  flex-shrink: 0;
+  padding: 0.65rem 0.95rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.75);
+  background: rgba(var(--rc-surface-2), 0.35);
+}
+
+.rc-card__head .rc-section-title {
+  font-size: 0.8125rem;
+}
+
+.rc-card__head .rc-section-lead {
+  margin-top: 0.1rem;
+}
+
+.rc-card__head-meta {
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .rc-card__head {
+    padding: 0.8rem 1.15rem;
+  }
+}
+
+.rc-card__body,
+.rc-card-body-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.rc-card__body--tall {
+  max-height: var(--rc-card-body-max-h-tall);
+}
+
+.rc-card.rc-card--scroll,
+.rc-card:has(> .rc-table-wrap),
+.rc-card:has(> .rc-card__body),
+.rc-card:has(> .rc-card-body-scroll),
+.rc-card:has(> .rc-card__head):has(.rc-table-wrap),
+.rc-card:has(> .border-b):has(.rc-table-wrap),
+.rc-card.overflow-hidden:has(.rc-table-wrap),
+.rc-card.overflow-hidden:has([class*="-table-wrap"]) {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--rc-card-max-h);
+  overflow: hidden;
+}
+
+.rc-card.rc-card--scroll > .rc-card__head,
+.rc-card:has(> .rc-card__head):has(.rc-table-wrap) > .rc-card__head,
+.rc-card:has(> .border-b):has(.rc-table-wrap) > .border-b,
+.rc-card:has(> .border-b):has([class*="-table-wrap"]) > .border-b {
+  flex-shrink: 0;
+}
+
+.rc-card.rc-card--scroll > .rc-card__body,
+.rc-card.rc-card--scroll > .rc-card-body-scroll,
+.rc-card:has(> .rc-table-wrap) > .rc-table-wrap,
+.rc-card:has(> .rc-card__head) > .rc-table-wrap,
+.rc-card:has(> .border-b) > .rc-table-wrap,
+.rc-card:has(> .border-b) > [class*="-table-wrap"] {
+  flex: 1 1 auto;
+  min-height: 14rem;
+  max-height: var(--rc-card-body-max-h);
+  border-radius: 0 0 1rem 1rem;
+}
+
+.rc-card.rc-page-hero,
+.rc-card.rc-card--pad:not(:has(.rc-table-wrap)):not(:has([class*="-table-wrap"])):not(.rc-card--scroll):not(:has(.rc-card__body)):not(.register-shop-form-panel) {
+  display: block;
+  max-height: none;
+  overflow: visible;
+}
+
+/* Register shop — collapsible add form (must beat rc-card--pad display rules) */
+.register-shop-form-panel[hidden],
+.register-shop-form-panel.hidden {
+  display: none !important;
+}
+
+#register-shop-page .register-shop-form-panel:not([hidden]):not(.hidden) {
+  display: block;
+}
+
+#shop-edit-modal[hidden],
+#shop-edit-modal.hidden {
+  display: none !important;
+}
+
+/* Legacy / alias data cards */
+.portal-shell--modern .portal-main :is(
+  .hr-mgmt-card,
+  .expenses-card,
+  .incomes-card,
+  .exp-card,
+  .cr-card,
+  .salaries-card,
+  .ka-card,
+  .hr-an-chart-card
+):has([class*="-table-wrap"]) {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--rc-card-max-h);
+  overflow: hidden;
+}
+
+.portal-shell--modern .portal-main :is(
+  .hr-mgmt-card,
+  .expenses-card,
+  .incomes-card,
+  .exp-card,
+  .cr-card,
+  .salaries-card,
+  .ka-card
+) :is([class*="-table-wrap"], .rc-table-wrap) {
+  flex: 1 1 auto;
+  min-height: 10rem;
+  max-height: var(--rc-card-body-max-h);
+}
+
+/* Generic rounded panels with tables (no rc-card class) */
+.portal-shell--modern .portal-main .overflow-hidden.rounded-2xl:has(table),
+.portal-shell--modern .portal-main .overflow-hidden.rounded-xl:has(table) {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--rc-card-max-h);
+}
+
+.portal-shell--modern .portal-main .overflow-hidden.rounded-2xl:has(table) > :last-child,
+.portal-shell--modern .portal-main .overflow-hidden.rounded-xl:has(table) > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile / compact entity cards with lots of fields */
+.hr-mgmt-mobile-card,
+.portal-shell--modern .portal-main .rc-entity-card {
+  max-height: min(calc(100dvh - 10rem), 28rem);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── Page hero ── */
+.rc-page-hero {
+  overflow: hidden;
+  border: 1px solid rgba(var(--rc-border), 0.9);
+  border-radius: 1rem;
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(var(--rc-primary), 0.14), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgba(var(--rc-accent, var(--rc-primary)), 0.1), transparent 50%),
+    rgb(var(--rc-surface));
+  box-shadow: 0 12px 28px -24px rgba(15, 23, 42, 0.45);
+}
+
+.rc-page-hero--accent-warm {
+  background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
+}
+
+/* ── Typography helpers ── */
+.rc-eyebrow {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+}
+
+.rc-eyebrow--brand {
+  color: rgba(var(--rc-primary), 0.9);
+}
+
+.rc-page-title {
+  margin: 0.35rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: rgb(var(--rc-page-fg));
+}
+
+.rc-page-lead {
+  margin: 0.35rem 0 0;
+  max-width: 42rem;
+  font-size: 0.78125rem;
+  line-height: 1.45;
+  color: rgb(var(--rc-muted));
+}
+
+.rc-section-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgb(var(--rc-page-fg));
+}
+
+.rc-section-lead {
+  margin: 0.15rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: rgb(var(--rc-muted));
+}
+
+/* ── Stat cards ── */
+.rc-stat-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(var(--rc-border), 0.85);
+  border-radius: 0.75rem;
+  background: rgba(var(--rc-surface-2), 0.5);
+  padding: 0.65rem 0.75rem;
+  min-width: 0;
+}
+
+.rc-stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(var(--rc-primary), 0.85), rgba(var(--rc-accent, var(--rc-primary)), 0.75));
+}
+
+.rc-stat-card--warm::before {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.85), rgba(239, 68, 68, 0.85));
+}
+
+.rc-stat-card--kitchen::before {
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
+}
+
+.rc-stat-card__label {
+  font-size: 0.5875rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+  line-height: 1.25;
+}
+
+.rc-stat-card__value {
+  margin-top: 0.15rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--rc-page-fg));
+  line-height: 1.15;
+}
+
+.rc-stat-card__meta {
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: rgb(var(--rc-muted));
+}
+
+/* ── Data tables ── */
+.rc-table-wrap {
+  max-height: var(--rc-card-body-max-h, min(65vh, 720px));
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.rc-table-wrap--tall {
+  max-height: var(--rc-card-body-max-h-tall, min(72vh, 780px));
+}
+
+.rc-table-wrap--sticky-head thead tr {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.rc-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78125rem;
+  line-height: 1.35;
+}
+
+.rc-data-table thead th {
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  font-size: 0.5875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+  background: rgba(var(--rc-surface-2), 0.92);
+  border-bottom: 1px solid rgb(var(--rc-border));
+  white-space: nowrap;
+}
+
+.rc-data-table tbody td {
+  padding: 0.42rem 0.65rem;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.65);
+  color: rgb(var(--rc-page-fg));
+}
+
+.rc-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rc-data-table tbody tr:hover td {
+  background: rgba(var(--rc-surface-2), 0.45);
+}
+
+.rc-data-table .rc-cell-muted {
+  max-width: 28rem;
+  color: rgb(var(--rc-muted));
+  line-height: 1.4;
+}
+
+.rc-data-table .rc-cell-wrap,
+.rc-table-wrap table td.rc-cell-wrap {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 16rem;
+}
+
+.rc-data-table .rc-cell-clip-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-width: 14rem;
+}
+
+/* Dense tables inside any card (Tailwind tables too) */
+.rc-card .rc-table-wrap table,
+.rc-card [class*="-table-wrap"] table,
+[class*="-card"] [class*="-table-wrap"] table {
+  font-size: 0.78125rem;
+  line-height: 1.35;
+}
+
+.rc-card .rc-table-wrap th,
+.rc-card .rc-table-wrap td,
+[class*="-card"] [class*="-table-wrap"] th,
+[class*="-card"] [class*="-table-wrap"] td {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  vertical-align: top;
+}
+
+.rc-card .rc-table-wrap tbody td,
+[class*="-card"] [class*="-table-wrap"] tbody td {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.rc-card .rc-table-wrap thead th,
+[class*="-card"] [class*="-table-wrap"] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(var(--rc-surface-2), 0.95);
+  backdrop-filter: blur(6px);
+}
+
+.rc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.rc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(var(--rc-border), 0.85);
+  background: rgba(var(--rc-surface-2), 0.45);
+  color: rgb(var(--rc-muted));
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.rc-icon-btn:hover {
+  color: rgb(var(--rc-page-fg));
+  border-color: rgba(var(--rc-primary), 0.45);
+  background: rgba(var(--rc-primary), 0.08);
+}
+
+.rc-amount--credit {
+  font-weight: 600;
+  color: rgb(180, 83, 9);
+}
+
+html[data-theme="dark"] .rc-amount--credit {
+  color: rgb(251, 191, 36);
+}
+
+.rc-amount--paid {
+  font-weight: 600;
+  color: rgb(5, 150, 105);
+}
+
+html[data-theme="dark"] .rc-amount--paid {
+  color: rgb(52, 211, 153);
+}
+
+.rc-amount--balance {
+  font-weight: 700;
+  color: rgb(190, 24, 93);
+}
+
+html[data-theme="dark"] .rc-amount--balance {
+  color: rgb(251, 113, 133);
+}
+
+/* ── Setting rows (settings / toggles) ── */
+.rc-settings-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.rc-settings-section {
+  border: 1px solid rgba(var(--rc-border), 0.9);
+  border-radius: 0.75rem;
+  background: rgba(var(--rc-surface-2), 0.35);
+  overflow: hidden;
+}
+
+.rc-settings-section__head {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.55);
+  background: rgba(var(--rc-surface-2), 0.65);
+}
+
+.rc-settings-section__title {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-page-fg));
+}
+
+.rc-settings-section__note {
+  margin: 0.15rem 0 0;
+  font-size: 0.625rem;
+  color: rgb(var(--rc-muted));
+}
+
+.rc-settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.4);
+}
+
+.rc-settings-row:last-child {
+  border-bottom: none;
+}
+
+.rc-settings-row__label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgb(var(--rc-page-fg));
+}
+
+/* ── Shop expenses ── */
+#shop-expenses-page .exp-suggest {
+  max-height: 10rem;
+  overflow: auto;
+}
+
+#shop-expenses-page .exp-pay-modal-backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* ── Shop report print ── */
+#shop-report-page .sr-print-header {
+  display: none;
+}
+
+@page {
+  margin: 12mm;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #shop-report-print,
+  #shop-report-print * {
+    visibility: visible;
+  }
+
+  #shop-report-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
+  #shop-sidebar,
+  #shop-sidebar-backdrop,
+  #shop-shell > div > header,
+  .no-print {
+    display: none !important;
+  }
+
+  #shop-report-page .sr-print-header {
+    display: block !important;
+  }
+
+  #shop-report-page .rc-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  #shop-report-page details > summary {
+    display: none;
+  }
+
+  #shop-report-page details > :not(summary) {
+    display: block !important;
+  }
+}
+
+/* ── Kitchen matrix dashboard ── */
+#kitchen-matrix .rc-page-hero--accent-warm {
+  background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 40%);
+}
+
+#kitchen-matrix .kitchen-input {
+  min-height: 2rem;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+#kitchen-matrix .kitchen-input:focus {
+  border-color: rgba(var(--rc-primary), 0.55);
+  box-shadow: 0 0 0 2px rgba(var(--rc-primary), 0.18);
+  background-color: rgb(var(--rc-surface));
+}
+
+#kitchen-matrix .rc-table-wrap tbody tr:hover td,
+#kitchen-matrix .rc-table-wrap tbody tr:hover th {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+@media (max-width: 640px) {
+  #kitchen-matrix .rc-table-wrap--tall {
+    max-height: 68vh;
+  }
+}
+
+@media (max-width: 639px) {
+  :root {
+    --rc-card-max-h: min(calc(100dvh - 8rem), 52rem);
+    --rc-card-body-max-h: min(calc(100dvh - 11rem), 36rem);
+    --rc-card-body-max-h-tall: min(calc(100dvh - 9rem), 40rem);
+  }
+
+  .rc-page-title {
+    font-size: 1.0625rem;
+  }
+
+  .rc-page {
+    font-size: 0.8125rem;
+  }
+
+  .rc-stat-card {
+    padding: 0.55rem 0.65rem;
+  }
+
+  .rc-stat-card__value {
+    font-size: 1.05rem;
+  }
+
+  .rc-card--pad {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .rc-data-table {
+    font-size: 0.71875rem;
+  }
+
+  .hr-mgmt-mobile-card {
+    max-height: min(calc(100dvh - 9rem), 24rem);
+  }
+}

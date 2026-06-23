@@ -3064,6 +3064,123 @@ def list_company_expenditure_for_report(analytics_filter: dict, shop_id: Optiona
     return out
 
 
+def _expenditure_total_by_shop_map(
+    analytics_filter: dict, shop_id: Optional[int] = None
+) -> dict:
+    """Total expenditure per shop for the analytics period (matches report rows)."""
+    totals: dict[int, float] = {}
+    rows = list_company_expenditure_for_report(analytics_filter or {}, shop_id=shop_id)
+    for r in rows:
+        ps = (r.get("payment_status") or "pending_payment").strip().lower()
+        if ps == "cancelled_out":
+            continue
+        try:
+            sid = int(r.get("shop_id") or 0)
+        except Exception:
+            continue
+        if sid <= 0:
+            continue
+        try:
+            row_total = float(r.get("total_cost") or r.get("total_amount") or 0)
+        except Exception:
+            row_total = 0.0
+        totals[sid] = round(totals.get(sid, 0.0) + row_total, 2)
+    return totals
+
+
+def get_it_support_expense_analytics(
+    analytics_filter: dict, shop_id: Optional[int] = None, *, lines_limit: int = 120
+):
+    """Expense analytics across shops for IT support/super admin."""
+    try:
+        lim = max(1, min(500, int(lines_limit)))
+    except (TypeError, ValueError):
+        lim = 120
+    rows = list_company_expenditure_for_report(analytics_filter or {}, shop_id=shop_id)
+    active = [
+        r
+        for r in rows
+        if (r.get("payment_status") or "pending_payment").strip().lower() != "cancelled_out"
+    ]
+
+    stock_total = 0.0
+    operational_total = 0.0
+    stock_out_total = 0.0
+    shop_map: dict[int, dict] = {}
+
+    for r in active:
+        try:
+            amt = float(r.get("total_cost") or r.get("total_amount") or 0)
+        except Exception:
+            amt = 0.0
+        kind = (r.get("expense_kind") or "").strip().lower()
+        if kind == "operational":
+            operational_total += amt
+        elif kind == "stock_out":
+            stock_out_total += amt
+        else:
+            stock_total += amt
+
+        try:
+            sid = int(r.get("shop_id") or 0)
+        except Exception:
+            sid = 0
+        if sid <= 0:
+            continue
+        if sid not in shop_map:
+            shop_map[sid] = {
+                "shop_id": sid,
+                "shop_name": (r.get("shop_name") or f"Shop #{sid}").strip(),
+                "stock_amount": 0.0,
+                "operational_amount": 0.0,
+                "stock_out_amount": 0.0,
+                "total_amount": 0.0,
+            }
+        entry = shop_map[sid]
+        if kind == "operational":
+            entry["operational_amount"] += amt
+        elif kind == "stock_out":
+            entry["stock_out_amount"] += amt
+        else:
+            entry["stock_amount"] += amt
+        entry["total_amount"] += amt
+
+    shops = sorted(shop_map.values(), key=lambda x: (-x["total_amount"], x["shop_name"]))
+    for s in shops:
+        for key in ("stock_amount", "operational_amount", "stock_out_amount", "total_amount"):
+            s[key] = round(float(s[key] or 0), 2)
+
+    lines = []
+    for r in active[:lim]:
+        try:
+            amt = float(r.get("total_cost") or r.get("total_amount") or 0)
+        except Exception:
+            amt = 0.0
+        lines.append(
+            {
+                "created_at": r.get("created_at") or "",
+                "shop_name": (r.get("shop_name") or "—").strip() or "—",
+                "expense_kind": (r.get("expense_kind") or "stock").strip().lower(),
+                "name": (r.get("name") or r.get("expense_name") or "—").strip() or "—",
+                "category": (r.get("category") or "—").strip() or "—",
+                "total_amount": round(amt, 2),
+                "amount_paid": round(float(r.get("amount_paid") or 0), 2),
+                "payment_status": (r.get("payment_status") or "").strip().lower(),
+                "supplier": (r.get("supplier") or r.get("supplier_name") or "—").strip() or "—",
+            }
+        )
+
+    return {
+        "total_amount": round(stock_total + operational_total + stock_out_total, 2),
+        "stock_amount": round(stock_total, 2),
+        "operational_amount": round(operational_total, 2),
+        "stock_out_amount": round(stock_out_total, 2),
+        "line_count": len(active),
+        "shops": shops,
+        "lines": lines,
+    }
+
+
 def log_hr_activity(
     employee_id: Optional[int],
     action_kind: str,
@@ -6769,6 +6886,14 @@ def ensure_shop_pos_sales_receipt_columns() -> bool:
                     ALTER TABLE shop_pos_sales
                     ADD COLUMN receipt_return_restocked TINYINT(1) NOT NULL DEFAULT 0
                     AFTER receipt_mark_status
+                    """
+                )
+            if not column_exists("shop_pos_sales", "reprint_count"):
+                cur.execute(
+                    """
+                    ALTER TABLE shop_pos_sales
+                    ADD COLUMN reprint_count INT NOT NULL DEFAULT 0
+                    AFTER receipt_return_restocked
                     """
                 )
             try:
@@ -10945,6 +11070,7 @@ def list_shop_pos_sales_receipt_rows(
         s.employee_name,
         s.receipt_number,
         s.receipt_mark_status,
+        COALESCE(s.reprint_count, 0) AS reprint_count,
         s.created_at,
         s.inventory_mode
     FROM shop_pos_sales s
@@ -10978,6 +11104,10 @@ def list_shop_pos_sales_receipt_rows(
             rr["item_count"] = int(rr.get("item_count") or 0)
         except (TypeError, ValueError):
             rr["item_count"] = 0
+        try:
+            rr["reprint_count"] = int(rr.get("reprint_count") or 0)
+        except (TypeError, ValueError):
+            rr["reprint_count"] = 0
         cat = rr.get("created_at")
         if hasattr(cat, "isoformat"):
             rr["created_at_iso"] = cat.isoformat(timespec="seconds")
@@ -10987,6 +11117,36 @@ def list_shop_pos_sales_receipt_rows(
             rr["created_at_iso"] = str(cat)
         out.append(rr)
     return out
+
+
+def record_shop_pos_sale_reprint(*, shop_id: int, sale_id: int) -> tuple[bool, Optional[str], int]:
+    """Increment persisted reprint counter for a POS receipt."""
+    ensure_shop_pos_sales_receipt_columns()
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE shop_pos_sales
+                SET reprint_count = COALESCE(reprint_count, 0) + 1
+                WHERE id=%s AND shop_id=%s
+                """,
+                (int(sale_id), int(shop_id)),
+            )
+            if int(cur.rowcount or 0) <= 0:
+                return False, "Receipt not found.", 0
+            cur.execute(
+                """
+                SELECT COALESCE(reprint_count, 0) AS reprint_count
+                FROM shop_pos_sales
+                WHERE id=%s AND shop_id=%s
+                LIMIT 1
+                """,
+                (int(sale_id), int(shop_id)),
+            )
+            row = cur.fetchone() or {}
+            return True, None, int(row.get("reprint_count") or 0)
+    except pymysql.Error:
+        return False, None, 0
 
 
 def list_all_shops_pos_sales_receipt_rows(
@@ -11051,6 +11211,7 @@ def list_all_shops_pos_sales_receipt_rows(
         s.employee_name,
         s.receipt_number,
         s.receipt_mark_status,
+        COALESCE(s.reprint_count, 0) AS reprint_count,
         s.created_at,
         s.inventory_mode
     FROM shop_pos_sales s
@@ -11085,6 +11246,10 @@ def list_all_shops_pos_sales_receipt_rows(
             rr["item_count"] = int(rr.get("item_count") or 0)
         except (TypeError, ValueError):
             rr["item_count"] = 0
+        try:
+            rr["reprint_count"] = int(rr.get("reprint_count") or 0)
+        except (TypeError, ValueError):
+            rr["reprint_count"] = 0
         cat = rr.get("created_at")
         if hasattr(cat, "isoformat"):
             rr["created_at_iso"] = cat.isoformat(timespec="seconds")
@@ -11577,6 +11742,7 @@ def get_it_support_revenue_analytics(
             out["transactions_meta"]["total_count"] = out["tx_count"]
 
             cur.execute(by_shop_sql, tuple(params + shop_row_params))
+            expense_by_shop = _expenditure_total_by_shop_map(analytics_filter, shop_id)
             out["shops"] = [
                 {
                     "shop_id": r.get("shop_id"),
@@ -11587,6 +11753,9 @@ def get_it_support_revenue_analytics(
                     "credit_amount": float(r.get("credit_amount") or 0),
                     "cash_paid": float(r.get("cash_paid") or 0),
                     "mpesa_paid": float(r.get("mpesa_paid") or 0),
+                    "expense_amount": float(
+                        expense_by_shop.get(int(r.get("shop_id") or 0), 0.0)
+                    ),
                     "total_amount": float(r.get("sale_amount") or 0)
                     + float(r.get("credit_amount") or 0),
                 }
@@ -12187,6 +12356,8 @@ def get_it_support_period_analytics(
     SELECT
         DATE(sps.created_at) AS day,
         COUNT(*) AS tx_count,
+        COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount,
         COALESCE(SUM(sps.total_amount), 0) AS revenue
     FROM shop_pos_sales sps
     WHERE {where_sql}
@@ -12198,6 +12369,8 @@ def get_it_support_period_analytics(
     SELECT
         HOUR(sps.created_at) AS hour_of_day,
         COUNT(*) AS tx_count,
+        COALESCE(SUM(CASE WHEN sps.sale_type='sale' THEN sps.total_amount ELSE 0 END), 0) AS sale_amount,
+        COALESCE(SUM(CASE WHEN sps.sale_type='credit' THEN sps.total_amount ELSE 0 END), 0) AS credit_amount,
         COALESCE(SUM(sps.total_amount), 0) AS revenue
     FROM shop_pos_sales sps
     WHERE {where_sql}
@@ -12254,6 +12427,8 @@ def get_it_support_period_analytics(
                 {
                     "day": str(r.get("day") or ""),
                     "tx_count": int(r.get("tx_count") or 0),
+                    "sale_amount": float(r.get("sale_amount") or 0),
+                    "credit_amount": float(r.get("credit_amount") or 0),
                     "revenue": float(r.get("revenue") or 0),
                 }
                 for r in (cur.fetchall() or [])
@@ -12266,6 +12441,8 @@ def get_it_support_period_analytics(
                 {
                     "hour": f"{int(r.get('hour_of_day') or 0):02d}:00",
                     "tx_count": int(r.get("tx_count") or 0),
+                    "sale_amount": float(r.get("sale_amount") or 0),
+                    "credit_amount": float(r.get("credit_amount") or 0),
                     "revenue": float(r.get("revenue") or 0),
                 }
                 for r in (cur.fetchall() or [])

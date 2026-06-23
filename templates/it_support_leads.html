@@ -28,7 +28,7 @@
     {% endif %}
   </div>
 
-  <form method="get" action="{{ url_for('it_support_leads') }}" id="leads-filter-form-it" class="mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+  <form method="get" action="{{ url_for('it_support_leads') }}" id="leads-filter-form-it" data-portal-live-filter data-portal-live-content="#portal-live-content" class="portal-filter-toolbar--legacy mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
     <div class="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
       <div class="min-w-[11rem]">
         <label for="lead-range-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Date filter</label>
@@ -63,13 +63,12 @@
         <input type="number" name="year" id="lead-year-it" min="2000" max="2100" step="1" value="{{ leads_filter.filter_year }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
       </div>
       <div class="flex gap-2">
-        <button type="submit" class="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-500">Apply</button>
-        <a href="{{ url_for('it_support_leads') }}" class="rounded-xl border border-[rgb(var(--rc-border))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]">Reset</a>
+        <a href="{{ url_for('it_support_leads') }}" class="rounded-xl border border-[rgb(var(--rc-border))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))] portal-live-keep-submit">Reset</a>
       </div>
     </div>
   </form>
 
-  <div class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+  <div id="portal-live-content" data-portal-live-content class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
     {% if quotes and quotes|length > 0 %}
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
@@ -139,6 +138,7 @@
     {% else %}
       <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No quotations in this range.</p>
     {% endif %}
+  </div>
   </div>
 
   <dialog id="quote-lines-dialog-it" class="w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0 text-[rgb(var(--rc-page-fg))] shadow-2xl backdrop:bg-slate-950/50">

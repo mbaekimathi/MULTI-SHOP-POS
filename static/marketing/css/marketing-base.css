@@ -1,0 +1,112 @@
+/* Extracted styles */
+
+/* ── extracted from templates/marketing/base_marketing.html ── */
+html {
+        font-family: var(--rc-font-family, "Plus Jakarta Sans", system-ui, sans-serif);
+      }
+      body,
+      button,
+      input,
+      select,
+      textarea {
+        font-family: inherit;
+      }
+      html[data-marketing-theme="light"] body {
+        color: #18181b;
+        background: #ffffff;
+      }
+      html[data-marketing-theme="dark"] body {
+        color: #f4f4f5;
+        background: #09090b;
+      }
+
+/* ── extracted from templates/marketing/base_marketing.html ── */
+.mk-brand-bg { background-color: var(--mk-primary); }
+      .mk-brand-bg-hover:hover { background-color: color-mix(in srgb, var(--mk-primary) 88%, white); }
+      .mk-brand-text { color: var(--mk-primary); }
+      .mk-brand-text-muted { color: color-mix(in srgb, var(--mk-primary) 72%, white); }
+      .mk-brand-ring { --tw-ring-color: color-mix(in srgb, var(--mk-accent) 35%, transparent); }
+      .mk-brand-border-active { border-color: color-mix(in srgb, var(--mk-primary) 40%, transparent); }
+      .mk-brand-glow { background-color: color-mix(in srgb, var(--mk-primary) 15%, transparent); }
+
+/* ── Marketing responsive typography & layout ── */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.mk-main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.mk-main img,
+.mk-main video,
+.mk-main canvas,
+.mk-main svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mk-main table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+  .mk-main .grid.lg\:grid-cols-3,
+  .mk-main .grid.lg\:grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .mk-main {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .mk-main h1 {
+    font-size: clamp(1.5rem, 6vw, 2rem) !important;
+  }
+
+  .mk-main h2 {
+    font-size: clamp(1.25rem, 5vw, 1.625rem) !important;
+  }
+
+  .mk-main h3 {
+    font-size: 1.0625rem !important;
+  }
+
+  .mk-main .grid,
+  .mk-main .grid-cols-2,
+  .mk-main .grid-cols-3,
+  .mk-main .grid.lg\:grid-cols-2,
+  .mk-main .grid.lg\:grid-cols-3,
+  .mk-main .grid.lg\:grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .mk-main .px-6,
+  .mk-main .px-8 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .mk-site-header__bar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .mk-main {
+    font-size: 0.8125rem;
+  }
+}

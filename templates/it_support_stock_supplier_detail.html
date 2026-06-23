@@ -265,13 +265,6 @@
 
 {% block scripts %}
   {{ super() }}
-  <style>
-    @media print {
-      nav, header, aside, .btn-rc, .tab-btn, #tab-items-panel, #tab-payments-panel { display: none !important; }
-      #supplier-statement-print { display: block !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
-      #supplier-statement-print table, #supplier-statement-print th, #supplier-statement-print td { color: #000 !important; }
-    }
-  </style>
   <script>
     (function () {
       var itemsBtn = document.getElementById("tab-items-btn");

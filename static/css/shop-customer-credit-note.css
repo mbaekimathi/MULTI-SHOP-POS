@@ -1,5 +1,12 @@
 /* Shop customer credit page — note, payment, transactions */
 
+.rc-page .shop-cust-credit-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .shop-cust-credit-page {
   display: flex;
   flex-direction: column;
@@ -147,11 +154,15 @@
 }
 
 .shop-credit-note__doc {
-  border: 2px solid rgb(var(--rc-border));
+  border: 1px solid rgba(var(--rc-border), 0.9);
   border-radius: 1rem;
   background: rgb(var(--rc-surface));
-  box-shadow: 0 16px 40px -24px rgba(15, 23, 42, 0.4);
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
   overflow: hidden;
+}
+
+.rc-page .shop-credit-note__doc {
+  border-width: 1px;
 }
 
 .shop-credit-note__head {
@@ -159,9 +170,9 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 2px solid rgba(251, 191, 36, 0.35);
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), transparent 50%);
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid rgba(var(--rc-border), 0.75);
+  background: rgba(var(--rc-surface-2), 0.35);
 }
 
 .shop-credit-note__brand {
@@ -304,9 +315,9 @@ html[data-theme="dark"] .shop-credit-note__stat--paid .shop-credit-note__stat-va
 .shop-cust-pay-card {
   position: relative;
   border-radius: 1rem;
-  border: 1px solid rgb(var(--rc-border));
+  border: 1px solid rgba(var(--rc-border), 0.9);
   background: rgb(var(--rc-surface));
-  box-shadow: 0 12px 32px -20px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
   overflow: hidden;
 }
 
@@ -479,30 +490,31 @@ html[data-theme="dark"] .shop-cust-pay-card__due-value {
 
 /* —— Transaction cards —— */
 .shop-cust-tx-section {
-  margin-top: 0.25rem;
+  margin-top: 0;
 }
 
 .shop-cust-tx-section__head {
-  margin-bottom: 0.85rem;
+  margin-bottom: 0;
 }
 
 .shop-cust-tx-section__title {
-  font-size: 1rem;
-  font-weight: 800;
-  color: rgb(var(--rc-page-fg));
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 .shop-cust-tx-section__desc {
-  margin-top: 0.2rem;
-  font-size: 0.8125rem;
-  color: rgb(var(--rc-muted));
+  margin-top: 0.15rem;
+  font-size: inherit;
+  color: inherit;
 }
 
 .shop-cust-tx-empty {
-  padding: 1.25rem;
-  border-radius: 0.75rem;
-  border: 1px dashed rgb(var(--rc-border));
-  text-align: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  text-align: left;
   font-size: 0.875rem;
   color: rgb(var(--rc-muted));
 }
@@ -1432,9 +1444,9 @@ html[data-theme="dark"] .cr-sale-kpi--account .cr-sale-kpi__value {
 .cr-sale-items-card,
 .cr-sale-pay-card {
   border-radius: 1rem;
-  border: 1px solid rgb(var(--rc-border));
+  border: 1px solid rgba(var(--rc-border), 0.9);
   background: rgb(var(--rc-surface));
-  box-shadow: 0 12px 32px -22px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
   overflow: hidden;
 }
 
@@ -1530,6 +1542,9 @@ html[data-theme="dark"] .cr-sale-kpi--account .cr-sale-kpi__value {
 }
 
 @media print {
+  nav,
+  header,
+  aside,
   .no-print,
   .shop-cust-credit-page__toolbar,
   .shop-cust-sale-focus,
@@ -1544,5 +1559,9 @@ html[data-theme="dark"] .cr-sale-kpi--account .cr-sale-kpi__value {
   .shop-credit-note__doc {
     box-shadow: none;
     border-color: #ccc;
+  }
+
+  #client-statement-print {
+    display: block !important;
   }
 }

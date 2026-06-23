@@ -1,22 +1,195 @@
 {# IT Support analytics sidebar — carries shared period/scope via analytics_nav #}
 {% set _anav = analytics_nav or {} %}
+{% set _active = 'bg-brand-500/15 text-brand-700 ring-1 ring-brand-400/30 dark:text-brand-200 dark:ring-brand-400/25' %}
+{% set _idle = 'text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]' %}
 {% if analytics_key == 'shop' %}
   {% set sv = shop_view or 'revenue' %}
-  <a href="{{ url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Select shop</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='revenue', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'revenue' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop revenue analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='item', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'item' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop item analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='sales', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'sales' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop sales analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='credit', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'credit' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop credit analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='customer', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'customer' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop customer analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='period', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'period' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop period analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='stock', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))] {% if sv == 'stock' %}bg-[rgb(var(--rc-surface-2))]{% endif %}">Shop stock analytics</a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {{ _idle }}"
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    Select shop
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='revenue', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'revenue' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'revenue' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Shop revenue analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='item', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'item' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'item' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+    </svg>
+    Shop item analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='sales', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'sales' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'sales' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h5M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+    </svg>
+    Shop sales analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='credit', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'credit' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'credit' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
+    </svg>
+    Shop credit analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='customer', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'customer' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'customer' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+    Shop customer analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='period', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'period' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'period' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    Shop period analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', shop_id=selected_shop_id, shop_view='stock', **_anav) if selected_shop_id else url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if sv == 'stock' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if sv == 'stock' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />
+    </svg>
+    Shop stock analytics
+  </a>
 {% else %}
-  <a href="{{ url_for('it_support_revenue_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Revenue analytics</a>
-  <a href="{{ url_for('it_support_item_analytics_page', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Item analytics</a>
-  <a href="{{ url_for('it_support_sales_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Sales analytics</a>
-  <a href="{{ url_for('it_support_credit_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Credit analytics</a>
-  <a href="{{ url_for('it_support_period_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Period analytics</a>
-  <a href="{{ url_for('it_support_employee_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Employee analytics</a>
-  <a href="{{ url_for('it_support_customer_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Customer analytics</a>
-  <a href="{{ url_for('it_support_shop_analytics', **_anav) }}" data-it-analytics-nav class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">Shop analytics</a>
+  <a
+    href="{{ url_for('it_support_revenue_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'revenue' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'revenue' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
+    </svg>
+    Revenue analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_expense_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'expense' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'expense' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4m0-4V7a2 2 0 00-2-2h-2" />
+    </svg>
+    Expense analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_item_analytics_page', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'item' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'item' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7L12 3 4 7m16 0-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+    </svg>
+    Item analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_sales_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'sales' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'sales' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h5M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+    </svg>
+    Sales analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_credit_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'credit' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'credit' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.2 0-4 .9-4 2s1.8 2 4 2 4 .9 4 2-1.8 2-4 2m0-10V6m0 12v-2" />
+    </svg>
+    Credit analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_period_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'period' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'period' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    Period analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_employee_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'employee' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'employee' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm10 0a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+    Employee analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_customer_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'customer' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'customer' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-8 0v2m8 0H9m8-10a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+    Customer analytics
+  </a>
+  <a
+    href="{{ url_for('it_support_shop_analytics', **_anav) }}"
+    data-it-analytics-nav
+    class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition {% if analytics_key == 'shop' %}{{ _active }}{% else %}{{ _idle }}{% endif %}"
+    {% if analytics_key == 'shop' %}aria-current="page"{% endif %}
+  >
+    <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10l1-4h16l1 4M5 10v9a2 2 0 002 2h10a2 2 0 002-2v-9M9 14h6" />
+    </svg>
+    Shop analytics
+  </a>
 {% endif %}

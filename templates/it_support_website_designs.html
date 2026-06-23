@@ -8,13 +8,15 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}?v=2" />
 {% endblock %}
 {% block employee_content %}
   {% set d = website_design %}
   {% set max_feat = website_homepage_featured_max|default(6) %}
   {% set website_enabled = website_ws.get('public_website_enabled', true) if website_ws is defined else true %}
-  <div id="website-designs-page" class="space-y-5">
+  <div id="website-designs-page" class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
+    {% include "partials/flashes.html" %}
+
     <form method="post" action="{{ url_for('it_support_website_designs') }}" id="wsd-enabled-form" class="wsd-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <input type="hidden" name="action" value="toggle_enabled" />
       <div class="min-w-0">
@@ -43,23 +45,32 @@
       </label>
     </form>
 
-    <div class="wsd-hero p-5 sm:p-6">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-[rgb(var(--rc-muted))]">Website builder</p>
-          <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Build your homepage</h2>
-          <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-            Complete five sections below — identity, homepage hero, SEO, trust policies, and {{ max_feat }} featured products.
-            Theme and hosted domain are in
-            <a href="{{ url_for('it_support_system_settings', tab='theme') }}" class="font-medium text-[rgb(var(--rc-primary))] hover:underline">Theme settings</a>.
-          </p>
+    <div class="wsd-hero relative overflow-hidden p-6 sm:p-8">
+      <div class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="pointer-events-none absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl" aria-hidden="true"></div>
+      <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div class="flex min-w-0 flex-1 gap-4">
+          <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-600 ring-1 ring-brand-500/25 dark:text-brand-400">
+            <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Website builder</p>
+            <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Build your homepage</h2>
+            <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Complete five sections below — identity, homepage hero, SEO, trust policies, and {{ max_feat }} featured products.
+              Theme and hosted domain are in
+              <a href="{{ url_for('it_support_system_settings', tab='theme') }}" class="font-semibold text-brand-600 hover:underline dark:text-brand-400">Theme settings</a>.
+            </p>
+          </div>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2">
-          <button type="button" id="wsd-preview-btn" class="btn-rc btn-rc-primary px-4 py-2 text-sm font-semibold">Preview website</button>
-          <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">Open live link</a>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <button type="button" id="wsd-preview-btn" class="btn-rc btn-rc-primary inline-flex min-h-[2.75rem] items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-md shadow-brand-500/20">Preview website</button>
+          <a href="{{ preview_url }}" target="_blank" rel="noopener" class="btn-rc btn-rc-ghost inline-flex min-h-[2.75rem] items-center rounded-xl px-5 py-2.5 text-sm font-semibold">Open live link</a>
         </div>
       </div>
-      <div class="wsd-steps-rail mt-5">
+      <div class="wsd-steps-rail relative mt-6">
         <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">1</span> Identity</span>
         <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">2</span> Hero</span>
         <span class="wsd-steps-rail__item"><span class="wsd-steps-rail__num">3</span> SEO</span>

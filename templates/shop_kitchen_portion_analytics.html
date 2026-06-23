@@ -69,32 +69,6 @@
 {% endblock %}
 {% block shop_content %}
   {% set a = analytics %}
-  <style>
-    .shop-kitchen-analytics-theme .rounded-2xl {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 28px -24px rgba(15, 23, 42, 0.52);
-    }
-    .shop-kitchen-analytics-theme table tbody tr:hover {
-      background-color: rgba(148, 163, 184, 0.08);
-    }
-    .shop-kitchen-analytics-theme .kitchen-analytics-toolbar {
-      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.06), transparent 38%);
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 14px 28px -22px rgba(15, 23, 42, 0.55);
-    }
-    .shop-kitchen-analytics-theme .kitchen-presentation-toolbar {
-      background-image:
-        radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 45%),
-        linear-gradient(135deg, rgba(249, 115, 22, 0.07), transparent 42%);
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 14px 28px -22px rgba(15, 23, 42, 0.55);
-    }
-    .shop-kitchen-analytics-theme .kitchen-analytics-tab-active {
-      background: rgba(var(--rc-primary), 0.14);
-      color: rgb(var(--rc-page-fg));
-      box-shadow: 0 0 0 1px rgba(var(--rc-primary), 0.28);
-    }
-  </style>
   <div class="shop-kitchen-analytics-theme space-y-6">
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Kitchen portion sales — {{ shop.shop_name }}</h2>

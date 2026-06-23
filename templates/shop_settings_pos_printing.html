@@ -2,6 +2,7 @@
 {% block title %}Point of sale settings — {{ shop.shop_name }}{% endblock %}
 {% block shop_page_title %}Point of sale settings{% endblock %}
 {% block head %}
+  {{ super() }}
   {% include "partials/shop_settings_switch_styles.html" %}
 {% endblock %}
 {% block shop_sidebar_links %}

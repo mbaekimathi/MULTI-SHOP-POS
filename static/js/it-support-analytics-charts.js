@@ -309,11 +309,18 @@
             }),
             datasets: [
               {
-                label: "Revenue",
+                label: "Sales",
                 data: dailyRows.map(function (r) {
-                  return Number(r.revenue) || 0;
+                  return Number(r.sale_amount) || 0;
                 }),
-                backgroundColor: "rgba(56, 189, 248, 0.65)",
+                backgroundColor: "rgba(52, 211, 153, 0.72)",
+              },
+              {
+                label: "Credit",
+                data: dailyRows.map(function (r) {
+                  return Number(r.credit_amount) || 0;
+                }),
+                backgroundColor: "rgba(251, 191, 36, 0.78)",
               },
             ],
           },
@@ -349,12 +356,22 @@
             }),
             datasets: [
               {
-                label: "Revenue",
+                label: "Sales",
                 data: hourly.map(function (r) {
-                  return Number(r.revenue) || 0;
+                  return Number(r.sale_amount) || 0;
                 }),
-                borderColor: "rgba(167, 139, 250, 1)",
-                backgroundColor: "rgba(167, 139, 250, 0.15)",
+                borderColor: "rgba(52, 211, 153, 1)",
+                backgroundColor: "rgba(52, 211, 153, 0.15)",
+                fill: true,
+                tension: 0.35,
+              },
+              {
+                label: "Credit",
+                data: hourly.map(function (r) {
+                  return Number(r.credit_amount) || 0;
+                }),
+                borderColor: "rgba(251, 191, 36, 1)",
+                backgroundColor: "rgba(251, 191, 36, 0.12)",
                 fill: true,
                 tension: 0.35,
               },

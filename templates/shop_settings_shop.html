@@ -2,68 +2,8 @@
 {% block title %}Shop settings — {{ shop.shop_name }}{% endblock %}
 {% block shop_page_title %}Shop settings{% endblock %}
 {% block head %}
+  {{ super() }}
   {% include "partials/shop_settings_switch_styles.html" %}
-  <style>
-    .shop-co-card {
-      border: 1px solid rgb(var(--rc-border));
-      border-radius: 1rem;
-      background: rgb(var(--rc-surface));
-      box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
-    }
-    .shop-co-section-label {
-      font-size: 0.6875rem;
-      font-weight: 700;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-muted));
-    }
-    .shop-co-divider {
-      margin-top: 2rem;
-      padding-top: 2rem;
-      border-top: 1px solid rgb(var(--rc-border));
-    }
-    .shop-co-field label {
-      display: block;
-      margin-bottom: 0.35rem;
-      font-size: 0.6875rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-muted));
-    }
-    .shop-co-field input[type="text"],
-    .shop-co-field input[type="email"],
-    .shop-co-field input[type="url"] {
-      width: 100%;
-      border-radius: 0.75rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: rgb(var(--rc-surface-2));
-      padding: 0.75rem 1rem;
-      font-size: 0.875rem;
-      color: rgb(var(--rc-page-fg));
-      outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    .shop-co-field input:focus {
-      border-color: rgb(var(--rc-primary) / 0.45);
-      box-shadow: 0 0 0 3px rgb(var(--rc-primary) / 0.12);
-    }
-    .shop-co-override {
-      display: flex;
-      cursor: pointer;
-      align-items: flex-start;
-      gap: 0.75rem;
-      border-radius: 0.9rem;
-      border: 1px solid rgb(var(--rc-border));
-      background: linear-gradient(180deg, rgb(var(--rc-surface-2) / 0.75), rgb(var(--rc-surface-2) / 0.35));
-      padding: 1rem 1.1rem;
-      transition: border-color 0.15s ease, background 0.15s ease;
-    }
-    .shop-co-override:has(input:checked) {
-      border-color: rgb(var(--rc-primary) / 0.35);
-      background: linear-gradient(180deg, rgb(var(--rc-primary) / 0.08), rgb(var(--rc-surface-2) / 0.35));
-    }
-  </style>
 {% endblock %}
 {% block shop_sidebar_links %}
   {% set shop_settings_nav_active = 'shop' %}

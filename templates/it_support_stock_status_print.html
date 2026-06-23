@@ -194,6 +194,9 @@
       });
       syncPrintContentUI();
 
+      var STOCK_PRINT_CSS_THERMAL = "{{ url_for('static', filename='css/it-support-stock-status-print-thermal.css') }}?v=1";
+      var STOCK_PRINT_CSS_DAY = "{{ url_for('static', filename='css/it-support-stock-status-print-day.css') }}?v=1";
+
       function buildPrintHtml(options) {
         var withQty = options.content === "with_qty";
         var selectedShopIds = options.selectedShopIds || [];
@@ -260,24 +263,9 @@
         if (options.scope === "selected_shops") scopeLabel = "Selected shops";
         var contentLabel = withQty ? "Current stock (with quantities)" : "Stock only (item names)";
 
-        return "<!doctype html><html><head><meta charset='utf-8'><title>Stock Status Print</title><style>" +
-          "@page{size:80mm auto;margin:1.5mm}" +
-          "html,body{height:auto;overflow:visible}" +
-          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:7pt;line-height:1.1}" +
-          ".sheet{width:77mm;max-width:77mm}" +
-          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:3px;margin-bottom:4px}" +
-          ".co-name{font-size:8pt;font-weight:700;margin:0 0 1px;line-height:1.1}" +
-          ".co-line{font-size:6pt;color:#222;font-weight:600;margin:0;line-height:1.15;word-wrap:break-word}" +
-          "h1{margin:0 0 2px;font-size:8pt;font-weight:700}" +
-          "p{margin:0 0 3px;font-size:6.5pt;font-weight:700;color:#222;line-height:1.15}" +
-          "table{width:100%;border-collapse:collapse;font-size:6.5pt;table-layout:fixed}" +
-          "th,td{border:1px solid #6b7280;padding:1px 2px;vertical-align:middle;font-weight:600;word-wrap:break-word;line-height:1.1}" +
-          "th{background:#e5e7eb;text-align:left;font-size:6pt}" +
-          "tbody tr:nth-child(even){background:#fafafa}" +
-          "thead{display:table-row-group}" +
-          "tr{page-break-inside:auto;break-inside:auto}" +
-          "td{height:11px}" +
-          "</style></head><body>" +
+        return "<!doctype html><html><head><meta charset='utf-8'><title>Stock Status Print</title>" +
+          "<link rel='stylesheet' href='" + STOCK_PRINT_CSS_THERMAL + "' />" +
+          "</head><body>" +
           "<div class='sheet'>" +
           buildCompanyHeaderHtml() +
           "<h1>Company Stock Status</h1>" +
@@ -313,25 +301,9 @@
           "<strong>Moved</strong> = company warehouse &amp; transfers (net); " +
           "<strong>Sold</strong> = POS and other manual stock-outs; " +
           "<strong>Remaining</strong> = stock at end of day.</p>";
-        return "<!doctype html><html><head><meta charset='utf-8'><title>Day stock count</title><style>" +
-          "@page{size:A4 landscape;margin:5mm}" +
-          "html,body{height:auto;overflow:visible}" +
-          "body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:7pt;line-height:1.1}" +
-          ".sheet{max-width:100%}" +
-          ".co-header{text-align:center;border-bottom:1px solid #9ca3af;padding-bottom:3px;margin-bottom:4px}" +
-          ".co-name{font-size:9pt;font-weight:700;margin:0 0 1px;line-height:1.1}" +
-          ".co-line{font-size:6.5pt;color:#333;font-weight:600;margin:0;line-height:1.15;word-wrap:break-word}" +
-          "h1{margin:0 0 2px;font-size:9pt;font-weight:700}" +
-          "p.sub{margin:0 0 3px;font-size:7pt;font-weight:700;color:#333;line-height:1.1}" +
-          "p.note{margin:3px 0 0;font-size:5.5pt;color:#444;line-height:1.2}" +
-          "table{width:100%;border-collapse:collapse;font-size:6.5pt;table-layout:fixed}" +
-          "th,td{border:1px solid #6b7280;padding:1px 2px;vertical-align:middle;word-wrap:break-word;line-height:1.1}" +
-          "th{background:#e5e7eb;text-align:left;font-size:6pt;font-weight:700}" +
-          "tbody tr:nth-child(even){background:#fafafa}" +
-          "thead{display:table-header-group}" +
-          "tr{page-break-inside:avoid}" +
-          "td.blank-qty{min-height:14px;height:14px}" +
-          "</style></head><body>" +
+        return "<!doctype html><html><head><meta charset='utf-8'><title>Day stock count</title>" +
+          "<link rel='stylesheet' href='" + STOCK_PRINT_CSS_DAY + "' />" +
+          "</head><body>" +
           "<div class='sheet'>" +
           buildCompanyHeaderHtml() +
           "<h1>Day stock count</h1>" +

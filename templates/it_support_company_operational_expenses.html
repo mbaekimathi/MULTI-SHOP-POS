@@ -7,24 +7,6 @@
 {% block head %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
-  <style>
-    #company-expenses-page .exp-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #company-expenses-page .exp-table-wrap {
-      max-height: min(70vh, 760px);
-      overflow: auto;
-    }
-    #company-expenses-page .exp-table thead tr {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    #company-expenses-page .exp-pay-modal-backdrop {
-      background: rgba(0, 0, 0, 0.55);
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
   {% set f = analytics_filter or {} %}

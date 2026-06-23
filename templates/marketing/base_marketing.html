@@ -93,36 +93,8 @@
         },
       };
     </script>
-    <style>
-      html {
-        font-family: var(--rc-font-family, "Plus Jakarta Sans", system-ui, sans-serif);
-      }
-      body,
-      button,
-      input,
-      select,
-      textarea {
-        font-family: inherit;
-      }
-      html[data-marketing-theme="light"] body {
-        color: #18181b;
-        background: #ffffff;
-      }
-      html[data-marketing-theme="dark"] body {
-        color: #f4f4f5;
-        background: #09090b;
-      }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing-base.css') }}?v=2" />
     <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing.css') }}" />
-    <style>
-      .mk-brand-bg { background-color: var(--mk-primary); }
-      .mk-brand-bg-hover:hover { background-color: color-mix(in srgb, var(--mk-primary) 88%, white); }
-      .mk-brand-text { color: var(--mk-primary); }
-      .mk-brand-text-muted { color: color-mix(in srgb, var(--mk-primary) 72%, white); }
-      .mk-brand-ring { --tw-ring-color: color-mix(in srgb, var(--mk-accent) 35%, transparent); }
-      .mk-brand-border-active { border-color: color-mix(in srgb, var(--mk-primary) 40%, transparent); }
-      .mk-brand-glow { background-color: color-mix(in srgb, var(--mk-primary) 15%, transparent); }
-    </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
     {% block extra_head %}{% endblock %}
   </head>

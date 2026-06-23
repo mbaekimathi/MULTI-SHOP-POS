@@ -1,0 +1,72 @@
+{# Tab-aware page hero for IT Support system settings #}
+{% set _hero_tab = (initial_settings_tab or 'system')|lower %}
+{% if _hero_tab == 'printing' %}{% set _hero_tab = 'receipt' %}{% endif %}
+{% if _hero_tab == 'website' %}{% set _hero_tab = 'theme' %}{% endif %}
+
+<div id="it-settings-hero" class="it-settings-page-hero relative overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] via-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-lg shadow-black/5 ring-1 ring-[rgb(var(--rc-border))]/60 sm:p-8{% if _hero_tab == 'theme' %} hidden{% endif %}">
+  <div class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-500/10 blur-3xl" aria-hidden="true"></div>
+  <div class="pointer-events-none absolute -bottom-12 -left-8 h-40 w-40 rounded-full bg-sky-500/10 blur-3xl" aria-hidden="true"></div>
+
+  <div data-settings-hero="system" class="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5{% if _hero_tab != 'system' %} hidden{% endif %}">
+    <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500/15 text-brand-600 ring-1 ring-brand-500/25 dark:text-brand-400">
+      <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    </div>
+    <div class="min-w-0">
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Integrations</p>
+      <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">System settings</h2>
+      <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        M-Pesa (Daraja) API credentials and payment integration. Set your hosted domain under
+        <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Company settings</strong> for callback URLs.
+      </p>
+    </div>
+  </div>
+
+  <div data-settings-hero="company" class="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5{% if _hero_tab != 'company' %} hidden{% endif %}">
+    <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 dark:text-sky-400">
+      <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21h18M9 8h6m-6 4h6m-6 4h6M5 21V5a2 2 0 012-2h10a2 2 0 012 2v16" />
+      </svg>
+    </div>
+    <div class="min-w-0">
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Organization</p>
+      <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Company settings</h2>
+      <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Company identity, contact details, social links, location, and opening hours used across the portal, website, and receipts.
+      </p>
+    </div>
+  </div>
+
+  <div data-settings-hero="pos" class="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5{% if _hero_tab != 'pos' %} hidden{% endif %}">
+    <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-600 ring-1 ring-violet-500/25 dark:text-violet-400">
+      <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h10v10H7V7zm-3 4h3m10 0h3M7 21h10" />
+      </svg>
+    </div>
+    <div class="min-w-0">
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Point of sale</p>
+      <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">POS defaults</h2>
+      <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        Company-wide POS workflow, transaction types, payment methods, and inventory behaviour. Receipt layout is under
+        <a href="{{ url_for('it_support_system_settings', tab='receipt') }}" class="font-semibold text-brand-600 hover:underline dark:text-brand-400">Receipt settings</a>.
+      </p>
+    </div>
+  </div>
+
+  <div data-settings-hero="receipt" class="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5{% if _hero_tab != 'receipt' %} hidden{% endif %}">
+    <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25 dark:text-emerald-400">
+      <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+    </div>
+    <div class="min-w-0">
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Printing</p>
+      <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Receipt format</h2>
+      <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+        How many receipts print per checkout, plus the appearance and layout of each thermal slip.
+      </p>
+    </div>
+  </div>
+</div>

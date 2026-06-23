@@ -7,35 +7,6 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    #hr-auth-page .hr-auth-card {
-      border-color: rgba(var(--rc-border), 0.9);
-      box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.52);
-    }
-    #hr-auth-page .hr-auth-hero {
-      background-image: linear-gradient(135deg, rgba(249, 115, 22, 0.08), transparent 42%);
-    }
-    #hr-auth-page .hr-auth-stat {
-      position: relative;
-      overflow: hidden;
-      border-color: rgba(var(--rc-border), 0.85);
-      background: linear-gradient(145deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface), 0.9));
-    }
-    #hr-auth-page .hr-auth-stat::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto auto 0;
-      width: 100%;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(249, 115, 22, 0.85), rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.85));
-    }
-    #hr-auth-page section.hr-auth-section > ul > li > a:focus-visible {
-      outline-offset: 2px;
-    }
-    #hr-auth-page section.hr-auth-section > ul > li {
-      transition: background-color 0.16s ease;
-    }
-  </style>
 {% endblock %}
 {% block employee_content %}
   {% set ns = namespace(total_staff=0) %}

@@ -14,97 +14,17 @@
 
 {% endblock %}
 
-
+{% block head %}
+  {{ super() }}
+  {% include "partials/portal_revenue_analytics_css.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=12" />
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=3"></script>
+{% endblock %}
 
 {% block shop_content %}
-
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-revenue-analytics.css') }}?v=18" />
-
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-receipts.css') }}?v=11" />
-
-  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=3"></script>
-
-
-
   {% set f = analytics_filter or {} %}
 
   {% set can_mark_receipts = can_mark_receipts|default(shop_shell_can('receipt_mark')) %}
-
-
-
-  <style>
-
-    .it-analytics-page {
-
-      width: 100%;
-
-      max-width: 100%;
-
-      min-width: 0;
-
-      overflow-x: clip;
-
-      box-sizing: border-box;
-
-    }
-
-    .it-analytics-page .rev-scroll,
-
-    .it-analytics-page .rev-scroll--lg {
-
-      display: block;
-
-      width: 100%;
-
-      max-width: 100%;
-
-      min-width: 0;
-
-      overflow-x: auto;
-
-      -webkit-overflow-scrolling: touch;
-
-    }
-
-    @media (min-width: 900px) {
-
-      .it-analytics-page .rev-scroll--lg {
-
-        max-height: min(78dvh, 46rem);
-
-        overflow-y: auto;
-
-      }
-
-    }
-
-    @media (min-width: 1280px) {
-
-      .it-analytics-page .rev-scroll--lg {
-
-        max-height: min(82dvh, 56rem);
-
-      }
-
-    }
-
-    #receipt-page-msg:not(.hidden) {
-
-      display: block;
-
-      padding: 0.65rem 1rem;
-
-      border-radius: 0.75rem;
-
-      border: 1px solid rgba(245, 158, 11, 0.35);
-
-      background: rgba(245, 158, 11, 0.1);
-
-      font-size: 0.875rem;
-
-    }
-
-  </style>
 
 
 

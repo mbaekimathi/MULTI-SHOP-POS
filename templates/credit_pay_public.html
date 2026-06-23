@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Pay credit — {{ shop.shop_name if shop is defined else "Shop" }}{% endblock %}
 {% block head %}
+  {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/credit-pay-public.css') }}?v=3" />
 {% endblock %}

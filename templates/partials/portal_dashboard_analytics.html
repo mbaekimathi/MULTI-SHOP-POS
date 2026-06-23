@@ -1,0 +1,168 @@
+{% set rd = report_data or {} %}
+{% set f = analytics_filter or {} %}
+{% set scope = dashboard_report_scope or 'company' %}
+{% set period_label = report_period_label or 'Today' %}
+{% set today_iso = report_today_iso or '' %}
+{% set net = (rd.accrual_net_profit or 0)|float %}
+{% set rev = (rd.summary_revenue_total or rd.collected_revenue or 0)|float %}
+{% set exp = (rd.summary_expenditure_total or rd.total_expenditure or 0)|float %}
+{% set stock = (rd.accrual_cogs or 0)|float %}
+{% set title = shop.shop_name if scope == 'shop' and shop else (report_company_name or (site_settings.company_name if site_settings else 'Company')) %}
+<div id="portal-dashboard" class="mx-auto max-w-6xl space-y-5">
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-sm sm:p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600/90 dark:text-brand-400/90">Live overview</p>
+        <h2 class="mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">{{ title }}</h2>
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          {% if scope == 'company' %}All shops{% else %}This shop{% endif %}
+          · <span id="pd-period-label" class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ period_label }}</span>
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {% if report_live_enabled %}
+          <p id="report-live-badge" class="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Live · 45s</p>
+        {% endif %}
+        {% if dashboard_full_report_url %}
+          <a href="{{ dashboard_full_report_url }}" class="btn-rc btn-rc-secondary min-h-[2.35rem] px-3 py-2 text-sm font-semibold">Full report</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <form id="portal-dashboard-filter-form" method="get" action="{{ dashboard_filter_action or request.path }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-[rgb(var(--rc-border))]/80 pt-4">
+      <input type="hidden" name="mode" id="pd-filter-mode" value="{{ f.mode or 'single_day' }}" />
+      <div id="pd-filter-single-day">
+        <label for="pd-filter-day" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date</label>
+        <input id="pd-filter-day" type="date" name="single_day" value="{{ f.single_day or today_iso }}" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label for="pd-filter-scope" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Receipts</label>
+        <select id="pd-filter-scope" name="analytics_scope" class="min-h-[2.45rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm">
+          <option value="general" {% if (analytics_scope or 'general') != 'actual' %}selected{% endif %}>All marks</option>
+          <option value="actual" {% if (analytics_scope or 'general') == 'actual' %}selected{% endif %}>Confirmed only</option>
+        </select>
+      </div>
+      {% if today_iso and (f.single_day or today_iso) != today_iso and (f.mode or 'single_day') == 'single_day' %}
+        <a href="{{ dashboard_filter_action or request.path }}?mode=single_day&amp;single_day={{ today_iso }}" class="btn-rc btn-rc-ghost min-h-[2.45rem] px-3 py-2 text-sm font-semibold">Today</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-2xl border border-emerald-400/30 bg-gradient-to-br from-emerald-500/[0.1] to-transparent p-4 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-200">Revenue</p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Money received</p>
+      <p class="mt-3 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400" data-report-live="summary_revenue_total">{{ "%.2f"|format(rev) }}</p>
+    </article>
+    <article class="rounded-2xl border border-rose-400/30 bg-gradient-to-br from-rose-500/[0.1] to-transparent p-4 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-200">Spending</p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Stock, bills &amp; credit owed</p>
+      <p class="mt-3 text-2xl font-extrabold tabular-nums text-rose-600 dark:text-rose-400" data-report-live="summary_expenditure_total">{{ "%.2f"|format(exp) }}</p>
+    </article>
+    <article class="rounded-2xl border border-violet-400/30 bg-gradient-to-br from-violet-500/[0.1] to-transparent p-4 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-wider text-violet-800 dark:text-violet-200">Stock cost</p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Cost of goods sold</p>
+      <p class="mt-3 text-2xl font-extrabold tabular-nums text-violet-600 dark:text-violet-400" data-report-live="accrual_cogs">{{ "%.2f"|format(stock) }}</p>
+    </article>
+    <article class="rounded-2xl border border-sky-400/30 bg-gradient-to-br from-sky-500/[0.1] to-transparent p-4 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-wider text-sky-800 dark:text-sky-200">Net profit</p>
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Revenue − spending − stock</p>
+      <p class="mt-3 text-2xl font-extrabold tabular-nums {% if net >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" data-report-live="accrual_net_profit" data-report-live-signed="1">{{ "%.2f"|format(net) }}</p>
+    </article>
+  </div>
+
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+    <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Money at a glance</h3>
+    <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Compare revenue, spending, stock cost, and what is left as profit.</p>
+    <div class="mt-4 h-56 sm:h-64">
+      <canvas id="pd-chart-overview" aria-label="Money overview chart"></canvas>
+    </div>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Top sellers</h3>
+      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Best performing items this period.</p>
+      <div class="mt-4 h-56 sm:h-64">
+        <canvas id="pd-chart-top-items" aria-label="Top items chart"></canvas>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+      {% if scope == 'company' %}
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Revenue by shop</h3>
+        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">Which branches brought in the most sales.</p>
+      {% else %}
+        <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Cash vs M-Pesa</h3>
+        <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">How customers paid during this period.</p>
+      {% endif %}
+      <div class="mt-4 h-56 sm:h-64">
+        <canvas id="pd-chart-side" aria-label="Secondary chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="portal-dashboard-boot">{{ {
+  'scope': scope,
+  'report': rd,
+  'shops': shop_revenue_rows or []
+}|tojson }}</script>
+
+<script src="{{ url_for('static', filename='js/period-report-live.js') }}?v=25"></script>
+<script src="{{ url_for('static', filename='js/portal-dashboard-charts.js') }}?v=2"></script>
+<script>
+  (function () {
+    function formatDashboardPeriodLabel(form) {
+      if (!form) return "";
+      var mode = (form.querySelector("[name='mode']") || {}).value || "single_day";
+      if (mode !== "single_day") return "";
+      var day = (form.querySelector("[name='single_day']") || {}).value || "";
+      if (!day) return "";
+      try {
+        var parts = day.split("-");
+        if (parts.length !== 3) return day;
+        var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return dt.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+      } catch (e) {
+        return day;
+      }
+    }
+
+    function syncDashboardPeriodLabel(form) {
+      if (!form) return;
+      var label = formatDashboardPeriodLabel(form);
+      if (!label) return;
+      var host = document.getElementById("pd-period-label");
+      if (host) host.textContent = label;
+    }
+
+    function bootPortalDashboard() {
+      if (typeof window.initPeriodReportLive === "function") {
+        window.initPeriodReportLive({
+          jsonUrl: {{ (report_json_url or '')|tojson }},
+          liveEnabled: {{ (report_live_enabled or false)|tojson }},
+          pollMs: 45000,
+          onUpdate: function () {
+            syncDashboardPeriodLabel(document.getElementById("portal-dashboard-filter-form"));
+          },
+        });
+      }
+      var form = document.getElementById("portal-dashboard-filter-form");
+      if (form && typeof window.wirePeriodReportFilterForm === "function") {
+        window.wirePeriodReportFilterForm(form);
+      } else if (form) {
+        form.querySelectorAll("input, select").forEach(function (el) {
+          el.addEventListener("change", function () {
+            if (typeof form.requestSubmit === "function") form.requestSubmit();
+            else form.submit();
+          });
+        });
+      }
+      if (typeof window.initPortalDashboardCharts === "function") {
+        window.initPortalDashboardCharts();
+      }
+    }
+
+    bootPortalDashboard();
+  })();
+</script>

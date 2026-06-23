@@ -3,53 +3,6 @@
 {% block shop_page_title %}Notifications{% endblock %}
 {% block head %}
   {{ super() }}
-  <style>
-    #shop-notifications-page .sn-hero {
-      background:
-        radial-gradient(ellipse 80% 60% at 100% 0%, rgb(var(--rc-primary) / 0.14), transparent 55%),
-        radial-gradient(ellipse 60% 50% at 0% 100%, rgb(var(--rc-accent, var(--rc-primary)) / 0.1), transparent 50%),
-        rgb(var(--rc-surface));
-    }
-    #shop-notifications-page .sn-list-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8125rem;
-    }
-    #shop-notifications-page .sn-list-table thead th {
-      padding: 0.625rem 0.875rem;
-      text-align: left;
-      font-size: 0.625rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgb(var(--rc-muted));
-      background: rgb(var(--rc-surface-2) / 0.85);
-      border-bottom: 1px solid rgb(var(--rc-border));
-      white-space: nowrap;
-    }
-    #shop-notifications-page .sn-list-table tbody td {
-      padding: 0.75rem 0.875rem;
-      vertical-align: top;
-      border-bottom: 1px solid rgb(var(--rc-border) / 0.65);
-      color: rgb(var(--rc-page-fg));
-    }
-    #shop-notifications-page .sn-list-table tbody tr:last-child td {
-      border-bottom: none;
-    }
-    #shop-notifications-page .sn-list-table tbody tr:hover td {
-      background: rgb(var(--rc-surface-2) / 0.45);
-    }
-    #shop-notifications-page .sn-actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.375rem;
-    }
-    #sn-review-modal .sn-step-code.hidden,
-    #sn-review-modal .sn-step-approve-fields.hidden {
-      display: none;
-    }
-  </style>
 {% endblock %}
 {% block shop_content %}
   {% set pending_n = pending_request_count|default(0) %}
@@ -57,8 +10,8 @@
   {% set declined_n = declined_count|default(0) %}
   {% set total_n = (stock_requests or [])|length %}
 
-  <div id="shop-notifications-page" class="space-y-6">
-    <div class="sn-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] p-5 shadow-sm sm:p-6">
+  <div id="shop-notifications-page" class="rc-page space-y-6">
+    <div class="rc-page-hero rc-card--pad">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-primary))]">Alerts &amp; requests</p>
@@ -102,7 +55,7 @@
         </div>
       {% else %}
         <div class="overflow-x-auto">
-          <table class="sn-list-table">
+          <table class="rc-data-table">
             <thead>
               <tr>
                 <th>#</th>
@@ -151,7 +104,7 @@
                   <td class="max-w-[12rem] text-[rgb(var(--rc-muted))]">{{ r.note or '—' }}</td>
                   <td class="max-w-[12rem] text-[rgb(var(--rc-muted))]">{{ r.review_note or '—' }}</td>
                   <td>
-                    <div class="sn-actions">
+                    <div class="rc-actions">
                       {% if st == 'pending' and r.can_review %}
                         {% if not r.can_approve_now %}
                           <span class="text-[10px] font-bold uppercase tracking-wide text-rose-300" title="Not enough stock at source">Low stock</span>
