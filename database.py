@@ -8456,7 +8456,7 @@ def get_shop_pos_sale_detail(shop_id: int, sale_id: int):
                     "line_id": int(r.get("line_id") or 0),
                     "item_id": r.get("item_id"),
                     "item_name": r.get("item_name") or "Item",
-                    "qty": int(r.get("qty") or 0),
+                    "qty": round(float(r.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES),
                     "unit_price": float(r.get("unit_price") or 0),
                     "line_total": float(r.get("line_total") or 0),
                 }
@@ -8467,26 +8467,53 @@ def get_shop_pos_sale_detail(shop_id: int, sale_id: int):
         return None
 
 
+def _normalize_pos_sale_line_returns(
+    line_ids: list | None,
+    line_returns: list | None,
+) -> dict[int, Optional[float]]:
+    """Map sale line id -> qty to return (None = full remaining qty on that line)."""
+    out: dict[int, Optional[float]] = {}
+    if isinstance(line_returns, list):
+        for raw in line_returns:
+            if not isinstance(raw, dict):
+                continue
+            try:
+                lid = int(raw.get("line_id") or raw.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            if lid <= 0 or lid in out:
+                continue
+            rqty = normalize_stock_move_qty(raw.get("qty")) if raw.get("qty") is not None else None
+            if raw.get("qty") is not None and rqty is None:
+                continue
+            out[lid] = rqty
+            if len(out) >= 500:
+                break
+    elif isinstance(line_ids, list):
+        for raw in line_ids:
+            try:
+                lid = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if lid <= 0 or lid in out:
+                continue
+            out[lid] = None
+            if len(out) >= 500:
+                break
+    return out
+
+
 def return_shop_pos_sale_lines(
     *,
     shop_id: int,
     sale_id: int,
-    line_ids: list[int],
+    line_ids: list[int] | None = None,
+    line_returns: list[dict] | None = None,
 ) -> tuple[bool, Optional[str], dict]:
-    """Return selected receipt lines (full remaining qty per selected line)."""
+    """Return selected receipt lines (full or partial qty per selected line)."""
     ensure_shop_pos_sales_receipt_columns()
-    uniq_ids: list[int] = []
-    for raw in line_ids or []:
-        try:
-            lid = int(raw)
-        except (TypeError, ValueError):
-            continue
-        if lid <= 0 or lid in uniq_ids:
-            continue
-        uniq_ids.append(lid)
-        if len(uniq_ids) >= 500:
-            break
-    if not uniq_ids:
+    return_map = _normalize_pos_sale_line_returns(line_ids, line_returns)
+    if not return_map:
         return False, "Select at least one item to return.", {}
 
     try:
@@ -8512,7 +8539,7 @@ def return_shop_pos_sale_lines(
             returned_qty = 0.0
             returned_lines = 0
 
-            for lid in uniq_ids:
+            for lid, requested_qty in return_map.items():
                 cur.execute(
                     """
                     SELECT id, item_id, qty, unit_price, line_total
@@ -8527,23 +8554,38 @@ def return_shop_pos_sale_lines(
                 qty = round(float(ln.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
                 if qty <= 0:
                     continue
+                if requested_qty is not None:
+                    return_qty = round(min(requested_qty, qty), STOCK_QTY_DECIMAL_PLACES)
+                    if return_qty <= 0:
+                        continue
+                else:
+                    return_qty = qty
                 item_id = ln.get("item_id")
                 try:
                     item_id = int(item_id) if item_id is not None else None
                 except (TypeError, ValueError):
                     item_id = None
                 line_total = float(ln.get("line_total") or 0)
+                unit_price = float(ln.get("unit_price") or 0)
+                if return_qty + 1e-9 >= qty:
+                    refund = max(0.0, line_total)
+                    new_qty = 0.0
+                    new_line_total = 0.0
+                else:
+                    refund = round(line_total * return_qty / qty, 2) if qty > 0 else round(unit_price * return_qty, 2)
+                    new_qty = round(qty - return_qty, STOCK_QTY_DECIMAL_PLACES)
+                    new_line_total = max(0.0, round(line_total - refund, 2))
 
                 cur.execute(
                     """
                     UPDATE shop_pos_sale_items
-                    SET qty=0, line_total=0
+                    SET qty=%s, line_total=%s
                     WHERE id=%s AND sale_id=%s AND shop_id=%s
                     """,
-                    (int(lid), int(sale_id), int(shop_id)),
+                    (new_qty, new_line_total, int(lid), int(sale_id), int(shop_id)),
                 )
-                refunded_amount += max(0.0, line_total)
-                returned_qty += qty
+                refunded_amount += max(0.0, refund)
+                returned_qty += return_qty
                 returned_lines += 1
 
                 if item_id is None:
@@ -8560,6 +8602,7 @@ def return_shop_pos_sale_lines(
                 si = cur.fetchone() or {}
                 if int(si.get("sue") or 0) != 1:
                     continue
+                stock_qty = return_qty
                 if mode == "shop":
                     cur.execute(
                         """
@@ -8567,7 +8610,7 @@ def return_shop_pos_sale_lines(
                         SET shop_stock_qty = COALESCE(shop_stock_qty,0) + %s
                         WHERE shop_id=%s AND item_id=%s
                         """,
-                        (qty, int(shop_id), int(item_id)),
+                        (stock_qty, int(shop_id), int(item_id)),
                     )
                 elif mode in ("kitchen", "both"):
                     cur.execute(
@@ -8576,7 +8619,7 @@ def return_shop_pos_sale_lines(
                         VALUES (%s, %s, %s)
                         ON DUPLICATE KEY UPDATE portions_remaining = portions_remaining + VALUES(portions_remaining)
                         """,
-                        (int(shop_id), int(item_id), int(qty)),
+                        (int(shop_id), int(item_id), int(stock_qty)),
                     )
 
             if returned_lines <= 0:

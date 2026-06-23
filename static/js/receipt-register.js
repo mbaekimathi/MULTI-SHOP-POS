@@ -337,6 +337,61 @@
     return wrap;
   }
 
+  function fmtQty(q) {
+    var n = parseFloat(q);
+    if (isNaN(n) || n < 0) return 0;
+    return n;
+  }
+
+  function qtyDisplay(q) {
+    var n = fmtQty(q);
+    if (Math.abs(n - Math.round(n)) < 1e-9) return String(Math.round(n));
+    return String(n);
+  }
+
+  function bindReturnLineInputs(scope) {
+    if (!scope) return;
+    scope.querySelectorAll(".receipt-return-line").forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        var row = cb.closest("tr");
+        if (!row) return;
+        var qtyInput = row.querySelector(".receipt-return-qty");
+        if (!qtyInput) return;
+        qtyInput.disabled = !cb.checked;
+        if (cb.checked && !String(qtyInput.value || "").trim()) {
+          qtyInput.value = qtyInput.getAttribute("data-max") || "1";
+        }
+      });
+    });
+  }
+
+  function collectLineReturns(returnMsg) {
+    var lineReturns = [];
+    var checked = document.querySelectorAll(".receipt-return-line:checked");
+    for (var i = 0; i < checked.length; i++) {
+      var cb = checked[i];
+      var lineId = parseInt(cb.value || "0", 10) || 0;
+      if (lineId <= 0) continue;
+      var row = cb.closest("tr");
+      var maxQty = fmtQty(row ? row.getAttribute("data-max-qty") : 0);
+      if (maxQty <= 0) continue;
+      var returnQty = maxQty;
+      if (maxQty > 1) {
+        var qtyInput = row ? row.querySelector(".receipt-return-qty") : null;
+        returnQty = fmtQty(qtyInput ? qtyInput.value : maxQty);
+        if (returnQty <= 0 || returnQty > maxQty + 1e-9) {
+          if (returnMsg) {
+            returnMsg.textContent =
+              "Enter a return quantity between 1 and " + qtyDisplay(maxQty) + " for each selected item.";
+          }
+          return null;
+        }
+      }
+      lineReturns.push({ line_id: lineId, qty: returnQty });
+    }
+    return lineReturns;
+  }
+
   function statusPillHtml(status) {
     var s = String(status || "pending").toLowerCase();
     var cls = statusBadgeClass(s).replace("receipt-mark-badge", "").trim();
@@ -361,12 +416,12 @@
     }
 
     var theadReturn = CFG.canMark && CFG.returnUrl
-      ? '<th scope="col" class="rev-col-action">Return</th>'
+      ? '<th scope="col" class="rev-col-action">Return</th><th scope="col" class="num">Return qty</th>'
       : "";
     var itemRows = (items || [])
       .map(function (it) {
         var lineId = parseInt(it.line_id || 0, 10) || 0;
-        var qty = parseInt(it.qty || 0, 10) || 0;
+        var qty = fmtQty(it.qty);
         var retCell =
           CFG.canMark && CFG.returnUrl
             ? '<td class="rev-col-action"><input type="checkbox" class="receipt-return-line h-4 w-4 rounded border-[rgb(var(--rc-border))]" value="' +
@@ -375,13 +430,33 @@
               (qty <= 0 ? " disabled" : "") +
               " /></td>"
             : "";
+        var returnQtyCell = "";
+        if (CFG.canMark && CFG.returnUrl) {
+          if (qty > 1) {
+            returnQtyCell =
+              '<td class="num"><input type="number" class="receipt-return-qty w-20 rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2 py-1 text-right text-xs tabular-nums" data-max="' +
+              escHtml(qtyDisplay(qty)) +
+              '" min="1" max="' +
+              escHtml(qtyDisplay(qty)) +
+              '" step="any" value="' +
+              escHtml(qtyDisplay(qty)) +
+              '" disabled /></td>';
+          } else {
+            returnQtyCell = '<td class="num cell-muted">—</td>';
+          }
+        }
         return (
-          "<tr>" +
+          '<tr data-line-id="' +
+          escHtml(lineId) +
+          '" data-max-qty="' +
+          escHtml(qty) +
+          '">' +
           retCell +
+          returnQtyCell +
           '<td class="cell-strong">' +
           escHtml(it.item_name || "Item") +
           '</td><td class="num cell-muted">' +
-          escHtml(qty) +
+          escHtml(qtyDisplay(qty)) +
           '</td><td class="num cell-credit">' +
           escHtml(Number(it.line_total || 0).toFixed(2)) +
           "</td></tr>"
@@ -409,6 +484,7 @@
           '</tbody></table></div><div class="mt-3 flex justify-between rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><span class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Grand total</span><span class="text-base font-black tabular-nums">' +
           escHtml(Number(sale.total_amount || 0).toFixed(2)) +
           "</span></div>";
+        bindReturnLineInputs(body);
       }
     }
 
@@ -417,24 +493,18 @@
     var submitBtn = document.getElementById("receipt-return-submit");
     var returnMsg = document.getElementById("receipt-return-msg");
     if (CFG.canMark && CFG.returnUrl && submitBtn && returnMsg) {
-      returnMsg.textContent = "Select item lines to return.";
+      returnMsg.textContent = "Select item lines to return. For qty > 1, enter how many to return.";
       submitBtn.disabled = false;
       submitBtn.onclick = function () {
-        var picks = Array.prototype.slice
-          .call(document.querySelectorAll(".receipt-return-line:checked"))
-          .map(function (cb) {
-            return parseInt(cb.value || "0", 10) || 0;
-          })
-          .filter(function (n) {
-            return n > 0;
-          });
-        if (!picks.length) {
+        var lineReturns = collectLineReturns(returnMsg);
+        if (!lineReturns || !lineReturns.length) {
+          if (!lineReturns) return;
           returnMsg.textContent = "Select at least one item.";
           return;
         }
         submitBtn.disabled = true;
         returnMsg.textContent = "Processing return…";
-        var payload = { sale_id: sale.id, line_ids: picks };
+        var payload = { sale_id: sale.id, line_returns: lineReturns };
         if (variant === "hq") payload.shop_id = sale.shop_id;
         fetch(CFG.returnUrl, {
           method: "POST",
@@ -451,8 +521,8 @@
             if (!j || !j.ok) throw new Error((j && j.error) || "Could not process return.");
             returnMsg.textContent =
               "Returned " +
-              String((j.meta && j.meta.returned_lines) || picks.length) +
-              " line(s). New total: " +
+              String((j.meta && j.meta.returned_qty) || (j.meta && j.meta.returned_lines) || lineReturns.length) +
+              " unit(s). New total: " +
               String((j.meta && Number(j.meta.new_total_amount || 0).toFixed(2)) || "0.00");
             setTimeout(function () {
               window.location.reload();

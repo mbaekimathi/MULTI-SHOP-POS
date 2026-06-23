@@ -10905,7 +10905,7 @@ def it_support_credit_payments():
     credit_customers = []
     shops = []
     try:
-        from database import list_company_credit_customers, list_shops
+        from database import list_company_credit_customers, list_shops, normalize_customer_phone
 
         shops = list_shops(limit=500) or []
         rows = list_company_credit_customers(
@@ -10914,15 +10914,15 @@ def it_support_credit_payments():
             shop_id=filter_shop_id,
             customer_q=customer_q or None,
         )
+
         credit_customers = [
             {
                 "customer_name": r.get("customer_name") or "WALK IN",
-                "customer_phone": r.get("customer_phone") or "-",
+                "customer_phone": normalize_customer_phone(r.get("customer_phone") or "") or "-",
                 "tx_count": int(r.get("tx_count") or 0),
                 "credit_total": float(r.get("total_amount") or 0),
                 "paid_total": float(r.get("paid_amount") or 0),
                 "balance": float(r.get("remaining_amount") or 0),
-                "last_credit_at": r.get("created_at"),
             }
             for r in (rows or [])
         ]
@@ -14693,9 +14693,10 @@ def it_support_receipts_return_lines():
     shop_id = int(data.get("shop_id") or 0)
     sale_id = int(data.get("sale_id") or 0)
     line_ids = data.get("line_ids")
+    line_returns = data.get("line_returns")
     if shop_id <= 0 or sale_id <= 0:
         return jsonify({"ok": False, "error": "Invalid receipt reference."}), 400
-    if not isinstance(line_ids, list):
+    if not isinstance(line_returns, list) and not isinstance(line_ids, list):
         return jsonify({"ok": False, "error": "Select at least one item to return."}), 400
     try:
         from database import return_shop_pos_sale_lines
@@ -14703,7 +14704,8 @@ def it_support_receipts_return_lines():
         ok, err, meta = return_shop_pos_sale_lines(
             shop_id=shop_id,
             sale_id=sale_id,
-            line_ids=line_ids,
+            line_ids=line_ids if isinstance(line_ids, list) else None,
+            line_returns=line_returns if isinstance(line_returns, list) else None,
         )
     except Exception:
         logger.exception("it_support_receipts_return_lines failed shop_id=%s sale_id=%s", shop_id, sale_id)
@@ -16435,9 +16437,10 @@ def shop_receipts_return_lines(shop_id: int):
     data = request.get_json(force=True, silent=True) or {}
     sale_id = int(data.get("sale_id") or 0)
     line_ids = data.get("line_ids")
+    line_returns = data.get("line_returns")
     if sale_id <= 0:
         return jsonify({"ok": False, "error": "Invalid receipt reference."}), 400
-    if not isinstance(line_ids, list):
+    if not isinstance(line_returns, list) and not isinstance(line_ids, list):
         return jsonify({"ok": False, "error": "Select at least one item to return."}), 400
     try:
         from database import return_shop_pos_sale_lines
@@ -16445,7 +16448,8 @@ def shop_receipts_return_lines(shop_id: int):
         ok, err, meta = return_shop_pos_sale_lines(
             shop_id=int(shop_id),
             sale_id=sale_id,
-            line_ids=line_ids,
+            line_ids=line_ids if isinstance(line_ids, list) else None,
+            line_returns=line_returns if isinstance(line_returns, list) else None,
         )
     except Exception:
         logger.exception("shop_receipts_return_lines failed shop_id=%s sale_id=%s", shop_id, sale_id)
