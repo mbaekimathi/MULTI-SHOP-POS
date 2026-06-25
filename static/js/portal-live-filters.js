@@ -106,7 +106,12 @@
       syncStockPanels();
       if (!modeEl) return;
 
-      var mode = modeEl.value || "single_day";
+      var mode = modeEl.value;
+      if (!mode && modeEl.querySelector('option[value="all"]')) {
+        mode = "all";
+      } else if (!mode) {
+        mode = "single_day";
+      }
 
       if (modeEl.name === "mode" && mode === "") {
         [

@@ -7482,10 +7482,32 @@ def ensure_shop_credit_payments_schema() -> bool:
     return ok
 
 
-def list_shop_credit_customers_with_balance(shop_id: int, limit: int = 2000):
+def list_shop_credit_customers_with_balance(
+    shop_id: int,
+    limit: int = 2000,
+    analytics_filter: Optional[dict] = None,
+    customer_q: Optional[str] = None,
+):
     """List customers with credit balances for a shop (WALK IN included)."""
     ensure_shop_credit_payments_schema()
-    sql = """
+    where_parts = ["shop_id=%s", "sale_type='credit'"]
+    params: list[Any] = [int(shop_id)]
+
+    if analytics_filter:
+        rw, rp = _analytics_where_clause(analytics_filter, "")
+        where_parts.append(f"({rw})")
+        params.extend(rp)
+
+    cq = (customer_q or "").strip()
+    if cq:
+        like = f"%{cq}%"
+        where_parts.append(
+            "(COALESCE(NULLIF(customer_name, ''), 'WALK IN') LIKE %s OR COALESCE(NULLIF(customer_phone, ''), '-') LIKE %s)"
+        )
+        params.extend([like, like])
+
+    where_sql = " AND ".join(where_parts)
+    sql = f"""
     SELECT
         COALESCE(NULLIF(customer_name, ''), 'WALK IN') AS customer_name,
         COALESCE(NULLIF(customer_phone, ''), '-') AS customer_phone,
@@ -7494,15 +7516,16 @@ def list_shop_credit_customers_with_balance(shop_id: int, limit: int = 2000):
         COALESCE(SUM(credit_paid_amount), 0) AS paid_total,
         COALESCE(SUM(GREATEST(total_amount - credit_paid_amount, 0)), 0) AS balance
     FROM shop_pos_sales
-    WHERE shop_id=%s AND sale_type='credit'
+    WHERE {where_sql}
     GROUP BY customer_name, customer_phone
     HAVING balance > 0.0001
     ORDER BY balance DESC, tx_count DESC, customer_name ASC
     LIMIT %s
     """
+    params.append(int(limit))
     try:
         with get_cursor() as cur:
-            cur.execute(sql, (int(shop_id), int(limit)))
+            cur.execute(sql, tuple(params))
             rows = cur.fetchall() or []
         return [
             {

@@ -1,6 +1,7 @@
-{# Company credit customers — aggregated by phone #}
+{% set f = analytics_filter or {} %}
+{# Shop credit customers with outstanding balance #}
 {% set ns = namespace(count=0, credit=0.0, paid=0.0, balance=0.0) %}
-{% for c in credit_customers %}
+{% for c in customers or [] %}
   {% set ns.count = ns.count + 1 %}
   {% set ns.credit = ns.credit + (c.credit_total|float) %}
   {% set ns.paid = ns.paid + (c.paid_total|float) %}
@@ -9,14 +10,18 @@
 
 <div class="order-1">
   <div class="rc-card rc-card--pad">
-    <p class="rc-eyebrow rc-eyebrow--brand">Company credit</p>
-    <h2 class="rc-page-title">{{ credit_shell_title or 'Credit payments' }}</h2>
+    <p class="rc-eyebrow rc-eyebrow--brand">Shop · Credit</p>
+    <h2 class="rc-page-title">Customers with credit balances</h2>
     <p class="rc-page-lead">
-      {{ credit_shell_desc or 'Outstanding and settled credit sales across all shops.' }}
-      {% if f and f.range_label and not credit_all_time %}
+      Credit balances for <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</strong>.
+      Open a customer to view transactions and receive payments (FIFO clearing).
+      {% if credit_all_outstanding %}
+        Showing <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">all outstanding</strong> credit.
+      {% elif f and f.range_label %}
         Period: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label }}</strong>.
-      {% elif credit_all_time %}
-        Showing <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">all time</strong>.
+      {% endif %}
+      {% if customer_q %}
+        Filtered by <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ customer_q }}</strong>.
       {% endif %}
     </p>
 
@@ -45,7 +50,7 @@
   <div class="rc-card rc-card--scroll overflow-hidden">
     <div class="rc-card__head">
       <h3 class="rc-section-title">Credit customers</h3>
-      <p class="rc-section-lead">All credit sales combined per customer (matched by name and phone). Open a row to view the full account across shops.</p>
+      <p class="rc-section-lead">{{ ns.count }} customer{{ '' if ns.count == 1 else 's' }} with outstanding balances</p>
     </div>
     <div class="rc-table-wrap rc-table-wrap--sticky-head overflow-x-auto">
       <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
@@ -53,7 +58,7 @@
           <tr>
             <th class="px-4 py-3">Customer</th>
             <th class="px-4 py-3">Phone</th>
-            <th class="px-4 py-3 text-right">Sales</th>
+            <th class="px-4 py-3 text-right">Tx</th>
             <th class="px-4 py-3 text-right">Credit</th>
             <th class="px-4 py-3 text-right">Paid</th>
             <th class="px-4 py-3 text-right">Balance</th>
@@ -61,7 +66,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-[rgb(var(--rc-border))]">
-          {% for c in credit_customers or [] %}
+          {% for c in customers or [] %}
             <tr>
               <td class="px-4 py-3 font-medium text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</td>
               <td class="px-4 py-3 text-sm tabular-nums text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</td>
@@ -71,9 +76,8 @@
               <td class="px-4 py-3 text-right font-semibold tabular-nums text-rose-700 dark:text-rose-300">{{ "%.2f"|format(c.balance) }}</td>
               <td class="px-4 py-3">
                 <a
-                  href="{{ url_for('it_support_credit_payments_customer', customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
+                  href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}"
                   class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
-                  title="View account for {{ c.customer_phone }}"
                 >
                   View
                 </a>
@@ -81,7 +85,19 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">No credit customers match your filters. Widen the date range, clear filters, or try another phone or name search.</td>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">
+                {% if customer_q or not credit_all_outstanding %}
+                  No customers match your filters.
+                  {% if not credit_all_outstanding and f and f.range_label %}
+                    No outstanding credit from sales in <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label }}</strong>.
+                    Try another date, use <strong class="font-semibold">All outstanding</strong>, or clear the customer search.
+                  {% else %}
+                    Widen the period, clear filters, or try another name or phone.
+                  {% endif %}
+                {% else %}
+                  No outstanding credit balances for this shop.
+                {% endif %}
+              </td>
             </tr>
           {% endfor %}
         </tbody>

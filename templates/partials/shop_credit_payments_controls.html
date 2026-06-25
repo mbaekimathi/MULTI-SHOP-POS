@@ -1,0 +1,83 @@
+{# Shop credit payments — period + customer filters #}
+{% set f = analytics_filter or {} %}
+{% set _mode = 'all' if credit_all_outstanding else (f.mode or 'single_day') %}
+{% set _lbl = 'mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]' %}
+{% set _inp = 'w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:text-sm' %}
+<div class="rc-card rc-card--pad cp-credit-toolbar portal-live-toolbar no-print" id="shop-credit-filter-toolbar">
+  <form
+    method="get"
+    action="{{ url_for('shop_credit_payments', shop_id=shop.id) }}"
+    class="portal-filter-toolbar--legacy space-y-3"
+    id="shop-credit-filter-form"
+    data-live-filter="shop-credit"
+    data-portal-live-filter
+    data-portal-live-content="#shop-credit-live-content"
+  >
+    <div class="portal-filter-actions" aria-live="polite">
+      <span class="portal-live-chip" title="Filters apply automatically">
+        <span class="portal-live-chip__text">Live</span>
+        <span class="portal-live-chip__dot" aria-hidden="true"></span>
+      </span>
+      {% if credit_all_outstanding %}
+        <span class="portal-filter-scope-chip">All outstanding</span>
+      {% elif f.range_label %}
+        <span class="portal-filter-scope-chip">{{ f.range_label }}</span>
+      {% endif %}
+      {% if customer_q %}
+        <span class="portal-filter-scope-chip" title="{{ customer_q }}">{{ customer_q|truncate(16, True, '…') }}</span>
+      {% endif %}
+      <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost px-3 py-2 text-xs font-bold uppercase tracking-wider">Clear</a>
+    </div>
+
+    <div class="flex flex-wrap items-end gap-3" id="shop-credit-period-fields">
+      <div class="min-w-[10rem] flex-1">
+        <label for="shop-credit-filter-mode" class="{{ _lbl }}">Period</label>
+        <select id="shop-credit-filter-mode" name="mode" data-portal-filter-mode class="{{ _inp }}">
+          <option value="all" {% if credit_all_outstanding %}selected{% endif %}>All outstanding</option>
+          <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Day</option>
+          <option value="period" {% if _mode == 'period' %}selected{% endif %}>Range</option>
+          <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if _mode == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+
+      <div data-portal-filter-panel="single_day" class="min-w-[10rem] flex-1 {% if _mode != 'single_day' %}hidden{% endif %}">
+        <label for="shop-credit-single-day" class="{{ _lbl }}">Date</label>
+        <input id="shop-credit-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="{{ _inp }}" />
+      </div>
+
+      <div data-portal-filter-panel="period_start" class="min-w-[10rem] flex-1 {% if _mode != 'period' %}hidden{% endif %}">
+        <label for="shop-credit-start-date" class="{{ _lbl }}">From</label>
+        <input id="shop-credit-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="{{ _inp }}" />
+      </div>
+
+      <div data-portal-filter-panel="period_end" class="min-w-[10rem] flex-1 {% if _mode != 'period' %}hidden{% endif %}">
+        <label for="shop-credit-end-date" class="{{ _lbl }}">To</label>
+        <input id="shop-credit-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="{{ _inp }}" />
+      </div>
+
+      <div data-portal-filter-panel="month" class="min-w-[10rem] flex-1 {% if _mode != 'month' %}hidden{% endif %}">
+        <label for="shop-credit-month" class="{{ _lbl }}">Month</label>
+        <input id="shop-credit-month" type="month" name="month" value="{{ f.month or '' }}" class="{{ _inp }}" />
+      </div>
+
+      <div data-portal-filter-panel="year" class="min-w-[8rem] flex-1 {% if _mode != 'year' %}hidden{% endif %}">
+        <label for="shop-credit-year" class="{{ _lbl }}">Year</label>
+        <input id="shop-credit-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" placeholder="2026" class="{{ _inp }}" />
+      </div>
+
+      <div class="min-w-[12rem] flex-[1.2_1_14rem]">
+        <label for="shop-credit-customer-q" class="{{ _lbl }}">Customer</label>
+        <input
+          id="shop-credit-customer-q"
+          type="search"
+          name="customer_q"
+          value="{{ customer_q or '' }}"
+          placeholder="Name or phone…"
+          autocomplete="off"
+          class="{{ _inp }}"
+        />
+      </div>
+    </div>
+  </form>
+</div>

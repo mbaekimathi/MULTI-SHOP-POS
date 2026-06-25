@@ -17134,16 +17134,28 @@ def shop_credit_payments(shop_id: int):
         return gate
     if not _shop_pos_allow_credit_sale(shop):
         return redirect(url_for("shop_dashboard", shop_id=shop_id))
+    mode_raw = (request.args.get("mode") or "").strip().lower()
+    credit_all_outstanding = mode_raw not in ("single_day", "period", "month", "year")
+    analytics_filter = None if credit_all_outstanding else _build_analytics_filter()
+    customer_q = (request.args.get("customer_q") or "").strip()
     try:
         from database import list_shop_credit_customers_with_balance
 
-        customers = list_shop_credit_customers_with_balance(shop_id=shop_id, limit=2000)
+        customers = list_shop_credit_customers_with_balance(
+            shop_id=shop_id,
+            limit=2000,
+            analytics_filter=analytics_filter,
+            customer_q=customer_q or None,
+        )
     except Exception:
         customers = []
     return render_template(
         "shop_credit_payments.html",
         shop=shop,
         customers=customers,
+        customer_q=customer_q,
+        analytics_filter=analytics_filter or {},
+        credit_all_outstanding=credit_all_outstanding,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",

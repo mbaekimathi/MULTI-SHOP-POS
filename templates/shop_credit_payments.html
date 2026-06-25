@@ -1,92 +1,43 @@
 {% extends "shop_layout.html" %}
+
 {% block title %}Credit payments — {{ shop.shop_name }}{% endblock %}
+
 {% block shop_page_title %}Credit payments{% endblock %}
+
 {% block shop_sidebar_links %}
+
   {% include "partials/shop_dashboard_sidebar_nav.html" %}
+
 {% endblock %}
+
+{% block head %}
+
+  {{ super() }}
+
+{% endblock %}
+
 {% block shop_content %}
-  {% set ns = namespace(count=customers|length, credit=0.0, paid=0.0, balance=0.0) %}
-  {% for c in customers or [] %}
-    {% set ns.credit = ns.credit + (c.credit_total|float) %}
-    {% set ns.paid = ns.paid + (c.paid_total|float) %}
-    {% set ns.balance = ns.balance + (c.balance|float) %}
-  {% endfor %}
 
-  <div class="rc-page space-y-6">
-    <div class="rc-page-hero rc-card--pad">
-      <p class="rc-eyebrow rc-eyebrow--brand">Shop · Credit</p>
-      <h2 class="rc-page-title">Customers with credit balances</h2>
-      <p class="rc-page-lead">
-        Credit balances for <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</strong>.
-        Open a customer to view transactions and receive payments (FIFO clearing).
-      </p>
+  <div id="shop-credit-payments-page" class="rc-page portal-live-root flex flex-col gap-6">
 
-      {% if customers %}
-      <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rc-stat-card">
-          <div class="rc-stat-card__label">Customers</div>
-          <div class="rc-stat-card__value">{{ ns.count }}</div>
-        </div>
-        <div class="rc-stat-card rc-stat-card--warm">
-          <div class="rc-stat-card__label">Credit total</div>
-          <div class="rc-stat-card__value">{{ "%.2f"|format(ns.credit) }}</div>
-        </div>
-        <div class="rc-stat-card">
-          <div class="rc-stat-card__label">Paid</div>
-          <div class="rc-stat-card__value text-emerald-600 dark:text-emerald-400">{{ "%.2f"|format(ns.paid) }}</div>
-        </div>
-        <div class="rc-stat-card">
-          <div class="rc-stat-card__label">Outstanding</div>
-          <div class="rc-stat-card__value text-rose-600 dark:text-rose-400">{{ "%.2f"|format(ns.balance) }}</div>
-        </div>
-      </div>
-      {% endif %}
+    <div id="shop-credit-live-content" data-portal-live-content class="contents">
+
+      {% include "partials/shop_credit_payments_data.html" %}
+
     </div>
 
-    <div class="rc-card rc-card--scroll overflow-hidden">
-      <div class="rc-card__head">
-        <h3 class="rc-section-title">Credit customers</h3>
-        <p class="rc-section-lead">{{ ns.count }} customer{{ '' if ns.count == 1 else 's' }} with outstanding balances</p>
-      </div>
+    <div class="order-2">
 
-      {% if not customers %}
-        <div class="rc-card__body px-4 py-10 text-center sm:px-5">
-          <p class="text-sm text-[rgb(var(--rc-muted))]">No outstanding credit balances for this shop.</p>
-        </div>
-      {% else %}
-        <div class="rc-table-wrap rc-table-wrap--sticky-head overflow-x-auto">
-          <table class="rc-data-table min-w-[36rem]">
-            <thead>
-              <tr>
-                <th scope="col">Customer</th>
-                <th scope="col">Phone</th>
-                <th scope="col" class="text-right">Tx</th>
-                <th scope="col" class="text-right">Credit</th>
-                <th scope="col" class="text-right">Paid</th>
-                <th scope="col" class="text-right">Balance</th>
-                <th scope="col"><span class="sr-only">View</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for c in customers %}
-              <tr>
-                <td class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</td>
-                <td class="text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</td>
-                <td class="text-right tabular-nums">{{ c.tx_count }}</td>
-                <td class="text-right tabular-nums rc-amount--credit">{{ "%.2f"|format(c.credit_total) }}</td>
-                <td class="text-right tabular-nums rc-amount--paid">{{ "%.2f"|format(c.paid_total) }}</td>
-                <td class="text-right tabular-nums rc-amount--balance">{{ "%.2f"|format(c.balance) }}</td>
-                <td>
-                  <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=c.customer_name, customer_phone=c.customer_phone) }}" class="rc-icon-btn" aria-label="View {{ c.customer_name }}">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" /></svg>
-                  </a>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endif %}
+      {% include "partials/shop_credit_payments_controls.html" %}
+
     </div>
+
   </div>
+
 {% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/shop-credit-payments-filters.js') }}?v=1" defer></script>
+{% endblock %}
+

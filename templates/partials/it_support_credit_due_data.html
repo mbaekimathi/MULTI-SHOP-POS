@@ -1,4 +1,4 @@
-{# Upcoming due rows — rev panels + KPIs + table #}
+{# Upcoming due rows #}
 {% set ns = namespace(count=0, balance=0.0, overdue=0) %}
 {% for row in due_rows or [] %}
   {% set ns.count = ns.count + 1 %}
@@ -6,78 +6,86 @@
   {% if row.overdue %}{% set ns.overdue = ns.overdue + 1 %}{% endif %}
 {% endfor %}
 
-<div class="rev-content" id="portal-live-content" data-portal-live-content>
-  <section class="rev-panel" aria-labelledby="credit-due-heading">
-    <div class="rev-panel__head">
-      <div class="min-w-0">
-        <h3 class="rev-panel__title" id="credit-due-heading">Due soon &amp; overdue</h3>
-        <p class="rev-panel__desc">Within the next {{ due_days_ahead or 90 }} days, including past-due balances.</p>
+<div class="order-1">
+  <div class="rc-card rc-card--pad">
+    <p class="rc-eyebrow rc-eyebrow--brand">Company credit</p>
+    <h2 class="rc-page-title">{{ credit_shell_title or 'Upcoming credit due dates' }}</h2>
+    <p class="rc-page-lead">
+      {{ credit_shell_desc or 'Open credit with a due date on or before your horizon (includes past-due).' }}
+      Horizon: <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ due_days_ahead or 90 }} days</strong>.
+    </p>
+
+    <div class="mt-5 grid gap-3 sm:grid-cols-3">
+      <div class="rc-stat-card">
+        <div class="rc-stat-card__label">Sales</div>
+        <div class="rc-stat-card__value">{{ ns.count }}</div>
       </div>
-      <span class="rev-panel__count">{{ ns.count }} sale{% if ns.count != 1 %}s{% endif %}</span>
+      <div class="rc-stat-card">
+        <div class="rc-stat-card__label">Overdue</div>
+        <div class="rc-stat-card__value text-rose-600 dark:text-rose-400">{{ ns.overdue }}</div>
+      </div>
+      <div class="rc-stat-card rc-stat-card--warm">
+        <div class="rc-stat-card__label">Outstanding</div>
+        <div class="rc-stat-card__value">{{ "%.2f"|format(ns.balance) }}</div>
+      </div>
     </div>
+  </div>
+</div>
 
-    {% if not due_rows %}
-      <p class="rev-empty">Nothing due in this window. Increase the horizon, clear shop or customer filters, or check back when new credit sales have due dates.</p>
-    {% else %}
-      <div class="rev-kpi rev-kpi--3 mb-3" role="list" aria-label="Due summary">
-        <article class="rev-kpi__card" role="listitem">
-          <div class="rev-kpi__label">Sales</div>
-          <div class="rev-kpi__value">{{ ns.count }}</div>
-        </article>
-        <article class="rev-kpi__card rev-kpi__card--total" role="listitem">
-          <div class="rev-kpi__label">Overdue</div>
-          <div class="rev-kpi__value rev-kpi__value--accent">{{ ns.overdue }}</div>
-        </article>
-        <article class="rev-kpi__card rev-kpi__card--credit" role="listitem">
-          <div class="rev-kpi__label">Outstanding</div>
-          <div class="rev-kpi__value rev-kpi__value--credit">{{ "%.2f"|format(ns.balance) }}</div>
-        </article>
-      </div>
-
-      <div class="rev-scroll rev-scroll--lg rev-scroll--hint">
-        <table class="rev-data rev-data--wide rev-data--credit-cust min-w-[48rem]">
-          <thead>
+<div class="order-3">
+  <div class="rc-card rc-card--scroll overflow-hidden">
+    <div class="rc-card__head">
+      <h3 class="rc-section-title">Due soon &amp; overdue</h3>
+      <p class="rc-section-lead">Within the next {{ due_days_ahead or 90 }} days, including past-due balances. {{ ns.count }} sale{{ '' if ns.count == 1 else 's' }}.</p>
+    </div>
+    <div class="rc-table-wrap rc-table-wrap--sticky-head overflow-x-auto">
+      <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-left text-sm">
+        <thead class="sticky top-0 z-10 bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+          <tr>
+            <th class="px-4 py-3">Due</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Shop</th>
+            <th class="px-4 py-3">Customer</th>
+            <th class="px-4 py-3 text-right">Balance</th>
+            <th class="px-4 py-3">Sale</th>
+            <th class="px-4 py-3">View</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+          {% for row in due_rows or [] %}
             <tr>
-              <th scope="col">Due</th>
-              <th scope="col">Status</th>
-              <th scope="col">Shop</th>
-              <th scope="col">Customer</th>
-              <th scope="col" class="num">Balance</th>
-              <th scope="col">Sale</th>
-              <th scope="col" class="rev-col-action"><span class="sr-only">View</span></th>
+              <td class="whitespace-nowrap px-4 py-3 font-medium tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.credit_due_date }}</td>
+              <td class="px-4 py-3">
+                {% if row.overdue %}
+                  <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Overdue</span>
+                {% else %}
+                  <span class="inline-flex rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">Upcoming</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
+              <td class="px-4 py-3">
+                <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ row.customer_name }}</div>
+                <div class="text-xs tabular-nums text-[rgb(var(--rc-muted))]">{{ row.customer_phone }}</div>
+              </td>
+              <td class="px-4 py-3 text-right font-semibold tabular-nums text-rose-700 dark:text-rose-300">{{ "%.2f"|format(row.remaining_amount) }}</td>
+              <td class="px-4 py-3 text-xs text-[rgb(var(--rc-muted))]">#{{ row.id }} · {{ row.created_at }}</td>
+              <td class="px-4 py-3">
+                <a
+                  href="{{ url_for('it_support_credit_payments_customer', customer_name=row.customer_name, customer_phone=row.customer_phone) }}"
+                  class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-primary))]/35 bg-[rgb(var(--rc-primary))]/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-primary))]/20"
+                  aria-label="View account for {{ row.customer_name }}"
+                >
+                  View
+                </a>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {% for row in due_rows %}
-              <tr>
-                <td class="whitespace-nowrap font-medium tabular-nums text-[rgb(var(--rc-page-fg))]">{{ row.credit_due_date }}</td>
-                <td>
-                  {% if row.overdue %}
-                    <span class="inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Overdue</span>
-                  {% else %}
-                    <span class="inline-flex rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">Upcoming</span>
-                  {% endif %}
-                </td>
-                <td class="text-xs text-[rgb(var(--rc-page-fg))]">{{ row.shop_name }}</td>
-                <td class="cp-cust-cell">
-                  <span class="cp-cust-name cell-strong">{{ row.customer_name }}</span>
-                  <span class="cp-cust-phone">{{ row.customer_phone }}</span>
-                </td>
-                <td class="num cell-credit">{{ "%.2f"|format(row.remaining_amount) }}</td>
-                <td class="text-xs text-[rgb(var(--rc-muted))]">#{{ row.id }} · {{ row.created_at }}</td>
-                <td class="rev-col-action">
-                  <a href="{{ url_for('it_support_credit_payments_customer', customer_name=row.customer_name, customer_phone=row.customer_phone) }}" class="rev-tx-view-btn" aria-label="View account for {{ row.customer_name }}">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <path stroke-linecap="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      <path stroke-linecap="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/>
-                    </svg>
-                  </a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% endif %}
-  </section>
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">Nothing due in this window. Increase the horizon, clear shop or customer filters, or check back when new credit sales have due dates.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>

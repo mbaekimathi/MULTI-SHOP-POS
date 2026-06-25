@@ -594,6 +594,34 @@ html[data-theme="dark"] .portal-live-chip__svg {
   }
 }
 
+.portal-filter-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 14rem;
+  padding: 0.32rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--rc-border), 0.95);
+  background: rgba(var(--rc-surface-2), 0.92);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Credit hub — full-width field row below header bar */
+#cp-credit-toolbar form.portal-filter-toolbar--legacy > .flex,
+#cp-credit-audit-toolbar form.portal-filter-toolbar--legacy > .flex,
+#cp-credit-due-toolbar form.portal-filter-toolbar--legacy > .flex,
+#shop-credit-filter-toolbar form.portal-filter-toolbar--legacy > .flex,
+#cp-credit-period-fields {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
 /* Scope / active filter chips */
 .rev-chip--scope,
 .cp-credit-toolbar .rev-chip:not(.rev-chip--live) {
