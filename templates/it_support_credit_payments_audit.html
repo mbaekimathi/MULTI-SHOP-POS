@@ -1,32 +1,63 @@
-{% extends "employee_layout.html" %}
-{% block title %}Credit payments audit — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
-{% block portal_page_title %}Credit payments audit{% endblock %}
-{% block head %}
-  {{ super() }}
-  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
-{% endblock %}
-{% block sidebar_links %}
-  {% include "partials/it_support_credit_sidebar_nav.html" %}
-{% endblock %}
-{% block employee_content %}
-  {% set f = analytics_filter or {} %}
-  {% set shop_list = shops or [] %}
-  {% set credit_shell_title = 'Credit payments audit' %}
-  {% set credit_shell_desc = 'Every logged payment and every credit sale with money applied (all time by default). Partially paid sales appear first, then fully paid.' %}
-  {% set credit_shell_aside = 'Audit' %}
-  {% set filter_clear_url = url_for('it_support_credit_payments_audit') %}
-
-  <div id="it-credit-audit-page" class="rc-page portal-live-root flex flex-col gap-6">
-    <div id="portal-live-content" data-portal-live-content class="contents">
-      {% include "partials/it_support_credit_audit_data.html" %}
-    </div>
-    <div class="order-2">
-      {% include "partials/it_support_credit_audit_controls.html" %}
-    </div>
-  </div>
-{% endblock %}
-{% block scripts %}
-  {{ super() }}
-  <script src="{{ url_for('static', filename='js/it-support-credit-payments-filters.js') }}?v=7" defer></script>
-{% endblock %}
-
+{% extends "employee_layout.html" %}
+
+{% block title %}Credit payments audit — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+
+{% block portal_page_title %}Credit payments audit{% endblock %}
+
+{% block head %}
+
+  {{ super() }}
+
+  <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
+
+{% endblock %}
+
+{% block sidebar_links %}
+
+  {% include "partials/it_support_credit_sidebar_nav.html" %}
+
+{% endblock %}
+
+{% block employee_content %}
+
+  {% set f = analytics_filter or {} %}
+
+  {% set shop_list = shops or [] %}
+
+  {% set credit_shell_title = 'Credit payments audit' %}
+
+  {% set credit_shell_desc = 'Every logged payment and every credit sale with money applied (all time by default). Partially paid sales appear first, then fully paid.' %}
+
+  {% set credit_shell_aside = 'Audit' %}
+
+  {% set filter_clear_url = url_for('it_support_credit_payments_audit') %}
+
+
+
+  <div id="it-credit-audit-page" class="rc-page portal-live-root flex flex-col gap-6">
+
+    <div id="portal-live-content" data-portal-live-content class="contents">
+
+      {% include "partials/it_support_credit_audit_data.html" %}
+
+    </div>
+
+    <div class="order-2">
+
+      {% include "partials/it_support_credit_audit_controls.html" %}
+
+    </div>
+
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+
+  {{ super() }}
+
+  <script src="{{ url_for('static', filename='js/it-support-credit-payments-filters.js') }}?v=7" defer></script>
+
+{% endblock %}
+
+

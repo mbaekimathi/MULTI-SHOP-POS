@@ -38,12 +38,24 @@
     return params;
   }
 
-  function init() {
+  function tryWire(attempt) {
     var form = document.getElementById("shop-credit-filter-form");
-    if (!form || !window.PortalLiveFilters) return;
+    if (!form || form.dataset.portalLiveWired === "true") return;
+    if (!window.PortalLiveFilters) {
+      if ((attempt || 0) < 40) {
+        setTimeout(function () {
+          tryWire((attempt || 0) + 1);
+        }, 50);
+      }
+      return;
+    }
     window.PortalLiveFilters.wireForm(form, {
       buildParams: shopCreditBuildParams,
     });
+  }
+
+  function init() {
+    tryWire(0);
   }
 
   if (document.readyState === "loading") {

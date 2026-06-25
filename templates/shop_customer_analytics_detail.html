@@ -53,8 +53,12 @@
         {{ { 'analytics': a }|tojson }}
       </script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-      <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=5" defer></script>
       <script src="{{ url_for('static', filename='js/shop-customer-detail-page.js') }}?v=4" defer></script>
     </div>
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=7" defer></script>
 {% endblock %}

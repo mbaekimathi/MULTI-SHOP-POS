@@ -61,7 +61,6 @@
       </script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
       <script src="{{ url_for('static', filename='js/it-support-analytics-charts.js') }}"></script>
-      <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=6" defer></script>
 
       <script>
         (function () {
@@ -125,4 +124,9 @@
       </script>
     </div>
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=7" defer></script>
 {% endblock %}

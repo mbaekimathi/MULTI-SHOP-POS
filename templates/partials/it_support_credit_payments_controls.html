@@ -50,7 +50,7 @@
 
       <div class="min-w-[10rem] flex-1">
         <label for="analytics-filter-mode" class="{{ _lbl }}">Period</label>
-        <select id="analytics-filter-mode" name="mode" class="{{ _inp }}">
+        <select id="analytics-filter-mode" name="mode" data-portal-filter-mode class="{{ _inp }}">
           <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Day</option>
           <option value="period" {% if _mode == 'period' %}selected{% endif %}>Range</option>
           <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>

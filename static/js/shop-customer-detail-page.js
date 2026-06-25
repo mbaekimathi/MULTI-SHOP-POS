@@ -257,4 +257,16 @@
       btn.setAttribute("aria-expanded", open ? "true" : "false");
     });
   });
+
+  document.addEventListener("shop-customer-detail-data-updated", function (ev) {
+    try {
+      cfg = JSON.parse((ev.detail && ev.detail.cfgText) || "{}");
+    } catch (e) {
+      cfg = {};
+    }
+    destroyCharts();
+    if (visual && !visual.classList.contains("hidden")) {
+      requestAnimationFrame(initCharts);
+    }
+  });
 })();

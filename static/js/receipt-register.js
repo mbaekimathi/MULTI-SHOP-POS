@@ -197,12 +197,14 @@
   }
 
   function renderRows(rows) {
+    var body = document.getElementById("receipt-register-tbody");
+    if (!body) return;
     selected.clear();
     if (selectAll) selectAll.checked = false;
     updateSelectedUi();
     var colspan = CFG.emptyColspan || 7;
     if (!rows || !rows.length) {
-      tbody.innerHTML =
+      body.innerHTML =
         '<tr data-sale-id="__none__"><td colspan="' +
         colspan +
         '" class="rev-empty">No receipts in this date range.</td></tr>';
@@ -217,7 +219,7 @@
       );
       return;
     }
-    tbody.innerHTML = rows.map(buildRowHtml).join("");
+    body.innerHTML = rows.map(buildRowHtml).join("");
     if (loadedCountEl) loadedCountEl.textContent = String(rows.length);
     if (liveSearch) liveSearch.dispatchEvent(new Event("input", { bubbles: true }));
   }
@@ -585,5 +587,6 @@
         });
     }
     fetchReceiptsForShop();
+    window.shopReceiptsRefresh = fetchReceiptsForShop;
   }
 })();
