@@ -1,19 +1,20 @@
-{# Clean product card — tap to add to quote #}
+{# Clean product card — view details or add to quote #}
 <article
   id="wsf-product-{{ p.id }}"
   class="wsf-card wsf-product-card wsf-product-card--tappable{% if p.on_sale %} wsf-card--sale{% endif %}"
   data-wsf-product-cat="{{ (p.category or 'General')|upper }}"
   data-wsf-add-id="{{ p.id }}"
-  tabindex="0"
-  role="button"
-  aria-label="Add {{ p.name }} to cart"
+  itemscope
+  itemtype="https://schema.org/Product"
 >
   <div class="wsf-card__media">
-    {% if p.image_url %}
-      <img src="{{ p.image_url }}" alt="" class="wsf-card__img" loading="lazy" decoding="async" width="160" height="160" />
-    {% else %}
-      <div class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</div>
-    {% endif %}
+    <a href="{{ storefront_product_url(p) }}" class="wsf-card__view-link" tabindex="-1" aria-hidden="true">
+      {% if p.image_url %}
+        <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" width="160" height="160" />
+      {% else %}
+        <div class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</div>
+      {% endif %}
+    </a>
 
     {% if p.on_sale %}
     <span class="wsf-card__badge wsf-card__offer-tag" aria-label="On offer, {{ p.discount_percent }} percent off">
@@ -38,21 +39,31 @@
 
   <div class="wsf-card__body">
     {% if p.category %}
-      <p class="wsf-card__cat">{{ p.category }}</p>
+      <p class="wsf-card__cat" itemprop="category">{{ p.category }}</p>
     {% endif %}
-    <h3 class="wsf-card__name">{{ p.name }}</h3>
-    <div class="wsf-card__price-row{% if p.on_sale %} wsf-card__price-row--deal{% endif %}">
+    <h3 class="wsf-card__name">
+      <a href="{{ storefront_product_url(p) }}" class="wsf-card__name-link" itemprop="url">
+        <span itemprop="name">{{ p.name }}</span>
+      </a>
+    </h3>
+    <div
+      class="wsf-card__price-row{% if p.on_sale %} wsf-card__price-row--deal{% endif %}"
+      itemprop="offers"
+      itemscope
+      itemtype="https://schema.org/Offer"
+    >
+      <meta itemprop="priceCurrency" content="KES" />
       {% if p.on_sale %}
         <span class="wsf-card__price-was">KES {{ '%.0f'|format(p.original_price) }}</span>
         <span class="wsf-card__price-deal">
           <span class="wsf-card__price-deal-label">Deal</span>
-          <span class="wsf-card__price">KES {{ '%.0f'|format(p.price) }}</span>
+          <span class="wsf-card__price" itemprop="price" content="{{ '%.2f'|format(p.price) }}">KES {{ '%.0f'|format(p.price) }}</span>
         </span>
         {% if p.discount_amount %}
         <span class="wsf-card__save">Save KES {{ '%.0f'|format(p.discount_amount) }}</span>
         {% endif %}
       {% else %}
-        <span class="wsf-card__price">KES {{ '%.0f'|format(p.price) }}</span>
+        <span class="wsf-card__price" itemprop="price" content="{{ '%.2f'|format(p.price) }}">KES {{ '%.0f'|format(p.price) }}</span>
       {% endif %}
     </div>
   </div>

@@ -281,6 +281,7 @@
   }
 
   root.addEventListener("click", function (e) {
+    if (e.target.closest("a[href]")) return;
     var addTarget = e.target.closest(".wsf-product-card[data-wsf-add-id], [data-wsf-add-id]");
     if (addTarget) {
       handleAddClick(e, addTarget);

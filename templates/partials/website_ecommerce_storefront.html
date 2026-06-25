@@ -7,6 +7,7 @@
 {% set _company = _c.company_name %}
 {% set _design_mode = storefront_design_mode|default(false) %}
 {% set _catalog_mode = storefront_catalog_mode|default(false) %}
+{% set _product_mode = storefront_product_mode|default(false) %}
 {% set _primary = site_settings.primary_color if site_settings else '#2563eb' %}
 {% set _accent = site_settings.accent_color if site_settings else '#3b82f6' %}
 {% set _font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Inter')|font_stack) %}
@@ -74,8 +75,8 @@
       </a>
 
       <nav class="wsf-header__nav" aria-label="Primary">
-        <a href="{{ _home_url }}" class="wsf-header__link{% if not _catalog_mode %} is-active{% endif %}">Home</a>
-        <a href="{{ _catalog_url }}" class="wsf-header__link{% if _catalog_mode %} is-active{% endif %}">Products</a>
+        <a href="{{ _home_url }}" class="wsf-header__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
+        <a href="{{ _catalog_url }}" class="wsf-header__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
         {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
         <a href="#wsf-policies" class="wsf-header__link">Policies</a>
         {% endif %}
@@ -111,8 +112,8 @@
         </button>
       </div>
       <div class="wsf-menu-drawer__links">
-        <a href="{{ _home_url }}" class="wsf-menu-drawer__link{% if not _catalog_mode %} is-active{% endif %}">Home</a>
-        <a href="{{ _catalog_url }}" class="wsf-menu-drawer__link{% if _catalog_mode %} is-active{% endif %}">Products</a>
+        <a href="{{ _home_url }}" class="wsf-menu-drawer__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
+        <a href="{{ _catalog_url }}" class="wsf-menu-drawer__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
         {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
         <a href="#wsf-policies" class="wsf-menu-drawer__link" data-wsf-close-menu-on-click>Policies</a>
         {% endif %}
@@ -132,7 +133,87 @@
   {% endif %}
 
   {# ── HOMEPAGE ── #}
-  {% if not _catalog_mode %}
+  {% if _product_mode %}
+  {% set _p = website_product %}
+  <section class="wsf-section wsf-product-page wsf-reveal" aria-labelledby="wsf-product-title">
+    <div class="wsf-shell">
+      <nav class="wsf-breadcrumb" aria-label="Breadcrumb">
+        <a href="{{ _home_url }}">Home</a>
+        <span aria-hidden="true">/</span>
+        <a href="{{ _catalog_url }}">Products</a>
+        {% if _p.category %}
+        <span aria-hidden="true">/</span>
+        <a href="{{ _catalog_url }}?cat={{ _p.category|urlencode }}">{{ _p.category }}</a>
+        {% endif %}
+      </nav>
+
+      <article
+        class="wsf-product-detail"
+        itemscope
+        itemtype="https://schema.org/Product"
+      >
+        <div class="wsf-product-detail__media">
+          {% if _p.image_url %}
+            <img
+              src="{{ _p.image_url }}"
+              alt="{{ _p.name }}"
+              class="wsf-product-detail__img"
+              itemprop="image"
+              width="640"
+              height="640"
+              decoding="async"
+            />
+          {% else %}
+            <div class="wsf-product-detail__img-ph" aria-hidden="true">{{ _p.name[:1]|upper }}</div>
+          {% endif %}
+          {% if _p.on_sale %}
+            <span class="wsf-product-detail__badge">−{{ _p.discount_percent }}%</span>
+          {% endif %}
+        </div>
+
+        <div class="wsf-product-detail__body">
+          {% if _p.category %}
+            <p class="wsf-product-detail__cat" itemprop="category">{{ _p.category }}</p>
+          {% endif %}
+          <h1 id="wsf-product-title" class="wsf-product-detail__title" itemprop="name">{{ _p.name }}</h1>
+          <link itemprop="url" href="{{ storefront_product_url(_p, _external=true) }}" />
+
+          <p
+            class="wsf-product-detail__price"
+            itemprop="offers"
+            itemscope
+            itemtype="https://schema.org/Offer"
+          >
+            <meta itemprop="priceCurrency" content="KES" />
+            <span itemprop="price" content="{{ '%.2f'|format(_p.price) }}">KES {{ '%.0f'|format(_p.price) }}</span>
+            <link itemprop="availability" href="https://schema.org/InStock" />
+            {% if _p.on_sale %}
+              <span class="wsf-product-detail__was">KES {{ '%.0f'|format(_p.original_price) }}</span>
+            {% endif %}
+          </p>
+
+          {% if _p.description %}
+            <div class="wsf-product-detail__desc" itemprop="description">{{ _p.description }}</div>
+          {% else %}
+            <p class="wsf-product-detail__desc" itemprop="description">
+              {{ _p.category }} — available from {{ _company }}. Add to your quote and we will get back to you.
+            </p>
+          {% endif %}
+
+          <div class="wsf-product-detail__actions">
+            <button
+              type="button"
+              class="wsf-btn wsf-btn--primary"
+              data-wsf-add-id="{{ _p.id }}"
+            >Add to quote</button>
+            <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--ghost">← Back to catalogue</a>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  {% elif not _catalog_mode %}
   <section class="wsf-hero wsf-hero--full wsf-hero--slideshow wsf-reveal" aria-labelledby="wsf-hero-heading">
     {% include "partials/website_storefront_bg_slideshow.html" %}
     <div class="wsf-pagehead__scrim" aria-hidden="true"></div>
@@ -165,7 +246,7 @@
           <p class="wsf-kicker">Best sellers</p>
           <div class="wsf-hero__showcase-grid">
             {% for p in _bestsellers %}
-            <a href="{{ _catalog_url }}#wsf-product-{{ p.id }}" class="wsf-hero__showcase-item{% if p.on_sale %} wsf-hero__showcase-item--sale{% endif %}" aria-label="{{ p.name }} — KES {{ '%.0f'|format(p.price) }}">
+            <a href="{{ storefront_product_url(p) }}" class="wsf-hero__showcase-item{% if p.on_sale %} wsf-hero__showcase-item--sale{% endif %}" aria-label="{{ p.name }} — KES {{ '%.0f'|format(p.price) }}">
               <div class="wsf-hero__showcase-media">
                 {% if p.image_url %}
                   <img src="{{ p.image_url }}" alt="" class="wsf-hero__showcase-img" loading="{% if loop.first %}eager{% else %}lazy{% endif %}" width="120" height="120" decoding="async" />
@@ -455,6 +536,11 @@
   {% endif %}
 
   {% if _catalog_mode %}
+  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-fab--cart" data-wsf-open-cart aria-label="Open cart">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+    <span class="wsf-fab__count hidden" data-wsf-cart-count>0</span>
+  </button>
+  {% elif _product_mode %}
   <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-fab--cart" data-wsf-open-cart aria-label="Open cart">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
     <span class="wsf-fab__count hidden" data-wsf-cart-count>0</span>

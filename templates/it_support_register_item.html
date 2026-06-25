@@ -6,7 +6,9 @@
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 sm:p-8">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Register item</h2>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-        All fields will be stored in uppercase. New items are registered as <span class="font-semibold">ACTIVE</span>.
+        POS fields (category, name, description) are stored in uppercase for the till.
+        Use the <span class="font-semibold">Online shop listing</span> section below for customer-facing website copy.
+        New items are registered as <span class="font-semibold">ACTIVE</span>.
       </p>
 
       {% include "partials/flashes.html" %}
@@ -88,6 +90,8 @@
             />
           </div>
         </div>
+
+        {% include "partials/it_support_item_website_fields.html" %}
 
         <div class="flex flex-wrap gap-3 pt-2">
           <button

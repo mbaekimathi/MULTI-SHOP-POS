@@ -23,10 +23,10 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 import project_env  # noqa: F401 — loads .env.example then .env before os.getenv below
 from flask import (
     Flask,
-    jsonify,
     Response,
     abort,
     flash,
+    g,
     jsonify,
     redirect,
     render_template,
@@ -1197,6 +1197,9 @@ def inject_storefront_homepage_copy():
 @app.context_processor
 def inject_storefront_seo():
     """Canonical, Open Graph, and JSON-LD context for public storefront pages."""
+    explicit = getattr(g, "storefront_seo", None)
+    if explicit:
+        return {"storefront_seo": explicit}
     try:
         seo = _storefront_seo_context_for_request()
     except Exception:
@@ -1619,6 +1622,23 @@ def _save_profile_upload(file_storage):
 ITEM_UPLOAD_FOLDER_REL = "uploads/items"
 
 
+def _item_website_fields_from_form() -> dict:
+    """Website-only listing fields from register/edit item forms (POS fields unchanged)."""
+    web_name = (request.form.get("website_name") or "").strip()
+    web_desc = (request.form.get("website_description") or "").strip()
+    published = (request.form.get("website_published") or "").strip().lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
+    return {
+        "website_name": web_name or None,
+        "website_description": web_desc or None,
+        "website_published": published,
+    }
+
+
 def _save_item_upload(file_storage):
     if not file_storage or not getattr(file_storage, "filename", None):
         return None
@@ -1701,6 +1721,26 @@ def marketing_catalog_live():
     if not _public_website_enabled():
         return redirect(url_for("public_shop_login"))
     return _render_public_storefront(catalog_mode=True)
+
+
+@app.route("/site/catalog/<int:item_id>")
+@app.route("/site/catalog/<int:item_id>/<slug>")
+def marketing_product(item_id: int, slug: str | None = None):
+    """Public product page preview."""
+    if _is_public_website_host_request():
+        return redirect(url_for("marketing_product_live", item_id=item_id, slug=slug), code=301)
+    return _render_public_product_page(item_id, slug=slug)
+
+
+@app.route("/catalog/<int:item_id>")
+@app.route("/catalog/<int:item_id>/<slug>")
+def marketing_product_live(item_id: int, slug: str | None = None):
+    """Product page on the live website domain."""
+    if not _is_public_website_host_request():
+        return redirect(url_for("marketing_product", item_id=item_id, slug=slug), code=302)
+    if not _public_website_enabled():
+        return redirect(url_for("public_shop_login"))
+    return _render_public_product_page(item_id, slug=slug)
 
 
 @app.route("/robots.txt")
@@ -3998,6 +4038,128 @@ def _storefront_local_business_json_ld() -> dict | None:
     return payload
 
 
+def _website_product_slug(name: str) -> str:
+    """URL slug from a product name (no id suffix — id lives in the path)."""
+    raw = (name or "product").strip().lower()
+    slug = re.sub(r"[^\w\s-]", "", raw, flags=re.UNICODE)
+    slug = re.sub(r"[-\s]+", "-", slug).strip("-")
+    return (slug[:80] or "product")
+
+
+def _website_product_canonical_path(item_id: int, name: str) -> str:
+    return f"/catalog/{int(item_id)}/{_website_product_slug(name)}"
+
+
+def _website_product_absolute_image_url(image_url: str) -> str:
+    """Absolute image URL for Open Graph and JSON-LD."""
+    u = (image_url or "").strip()
+    if not u:
+        return ""
+    if u.startswith("http://") or u.startswith("https://"):
+        return u
+    base = _storefront_seo_canonical_base()
+    if base and u.startswith("/"):
+        return base.rstrip("/") + u
+    try:
+        return url_for("static", filename=u.lstrip("/"), _external=True)
+    except Exception:
+        return u
+
+
+@app.template_global()
+def storefront_absolute_url(path: str = "/") -> str:
+    """Absolute storefront URL for SEO templates."""
+    return _storefront_seo_absolute_url(path)
+
+
+@app.template_global()
+def storefront_product_url(product, *, _external: bool = False) -> str:
+    """Canonical public URL for a serialized website product."""
+    try:
+        p = product if isinstance(product, dict) else {}
+        iid = int(p.get("id") or 0)
+        if iid <= 0:
+            return "#"
+        slug = p.get("slug") or _website_product_slug(p.get("name") or "")
+        if _is_public_website_host_request():
+            return url_for("marketing_product_live", item_id=iid, slug=slug, _external=_external)
+        return url_for("marketing_product", item_id=iid, slug=slug, _external=_external)
+    except Exception:
+        return "#"
+
+
+def _website_catalog_product(item_id: int) -> dict | None:
+    try:
+        from database import get_website_catalog_item
+
+        row = get_website_catalog_item(item_id)
+    except Exception:
+        row = None
+    if not row:
+        return None
+    return _serialize_website_product_row(row)
+
+
+def _storefront_product_json_ld(product: dict, page_url: str) -> dict:
+    name = (product.get("name") or "Product").strip() or "Product"
+    desc = (product.get("description") or "").strip()
+    if not desc:
+        desc = f"{product.get('category') or 'Product'} — request a quote online."
+    image = _website_product_absolute_image_url(product.get("image_url") or "")
+    payload: dict = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": name,
+        "description": desc,
+        "category": (product.get("category") or "General").strip() or "General",
+    }
+    if page_url:
+        payload["url"] = page_url
+    if image:
+        payload["image"] = image
+    payload["offers"] = {
+        "@type": "Offer",
+        "priceCurrency": "KES",
+        "price": f"{float(product.get('price') or 0):.2f}",
+        "availability": "https://schema.org/InStock",
+        "url": page_url,
+    }
+    return payload
+
+
+def _storefront_product_seo_context(product: dict, canonical_path: str) -> dict:
+    try:
+        ws = _load_website_settings()
+        co = _load_company_identity_settings()
+        copy = _storefront_homepage_copy(ws.get("design"), co)
+    except Exception:
+        copy = _storefront_homepage_copy({}, {})
+    company = copy.get("company_name") or "Our Store"
+    name = (product.get("name") or "Product").strip() or "Product"
+    desc = (product.get("description") or "").strip()
+    if not desc:
+        desc = f"{product.get('category') or 'Product'} from {company}. Request a quote online."
+    og_title = f"{name} — {company}"
+    if len(og_title) > 120:
+        og_title = f"{name} | {company}"
+    canonical_url = _storefront_seo_absolute_url(canonical_path)
+    image_url = _website_product_absolute_image_url(product.get("image_url") or "")
+    if not image_url:
+        image_url = _storefront_seo_image_url()
+    return {
+        "page": "product",
+        "canonical_url": canonical_url,
+        "og_title": og_title,
+        "og_description": desc[:320],
+        "og_url": canonical_url,
+        "og_type": "product",
+        "og_image": image_url,
+        "og_site_name": company,
+        "twitter_card": "summary_large_image" if image_url else "summary",
+        "product_json": _storefront_product_json_ld(product, canonical_url),
+    }
+
+
 def _storefront_sitemap_entries() -> list[dict]:
     """Public storefront URLs for sitemap.xml."""
     base = _storefront_seo_canonical_base()
@@ -4017,6 +4179,24 @@ def _storefront_sitemap_entries() -> list[dict]:
                     "loc": _storefront_seo_absolute_url("/catalog") + "?cat=" + quote(name),
                     "changefreq": "weekly",
                     "priority": "0.7",
+                }
+            )
+    except Exception:
+        pass
+    try:
+        from database import list_website_catalog_items
+
+        catalog_rows = list_website_catalog_items(limit=500)
+        for r in catalog_rows:
+            iid = int(r.get("id") or 0)
+            if iid <= 0:
+                continue
+            name = (r.get("name") or "").strip()
+            entries.append(
+                {
+                    "loc": _storefront_seo_absolute_url(_website_product_canonical_path(iid, name)),
+                    "changefreq": "weekly",
+                    "priority": "0.8",
                 }
             )
     except Exception:
@@ -4098,7 +4278,60 @@ def _storefront_seo_context_for_request() -> dict:
         ld = _storefront_local_business_json_ld()
         if ld:
             ctx["local_business_json"] = ld
+    elif page == "catalog":
+        ctx["catalog_itemlist_json"] = _storefront_catalog_itemlist_json_ld()
     return ctx
+
+
+def _storefront_catalog_itemlist_json_ld() -> dict | None:
+    """Schema.org ItemList for the full public catalogue."""
+    try:
+        from database import list_website_catalog_items
+
+        catalog_rows = list_website_catalog_items(limit=500)
+    except Exception:
+        catalog_rows = []
+    products = [_serialize_website_product_row(r) for r in catalog_rows if int(r.get("id") or 0) > 0]
+    if not products:
+        return None
+    try:
+        ws = _load_website_settings()
+        co = _load_company_identity_settings()
+        copy = _storefront_homepage_copy(ws.get("design"), co)
+    except Exception:
+        copy = _storefront_homepage_copy({}, {})
+    company = copy.get("company_name") or "Our Store"
+    elements: list[dict] = []
+    for idx, p in enumerate(products, start=1):
+        path = _website_product_canonical_path(int(p.get("id") or 0), p.get("name") or "")
+        page_url = _storefront_seo_absolute_url(path)
+        desc = (p.get("description") or "").strip() or (p.get("category") or "Product")
+        item: dict = {
+            "@type": "Product",
+            "name": p.get("name") or "Product",
+            "description": desc,
+            "category": p.get("category") or "General",
+        }
+        if page_url:
+            item["url"] = page_url
+        image = _website_product_absolute_image_url(p.get("image_url") or "")
+        if image:
+            item["image"] = image
+        item["offers"] = {
+            "@type": "Offer",
+            "priceCurrency": "KES",
+            "price": f"{float(p.get('price') or 0):.2f}",
+            "availability": "https://schema.org/InStock",
+            "url": page_url,
+        }
+        elements.append({"@type": "ListItem", "position": idx, "item": item})
+    return {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": f"{company} product catalogue",
+        "numberOfItems": len(elements),
+        "itemListElement": elements,
+    }
 
 
 def _render_public_storefront(*, catalog_mode: bool = False):
@@ -4132,6 +4365,30 @@ def _render_public_storefront(*, catalog_mode: bool = False):
         website_product_categories=_website_catalog_categories(),
         is_live_public_website=_is_public_website_host_request(),
         storefront_catalog_mode=False,
+    )
+
+
+def _render_public_product_page(item_id: int, *, slug: str | None = None):
+    product = _website_catalog_product(item_id)
+    if not product:
+        abort(404)
+    canonical_slug = product.get("slug") or _website_product_slug(product.get("name") or "")
+    canonical_path = _website_product_canonical_path(item_id, product.get("name") or "")
+    if slug != canonical_slug:
+        if _is_public_website_host_request():
+            return redirect(url_for("marketing_product_live", item_id=item_id, slug=canonical_slug), code=301)
+        return redirect(url_for("marketing_product", item_id=item_id, slug=canonical_slug), code=301)
+    ws = _load_website_settings()
+    design = ws.get("design") or _default_website_design()
+    g.storefront_seo = _storefront_product_seo_context(product, canonical_path)
+    cart_row = _serialize_website_product_cart_row(product)
+    return render_template(
+        "marketing/product.html",
+        website_design=design,
+        website_product=product,
+        website_cart_products=[cart_row],
+        website_public_shops=_public_storefront_shops(),
+        is_live_public_website=_is_public_website_host_request(),
     )
 
 
@@ -4220,10 +4477,12 @@ def _serialize_website_product_row(r: dict) -> dict:
     was = max(sell, orig)
     on_sale = was > lowest + 0.009
     discount_pct = int(round((1 - lowest / was) * 100)) if on_sale and was > 0 else 0
+    pname = (r.get("name") or "").strip() or "Product"
     return {
         "id": iid,
         "category": (r.get("category") or "").strip() or "General",
-        "name": (r.get("name") or "").strip() or "Product",
+        "name": pname,
+        "slug": _website_product_slug(pname),
         "description": (r.get("description") or "").strip(),
         "price": round(lowest, 2),
         "original_price": round(was, 2),
@@ -7377,6 +7636,7 @@ def it_support_register_item():
         description = (request.form.get("description") or "").strip().upper()
         price_raw = (request.form.get("price") or "").strip()
         selling_raw = (request.form.get("selling_price") or "").strip()
+        web_fields = _item_website_fields_from_form()
 
         if not category or not name or not price_raw:
             flash("Please fill item category, item name, and original selling price.", "error")
@@ -7423,6 +7683,9 @@ def it_support_register_item():
                 image_path=image_path,
                 status="active",
                 created_by_employee_id=session.get("employee_id"),
+                website_name=web_fields.get("website_name"),
+                website_description=web_fields.get("website_description"),
+                website_published=bool(web_fields.get("website_published")),
             )
             if new_item_id:
                 seed_shop_items_for_company_item(int(new_item_id))
@@ -10322,6 +10585,7 @@ def it_support_item_edit(item_id: int):
         description = (request.form.get("description") or "").strip().upper()
         price_raw = (request.form.get("price") or "").strip()
         selling_raw = (request.form.get("selling_price") or "").strip()
+        web_fields = _item_website_fields_from_form()
 
         if not category or not name or not price_raw:
             flash("Please fill item category, item name, and original selling price.", "error")
@@ -10372,6 +10636,9 @@ def it_support_item_edit(item_id: int):
                 selling_price=selling_price,
                 image_path=image_path,
                 stock_qty=stock_qty,
+                website_name=web_fields.get("website_name"),
+                website_description=web_fields.get("website_description"),
+                website_published=bool(web_fields.get("website_published")),
             )
         except Exception:
             ok = False

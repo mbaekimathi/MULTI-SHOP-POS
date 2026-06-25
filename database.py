@@ -3767,6 +3767,17 @@ def init_items_table():
                 cur.execute(
                     "ALTER TABLE items ADD COLUMN reorder_level INT NOT NULL DEFAULT 0 AFTER low_stock_threshold"
                 )
+            if not column_exists("items", "website_name"):
+                cur.execute(
+                    "ALTER TABLE items ADD COLUMN website_name VARCHAR(200) NULL AFTER reorder_level"
+                )
+            if not column_exists("items", "website_description"):
+                cur.execute("ALTER TABLE items ADD COLUMN website_description TEXT NULL AFTER website_name")
+            if not column_exists("items", "website_published"):
+                cur.execute(
+                    "ALTER TABLE items ADD COLUMN website_published TINYINT(1) NOT NULL DEFAULT 1 AFTER website_description"
+                )
+                cur.execute("UPDATE items SET website_published = 1 WHERE website_published IS NULL")
         logger.info("Table items is ready.")
         return True
     except pymysql.Error as e:
@@ -3783,6 +3794,10 @@ def create_item(
     status: str = "active",
     created_by_employee_id: Optional[int] = None,
     selling_price=None,
+    *,
+    website_name: Optional[str] = None,
+    website_description: Optional[str] = None,
+    website_published: bool = True,
 ):
     """``price`` = original selling price (catalog baseline). ``selling_price`` = current POS price (defaults to ``price``)."""
     try:
@@ -3800,9 +3815,10 @@ def create_item(
     INSERT INTO items (
         category, name, description, price, selling_price, image_path,
         stock_qty, stock_update_enabled,
-        status, created_by_employee_id
+        status, created_by_employee_id,
+        website_name, website_description, website_published
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     with get_cursor(commit=True) as cur:
         cur.execute(
@@ -3818,6 +3834,9 @@ def create_item(
                 1,
                 status,
                 created_by_employee_id,
+                (website_name or "").strip() or None,
+                (website_description or "").strip() or None,
+                1 if website_published else 0,
             ),
         )
         return cur.lastrowid
@@ -4023,7 +4042,8 @@ def list_public_equipment_catalog(limit_items: int = 500):
 
 def get_item_by_id(item_id: int):
     sql = """
-    SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status, created_at
+    SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status,
+           website_name, website_description, website_published, created_at
     FROM items
     WHERE id = %s
     LIMIT 1
@@ -4043,10 +4063,14 @@ def update_item(
     selling_price,
     image_path,
     stock_qty,
+    website_name: Optional[str] = None,
+    website_description: Optional[str] = None,
+    website_published: bool = True,
 ):
     sql = """
     UPDATE items
-    SET category=%s, name=%s, description=%s, price=%s, selling_price=%s, image_path=%s, stock_qty=%s
+    SET category=%s, name=%s, description=%s, price=%s, selling_price=%s, image_path=%s, stock_qty=%s,
+        website_name=%s, website_description=%s, website_published=%s
     WHERE id=%s
     """
     with get_cursor(commit=True) as cur:
@@ -4060,6 +4084,9 @@ def update_item(
                 selling_price,
                 image_path,
                 round(float(stock_qty), STOCK_QTY_DECIMAL_PLACES),
+                (website_name or "").strip() or None,
+                (website_description or "").strip() or None,
+                1 if website_published else 0,
                 int(item_id),
             ),
         )
@@ -4383,7 +4410,7 @@ def list_active_catalog_items_for_it_analytics(
 
 
 def _website_item_row_from_db(r: dict) -> dict:
-    """Normalize a DB item row for website/catalog use."""
+    """Normalize a DB item row for website/catalog use (POS fields are fallbacks)."""
     try:
         price = float(r.get("selling_price") if r.get("selling_price") is not None else r.get("price") or 0)
     except (TypeError, ValueError):
@@ -4400,16 +4427,39 @@ def _website_item_row_from_db(r: dict) -> dict:
     if isinstance(ip, bytes):
         ip = ip.decode("utf-8", errors="replace")
     ip = (str(ip).strip() if ip is not None else "") or ""
+    pos_name = (r.get("name") or "").strip() or "Product"
+    web_name = (r.get("website_name") or "").strip()
+    pos_desc = (r.get("description") or "").strip()
+    web_desc = (r.get("website_description") or "").strip()
     return {
         "id": int(r.get("id") or 0),
         "category": (r.get("category") or "").strip() or "General",
-        "name": (r.get("name") or "").strip() or "Product",
-        "description": (r.get("description") or "").strip(),
+        "name": web_name or pos_name,
+        "description": web_desc or pos_desc,
         "price": round(price, 2),
         "original_price": round(orig, 2),
         "image_path": ip,
         "qty_sold": qty_sold,
     }
+
+
+def _website_catalog_item_select_cols(qty_col: str) -> str:
+    return f"""
+        i.id,
+        i.category,
+        i.name,
+        i.description,
+        i.website_name,
+        i.website_description,
+        i.website_published,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        {qty_col} AS qty_sold"""
+
+
+def _website_catalog_published_where() -> str:
+    return " AND COALESCE(i.website_published, 1) = 1"
 
 
 def _website_sales_join_sql() -> tuple[str, str]:
@@ -4433,19 +4483,12 @@ def list_website_featured_products(limit: int = 12) -> list:
     if not table_exists("items"):
         return []
     sales_join, qty_col = _website_sales_join_sql()
+    cols = _website_catalog_item_select_cols(qty_col)
     sql = f"""
-    SELECT
-        i.id,
-        i.category,
-        i.name,
-        i.description,
-        i.price,
-        i.selling_price,
-        i.image_path,
-        {qty_col} AS qty_sold
+    SELECT{cols}
     FROM items i
     {sales_join}
-    WHERE i.status = 'active'
+    WHERE i.status = 'active'{_website_catalog_published_where()}
     ORDER BY {qty_col} DESC, i.name ASC
     LIMIT %s
     """
@@ -4464,19 +4507,12 @@ def list_website_catalog_items(limit: int = 300) -> list:
     if not table_exists("items"):
         return []
     sales_join, qty_col = _website_sales_join_sql()
+    cols = _website_catalog_item_select_cols(qty_col)
     sql = f"""
-    SELECT
-        i.id,
-        i.category,
-        i.name,
-        i.description,
-        i.price,
-        i.selling_price,
-        i.image_path,
-        {qty_col} AS qty_sold
+    SELECT{cols}
     FROM items i
     {sales_join}
-    WHERE i.status = 'active'
+    WHERE i.status = 'active'{_website_catalog_published_where()}
     ORDER BY i.category ASC, i.name ASC
     LIMIT %s
     """
@@ -4487,6 +4523,34 @@ def list_website_catalog_items(limit: int = 300) -> list:
     except Exception:
         rows = []
     return [_website_item_row_from_db(dict(r)) for r in rows if int(dict(r).get("id") or 0) > 0]
+
+
+def get_website_catalog_item(item_id: int) -> dict | None:
+    """Single active catalog item with sales stats (for public product pages)."""
+    try:
+        iid = int(item_id)
+    except (TypeError, ValueError):
+        return None
+    if iid <= 0 or not table_exists("items"):
+        return None
+    sales_join, qty_col = _website_sales_join_sql()
+    cols = _website_catalog_item_select_cols(qty_col)
+    sql = f"""
+    SELECT{cols}
+    FROM items i
+    {sales_join}
+    WHERE i.id = %s AND i.status = 'active'{_website_catalog_published_where()}
+    LIMIT 1
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, (iid,))
+            row = cur.fetchone()
+    except Exception:
+        row = None
+    if not row:
+        return None
+    return _website_item_row_from_db(dict(row))
 
 
 def list_website_products_by_ids(item_ids: list) -> list:
@@ -4507,19 +4571,12 @@ def list_website_products_by_ids(item_ids: list) -> list:
     sales_join, qty_col = _website_sales_join_sql()
     placeholders = ",".join(["%s"] * len(ids))
     field_order = ",".join(str(i) for i in ids)
+    cols = _website_catalog_item_select_cols(qty_col)
     sql = f"""
-    SELECT
-        i.id,
-        i.category,
-        i.name,
-        i.description,
-        i.price,
-        i.selling_price,
-        i.image_path,
-        {qty_col} AS qty_sold
+    SELECT{cols}
     FROM items i
     {sales_join}
-    WHERE i.status = 'active' AND i.id IN ({placeholders})
+    WHERE i.status = 'active'{_website_catalog_published_where()} AND i.id IN ({placeholders})
     ORDER BY FIELD(i.id, {field_order})
     """
     try:

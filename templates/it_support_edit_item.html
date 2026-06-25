@@ -6,7 +6,8 @@
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 sm:p-8">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Edit item</h2>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-        Category, name, and description will be saved in uppercase. Stock quantity can be edited only if stock update is enabled.
+        POS category, name, and description are saved in uppercase for the till.
+        Website listing copy is managed separately in the section below and does not change POS.
       </p>
 
       {% include "partials/flashes.html" %}
@@ -107,6 +108,8 @@
             </div>
           </div>
         </div>
+
+        {% include "partials/it_support_item_website_fields.html" %}
 
         <div class="flex flex-wrap gap-3 pt-2">
           <button
