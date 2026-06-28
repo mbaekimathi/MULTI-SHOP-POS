@@ -1602,7 +1602,7 @@
               <div class="min-w-0 flex-1">
                 <p class="pos-stockin-header__eyebrow">Stock in</p>
                 <h3 id="pos-stockin-title" class="pos-stockin-header__title line-clamp-2 font-black uppercase tracking-wide">Buy and stock in item</h3>
-                <p id="pos-stockin-subtitle" class="pos-stockin-header__subtitle mt-1 line-clamp-2 sm:mt-1.5">Search or pick an item, then fill stock-in details.</p>
+                <p id="pos-stockin-subtitle" class="pos-stockin-header__subtitle mt-1 line-clamp-2 sm:mt-1.5">Select items on each row, fill details, then enter the employee code to save.</p>
               </div>
             </div>
             <button type="button" id="pos-stockin-close" class="pos-stockin-header__close shrink-0 rounded-lg border px-3 py-2 text-xs font-bold sm:py-1.5">Close</button>
@@ -1630,90 +1630,75 @@
               showing registered <strong>store stock items</strong>. These shelf SKUs are tracked separately and do not appear on the POS selling grid.
             </div>
           {% endif %}
-          <div id="pos-stockin-stock-fields" class="contents">
-          <div class="sm:col-span-2 relative">
-            <label for="pos-stockin-item-input" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
-              {% if is_store_stock_mode %}Store stock item{% else %}Item{% endif %}
-            </label>
-            <div class="flex">
-              <input
-                id="pos-stockin-item-input"
-                type="search"
-                autocomplete="off"
-                placeholder="{% if is_store_stock_mode %}Search or pick store stock item…{% else %}Search or pick item…{% endif %}"
-                class="min-w-0 flex-1 rounded-l-xl border border-r-0 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:z-10"
-              />
-              <button
-                type="button"
-                id="pos-stockin-item-list-toggle"
-                class="flex shrink-0 items-center rounded-r-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 text-sm font-bold text-[rgb(var(--rc-muted))] outline-none hover:bg-[rgb(var(--rc-surface))]"
-                aria-label="{% if is_store_stock_mode %}Show all store stock items{% else %}Show all items{% endif %}"
-                title="{% if is_store_stock_mode %}Show all store stock items{% else %}Show all items{% endif %}"
-              >▾</button>
-            </div>
-            <select id="pos-stockin-item-id" name="item_id" class="sr-only" tabindex="-1" aria-hidden="true">
-              <option value="">
-                {% if is_store_stock_mode %}Select store stock item{% else %}Select item{% endif %}
+          <select id="pos-stockin-item-id" name="item_id" class="sr-only" tabindex="-1" aria-hidden="true">
+            <option value="">
+              {% if is_store_stock_mode %}Select store stock item{% else %}Select item{% endif %}
+            </option>
+            {% for it in (buy_items_catalog or items) %}
+              <option
+                value="{{ it.id }}"
+                data-search="{{ ((it.name or '') ~ ' ' ~ (it.category or '') ~ ' ' ~ (it.measure_unit or ''))|lower|e }}"
+              >
+                {{ it.name }}{% if it.category %} — {{ it.category }}{% endif %}{% if is_store_stock_mode and it.measure_unit %} · {{ (it.measure_unit or '')|upper }}{% endif %}
               </option>
-              {% for it in (buy_items_catalog or items) %}
-                <option
-                  value="{{ it.id }}"
-                  data-search="{{ ((it.name or '') ~ ' ' ~ (it.category or '') ~ ' ' ~ (it.measure_unit or ''))|lower|e }}"
-                >
-                  {{ it.name }}{% if it.category %} — {{ it.category }}{% endif %}{% if is_store_stock_mode and it.measure_unit %} · {{ (it.measure_unit or '')|upper }}{% endif %}
-                </option>
-              {% endfor %}
-            </select>
-            <div id="pos-stockin-item-suggest" class="pos-form-dialog__suggest absolute z-20 mt-1 hidden w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
-            {% if is_store_stock_mode and not (buy_items_catalog or []) %}
-              <p class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]">No registered store stock items yet for this shop. Register from IT support → Register stock item.</p>
-            {% endif %}
-          </div>
-          <div class="pos-stockin-qty-price-row contents">
-          <div>
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
-            <input id="pos-stockin-qty" name="qty" type="number" min="0.0001" step="any" inputmode="decimal" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
-          </div>
-          <div>
-            <label id="pos-stockin-price-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Buying price</label>
-            <input id="pos-stockin-buying-price" name="buying_price" type="number" min="0" step="0.01" required class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
-            <input id="pos-stockin-unit-price" name="unit_price" type="hidden" value="" />
-          </div>
-          <div id="pos-stockin-total-wrap" class="hidden">
-            <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total</label>
-            <div id="pos-stockin-total-display" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">0.00</div>
-          </div>
-          </div>
-          </div>
-          <div id="pos-stockin-expense-fields" class="contents hidden">
-            <div class="sm:col-span-2 relative">
-              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense name</label>
-              <div class="flex">
-                <input id="pos-stockin-expense-name" name="expense_name" autocomplete="off" class="pos-stockin-upper min-w-0 flex-1 rounded-l-xl border border-r-0 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none focus:z-10" placeholder="SEARCH, PICK, OR TYPE NEW" />
-                <button type="button" id="pos-stockin-expense-list-toggle" class="flex shrink-0 items-center rounded-r-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 text-sm font-bold text-[rgb(var(--rc-muted))] outline-none hover:bg-[rgb(var(--rc-surface))]" aria-label="Show all expenses" title="Show all expenses">▾</button>
+            {% endfor %}
+          </select>
+          {% if is_store_stock_mode and not (buy_items_catalog or []) %}
+            <p class="sm:col-span-2 text-[11px] text-[rgb(var(--rc-muted))]">No registered store stock items yet for this shop. Register from IT support → Register stock item.</p>
+          {% endif %}
+          <div id="pos-stockin-lines-section" class="pos-stockin-lines-section sm:col-span-2">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <p class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                <span id="pos-stockin-lines-label">Items</span>
+                <span class="font-normal normal-case tracking-normal text-[rgb(var(--rc-muted))]"> — select item and fill details on each row</span>
+              </p>
+              <p id="pos-stockin-lines-total" class="text-xs font-bold tabular-nums text-[rgb(var(--rc-page-fg))]"></p>
+            </div>
+            <div id="pos-stockin-stock-lines" class="pos-stockin-lines-table-host relative">
+              <div class="pos-stockin-lines-scroll overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+                <table class="pos-stockin-lines-table w-full min-w-[34rem] border-collapse text-left text-xs">
+                  <thead>
+                    <tr class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                      <th class="px-2 py-2">{% if is_store_stock_mode %}Store stock item{% else %}Item{% endif %}</th>
+                      <th class="px-2 py-2 w-[5.5rem]">Qty</th>
+                      <th class="px-2 py-2 w-[6.5rem]">Buying price</th>
+                      <th class="px-2 py-2 w-[5.5rem]">Total</th>
+                      <th class="px-2 py-2 w-9"><span class="sr-only">Remove</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="pos-stockin-stock-lines-body"></tbody>
+                </table>
               </div>
-              <div id="pos-stockin-expense-name-suggest" class="pos-form-dialog__suggest absolute z-20 mt-1 hidden w-full overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
+              <div id="pos-stockin-item-suggest" class="pos-form-dialog__suggest pos-stockin-row-suggest absolute z-30 hidden w-full max-w-md overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
             </div>
-            <div>
-              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Expense category</label>
-              <input id="pos-stockin-expense-category" name="expense_category" list="pos-stockin-expense-category-list" autocomplete="off" class="pos-stockin-upper w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm uppercase outline-none" placeholder="E.G. UTILITIES" />
-              <datalist id="pos-stockin-expense-category-list"></datalist>
+            <div id="pos-stockin-expense-lines" class="pos-stockin-lines-table-host relative hidden">
+              <div class="pos-stockin-lines-scroll overflow-x-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+                <table class="pos-stockin-lines-table w-full min-w-[40rem] border-collapse text-left text-xs">
+                  <thead>
+                    <tr class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
+                      <th class="px-2 py-2">Expense name</th>
+                      <th class="px-2 py-2 w-[8rem]">Category</th>
+                      <th class="px-2 py-2 w-[5.5rem]">Qty</th>
+                      <th class="px-2 py-2 w-[6.5rem]">Unit price</th>
+                      <th class="px-2 py-2 w-[5.5rem]">Total</th>
+                      <th class="px-2 py-2 w-9"><span class="sr-only">Remove</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="pos-stockin-expense-lines-body"></tbody>
+                </table>
+              </div>
+              <div id="pos-stockin-expense-name-suggest" class="pos-form-dialog__suggest pos-stockin-row-suggest absolute z-30 hidden w-full max-w-md overflow-auto rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-lg"></div>
             </div>
-            <div class="pos-stockin-expense-qty-price-row contents">
-            <div>
-              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Quantity</label>
-              <input id="pos-stockin-expense-qty" type="number" min="0.0001" step="any" inputmode="decimal" required class="pos-stockin-expense-qty-sync w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="e.g. 1 or 0.15" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Unit price</label>
-              <input id="pos-stockin-expense-unit-price-input" type="number" min="0" step="0.01" required class="pos-stockin-expense-price-sync w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total</label>
-              <div id="pos-stockin-expense-total-display" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm font-bold tabular-nums text-[rgb(var(--rc-page-fg))]">0.00</div>
-            </div>
-            </div>
+            <button
+              type="button"
+              id="pos-stockin-add-line"
+              class="mt-2 w-full rounded-xl border-2 border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] transition hover:border-[rgb(var(--rc-primary))]/50 hover:bg-[rgb(var(--rc-primary))]/5"
+            >
+              + Add row
+            </button>
           </div>
+          <datalist id="pos-stockin-expense-category-list"></datalist>
+          <input type="hidden" name="lines_json" id="pos-stockin-lines-json" value="" />
           <div id="pos-stockin-seller-fields" class="contents">
           <div>
             <label id="pos-stockin-seller-phone-label" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller phone</label>
@@ -1743,7 +1728,7 @@
           <div class="sm:col-span-2 border-t border-[rgb(var(--rc-border))] pt-3">
             <p class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee who recorded this</p>
             <p class="mt-0.5 text-[11px] leading-snug text-[rgb(var(--rc-muted))]">
-              Enter the 6-digit employee code last — when the code is valid, stock-in saves automatically.
+              Fill each row in the list, then enter the 6-digit employee code — when valid, all rows save automatically.
             </p>
             <label
               id="pos-stockin-print-receipt-row"

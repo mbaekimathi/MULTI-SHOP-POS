@@ -30,7 +30,7 @@
 
     <div class="shop-mgmt-table-wrap mt-3 overflow-x-auto">
 
-      <table class="sa-stock-data-table min-w-[28rem] w-full text-sm">
+      <table class="sa-stock-data-table min-w-[32rem] w-full text-sm">
 
         <thead>
 
@@ -49,6 +49,8 @@
             <th class="text-left">Status</th>
 
             <th class="text-left">Time</th>
+
+            <th class="text-left">Actions</th>
 
           </tr>
 
@@ -70,9 +72,33 @@
 
               <td class="text-right tabular-nums">{{ r.qty }}</td>
 
-              <td class="whitespace-nowrap {% if r.status == 'approved' %}text-emerald-400{% elif r.status == 'rejected' %}text-rose-400{% else %}text-amber-400{% endif %}">{{ r.status }}</td>
+              <td class="whitespace-nowrap {% if r.status == 'approved' %}text-emerald-400{% elif r.status == 'rejected' %}text-rose-400{% elif r.status == 'expired' %}text-slate-400{% else %}text-amber-400{% endif %}">{{ r.status }}</td>
 
               <td class="whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+
+              <td class="whitespace-nowrap">
+
+                {% if r.status == 'pending' and r.requesting_shop_id == shop.id %}
+
+                  <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view|default('auto')) }}" class="inline" onsubmit="return confirm('Cancel this pending request?');">
+
+                    <input type="hidden" name="action" value="cancel_stock_request" />
+
+                    <input type="hidden" name="request_id" value="{{ r.id }}" />
+
+                    <input type="hidden" name="view" value="{{ view|default('auto') }}" />
+
+                    <button type="submit" class="text-[10px] font-bold uppercase tracking-wider text-rose-400 underline-offset-2 hover:underline">Cancel</button>
+
+                  </form>
+
+                {% else %}
+
+                  <span class="text-[rgb(var(--rc-muted))]">—</span>
+
+                {% endif %}
+
+              </td>
 
             </tr>
 
@@ -89,4 +115,3 @@
   {% endif %}
 
 </section>
-

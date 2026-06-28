@@ -482,7 +482,7 @@
   })();
 </script>
 
-{% if view == 'auto' %}
+{% if (items or [])|length %}
 <script>
   (function () {
     var form = document.getElementById("js-batch-request-stock-form");
@@ -497,6 +497,11 @@
     var showNotesToggle = document.getElementById("js-request-stock-show-notes");
     var sharedNoteWrap = form.querySelector(".js-request-stock-shared-note-wrap");
     var sharedNoteInput = document.getElementById("js-request-stock-batch-note");
+    var searchInput = document.getElementById("js-batch-request-stock-search");
+    var visibleCountEl = document.getElementById("js-stock-visible-count");
+    var linesCountEl = document.getElementById("js-request-stock-lines-count");
+    var submitCountEl = document.getElementById("js-request-stock-submit-count");
+    var clearQtyBtn = document.getElementById("js-request-stock-clear-qty");
 
     function notesRequiredBySettings() {
       return window.shopStockWsRequired("require_request_stock_notes");
@@ -531,6 +536,45 @@
       syncRequestCatColspan();
     }
 
+    function countLinesWithQty() {
+      var n = 0;
+      form.querySelectorAll(".js-request-stock-qty").forEach(function (input) {
+        var raw = String(input.value || "").trim();
+        if (!raw) return;
+        var qty = parseFloat(raw.replace(",", "."));
+        if (isFinite(qty) && qty > 0) n += 1;
+      });
+      return n;
+    }
+
+    function syncLineCounts() {
+      var n = countLinesWithQty();
+      if (linesCountEl) linesCountEl.textContent = String(n);
+      if (submitCountEl) submitCountEl.textContent = String(n);
+    }
+
+    function syncBatchSearch() {
+      if (!searchInput) return;
+      var q = (searchInput.value || "").trim().toLowerCase();
+      var visible = 0;
+      var visibleByCat = {};
+      form.querySelectorAll(".js-batch-request-stock-row").forEach(function (row) {
+        var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
+        var show = !q || hay.indexOf(q) !== -1;
+        row.style.display = show ? "" : "none";
+        if (show) {
+          visible += 1;
+          var catKey = String(row.getAttribute("data-stock-category") || "");
+          if (catKey) visibleByCat[catKey] = true;
+        }
+      });
+      form.querySelectorAll(".js-request-stock-cat-row").forEach(function (catRow) {
+        var catKey = String(catRow.getAttribute("data-cat") || "");
+        catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
+      });
+      if (visibleCountEl) visibleCountEl.textContent = String(visible);
+    }
+
     if (showNotesToggle) {
       showNotesToggle.addEventListener("change", function () {
         if (notesRequiredBySettings()) return;
@@ -544,6 +588,23 @@
       }
     } else if (notesRequiredBySettings()) {
       syncNotesVisible(true);
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener("input", syncBatchSearch);
+      syncBatchSearch();
+    }
+
+    form.querySelectorAll(".js-request-stock-qty").forEach(function (input) {
+      input.addEventListener("input", syncLineCounts);
+    });
+    syncLineCounts();
+
+    if (clearQtyBtn) {
+      clearQtyBtn.addEventListener("click", function () {
+        form.querySelectorAll(".js-request-stock-qty").forEach(function (input) { input.value = ""; });
+        syncLineCounts();
+      });
     }
 
     function currentSourceLabel() {
@@ -561,7 +622,7 @@
       var text = String(label || "Source").trim() || "Source";
       if (heading) heading.textContent = text;
       if (hint) {
-        hint.textContent = "Requests are limited by stock at " + text + " (first stock column). "
+        hint.textContent = "Requests are limited by available stock at " + text + " (first stock column; pending requests reduce availability). "
           + sessionShopLabel + " shows this shop's current shelf stock.";
       }
       sourceCells.forEach(function (cell) {
@@ -608,7 +669,7 @@
       var rows = [];
       var sourceLabel = currentSourceLabel();
       var sharedNoteVal = String((sharedNoteInput && sharedNoteInput.value) || "").trim();
-      form.querySelectorAll(".js-stock-row").forEach(function (row) {
+      form.querySelectorAll(".js-batch-request-stock-row").forEach(function (row) {
         var qtyInput = row.querySelector(".js-request-stock-qty");
         if (!qtyInput) return;
         var raw = String(qtyInput.value || "").trim();
@@ -617,6 +678,18 @@
         if (!isFinite(qty) || !(qty > 0)) {
           issues.push("Enter valid positive quantity for " + (row.querySelector("td") || row).textContent.trim() + ".");
           return;
+        }
+        var sourceCell = row.querySelector(".js-source-stock-cell");
+        if (sourceCell) {
+          var availRaw = String(sourceCell.textContent || "").trim().replace(",", ".");
+          var avail = parseFloat(availRaw);
+          if (isFinite(avail) && qty > avail + 1e-9) {
+            issues.push(
+              (row.querySelector("td") ? row.querySelector("td").textContent.trim() : "Item")
+                + ": qty " + raw + " exceeds available " + availRaw + " at " + sourceLabel + "."
+            );
+            return;
+          }
         }
         var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
         if (notesEnabled()) {
@@ -634,10 +707,10 @@
         }
         rows.push(rowData);
       });
-      if (!rows.length && !issues.length) issues.push("Enter quantity on at least one line before submitting.");
+      if (!rows.length && !issues.length) issues.push("Enter quantity on at least one item before submitting.");
       if (issues.length) {
         ev.preventDefault();
-        window.alert(issues.slice(0, 6).join("\n") + (issues.length > 6 ? "\n..." : ""));
+        window.alert(issues.slice(0, 8).join("\n") + (issues.length > 8 ? "\n..." : ""));
         return;
       }
       ev.preventDefault();
@@ -650,10 +723,10 @@
       if (notesEnabled()) confirmColumns.push({ label: "Note", key: "note" });
       shopStockShowSubmitConfirm(form, {
         title: "Confirm stock requests",
-        subtitle: "These requests will be sent for approval.",
+        subtitle: rows.length + " item(s) will be submitted for approval.",
         columns: confirmColumns,
         rows: rows,
-        confirmLabel: "Submit requests",
+        confirmLabel: "Submit " + rows.length + " request(s)",
         confirmClass: "btn-rc-primary"
       });
     });

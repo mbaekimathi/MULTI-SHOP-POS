@@ -1,0 +1,58 @@
+{# Employee portal inactivity sign-out — expects employee_session_idle_settings as ess #}
+{% set ess = employee_session_idle_settings if employee_session_idle_settings is defined else {} %}
+<div class="mb-8 border-b border-[rgb(var(--rc-border))] pb-8">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="max-w-2xl">
+      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Employee session timeout</h3>
+      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+        Automatically sign employees out of the back-office portal after a period of inactivity.
+        Shop till and POS screens are not affected.
+      </p>
+    </div>
+    <label class="inline-flex items-center gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5">
+      <span class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Enable auto sign-out</span>
+      <input
+        type="checkbox"
+        name="employee_session_idle_enabled"
+        value="1"
+        id="employee_session_idle_enabled"
+        class="rc-receipt-switch"
+        {% if ess.enabled %}checked{% endif %}
+      />
+    </label>
+  </div>
+
+  <div
+    id="employee-session-idle-settings-fields"
+    class="mt-6 grid gap-4 md:grid-cols-2{% if not ess.enabled %} hidden{% endif %}"
+  >
+    <div>
+      <label
+        for="employee_session_idle_minutes"
+        class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]"
+      >
+        Inactivity timeout (minutes)
+      </label>
+      <input
+        type="number"
+        name="employee_session_idle_minutes"
+        id="employee_session_idle_minutes"
+        min="1"
+        max="480"
+        step="1"
+        inputmode="numeric"
+        class="w-full max-w-xs rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+        value="{{ ess.idle_minutes|default(5) }}"
+      />
+      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+        Employees see a warning one minute before sign-out (or 15 seconds for very short timeouts).
+      </p>
+    </div>
+    <div class="flex items-end">
+      <p class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-4 py-3 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+        Applies to the employee portal only — dashboard, stock, HR, analytics, and similar pages.
+        Active selling on shop POS is excluded so tills are not interrupted.
+      </p>
+    </div>
+  </div>
+</div>

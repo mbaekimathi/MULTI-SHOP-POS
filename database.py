@@ -15625,8 +15625,13 @@ def get_request_source_stock_snapshot(
                     f"SELECT id, stock_qty FROM items WHERE id IN ({placeholders})",
                     tuple(item_ids),
                 )
+                pending_map = _pending_outbound_qty_map_for_source(
+                    cur, item_ids=item_ids, source_type="company", source_shop_id=None
+                )
                 for r in cur.fetchall() or []:
-                    out[int(r["id"])] = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    iid = int(r["id"])
+                    physical = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                    out[iid] = _available_qty_after_pending(physical, pending_map.get(iid, 0.0))
         except pymysql.Error:
             out = {iid: 0.0 for iid in item_ids}
         for iid in item_ids:
@@ -15657,8 +15662,16 @@ def get_request_source_stock_snapshot(
                 """,
                 tuple([int(source_shop_id)] + item_ids),
             )
+            pending_map = _pending_outbound_qty_map_for_source(
+                cur,
+                item_ids=item_ids,
+                source_type="shop",
+                source_shop_id=int(source_shop_id),
+            )
             for r in cur.fetchall() or []:
-                out[int(r["item_id"])] = round(float(r.get("q") or 0), STOCK_QTY_DECIMAL_PLACES)
+                iid = int(r["item_id"])
+                physical = round(float(r.get("q") or 0), STOCK_QTY_DECIMAL_PLACES)
+                out[iid] = _available_qty_after_pending(physical, pending_map.get(iid, 0.0))
     except pymysql.Error:
         out = {}
     for iid in item_ids:
@@ -20565,6 +20578,205 @@ def count_notifications_for_session(*, employee_id: Optional[int], shop_id: Opti
         return 0
 
 
+def _stock_request_has_request_type_col() -> bool:
+    return column_exists("shop_stock_requests", "request_type")
+
+
+def _admin_stock_approval_queue_sql(*, alias: str = "r") -> str:
+    """Pending rows company admins should action (company source or returns), not inter-shop."""
+    a = (alias or "r").strip() or "r"
+    if _stock_request_has_request_type_col():
+        return (
+            f" AND (COALESCE({a}.request_type, 'stock_in') = 'return_to_company'"
+            f" OR {a}.source_type = 'company')"
+        )
+    return f" AND {a}.source_type = 'company'"
+
+
+def _sum_pending_outbound_qty_for_source(
+    cur,
+    *,
+    item_id: int,
+    source_type: str,
+    source_shop_id: Optional[int],
+    exclude_request_id: Optional[int] = None,
+) -> float:
+    """Sum qty reserved by pending stock_in requests drawing from company or a source shop."""
+    source_type = (source_type or "").strip().lower()
+    item_id = int(item_id)
+    if source_type == "company":
+        sql = """
+            SELECT COALESCE(SUM(qty), 0) AS s
+            FROM shop_stock_requests
+            WHERE status = 'pending' AND source_type = 'company' AND item_id = %s
+        """
+        params: list = [item_id]
+        if _stock_request_has_request_type_col():
+            sql += " AND COALESCE(request_type, 'stock_in') = 'stock_in'"
+    elif source_type == "shop":
+        sql = """
+            SELECT COALESCE(SUM(qty), 0) AS s
+            FROM shop_stock_requests
+            WHERE status = 'pending' AND source_type = 'shop' AND source_shop_id = %s AND item_id = %s
+        """
+        params = [int(source_shop_id or 0), item_id]
+        if _stock_request_has_request_type_col():
+            sql += " AND COALESCE(request_type, 'stock_in') = 'stock_in'"
+    else:
+        return 0.0
+    if exclude_request_id:
+        sql += " AND id <> %s"
+        params.append(int(exclude_request_id))
+    cur.execute(sql, tuple(params))
+    row = cur.fetchone() or {}
+    return round(float(row.get("s") or 0), STOCK_QTY_DECIMAL_PLACES)
+
+
+def _sum_pending_return_qty_from_shop(
+    cur,
+    *,
+    shop_id: int,
+    item_id: int,
+    exclude_request_id: Optional[int] = None,
+) -> float:
+    """Sum qty reserved by pending return_to_company requests from a shop."""
+    if not _stock_request_has_request_type_col():
+        return 0.0
+    shop_id = int(shop_id)
+    item_id = int(item_id)
+    sql = """
+        SELECT COALESCE(SUM(qty), 0) AS s
+        FROM shop_stock_requests
+        WHERE status = 'pending'
+          AND COALESCE(request_type, 'stock_in') = 'return_to_company'
+          AND requesting_shop_id = %s
+          AND item_id = %s
+    """
+    params: list = [shop_id, item_id]
+    if exclude_request_id:
+        sql += " AND id <> %s"
+        params.append(int(exclude_request_id))
+    cur.execute(sql, tuple(params))
+    row = cur.fetchone() or {}
+    return round(float(row.get("s") or 0), STOCK_QTY_DECIMAL_PLACES)
+
+
+def _pending_outbound_qty_map_for_source(
+    cur,
+    *,
+    item_ids: list,
+    source_type: str,
+    source_shop_id: Optional[int],
+) -> dict:
+    """Map item_id -> reserved pending outbound qty for a batch of items."""
+    ids = [int(i) for i in (item_ids or []) if int(i or 0) > 0]
+    if not ids:
+        return {}
+    source_type = (source_type or "").strip().lower()
+    placeholders = ",".join(["%s"] * len(ids))
+    if source_type == "company":
+        sql = f"""
+            SELECT item_id, COALESCE(SUM(qty), 0) AS s
+            FROM shop_stock_requests
+            WHERE status = 'pending' AND source_type = 'company' AND item_id IN ({placeholders})
+        """
+        params: list = list(ids)
+        if _stock_request_has_request_type_col():
+            sql += " AND COALESCE(request_type, 'stock_in') = 'stock_in'"
+        sql += " GROUP BY item_id"
+    elif source_type == "shop":
+        sql = f"""
+            SELECT item_id, COALESCE(SUM(qty), 0) AS s
+            FROM shop_stock_requests
+            WHERE status = 'pending' AND source_type = 'shop' AND source_shop_id = %s
+              AND item_id IN ({placeholders})
+        """
+        params = [int(source_shop_id or 0)] + ids
+        if _stock_request_has_request_type_col():
+            sql += " AND COALESCE(request_type, 'stock_in') = 'stock_in'"
+        sql += " GROUP BY item_id"
+    else:
+        return {}
+    cur.execute(sql, tuple(params))
+    out: dict = {}
+    for r in cur.fetchall() or []:
+        out[int(r["item_id"])] = round(float(r.get("s") or 0), STOCK_QTY_DECIMAL_PLACES)
+    return out
+
+
+def _available_qty_after_pending(
+    physical_qty: float,
+    pending_reserved: float,
+) -> float:
+    return round(
+        max(0.0, round(float(physical_qty or 0), STOCK_QTY_DECIMAL_PLACES) - round(float(pending_reserved or 0), STOCK_QTY_DECIMAL_PLACES)),
+        STOCK_QTY_DECIMAL_PLACES,
+    )
+
+
+def _find_pending_stock_request_duplicate(
+    cur,
+    *,
+    requesting_shop_id: int,
+    request_type: str,
+    source_type: str,
+    source_shop_id: Optional[int],
+    item_id: int,
+) -> Optional[dict]:
+    """Return pending duplicate row if the same shop already has an open request for this line."""
+    requesting_shop_id = int(requesting_shop_id)
+    item_id = int(item_id)
+    request_type = (request_type or "stock_in").strip().lower()
+    source_type = (source_type or "").strip().lower()
+    has_rt = _stock_request_has_request_type_col()
+    if has_rt:
+        cur.execute(
+            """
+            SELECT id, qty, note
+            FROM shop_stock_requests
+            WHERE status = 'pending'
+              AND requesting_shop_id = %s
+              AND request_type = %s
+              AND source_type = %s
+              AND item_id = %s
+              AND (source_shop_id <=> %s)
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (
+                requesting_shop_id,
+                request_type,
+                source_type,
+                item_id,
+                int(source_shop_id) if source_shop_id else None,
+            ),
+        )
+    else:
+        if request_type == "return_to_company":
+            return None
+        cur.execute(
+            """
+            SELECT id, qty, note
+            FROM shop_stock_requests
+            WHERE status = 'pending'
+              AND requesting_shop_id = %s
+              AND source_type = %s
+              AND item_id = %s
+              AND (source_shop_id <=> %s)
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (
+                requesting_shop_id,
+                source_type,
+                item_id,
+                int(source_shop_id) if source_shop_id else None,
+            ),
+        )
+    row = cur.fetchone()
+    return dict(row) if row else None
+
+
 def list_shop_stock_request_alerts_for_shop(*, shop_id: int, limit: int = 20):
     """Outcome alerts for a shop that submitted stock requests (approved or cancelled)."""
     shop_id = int(shop_id)
@@ -20597,16 +20809,20 @@ def create_shop_stock_request(
     qty,
     note: Optional[str] = None,
     requested_by_employee_id: Optional[int] = None,
-) -> Optional[int]:
+) -> Tuple[Optional[int], str]:
+    """
+    Create or merge into a pending stock request.
+    Returns (request_id, status_tag) where status_tag is '' (new), 'merged', or an error code.
+    """
     request_type = (request_type or "stock_in").strip().lower()
     if request_type not in ("stock_in", "return_to_company"):
-        return None
+        return None, "invalid"
     source_type = (source_type or "").strip().lower()
     if source_type not in ("company", "shop"):
-        return None
+        return None, "invalid"
     qty = normalize_stock_move_qty(qty)
     if qty is None:
-        return None
+        return None, "invalid_qty"
     requesting_shop_id = int(requesting_shop_id)
     item_id = int(item_id)
     if request_type == "return_to_company":
@@ -20616,15 +20832,36 @@ def create_shop_stock_request(
         source_shop_id = None
     else:
         if not source_shop_id:
-            return None
+            return None, "invalid"
         source_shop_id = int(source_shop_id)
         if source_shop_id == requesting_shop_id:
-            return None
+            return None, "invalid"
+    note_clean = (note or "").strip()[:255] or None
     try:
         with get_cursor(commit=True) as cur:
             cur.execute("SELECT id FROM shops WHERE id=%s LIMIT 1", (requesting_shop_id,))
             if not cur.fetchone():
-                return None
+                return None, "invalid"
+
+            duplicate = _find_pending_stock_request_duplicate(
+                cur,
+                requesting_shop_id=requesting_shop_id,
+                request_type=request_type,
+                source_type=source_type,
+                source_shop_id=source_shop_id,
+                item_id=item_id,
+            )
+            eff_qty = qty
+            merge_rid: Optional[int] = None
+            if duplicate:
+                merge_rid = int(duplicate.get("id") or 0) or None
+                if not merge_rid:
+                    return None, "invalid"
+                eff_qty = round(
+                    float(duplicate.get("qty") or 0) + float(qty),
+                    STOCK_QTY_DECIMAL_PLACES,
+                )
+
             if request_type == "return_to_company":
                 cur.execute(
                     f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
@@ -20632,22 +20869,37 @@ def create_shop_stock_request(
                 )
                 src = cur.fetchone()
                 if not src or not _shop_item_physical_stock_tracking_ok(src, shop_id=requesting_shop_id):
-                    return None
-                if round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < qty:
-                    return None
+                    return None, "unavailable"
+                physical = round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                pending = _sum_pending_return_qty_from_shop(
+                    cur,
+                    shop_id=requesting_shop_id,
+                    item_id=item_id,
+                    exclude_request_id=merge_rid,
+                )
+                if _available_qty_after_pending(physical, pending) < eff_qty:
+                    return None, "insufficient_stock"
             elif source_type == "shop":
                 cur.execute("SELECT id FROM shops WHERE id=%s LIMIT 1", (source_shop_id,))
                 if not cur.fetchone():
-                    return None
+                    return None, "invalid"
                 cur.execute(
                     f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
                     (source_shop_id, item_id),
                 )
                 src = cur.fetchone()
                 if not src or not _shop_item_physical_stock_tracking_ok(src, shop_id=int(source_shop_id or 0)):
-                    return None
-                if round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < qty:
-                    return None
+                    return None, "unavailable"
+                physical = round(float(src.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                pending = _sum_pending_outbound_qty_for_source(
+                    cur,
+                    item_id=item_id,
+                    source_type="shop",
+                    source_shop_id=source_shop_id,
+                    exclude_request_id=merge_rid,
+                )
+                if _available_qty_after_pending(physical, pending) < eff_qty:
+                    return None, "insufficient_stock"
             else:
                 cur.execute(
                     f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
@@ -20655,13 +20907,52 @@ def create_shop_stock_request(
                 )
                 dst_si = cur.fetchone()
                 if not dst_si or not _shop_item_physical_stock_tracking_ok(dst_si, shop_id=requesting_shop_id):
-                    return None
+                    return None, "unavailable"
                 cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
                 item = cur.fetchone()
                 if not item or item.get("status") != "active":
-                    return None
-                if round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < qty:
-                    return None
+                    return None, "unavailable"
+                physical = round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+                pending = _sum_pending_outbound_qty_for_source(
+                    cur,
+                    item_id=item_id,
+                    source_type="company",
+                    source_shop_id=None,
+                    exclude_request_id=merge_rid,
+                )
+                if _available_qty_after_pending(physical, pending) < eff_qty:
+                    return None, "insufficient_stock"
+
+            if merge_rid:
+                merged_note = note_clean
+                prev_note = (duplicate.get("note") or "").strip() if duplicate else ""
+                if note_clean and prev_note and note_clean != prev_note:
+                    merged_note = (prev_note + "; " + note_clean)[:255]
+                elif prev_note and not note_clean:
+                    merged_note = prev_note[:255] or None
+                cur.execute(
+                    "UPDATE shop_stock_requests SET qty=%s, note=%s WHERE id=%s AND status='pending'",
+                    (eff_qty, merged_note, merge_rid),
+                )
+                if not cur.rowcount:
+                    return None, "invalid"
+                _insert_stock_request_event_row(
+                    cur,
+                    request_id=merge_rid,
+                    event_type="merged",
+                    actor_employee_id=int(requested_by_employee_id) if requested_by_employee_id else None,
+                    actor_shop_id=requesting_shop_id,
+                    payload={
+                        "added_qty": qty,
+                        "new_qty": eff_qty,
+                        "request_type": request_type,
+                        "source_type": source_type,
+                        "source_shop_id": source_shop_id,
+                        "item_id": item_id,
+                    },
+                )
+                return merge_rid, "merged"
+
             has_request_type = column_exists("shop_stock_requests", "request_type")
             if has_request_type:
                 cur.execute(
@@ -20677,12 +20968,11 @@ def create_shop_stock_request(
                         source_shop_id,
                         item_id,
                         qty,
-                        (note or "").strip()[:255] or None,
+                        note_clean,
                         int(requested_by_employee_id) if requested_by_employee_id else None,
                     ),
                 )
             else:
-                # Backward-compatible path before request_type migration is applied.
                 cur.execute(
                     """
                     INSERT INTO shop_stock_requests
@@ -20695,7 +20985,7 @@ def create_shop_stock_request(
                         source_shop_id,
                         item_id,
                         qty,
-                        (note or "").strip()[:255] or None,
+                        note_clean,
                         int(requested_by_employee_id) if requested_by_employee_id else None,
                     ),
                 )
@@ -20715,9 +21005,65 @@ def create_shop_stock_request(
                         "qty": qty,
                     },
                 )
-            return rid
+            return rid, ""
     except pymysql.Error:
-        return None
+        return None, "error"
+
+
+def cancel_stock_request_by_requester(
+    *,
+    request_id: int,
+    requesting_shop_id: int,
+    employee_id: Optional[int] = None,
+) -> Tuple[bool, str]:
+    """Allow the requesting shop to withdraw a pending request."""
+    request_id = int(request_id)
+    requesting_shop_id = int(requesting_shop_id)
+    if request_id <= 0 or requesting_shop_id <= 0:
+        return False, "Invalid request."
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                SELECT id, requesting_shop_id, status
+                FROM shop_stock_requests
+                WHERE id=%s
+                FOR UPDATE
+                """,
+                (request_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False, "Request not found."
+            if int(row.get("requesting_shop_id") or 0) != requesting_shop_id:
+                return False, "You can only cancel requests submitted by your shop."
+            if (row.get("status") or "").lower() != "pending":
+                return False, "This request is no longer pending."
+            cur.execute(
+                """
+                UPDATE shop_stock_requests
+                SET status='rejected', reviewed_by_employee_id=%s, review_note=%s, reviewed_at=NOW()
+                WHERE id=%s AND status='pending'
+                """,
+                (
+                    int(employee_id) if employee_id else None,
+                    "Cancelled by requester",
+                    request_id,
+                ),
+            )
+            if not cur.rowcount:
+                return False, "Could not cancel this request."
+            _insert_stock_request_event_row(
+                cur,
+                request_id=request_id,
+                event_type="cancelled",
+                actor_employee_id=int(employee_id) if employee_id else None,
+                actor_shop_id=requesting_shop_id,
+                payload={"reason": "cancelled_by_requester"},
+            )
+            return True, ""
+    except pymysql.Error:
+        return False, "Something went wrong. Please try again."
 
 
 def list_stock_requests_for_session(
@@ -20745,6 +21091,9 @@ def list_stock_requests_for_session(
                 if column_exists("shop_stock_requests", "request_type"):
                     approval_sql += " AND COALESCE(r.request_type, 'stock_in') <> 'return_to_company'"
                 approval_params = (int(viewer_shop_id or 0),)
+            elif approval_queue_only and is_admin:
+                approval_sql = _admin_stock_approval_queue_sql(alias="r")
+                approval_params = ()
             else:
                 approval_sql = ""
                 approval_params = ()
@@ -20813,7 +21162,7 @@ def count_pending_stock_requests_for_session(*, role_key: str, viewer_shop_id: O
                     SELECT COUNT(*) AS c
                     FROM shop_stock_requests r
                     WHERE r.status = 'pending'
-                    """,
+                    """ + _admin_stock_approval_queue_sql(alias="r"),
                 )
             else:
                 return_sql = (
@@ -20933,6 +21282,7 @@ def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty) -> bool:
     mq = normalize_stock_move_qty(move_qty)
     if mq is None:
         return False
+    request_id = int(req.get("id") or 0) or None
     request_type = (req.get("request_type") or "stock_in").lower()
     source_type = (req.get("source_type") or "").lower()
     item_id = int(req.get("item_id") or 0)
@@ -20943,19 +21293,27 @@ def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty) -> bool:
             (rq_shop, item_id),
         )
         row = cur.fetchone()
-        return (
-            bool(row)
-            and _shop_item_physical_stock_tracking_ok(row, shop_id=rq_shop)
-            and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= mq
+        if not row or not _shop_item_physical_stock_tracking_ok(row, shop_id=rq_shop):
+            return False
+        physical = round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        pending = _sum_pending_return_qty_from_shop(
+            cur, shop_id=rq_shop, item_id=item_id, exclude_request_id=request_id
         )
+        return _available_qty_after_pending(physical, pending) >= mq
     if source_type == "company":
         cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
         row = cur.fetchone()
-        if (
-            not row
-            or row.get("status") != "active"
-            or round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < mq
-        ):
+        if not row or row.get("status") != "active":
+            return False
+        physical = round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        pending = _sum_pending_outbound_qty_for_source(
+            cur,
+            item_id=item_id,
+            source_type="company",
+            source_shop_id=None,
+            exclude_request_id=request_id,
+        )
+        if _available_qty_after_pending(physical, pending) < mq:
             return False
         rq_shop = int(req.get("requesting_shop_id") or 0)
         cur.execute(
@@ -20971,11 +21329,17 @@ def _can_fulfill_move_qty_for_request_row(cur, req: dict, move_qty) -> bool:
             (src_shop, item_id),
         )
         row = cur.fetchone()
-        return (
-            bool(row)
-            and _shop_item_physical_stock_tracking_ok(row, shop_id=src_shop)
-            and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= mq
+        if not row or not _shop_item_physical_stock_tracking_ok(row, shop_id=src_shop):
+            return False
+        physical = round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        pending = _sum_pending_outbound_qty_for_source(
+            cur,
+            item_id=item_id,
+            source_type="shop",
+            source_shop_id=src_shop,
+            exclude_request_id=request_id,
         )
+        return _available_qty_after_pending(physical, pending) >= mq
     return False
 
 
@@ -21206,50 +21570,7 @@ def can_fulfill_stock_request(request_id: int, *, move_qty=None) -> bool:
                     return False
             else:
                 check_qty = rqty
-            request_type = (req.get("request_type") or "stock_in").lower()
-            source_type = (req.get("source_type") or "").lower()
-            item_id = int(req.get("item_id") or 0)
-            if request_type == "return_to_company":
-                rq_shop = int(req.get("requesting_shop_id") or 0)
-                cur.execute(
-                    f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
-                    (rq_shop, item_id),
-                )
-                row = cur.fetchone()
-                return (
-                    bool(row)
-                    and _shop_item_physical_stock_tracking_ok(row, shop_id=rq_shop)
-                    and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= check_qty
-                )
-            if source_type == "company":
-                cur.execute("SELECT stock_qty, status FROM items WHERE id=%s LIMIT 1", (item_id,))
-                row = cur.fetchone()
-                if (
-                    not row
-                    or row.get("status") != "active"
-                    or round(float(row.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) < check_qty
-                ):
-                    return False
-                rq_shop = int(req.get("requesting_shop_id") or 0)
-                cur.execute(
-                    f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
-                    (rq_shop, item_id),
-                )
-                dst = cur.fetchone()
-                return bool(dst) and _shop_item_physical_stock_tracking_ok(dst, shop_id=rq_shop)
-            if source_type == "shop":
-                src_shop = int(req.get("source_shop_id") or 0)
-                cur.execute(
-                    f"SELECT {_shop_items_physical_select_sql()} FROM shop_items WHERE shop_id=%s AND item_id=%s LIMIT 1",
-                    (src_shop, item_id),
-                )
-                row = cur.fetchone()
-                return (
-                    bool(row)
-                    and _shop_item_physical_stock_tracking_ok(row, shop_id=src_shop)
-                    and round(float(row.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES) >= check_qty
-                )
-            return False
+            return _can_fulfill_move_qty_for_request_row(cur, req, check_qty)
     except pymysql.Error:
         return False
 

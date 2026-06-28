@@ -13,9 +13,9 @@
         </div>
         <p class="sa-stock-hero-desc mt-0.5 hidden text-xs text-[rgb(var(--rc-muted))] sm:block">
           {% if _mode == 'both' %}
-            Shelf catalogue, stock in/out, and activity.
+            Request from warehouse, manage shelf stock, and review activity.
           {% elif _mode == 'kitchen' %}
-            Kitchen portion stock requests.
+            Request multiple items in one submission, or review pending requests below.
           {% else %}
             Request from warehouse or record manual stock in/out.
           {% endif %}
@@ -42,6 +42,7 @@
   {% if _mode == 'both' %}
   <div class="border-t border-[rgb(var(--rc-border))]/60 px-3 py-2 sm:px-5">
     <nav class="shop-mgmt-section-nav" aria-label="Page sections">
+      <a href="#shop-stock-request-warehouse" class="shop-mgmt-tab shop-analytics-tab">Request stock</a>
       <a href="#shop-store-items-catalog" class="shop-mgmt-tab shop-analytics-tab shop-analytics-tab-active">Shelf catalogue</a>
       <a href="#shop-store-stock-in" class="shop-mgmt-tab shop-analytics-tab">Stock in</a>
       <a href="#shop-store-stock-out" class="shop-mgmt-tab shop-analytics-tab">Stock out</a>

@@ -38,6 +38,14 @@
 
         <div class="shop-mgmt-tabbed flex flex-col gap-2 sm:gap-4">
 
+          <div id="shop-stock-request-warehouse" class="flex flex-col gap-2 sm:gap-4">
+
+            {% include "partials/shop_stock_batch_request_form.html" %}
+
+            {% include "partials/shop_stock_requests_panel.html" %}
+
+          </div>
+
           {% include "partials/shop_stock_both_shelf_catalog.html" %}
 
           {% include "partials/shop_stock_both_stock_in_panel.html" %}
@@ -54,15 +62,19 @@
 
         <div class="flex flex-col gap-2 sm:gap-4">
 
+          {% include "partials/shop_stock_batch_request_form.html" %}
+
           {% include "partials/shop_stock_requests_panel.html" %}
 
         </div>
 
       {% else %}
 
-        <div class="min-w-0">
+        <div class="min-w-0 flex flex-col gap-2 sm:gap-4">
 
           {% include "partials/shop_stock_catalogue_workspace.html" %}
+
+          {% include "partials/shop_stock_requests_panel.html" %}
 
         </div>
 

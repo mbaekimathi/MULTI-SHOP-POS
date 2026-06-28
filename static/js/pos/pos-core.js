@@ -1267,9 +1267,6 @@ var saleType = "sale";
       var stockInOpenBtn = document.getElementById("pos-buy-open");
       var stockInCloseBtn = document.getElementById("pos-stockin-close");
       var stockInBackdrop = document.getElementById("pos-stockin-backdrop");
-      var stockInItemInput = document.getElementById("pos-stockin-item-input");
-      var stockInItemListToggle = document.getElementById("pos-stockin-item-list-toggle");
-      var stockInItemSuggest = document.getElementById("pos-stockin-item-suggest");
       var stockInSelect = document.getElementById("pos-stockin-item-id");
       var stockInItemCatalog = [];
       var stockInItemSuggestTimer = null;
@@ -1296,27 +1293,351 @@ var saleType = "sale";
       var stockInTitle = document.getElementById("pos-stockin-title");
       var stockInSubtitle = document.getElementById("pos-stockin-subtitle");
       var stockInEntryTypeInput = document.getElementById("pos-stockin-entry-type");
-      var stockInStockFields = document.getElementById("pos-stockin-stock-fields");
-      var stockInExpenseFields = document.getElementById("pos-stockin-expense-fields");
       var stockInSellerFields = document.getElementById("pos-stockin-seller-fields");
       var stockInSellerPhoneLabel = document.getElementById("pos-stockin-seller-phone-label");
       var stockInSellerNameLabel = document.getElementById("pos-stockin-seller-name-label");
-      var stockInExpenseCategory = document.getElementById("pos-stockin-expense-category");
-      var stockInExpenseName = document.getElementById("pos-stockin-expense-name");
-      var stockInExpenseListToggle = document.getElementById("pos-stockin-expense-list-toggle");
+      var stockInStockLinesHost = document.getElementById("pos-stockin-stock-lines");
+      var stockInExpenseLinesHost = document.getElementById("pos-stockin-expense-lines");
+      var stockInStockLinesBody = document.getElementById("pos-stockin-stock-lines-body");
+      var stockInExpenseLinesBody = document.getElementById("pos-stockin-expense-lines-body");
+      var stockInItemSuggest = document.getElementById("pos-stockin-item-suggest");
       var stockInExpenseNameSuggest = document.getElementById("pos-stockin-expense-name-suggest");
       var stockInExpenseCategoryList = document.getElementById("pos-stockin-expense-category-list");
       var stockInExpenseCatalogRows = [];
-      var stockInQtyInput = document.getElementById("pos-stockin-qty");
-      var stockInBuyingPrice = document.getElementById("pos-stockin-buying-price");
-      var stockInExpenseQtyInput = document.getElementById("pos-stockin-expense-qty");
-      var stockInExpenseUnitPriceInput = document.getElementById("pos-stockin-expense-unit-price-input");
-      var stockInUnitPriceHidden = document.getElementById("pos-stockin-unit-price");
-      var stockInPriceLabel = document.getElementById("pos-stockin-price-label");
-      var stockInTotalWrap = document.getElementById("pos-stockin-total-wrap");
-      var stockInTotalDisplay = document.getElementById("pos-stockin-total-display");
-      var stockInExpenseTotalDisplay = document.getElementById("pos-stockin-expense-total-display");
+      var stockInAddLineBtn = document.getElementById("pos-stockin-add-line");
+      var stockInLinesLabel = document.getElementById("pos-stockin-lines-label");
+      var stockInLinesTotal = document.getElementById("pos-stockin-lines-total");
+      var stockInLinesJsonInput = document.getElementById("pos-stockin-lines-json");
+      var stockInLines = [];
+      var stockInReceiptUrls = [];
+      var stockInActiveSuggestRowIdx = -1;
       var stockInTypeRadios = document.querySelectorAll(".pos-stockin-type-radio");
+      var stockInRowInputClass =
+        "pos-stockin-row-input w-full min-w-0 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-xs text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/40";
+
+      function stockInParsePositiveNumber(raw) {
+        var n = parseFloat(String(raw || "").replace(",", "."));
+        return isFinite(n) && n > 0 ? n : null;
+      }
+
+      function stockInParseNonNegativeNumber(raw) {
+        var n = parseFloat(String(raw || "").replace(",", "."));
+        return isFinite(n) && n >= 0 ? n : null;
+      }
+
+      function stockInEscHtml(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function stockInEmptyLine() {
+        if (stockInEntryType === "expense") {
+          return {
+            expense_name: "",
+            expense_category: "",
+            qty: "",
+            unit_price: "",
+            label: "",
+          };
+        }
+        return { item_id: "", label: "", qty: "", buying_price: "" };
+      }
+
+      function initStockInLines() {
+        stockInLines = [stockInEmptyLine()];
+      }
+
+      function stockInLineTotal(line) {
+        var qty = stockInParsePositiveNumber(line && line.qty) || 0;
+        var unit =
+          stockInEntryType === "expense"
+            ? stockInParseNonNegativeNumber(line && line.unit_price) || 0
+            : stockInParseNonNegativeNumber(line && line.buying_price) || 0;
+        return qty * unit;
+      }
+
+      function stockInIsLineEmpty(line) {
+        if (!line) return true;
+        if (stockInEntryType === "expense") {
+          return !(
+            String(line.expense_name || "").trim() ||
+            String(line.expense_category || "").trim() ||
+            String(line.qty || "").trim() ||
+            String(line.unit_price || "").trim()
+          );
+        }
+        return !(
+          String(line.item_id || "").trim() ||
+          String(line.label || "").trim() ||
+          String(line.qty || "").trim() ||
+          String(line.buying_price || "").trim()
+        );
+      }
+
+      function stockInValidateLine(line, rowNum) {
+        var label = "Row " + rowNum;
+        if (stockInEntryType === "expense") {
+          var expenseName = String(line.expense_name || "").trim().toUpperCase();
+          var expenseCategory = String(line.expense_category || "").trim().toUpperCase();
+          if (!expenseName) return { ok: false, error: label + ": enter an expense name." };
+          if (!expenseCategory) return { ok: false, error: label + ": enter a category." };
+          if (!stockInParsePositiveNumber(line.qty)) return { ok: false, error: label + ": enter a valid quantity." };
+          if (stockInParseNonNegativeNumber(line.unit_price) === null) {
+            return { ok: false, error: label + ": enter a valid unit price." };
+          }
+          return {
+            ok: true,
+            line: {
+              expense_name: expenseName,
+              expense_category: expenseCategory,
+              qty: String(line.qty || "").trim(),
+              unit_price: String(line.unit_price || "").trim(),
+              label: expenseName + (expenseCategory ? " — " + expenseCategory : ""),
+            },
+          };
+        }
+        var itemId = String(line.item_id || "").trim();
+        var itemLabel = String(line.label || "").trim();
+        if (!itemId) return { ok: false, error: label + ": pick an item." };
+        if (!stockInParsePositiveNumber(line.qty)) return { ok: false, error: label + ": enter a valid quantity." };
+        if (stockInParseNonNegativeNumber(line.buying_price) === null) {
+          return { ok: false, error: label + ": enter a valid buying price." };
+        }
+        return {
+          ok: true,
+          line: {
+            item_id: itemId,
+            qty: String(line.qty || "").trim(),
+            buying_price: String(line.buying_price || "").trim(),
+            label: itemLabel || "Item #" + itemId,
+          },
+        };
+      }
+
+      function stockInSyncLinesFromDom() {
+        var tbody =
+          stockInEntryType === "expense" ? stockInExpenseLinesBody : stockInStockLinesBody;
+        if (!tbody) return;
+        var rows = tbody.querySelectorAll(".pos-stockin-line-row");
+        var next = [];
+        Array.prototype.forEach.call(rows, function (tr) {
+          if (stockInEntryType === "expense") {
+            next.push({
+              expense_name: String((tr.querySelector(".pos-stockin-row-expense-name") || {}).value || "")
+                .trim()
+                .toUpperCase(),
+              expense_category: String((tr.querySelector(".pos-stockin-row-expense-category") || {}).value || "")
+                .trim()
+                .toUpperCase(),
+              qty: String((tr.querySelector(".pos-stockin-row-qty") || {}).value || "").trim(),
+              unit_price: String((tr.querySelector(".pos-stockin-row-price") || {}).value || "").trim(),
+              label: "",
+            });
+          } else {
+            next.push({
+              item_id: String((tr.querySelector(".pos-stockin-row-item-id") || {}).value || "").trim(),
+              label: String((tr.querySelector(".pos-stockin-row-item-input") || {}).value || "").trim(),
+              qty: String((tr.querySelector(".pos-stockin-row-qty") || {}).value || "").trim(),
+              buying_price: String((tr.querySelector(".pos-stockin-row-price") || {}).value || "").trim(),
+            });
+          }
+        });
+        if (next.length) stockInLines = next;
+      }
+
+      function stockInUpdateRowTotal(tr) {
+        if (!tr) return;
+        var qtyEl = tr.querySelector(".pos-stockin-row-qty");
+        var priceEl = tr.querySelector(".pos-stockin-row-price");
+        var totalEl = tr.querySelector(".pos-stockin-row-total");
+        if (!qtyEl || !priceEl || !totalEl) return;
+        var qty = stockInParsePositiveNumber(qtyEl.value) || 0;
+        var unit = stockInParseNonNegativeNumber(priceEl.value) || 0;
+        totalEl.textContent = (qty * unit).toFixed(2);
+      }
+
+      function stockInUpdateGrandTotal() {
+        stockInSyncLinesFromDom();
+        var grand = 0;
+        var filled = 0;
+        stockInLines.forEach(function (line) {
+          if (stockInIsLineEmpty(line)) return;
+          filled += 1;
+          grand += stockInLineTotal(line);
+        });
+        if (stockInLinesTotal) {
+          stockInLinesTotal.textContent = filled ? "Total: " + grand.toFixed(2) : "";
+        }
+        if (stockInLinesJsonInput) {
+          stockInLinesJsonInput.value = "";
+        }
+      }
+
+      function renderStockInLines() {
+        var tbody =
+          stockInEntryType === "expense" ? stockInExpenseLinesBody : stockInStockLinesBody;
+        if (!tbody) return;
+        hideStockInItemSuggest();
+        hideStockInExpenseSuggest();
+        if (stockInLinesLabel) {
+          stockInLinesLabel.textContent = stockInEntryType === "expense" ? "Expenses" : "Items";
+        }
+        if (stockInStockLinesHost) {
+          stockInStockLinesHost.classList.toggle("hidden", stockInEntryType === "expense");
+        }
+        if (stockInExpenseLinesHost) {
+          stockInExpenseLinesHost.classList.toggle("hidden", stockInEntryType !== "expense");
+        }
+        if (!stockInLines.length) initStockInLines();
+        tbody.innerHTML = stockInLines
+          .map(function (line, idx) {
+            if (stockInEntryType === "expense") {
+              return (
+                '<tr class="pos-stockin-line-row border-b border-[rgb(var(--rc-border))]/60 last:border-b-0" data-idx="' +
+                idx +
+                '">' +
+                '<td class="px-2 py-1.5">' +
+                '<div class="flex min-w-[9rem]">' +
+                '<input type="search" class="pos-stockin-row-expense-name pos-stockin-upper ' +
+                stockInRowInputClass +
+                ' rounded-r-none border-r-0" value="' +
+                stockInEscHtml(line.expense_name) +
+                '" placeholder="Expense name" autocomplete="off" />' +
+                '<button type="button" class="pos-stockin-row-expense-toggle flex shrink-0 items-center rounded-r-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 text-[10px] font-bold text-[rgb(var(--rc-muted))]">▾</button>' +
+                "</div></td>" +
+                '<td class="px-2 py-1.5"><input type="text" list="pos-stockin-expense-category-list" class="pos-stockin-row-expense-category pos-stockin-upper ' +
+                stockInRowInputClass +
+                '" value="' +
+                stockInEscHtml(line.expense_category) +
+                '" placeholder="Category" autocomplete="off" /></td>' +
+                '<td class="px-2 py-1.5"><input type="number" min="0.0001" step="any" inputmode="decimal" class="pos-stockin-row-qty ' +
+                stockInRowInputClass +
+                '" value="' +
+                stockInEscHtml(line.qty) +
+                '" placeholder="Qty" /></td>' +
+                '<td class="px-2 py-1.5"><input type="number" min="0" step="0.01" class="pos-stockin-row-price ' +
+                stockInRowInputClass +
+                '" value="' +
+                stockInEscHtml(line.unit_price) +
+                '" placeholder="0.00" /></td>' +
+                '<td class="px-2 py-1.5"><span class="pos-stockin-row-total block rounded-lg bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-right text-[11px] font-bold tabular-nums">' +
+                stockInLineTotal(line).toFixed(2) +
+                "</span></td>" +
+                '<td class="px-2 py-1.5 text-center">' +
+                '<button type="button" class="pos-stockin-row-remove rounded-lg border border-[rgb(var(--rc-border))] px-1.5 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-500/10" title="Remove row">×</button>' +
+                "</td></tr>"
+              );
+            }
+            return (
+              '<tr class="pos-stockin-line-row border-b border-[rgb(var(--rc-border))]/60 last:border-b-0" data-idx="' +
+              idx +
+              '">' +
+              '<td class="px-2 py-1.5">' +
+              '<div class="flex min-w-[10rem]">' +
+              '<input type="search" class="pos-stockin-row-item-input ' +
+              stockInRowInputClass +
+              ' rounded-r-none border-r-0" value="' +
+              stockInEscHtml(line.label) +
+              '" placeholder="Search item…" autocomplete="off" />' +
+              '<button type="button" class="pos-stockin-row-item-toggle flex shrink-0 items-center rounded-r-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 text-[10px] font-bold text-[rgb(var(--rc-muted))]">▾</button>' +
+              "</div>" +
+              '<input type="hidden" class="pos-stockin-row-item-id" value="' +
+              stockInEscHtml(line.item_id) +
+              '" />' +
+              "</td>" +
+              '<td class="px-2 py-1.5"><input type="number" min="0.0001" step="any" inputmode="decimal" class="pos-stockin-row-qty ' +
+              stockInRowInputClass +
+              '" value="' +
+              stockInEscHtml(line.qty) +
+              '" placeholder="Qty" /></td>' +
+              '<td class="px-2 py-1.5"><input type="number" min="0" step="0.01" class="pos-stockin-row-price ' +
+              stockInRowInputClass +
+              '" value="' +
+              stockInEscHtml(line.buying_price) +
+              '" placeholder="0.00" /></td>' +
+              '<td class="px-2 py-1.5"><span class="pos-stockin-row-total block rounded-lg bg-[rgb(var(--rc-surface-2))] px-2 py-1.5 text-right text-[11px] font-bold tabular-nums">' +
+              stockInLineTotal(line).toFixed(2) +
+              "</span></td>" +
+              '<td class="px-2 py-1.5 text-center">' +
+              '<button type="button" class="pos-stockin-row-remove rounded-lg border border-[rgb(var(--rc-border))] px-1.5 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-500/10" title="Remove row">×</button>' +
+              "</td></tr>"
+            );
+          })
+          .join("");
+        Array.prototype.forEach.call(tbody.querySelectorAll(".pos-stockin-upper"), stockInUpperInput);
+        stockInUpdateGrandTotal();
+      }
+
+      function stockInAddEmptyRow() {
+        stockInSyncLinesFromDom();
+        stockInLines.push(stockInEmptyLine());
+        renderStockInLines();
+        var tbody =
+          stockInEntryType === "expense" ? stockInExpenseLinesBody : stockInStockLinesBody;
+        if (!tbody) return;
+        var lastRow = tbody.querySelector(".pos-stockin-line-row:last-child");
+        if (!lastRow) return;
+        var focusEl = lastRow.querySelector(
+          stockInEntryType === "expense" ? ".pos-stockin-row-expense-name" : ".pos-stockin-row-item-input"
+        );
+        if (focusEl) focusEl.focus();
+      }
+
+      function stockInRemoveRow(idx) {
+        stockInSyncLinesFromDom();
+        if (stockInLines.length <= 1) {
+          stockInLines = [stockInEmptyLine()];
+        } else {
+          stockInLines.splice(idx, 1);
+        }
+        renderStockInLines();
+      }
+
+      function stockInCollectSubmitLines() {
+        stockInSyncLinesFromDom();
+        var filled = stockInLines.filter(function (line) {
+          return !stockInIsLineEmpty(line);
+        });
+        if (!filled.length) {
+          return { ok: false, error: "Fill at least one row before saving." };
+        }
+        var out = [];
+        for (var i = 0; i < filled.length; i++) {
+          var check = stockInValidateLine(filled[i], i + 1);
+          if (!check.ok) return check;
+          out.push(check.line);
+        }
+        return { ok: true, lines: out };
+      }
+
+      function stockInFormSharedValid() {
+        if (!stockInSellerPhone || !stockInSellerName) return false;
+        var phone = String(stockInSellerPhone.value || "").trim();
+        var name = String(stockInSellerName.value || "").trim();
+        return !!(phone && name);
+      }
+
+      function validateStockInBeforeSubmit() {
+        var collected = stockInCollectSubmitLines();
+        if (!collected.ok) return collected;
+        if (!stockInFormSharedValid()) {
+          return { ok: false, error: "Enter seller/supplier phone and name." };
+        }
+        return collected;
+      }
+
+      function stockInPositionSuggestPanel(inputEl, panelEl) {
+        if (!inputEl || !panelEl) return;
+        var host = inputEl.closest(".pos-stockin-lines-table-host");
+        if (!host) return;
+        var hostRect = host.getBoundingClientRect();
+        var inputRect = inputEl.getBoundingClientRect();
+        panelEl.style.top = inputRect.bottom - hostRect.top + 4 + "px";
+        panelEl.style.left = Math.max(0, inputRect.left - hostRect.left) + "px";
+        panelEl.style.width = Math.max(inputRect.width, 220) + "px";
+      }
 
       function stockInUpperInput(el) {
         if (!el) return;
@@ -1328,60 +1649,6 @@ var saleType = "sale";
             el.setSelectionRange(p, q);
           } catch (e) {}
         });
-      }
-
-      function syncStockInQtyPriceToSubmit() {
-        if (stockInEntryType !== "expense") return;
-        if (stockInExpenseQtyInput && stockInQtyInput) {
-          stockInQtyInput.value = stockInExpenseQtyInput.value;
-        }
-        if (stockInExpenseUnitPriceInput && stockInBuyingPrice) {
-          stockInBuyingPrice.value = stockInExpenseUnitPriceInput.value;
-        }
-      }
-
-      function syncStockInQtyPriceBetweenModes(mode) {
-        if (mode === "expense") {
-          if (stockInExpenseQtyInput && stockInQtyInput) {
-            stockInExpenseQtyInput.value = stockInQtyInput.value;
-          }
-          if (stockInExpenseUnitPriceInput && stockInBuyingPrice) {
-            stockInExpenseUnitPriceInput.value = stockInBuyingPrice.value;
-          }
-        } else if (stockInQtyInput && stockInExpenseQtyInput) {
-          stockInQtyInput.value = stockInExpenseQtyInput.value;
-          if (stockInBuyingPrice && stockInExpenseUnitPriceInput) {
-            stockInBuyingPrice.value = stockInExpenseUnitPriceInput.value;
-          }
-        }
-      }
-
-      function setStockInQtyPriceFieldMode(mode) {
-        var isExpense = mode === "expense";
-        if (stockInQtyInput) stockInQtyInput.required = !isExpense;
-        if (stockInBuyingPrice) stockInBuyingPrice.required = !isExpense;
-        if (stockInExpenseQtyInput) stockInExpenseQtyInput.required = isExpense;
-        if (stockInExpenseUnitPriceInput) stockInExpenseUnitPriceInput.required = isExpense;
-      }
-
-      function updateStockInTotalDisplay() {
-        var qtyEl =
-          stockInEntryType === "expense" && stockInExpenseQtyInput ? stockInExpenseQtyInput : stockInQtyInput;
-        var unitEl =
-          stockInEntryType === "expense" && stockInExpenseUnitPriceInput
-            ? stockInExpenseUnitPriceInput
-            : stockInBuyingPrice;
-        if (!qtyEl || !unitEl) return;
-        var qty = parseFloat(qtyEl.value || "0");
-        var unit = parseFloat(unitEl.value || "0");
-        var total = isFinite(qty) && isFinite(unit) ? qty * unit : 0;
-        if (stockInEntryType === "expense") {
-          if (stockInExpenseTotalDisplay) stockInExpenseTotalDisplay.textContent = total.toFixed(2);
-          syncStockInQtyPriceToSubmit();
-        } else if (stockInTotalDisplay) {
-          stockInTotalDisplay.textContent = total.toFixed(2);
-        }
-        if (stockInUnitPriceHidden) stockInUnitPriceHidden.value = isFinite(unit) ? String(unit) : "";
       }
 
       function loadStockInExpenseCategories() {
@@ -1414,9 +1681,9 @@ var saleType = "sale";
         });
       }
 
-      function loadStockInExpenseCatalog() {
+      function loadStockInExpenseCatalog(categoryFilter) {
         if (!EXPENSE_SEARCH_API) return Promise.resolve([]);
-        var cat = stockInExpenseCategory ? String(stockInExpenseCategory.value || "").trim() : "";
+        var cat = String(categoryFilter || "").trim();
         var url = EXPENSE_SEARCH_API + "?kind=items&limit=100";
         if (cat) url += "&category=" + encodeURIComponent(cat);
         return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } })
@@ -1439,14 +1706,38 @@ var saleType = "sale";
         stockInExpenseNameSuggest.innerHTML = "";
       }
 
-      function showStockInExpenseSuggest(rows, emptyMessage) {
-        if (!stockInExpenseNameSuggest || !stockInExpenseName) return;
+      function stockInActiveExpenseInput() {
+        if (stockInActiveSuggestRowIdx < 0 || !stockInExpenseLinesBody) return null;
+        var tr = stockInExpenseLinesBody.querySelector(
+          '.pos-stockin-line-row[data-idx="' + stockInActiveSuggestRowIdx + '"]'
+        );
+        return tr ? tr.querySelector(".pos-stockin-row-expense-name") : null;
+      }
+
+      function applyStockInExpensePick(item) {
+        var input = stockInActiveExpenseInput();
+        if (!input || !item) return;
+        var tr = input.closest(".pos-stockin-line-row");
+        input.value = String(item.name || "").toUpperCase();
+        var catEl = tr ? tr.querySelector(".pos-stockin-row-expense-category") : null;
+        var pickedCat = String(item.category_name || "").trim();
+        if (pickedCat && catEl && !String(catEl.value || "").trim()) {
+          catEl.value = pickedCat;
+        }
+        hideStockInExpenseSuggest();
+        stockInUpdateRowTotal(tr);
+        stockInUpdateGrandTotal();
+      }
+
+      function showStockInExpenseSuggest(rows, emptyMessage, anchorInput) {
+        if (!stockInExpenseNameSuggest) return;
         if (!rows.length) {
           stockInExpenseNameSuggest.innerHTML =
             '<div class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">' +
             (emptyMessage || "No matching expenses. Type a new name.") +
             "</div>";
           stockInExpenseNameSuggest.classList.remove("hidden");
+          if (anchorInput) stockInPositionSuggestPanel(anchorInput, stockInExpenseNameSuggest);
           return;
         }
         stockInExpenseNameSuggest.innerHTML = rows
@@ -1466,43 +1757,45 @@ var saleType = "sale";
           })
           .join("");
         stockInExpenseNameSuggest.classList.remove("hidden");
+        if (anchorInput) stockInPositionSuggestPanel(anchorInput, stockInExpenseNameSuggest);
         Array.prototype.forEach.call(
           stockInExpenseNameSuggest.querySelectorAll("button[data-name]"),
           function (btn) {
+            btn.addEventListener("mousedown", function (e) {
+              e.preventDefault();
+            });
             btn.addEventListener("click", function () {
-              var picked = String(btn.getAttribute("data-name") || "").toUpperCase();
-              stockInExpenseName.value = picked;
-              var pickedCat = String(btn.getAttribute("data-category") || "").trim();
-              if (pickedCat && stockInExpenseCategory && !String(stockInExpenseCategory.value || "").trim()) {
-                stockInExpenseCategory.value = pickedCat;
-              }
-              hideStockInExpenseSuggest();
+              applyStockInExpensePick({
+                name: String(btn.getAttribute("data-name") || ""),
+                category_name: String(btn.getAttribute("data-category") || ""),
+              });
             });
           }
         );
       }
 
-      function openStockInExpenseSuggest(showAll) {
-        var q = stockInExpenseName ? stockInExpenseName.value : "";
+      function openStockInExpenseSuggest(showAll, anchorInput) {
+        var q = anchorInput ? anchorInput.value : "";
         var rows = filterStockInExpenseCatalogRows(q, showAll);
         if (!rows.length) {
           showStockInExpenseSuggest(
             [],
-            showAll ? "No registered expenses yet." : "No matching expenses. Type a new name."
+            showAll ? "No registered expenses yet." : "No matching expenses. Type a new name.",
+            anchorInput
           );
           return;
         }
-        showStockInExpenseSuggest(rows);
+        showStockInExpenseSuggest(rows, "", anchorInput);
       }
 
-      function lookupStockInExpenseNames(showAll) {
-        if (!stockInExpenseName) return Promise.resolve();
+      function lookupStockInExpenseNames(showAll, anchorInput) {
+        if (!anchorInput) return Promise.resolve();
         if (stockInExpenseCatalogRows.length) {
-          openStockInExpenseSuggest(!!showAll);
+          openStockInExpenseSuggest(!!showAll, anchorInput);
           return Promise.resolve();
         }
         return loadStockInExpenseCatalog().then(function () {
-          openStockInExpenseSuggest(!!showAll);
+          openStockInExpenseSuggest(!!showAll, anchorInput);
         });
       }
 
@@ -1528,12 +1821,11 @@ var saleType = "sale";
         if (stockInSubtitle) {
           stockInSubtitle.textContent =
             stockInEntryType === "expense"
-              ? "Record a non-stock expense with name, category, supplier, quantity, and unit price."
-              : "Search or pick an item, then fill stock-in details.";
+              ? "Fill each row with expense details, add rows as needed, then enter the employee code."
+              : "Select an item on each row, fill qty and price, then enter the employee code.";
         }
-        if (stockInStockFields) stockInStockFields.classList.toggle("hidden", stockInEntryType === "expense");
-        if (stockInExpenseFields) stockInExpenseFields.classList.toggle("hidden", stockInEntryType !== "expense");
-        if (stockInTotalWrap) stockInTotalWrap.classList.toggle("hidden", true);
+        initStockInLines();
+        renderStockInLines();
         if (stockInSellerPhoneLabel) {
           stockInSellerPhoneLabel.textContent =
             stockInEntryType === "expense" ? "Supplier phone" : "Seller phone";
@@ -1542,76 +1834,102 @@ var saleType = "sale";
           stockInSellerNameLabel.textContent =
             stockInEntryType === "expense" ? "Supplier name" : "Seller name";
         }
-        if (stockInPriceLabel) {
-          stockInPriceLabel.textContent = stockInEntryType === "expense" ? "Unit price" : "Buying price";
-        }
-        if (stockInSelect) stockInSelect.required = stockInEntryType === "stock";
-        if (stockInSellerPhone) stockInSellerPhone.required = true;
-        if (stockInSellerName) stockInSellerName.required = true;
-        if (stockInExpenseCategory) stockInExpenseCategory.required = stockInEntryType === "expense";
-        if (stockInExpenseName) stockInExpenseName.required = stockInEntryType === "expense";
-        if (stockInBuyingPrice) {
-          stockInBuyingPrice.name = stockInEntryType === "expense" ? "unit_price" : "buying_price";
-        }
-        syncStockInQtyPriceBetweenModes(stockInEntryType);
-        setStockInQtyPriceFieldMode(stockInEntryType);
-        updateStockInTotalDisplay();
         if (stockInEntryType === "expense") {
           loadStockInExpenseCatalog().then(function () {
-            if (stockInExpenseName) {
-              setTimeout(function () {
-                stockInExpenseName.focus();
-              }, 30);
-            }
+            var first = stockInExpenseLinesBody
+              ? stockInExpenseLinesBody.querySelector(".pos-stockin-row-expense-name")
+              : null;
+            if (first) setTimeout(function () { first.focus(); }, 30);
           });
+        } else {
+          var firstItem = stockInStockLinesBody
+            ? stockInStockLinesBody.querySelector(".pos-stockin-row-item-input")
+            : null;
+          if (firstItem) setTimeout(function () { firstItem.focus(); }, 30);
         }
-        updateStockInTotalDisplay();
       }
 
-      Array.prototype.forEach.call(document.querySelectorAll(".pos-stockin-upper"), stockInUpperInput);
-      if (stockInQtyInput) stockInQtyInput.addEventListener("input", updateStockInTotalDisplay);
-      if (stockInBuyingPrice) stockInBuyingPrice.addEventListener("input", updateStockInTotalDisplay);
-      if (stockInExpenseQtyInput) stockInExpenseQtyInput.addEventListener("input", updateStockInTotalDisplay);
-      if (stockInExpenseUnitPriceInput) stockInExpenseUnitPriceInput.addEventListener("input", updateStockInTotalDisplay);
-      if (stockInExpenseName) {
-        stockInExpenseName.addEventListener("input", function () {
-          clearTimeout(stockInExpenseSuggestTimer);
-          stockInExpenseSuggestTimer = setTimeout(function () {
-            lookupStockInExpenseNames(false);
-          }, 180);
+      var stockInLinesSection = document.getElementById("pos-stockin-lines-section");
+      if (stockInLinesSection) {
+        stockInLinesSection.addEventListener("input", function (e) {
+          var t = e.target;
+          if (!t || !t.classList) return;
+          if (
+            t.classList.contains("pos-stockin-row-qty") ||
+            t.classList.contains("pos-stockin-row-price")
+          ) {
+            stockInUpdateRowTotal(t.closest(".pos-stockin-line-row"));
+            stockInUpdateGrandTotal();
+          }
+          if (t.classList.contains("pos-stockin-row-item-input")) {
+            var tr = t.closest(".pos-stockin-line-row");
+            var idEl = tr ? tr.querySelector(".pos-stockin-row-item-id") : null;
+            if (idEl) idEl.value = "";
+            stockInActiveSuggestRowIdx = tr ? parseInt(tr.getAttribute("data-idx"), 10) : -1;
+            clearTimeout(stockInItemSuggestTimer);
+            stockInItemSuggestTimer = setTimeout(function () {
+              lookupStockInItems(false, t);
+            }, 120);
+          }
+          if (t.classList.contains("pos-stockin-row-expense-name")) {
+            var trExp = t.closest(".pos-stockin-line-row");
+            stockInActiveSuggestRowIdx = trExp ? parseInt(trExp.getAttribute("data-idx"), 10) : -1;
+            clearTimeout(stockInExpenseSuggestTimer);
+            stockInExpenseSuggestTimer = setTimeout(function () {
+              lookupStockInExpenseNames(false, t);
+            }, 180);
+          }
         });
-        stockInExpenseName.addEventListener("focus", function () {
-          lookupStockInExpenseNames(false);
+        stockInLinesSection.addEventListener("focusin", function (e) {
+          var t = e.target;
+          if (!t || !t.classList) return;
+          if (t.classList.contains("pos-stockin-row-item-input")) {
+            var tr = t.closest(".pos-stockin-line-row");
+            stockInActiveSuggestRowIdx = tr ? parseInt(tr.getAttribute("data-idx"), 10) : -1;
+            lookupStockInItems(false, t);
+          }
+          if (t.classList.contains("pos-stockin-row-expense-name")) {
+            var trExp = t.closest(".pos-stockin-line-row");
+            stockInActiveSuggestRowIdx = trExp ? parseInt(trExp.getAttribute("data-idx"), 10) : -1;
+            lookupStockInExpenseNames(false, t);
+          }
         });
-      }
-      if (stockInExpenseListToggle) {
-        stockInExpenseListToggle.addEventListener("click", function (e) {
-          e.preventDefault();
-          lookupStockInExpenseNames(true);
-          if (stockInExpenseName) stockInExpenseName.focus();
-        });
-      }
-      if (stockInExpenseCategory) {
-        stockInExpenseCategory.addEventListener("change", function () {
-          loadStockInExpenseCatalog().then(function () {
-            lookupStockInExpenseNames(false);
-          });
-        });
-        stockInExpenseCategory.addEventListener("input", function () {
-          clearTimeout(stockInExpenseSuggestTimer);
-          stockInExpenseSuggestTimer = setTimeout(function () {
-            loadStockInExpenseCatalog().then(function () {
-              lookupStockInExpenseNames(false);
-            });
-          }, 280);
+        stockInLinesSection.addEventListener("click", function (e) {
+          var t = e.target;
+          if (!t) return;
+          if (t.classList.contains("pos-stockin-row-remove")) {
+            e.preventDefault();
+            var trRm = t.closest(".pos-stockin-line-row");
+            var rmIdx = trRm ? parseInt(trRm.getAttribute("data-idx"), 10) : -1;
+            if (isFinite(rmIdx)) stockInRemoveRow(rmIdx);
+            return;
+          }
+          if (t.classList.contains("pos-stockin-row-item-toggle")) {
+            e.preventDefault();
+            var trItem = t.closest(".pos-stockin-line-row");
+            var inputItem = trItem ? trItem.querySelector(".pos-stockin-row-item-input") : null;
+            stockInActiveSuggestRowIdx = trItem ? parseInt(trItem.getAttribute("data-idx"), 10) : -1;
+            lookupStockInItems(true, inputItem);
+            if (inputItem) inputItem.focus();
+            return;
+          }
+          if (t.classList.contains("pos-stockin-row-expense-toggle")) {
+            e.preventDefault();
+            var trExpT = t.closest(".pos-stockin-line-row");
+            var inputExp = trExpT ? trExpT.querySelector(".pos-stockin-row-expense-name") : null;
+            stockInActiveSuggestRowIdx = trExpT ? parseInt(trExpT.getAttribute("data-idx"), 10) : -1;
+            lookupStockInExpenseNames(true, inputExp);
+            if (inputExp) inputExp.focus();
+          }
         });
       }
       document.addEventListener("click", function (e) {
         if (stockInExpenseNameSuggest && !stockInExpenseNameSuggest.classList.contains("hidden")) {
+          var expTgt = e.target;
+          var expCls = expTgt && expTgt.classList;
           if (
-            !stockInExpenseNameSuggest.contains(e.target) &&
-            e.target !== stockInExpenseName &&
-            e.target !== stockInExpenseListToggle
+            !stockInExpenseNameSuggest.contains(expTgt) &&
+            !(expCls && (expCls.contains("pos-stockin-row-expense-toggle") || expCls.contains("pos-stockin-row-expense-name")))
           ) {
             hideStockInExpenseSuggest();
           }
@@ -1622,10 +1940,11 @@ var saleType = "sale";
           }
         }
         if (stockInItemSuggest && !stockInItemSuggest.classList.contains("hidden")) {
+          var itemTgt = e.target;
+          var itemCls = itemTgt && itemTgt.classList;
           if (
-            !stockInItemSuggest.contains(e.target) &&
-            e.target !== stockInItemInput &&
-            e.target !== stockInItemListToggle
+            !stockInItemSuggest.contains(itemTgt) &&
+            !(itemCls && (itemCls.contains("pos-stockin-row-item-toggle") || itemCls.contains("pos-stockin-row-item-input")))
           ) {
             hideStockInItemSuggest();
           }
@@ -1655,15 +1974,16 @@ var saleType = "sale";
           stockInAuthCode.value = "";
           stockInAuthCode.disabled = false;
         }
-        setStockInAuthStatus("Fill the form above, then enter the employee code to save.", "muted");
+        setStockInAuthStatus("Fill the rows and seller details, then enter the employee code to save.", "muted");
       }
 
       function attemptStockInVerifyAndSubmit(six) {
         if (!six || !/^\d{6}$/.test(six)) return;
         if (stockInAuthVerifyInFlight) return;
         if (!stockInForm) return;
-        if (!stockInForm.checkValidity()) {
-          setStockInAuthStatus("Fill all required fields above, then enter the 6-digit code again.", "error");
+        var preflight = validateStockInBeforeSubmit();
+        if (!preflight.ok) {
+          setStockInAuthStatus(preflight.error || "Complete all required fields above.", "error");
           if (stockInAuthCode) {
             stockInAuthCode.value = "";
             stockInLastSixCode = "";
@@ -1746,7 +2066,7 @@ var saleType = "sale";
         if (v.length < 6) {
           stockInLastSixCode = "";
           if (!v.length) {
-            setStockInAuthStatus("Fill the form above, then enter the employee code to save.", "muted");
+            setStockInAuthStatus("Fill the rows and seller details, then enter the employee code to save.", "muted");
           } else {
             setStockInAuthStatus("Entering code… " + v.length + "/6", "muted");
           }
@@ -1776,19 +2096,15 @@ var saleType = "sale";
           });
           loadStockInExpenseCategories();
           buildStockInItemCatalog();
-          if (stockInItemInput) {
-            stockInItemInput.value = "";
-          }
-          if (stockInSelect) {
-            stockInSelect.value = "";
-          }
-          hideStockInItemSuggest();
-          if (stockInItemInput) {
-            setTimeout(function () {
-              stockInItemInput.focus();
-            }, 30);
-          }
         }
+      }
+
+      function stockInActiveItemInput() {
+        if (stockInActiveSuggestRowIdx < 0 || !stockInStockLinesBody) return null;
+        var tr = stockInStockLinesBody.querySelector(
+          '.pos-stockin-line-row[data-idx="' + stockInActiveSuggestRowIdx + '"]'
+        );
+        return tr ? tr.querySelector(".pos-stockin-row-item-input") : null;
       }
 
       function buildStockInItemCatalog() {
@@ -1818,14 +2134,22 @@ var saleType = "sale";
       }
 
       function applyStockInItemPick(item) {
-        var row = item || null;
-        if (!row) return;
-        if (stockInSelect) stockInSelect.value = row.id;
-        if (stockInItemInput) stockInItemInput.value = row.label;
+        var picked = item || null;
+        if (!picked) return;
+        var input = stockInActiveItemInput();
+        if (!input) return;
+        var tr = input.closest(".pos-stockin-line-row");
+        input.value = picked.label || "";
+        var idEl = tr ? tr.querySelector(".pos-stockin-row-item-id") : null;
+        if (idEl) idEl.value = picked.id || "";
         hideStockInItemSuggest();
+        if (tr) {
+          var qtyEl = tr.querySelector(".pos-stockin-row-qty");
+          if (qtyEl) qtyEl.focus();
+        }
       }
 
-      function showStockInItemSuggest(rows, emptyMessage) {
+      function showStockInItemSuggest(rows, emptyMessage, anchorInput) {
         if (!stockInItemSuggest) return;
         if (!rows.length) {
           stockInItemSuggest.innerHTML =
@@ -1833,6 +2157,7 @@ var saleType = "sale";
             (emptyMessage || "No matching items.") +
             "</div>";
           stockInItemSuggest.classList.remove("hidden");
+          if (anchorInput) stockInPositionSuggestPanel(anchorInput, stockInItemSuggest);
           return;
         }
         stockInItemSuggest.innerHTML = rows
@@ -1849,6 +2174,7 @@ var saleType = "sale";
           })
           .join("");
         stockInItemSuggest.classList.remove("hidden");
+        if (anchorInput) stockInPositionSuggestPanel(anchorInput, stockInItemSuggest);
         Array.prototype.forEach.call(
           stockInItemSuggest.querySelectorAll("button[data-id]"),
           function (btn) {
@@ -1865,13 +2191,14 @@ var saleType = "sale";
         );
       }
 
-      function lookupStockInItems(showAll) {
-        if (!stockInItemInput) return;
-        var q = showAll ? "" : stockInItemInput.value;
+      function lookupStockInItems(showAll, anchorInput) {
+        if (!anchorInput) return;
+        var q = showAll ? "" : anchorInput.value;
         var rows = filterStockInItemRows(q, showAll);
         showStockInItemSuggest(
           rows,
-          rows.length ? "" : showAll ? "No items available." : "No matching items. Try another search or open the full list."
+          rows.length ? "" : showAll ? "No items available." : "No matching items. Try another search or open the full list.",
+          anchorInput
         );
       }
 
@@ -2054,25 +2381,6 @@ var saleType = "sale";
         stockInAuthCode.addEventListener("input", onStockInAuthCodeInput);
       }
       buildStockInItemCatalog();
-      if (stockInItemInput) {
-        stockInItemInput.addEventListener("input", function () {
-          if (stockInSelect) stockInSelect.value = "";
-          clearTimeout(stockInItemSuggestTimer);
-          stockInItemSuggestTimer = setTimeout(function () {
-            lookupStockInItems(false);
-          }, 120);
-        });
-        stockInItemInput.addEventListener("focus", function () {
-          lookupStockInItems(false);
-        });
-      }
-      if (stockInItemListToggle) {
-        stockInItemListToggle.addEventListener("click", function (e) {
-          e.preventDefault();
-          lookupStockInItems(true);
-          if (stockInItemInput) stockInItemInput.focus();
-        });
-      }
       if (stockInSellerPhone) {
         stockInSellerPhone.addEventListener("input", function () {
           hideStockInSellerNameSuggest();
@@ -2105,18 +2413,30 @@ var saleType = "sale";
       }
 
       function triggerStockInReceiptPrint() {
-        var url = stockInReceiptPrintUrl(stockInReceiptUrl);
-        if (!url) return;
-        var frame = document.createElement("iframe");
-        frame.setAttribute("aria-hidden", "true");
-        frame.style.cssText =
-          "position:fixed;left:-9999px;top:0;width:80mm;height:800px;border:0;opacity:0;pointer-events:none;z-index:-1";
-        document.body.appendChild(frame);
-        frame.src = url;
-        // Receipt page runs window.print() when auto_print=1 is present.
-        setTimeout(function () {
-          try { frame.remove(); } catch (e) {}
-        }, 12000);
+        var urls = stockInReceiptUrls && stockInReceiptUrls.length ? stockInReceiptUrls.slice() : [];
+        if (!urls.length && stockInReceiptUrl) urls = [stockInReceiptUrl];
+        if (!urls.length) return;
+        urls.forEach(function (rawUrl, idx) {
+          var url = stockInReceiptPrintUrl(rawUrl);
+          if (!url) return;
+          setTimeout(function () {
+            var frame = document.createElement("iframe");
+            frame.setAttribute("aria-hidden", "true");
+            frame.style.cssText =
+              "position:fixed;left:-9999px;top:0;width:80mm;height:800px;border:0;opacity:0;pointer-events:none;z-index:-1";
+            document.body.appendChild(frame);
+            frame.src = url;
+            setTimeout(function () {
+              try { frame.remove(); } catch (e) {}
+            }, 12000);
+          }, idx * 900);
+        });
+      }
+      if (stockInAddLineBtn) {
+        stockInAddLineBtn.addEventListener("click", function (e) {
+          e.preventDefault();
+          stockInAddEmptyRow();
+        });
       }
       if (stockInForm) {
         stockInForm.addEventListener("submit", function (ev) {
@@ -2131,15 +2451,27 @@ var saleType = "sale";
             stockInFeedback.classList.add("hidden");
             stockInFeedback.textContent = "";
           }
-          syncStockInQtyPriceToSubmit();
+          var preflight = validateStockInBeforeSubmit();
+          if (!preflight.ok) {
+            if (stockInFeedback) {
+              stockInFeedback.textContent = preflight.error || "Could not save entry.";
+              stockInFeedback.classList.remove("hidden");
+            }
+            stockInAuthVerifyInFlight = false;
+            if (stockInAuthCode) stockInAuthCode.disabled = false;
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = oldText || "Save";
+            }
+            return;
+          }
+          if (stockInLinesJsonInput) {
+            stockInLinesJsonInput.value = JSON.stringify(preflight.lines || []);
+          }
           var fd = new FormData(stockInForm);
+          fd.set("lines_json", JSON.stringify(preflight.lines || []));
           if (stockInEntryType === "expense") {
             fd.set("entry_type", "expense");
-            fd.set("qty", stockInExpenseQtyInput ? stockInExpenseQtyInput.value : fd.get("qty") || "");
-            fd.set(
-              "unit_price",
-              stockInExpenseUnitPriceInput ? stockInExpenseUnitPriceInput.value : fd.get("unit_price") || ""
-            );
             fd.delete("item_id");
             fd.delete("buying_price");
           } else {
@@ -2148,6 +2480,12 @@ var saleType = "sale";
             fd.delete("expense_name");
             fd.delete("unit_price");
           }
+          fd.delete("qty");
+          fd.delete("buying_price");
+          fd.delete("unit_price");
+          fd.delete("item_id");
+          fd.delete("expense_category");
+          fd.delete("expense_name");
           fetch(stockInForm.action, {
             method: "POST",
             body: fd,
@@ -2163,11 +2501,13 @@ var saleType = "sale";
                   ? "Expense registered successfully."
                   : "Item stocked in successfully.");
               stockInReceiptUrl = (j.receipt_url || "").trim();
-              var shouldPrintStockInReceipt =
-                !!stockInReceiptUrl &&
-                stockInPrintReceiptCheck &&
-                stockInPrintReceiptCheck.checked;
-              stockInForm.reset();
+              stockInReceiptUrls = Array.isArray(j.receipt_urls)
+                ? j.receipt_urls.filter(function (u) { return !!String(u || "").trim(); })
+                : stockInReceiptUrl
+                  ? [stockInReceiptUrl]
+                  : [];
+              initStockInLines();
+              renderStockInLines();
               setStockInEntryType("stock");
               Array.prototype.forEach.call(stockInTypeRadios || [], function (radio) {
                 radio.checked = radio.value === "stock";
@@ -2175,6 +2515,10 @@ var saleType = "sale";
               resetStockInEmployeeAuth();
               setStockInModalOpen(false);
               if (typeof showToast === "function") showToast(successMsg);
+              var shouldPrintStockInReceipt =
+                stockInReceiptUrls.length > 0 &&
+                stockInPrintReceiptCheck &&
+                stockInPrintReceiptCheck.checked;
               if (shouldPrintStockInReceipt) {
                 setTimeout(function () { triggerStockInReceiptPrint(); }, 80);
               }
@@ -2185,38 +2529,49 @@ var saleType = "sale";
             .catch(function (e) {
               // Phase 3 — offline fallback: queue the stock-in locally and bump the cached catalog.
               if (looksLikeOfflineNetworkError(e)) {
-                var payloadSi = {
-                  item_id: fd.get("item_id"),
-                  qty: fd.get("qty"),
-                  buying_price: fd.get("buying_price"),
-                  seller_phone: fd.get("seller_phone"),
-                  seller_name: fd.get("seller_name"),
-                  note: fd.get("note"),
-                  employee_code: fd.get("employee_code"),
-                };
-                return putOfflineStockIn(payloadSi).then(function () {
-                  var idNum = parseInt(payloadSi.item_id, 10);
-                  var qtyNum = parseFloat(payloadSi.qty);
-                  // In "both" mode the stock-in form targets store_stock_items (backroom)
-                  // which lives in a separate table from the POS catalog (shop_items).
-                  // Skip the local delta to avoid an accidental id collision bumping the
-                  // wrong shop_item; the backroom stock isn't displayed in the POS grid anyway.
-                  var modeNow = String(window.POS_INVENTORY_MODE || "shop").toLowerCase();
-                  var skipLocalDelta = modeNow === "both";
-                  if (!skipLocalDelta && isFinite(idNum) && isFinite(qtyNum) && qtyNum > 0) {
-                    var d = {}; d[idNum] = qtyNum;
-                    // Always target shop_stock_qty: server's shop_manual_stock_in writes
-                    // shop_stock_qty regardless of inventory_mode. In kitchen mode the
-                    // change is invisible in the POS grid (kitchen_portions is shown),
-                    // matching the existing online behavior — no drift on sync.
-                    try { applyLocalCatalogDelta(d, "shop_stock_qty"); } catch (eApply) {}
-                  }
+                if (stockInEntryType === "expense") {
                   if (stockInFeedback) {
                     stockInFeedback.textContent =
-                      "Offline: stock-in queued. It will sync automatically when internet returns.";
+                      (e && e.message) ? e.message : "Could not register expense while offline.";
                     stockInFeedback.classList.remove("hidden");
                   }
-                  stockInForm.reset();
+                  return;
+                }
+                var offlineLines = preflight.lines || [];
+                var queueChain = Promise.resolve();
+                offlineLines.forEach(function (line) {
+                  queueChain = queueChain.then(function () {
+                    var payloadSi = {
+                      item_id: line.item_id,
+                      qty: line.qty,
+                      buying_price: line.buying_price,
+                      seller_phone: fd.get("seller_phone"),
+                      seller_name: fd.get("seller_name"),
+                      note: fd.get("note"),
+                      employee_code: fd.get("employee_code"),
+                    };
+                    return putOfflineStockIn(payloadSi).then(function () {
+                      var idNum = parseInt(payloadSi.item_id, 10);
+                      var qtyNum = parseFloat(payloadSi.qty);
+                      var modeNow = String(window.POS_INVENTORY_MODE || "shop").toLowerCase();
+                      var skipLocalDelta = modeNow === "both";
+                      if (!skipLocalDelta && isFinite(idNum) && isFinite(qtyNum) && qtyNum > 0) {
+                        var d = {}; d[idNum] = qtyNum;
+                        try { applyLocalCatalogDelta(d, "shop_stock_qty"); } catch (eApply) {}
+                      }
+                    });
+                  });
+                });
+                return queueChain.then(function () {
+                  if (stockInFeedback) {
+                    stockInFeedback.textContent =
+                      "Offline: " +
+                      offlineLines.length +
+                      " stock-in line(s) queued. They will sync when internet returns.";
+                    stockInFeedback.classList.remove("hidden");
+                  }
+                  initStockInLines();
+                  renderStockInLines();
                   resetStockInEmployeeAuth();
                   setStockInModalOpen(false);
                   if (typeof showToast === "function") {

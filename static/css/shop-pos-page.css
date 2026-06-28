@@ -687,6 +687,22 @@
     .dark .pos-stockin-panel--expense #pos-stockin-expense-fields > .sm\:col-span-2:first-child {
       background: rgba(245, 158, 11, 0.12);
     }
+    .pos-stockin-lines-section {
+      border-radius: 0.9rem;
+      border: 1px solid rgba(var(--rc-border), 0.85);
+      background: rgb(var(--rc-surface));
+      padding: 0.85rem;
+    }
+    .pos-stockin-lines-scroll {
+      max-height: 14rem;
+    }
+    .pos-stockin-lines-table input:focus {
+      border-color: rgba(var(--rc-primary), 0.45);
+      outline: none;
+    }
+    .pos-stockin-lines-table tbody tr:hover {
+      background: rgba(var(--rc-primary), 0.04);
+    }
     .pos-stockin-form input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]),
     .pos-stockin-form select {
       border-width: 2px !important;

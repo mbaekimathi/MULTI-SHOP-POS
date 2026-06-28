@@ -147,6 +147,7 @@
 
       <div id="system" data-panel="system" class="scroll-mt-24{% if _st != 'system' %} hidden{% endif %}">
         <div class="it-settings-panel-card p-5 sm:p-6">
+          {% include "partials/employee_session_idle_settings_section.html" %}
           {% include "partials/daraja_settings_section.html" %}
         </div>
       </div>
@@ -881,6 +882,24 @@
       }
       window.addEventListener("hashchange", syncReturnHash);
       syncReturnHash();
+    })();
+
+    (function () {
+      function initEmployeeSessionIdleSettingsToggle() {
+        var toggle = document.getElementById("employee_session_idle_enabled");
+        var fields = document.getElementById("employee-session-idle-settings-fields");
+        if (!toggle || !fields) return;
+        function sync() {
+          fields.classList.toggle("hidden", !toggle.checked);
+        }
+        toggle.addEventListener("change", sync);
+        sync();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initEmployeeSessionIdleSettingsToggle);
+      } else {
+        initEmployeeSessionIdleSettingsToggle();
+      }
     })();
 
     (function () {

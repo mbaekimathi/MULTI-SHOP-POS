@@ -64,13 +64,69 @@ if (os.getenv("TRUST_PROXY_HEADERS") or "1").strip().lower() not in {
 # state because the session cookie still validates once the network returns.
 _SESSION_DAYS = int(os.getenv("SESSION_LIFETIME_DAYS", "90") or "90")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=max(1, _SESSION_DAYS))
-_EMPLOYEE_IDLE_MINUTES = max(1, int(os.getenv("EMPLOYEE_SESSION_IDLE_MINUTES", "5") or "5"))
-EMPLOYEE_SESSION_IDLE_SECONDS = _EMPLOYEE_IDLE_MINUTES * 60
-_EMPLOYEE_IDLE_WARN_SECONDS_RAW = int(os.getenv("EMPLOYEE_SESSION_IDLE_WARN_SECONDS", "60") or "60")
-EMPLOYEE_SESSION_IDLE_WARN_SECONDS = max(
-    15,
-    min(_EMPLOYEE_IDLE_WARN_SECONDS_RAW, max(EMPLOYEE_SESSION_IDLE_SECONDS - 15, 15)),
-)
+_EMPLOYEE_IDLE_ENV_MINUTES = max(1, int(os.getenv("EMPLOYEE_SESSION_IDLE_MINUTES", "5") or "5"))
+_EMPLOYEE_IDLE_ENV_WARN_SECONDS = int(os.getenv("EMPLOYEE_SESSION_IDLE_WARN_SECONDS", "60") or "60")
+EMPLOYEE_SESSION_IDLE_JSON_KEY = "employee_session_idle_json"
+
+
+def _default_employee_session_idle_settings() -> dict:
+    return {
+        "enabled": True,
+        "idle_minutes": _EMPLOYEE_IDLE_ENV_MINUTES,
+        "warn_seconds": _EMPLOYEE_IDLE_ENV_WARN_SECONDS,
+    }
+
+
+def _normalize_employee_session_idle_settings(data: Optional[dict]) -> dict:
+    defaults = _default_employee_session_idle_settings()
+    merged = {**defaults, **(data or {})}
+    enabled = merged.get("enabled") in (True, "true", "1", 1, "True")
+    try:
+        minutes = int(merged.get("idle_minutes") or defaults["idle_minutes"])
+    except (TypeError, ValueError):
+        minutes = defaults["idle_minutes"]
+    minutes = max(1, min(480, minutes))
+    idle_seconds = minutes * 60
+    try:
+        warn_raw = int(merged.get("warn_seconds") or defaults["warn_seconds"])
+    except (TypeError, ValueError):
+        warn_raw = defaults["warn_seconds"]
+    warn_seconds = max(15, min(warn_raw, max(idle_seconds - 15, 15)))
+    return {
+        "enabled": enabled,
+        "idle_minutes": minutes,
+        "idle_seconds": idle_seconds,
+        "warn_seconds": warn_seconds,
+    }
+
+
+def _load_employee_session_idle_settings() -> dict:
+    try:
+        from database import get_site_settings
+
+        raw = (get_site_settings([EMPLOYEE_SESSION_IDLE_JSON_KEY]).get(EMPLOYEE_SESSION_IDLE_JSON_KEY) or "").strip()
+        if not raw:
+            return _normalize_employee_session_idle_settings({})
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError, Exception):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    return _normalize_employee_session_idle_settings(data)
+
+
+def _employee_session_idle_settings_from_form() -> dict:
+    enabled = (request.form.get("employee_session_idle_enabled") or "").strip() == "1"
+    try:
+        minutes = int((request.form.get("employee_session_idle_minutes") or "5").strip())
+    except (TypeError, ValueError):
+        minutes = _EMPLOYEE_IDLE_ENV_MINUTES
+    return _normalize_employee_session_idle_settings(
+        {
+            "enabled": enabled,
+            "idle_minutes": minutes,
+        }
+    )
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 # Only set Secure when explicitly told the deployment is on HTTPS, so localhost
@@ -420,6 +476,9 @@ _EMPLOYEE_IDLE_SKIP_ENDPOINTS = frozenset(
 
 def _enforce_employee_session_idle_timeout():
     """Sign out employee portal sessions after inactivity (shop-password session may remain)."""
+    idle_cfg = _load_employee_session_idle_settings()
+    if not idle_cfg["enabled"]:
+        return None
     if request.endpoint in _EMPLOYEE_IDLE_SKIP_ENDPOINTS:
         return None
     if not session.get("employee_id"):
@@ -427,6 +486,8 @@ def _enforce_employee_session_idle_timeout():
     if _request_is_shop_branch_session_view():
         return None
 
+    idle_minutes = idle_cfg["idle_minutes"]
+    idle_seconds = idle_cfg["idle_seconds"]
     now = time.time()
     try:
         last = float(session.get("employee_last_activity"))
@@ -434,7 +495,7 @@ def _enforce_employee_session_idle_timeout():
         _touch_employee_session_activity()
         return None
 
-    if now - last <= EMPLOYEE_SESSION_IDLE_SECONDS:
+    if now - last <= idle_seconds:
         _touch_employee_session_activity()
         return None
 
@@ -446,7 +507,7 @@ def _enforce_employee_session_idle_timeout():
         employee_id=emp_id,
         target_type="employee",
         target_id=int(emp_id) if emp_id else None,
-        description=f"Automatic sign-out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity",
+        description=f"Automatic sign-out after {idle_minutes} minutes of inactivity",
         employee_full_name=emp_name,
         employee_role=emp_role,
     )
@@ -462,14 +523,14 @@ def _enforce_employee_session_idle_timeout():
             jsonify(
                 {
                     "ok": False,
-                    "error": f"Session expired after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity.",
+                    "error": f"Session expired after {idle_minutes} minutes of inactivity.",
                     "login_url": _employee_login_url(next_url=next_url, reason="idle"),
                 }
             ),
             401,
         )
 
-    flash(str(_EMPLOYEE_IDLE_MINUTES), "idle_signout")
+    flash(str(idle_minutes), "idle_signout")
     next_url = _request_continuation_url()
     return redirect(_employee_login_url(next_url=next_url, reason="idle"))
 
@@ -614,6 +675,30 @@ _db_schema_ready = _bootstrap_database_schema()
 _db_schema_lock = threading.Lock()
 _db_schema_next_retry_mono = 0.0
 _DB_SCHEMA_RETRY_AFTER_FAILURE_SEC = 3.0
+_stock_request_maint_lock = threading.Lock()
+_stock_request_maint_last_mono = 0.0
+_STOCK_REQUEST_MAINT_INTERVAL_SEC = 86400.0
+
+
+def _maybe_run_stock_request_maintenance() -> None:
+    """Expire stale pending stock requests at most once per day."""
+    global _stock_request_maint_last_mono
+    now = time.monotonic()
+    if now - _stock_request_maint_last_mono < _STOCK_REQUEST_MAINT_INTERVAL_SEC:
+        return
+    with _stock_request_maint_lock:
+        now = time.monotonic()
+        if now - _stock_request_maint_last_mono < _STOCK_REQUEST_MAINT_INTERVAL_SEC:
+            return
+        try:
+            from database import expire_old_pending_stock_requests
+
+            expired_n = expire_old_pending_stock_requests()
+            if expired_n:
+                logger.info("Expired %s stale pending stock request(s).", expired_n)
+        except Exception:
+            logger.exception("Stock request maintenance failed.")
+        _stock_request_maint_last_mono = time.monotonic()
 
 
 @app.before_request
@@ -621,6 +706,7 @@ def _ensure_database_schema_on_request():
     """On each request, ensure schema is ready if import-time init failed (e.g. MySQL still starting)."""
     global _db_schema_ready, _db_schema_next_retry_mono
     if _db_schema_ready:
+        _maybe_run_stock_request_maintenance()
         return
     if request.endpoint == "static":
         return
@@ -1280,13 +1366,21 @@ def inject_site_settings():
 
 @app.context_processor
 def inject_employee_session_idle_config():
-    base = {"employee_session_idle_minutes": _EMPLOYEE_IDLE_MINUTES}
-    if not session.get("employee_id") or _request_is_shop_branch_session_view():
+    idle_cfg = _load_employee_session_idle_settings()
+    base = {
+        "employee_session_idle_minutes": idle_cfg["idle_minutes"],
+        "employee_session_idle_enabled": idle_cfg["enabled"],
+    }
+    if (
+        not idle_cfg["enabled"]
+        or not session.get("employee_id")
+        or _request_is_shop_branch_session_view()
+    ):
         return {**base, "employee_session_idle_guard": False}
     return {
         **base,
         "employee_session_idle_guard": True,
-        "employee_session_idle_warn_seconds": EMPLOYEE_SESSION_IDLE_WARN_SECONDS,
+        "employee_session_idle_warn_seconds": idle_cfg["warn_seconds"],
     }
 
 
@@ -2213,12 +2307,13 @@ def employee_logout():
             if _safe_login_next(candidate) and candidate != login_path and not candidate.startswith("/logout"):
                 next_url = candidate
     if had_employee:
+        idle_minutes = _load_employee_session_idle_settings()["idle_minutes"]
         _log_hr_activity_safe(
             "logout",
             target_type="employee",
             target_id=session.get("employee_id"),
             description=(
-                f"Automatic sign-out after {_EMPLOYEE_IDLE_MINUTES} minutes of inactivity"
+                f"Automatic sign-out after {idle_minutes} minutes of inactivity"
                 if idle_sign_out
                 else f"Logout by {session.get('employee_name') or 'employee'}"
             ),
@@ -2244,6 +2339,7 @@ def employee_logout():
 @app.route("/session/employee-activity", methods=["POST"])
 def employee_session_activity_ping():
     """Keep employee session alive after user confirms they are still present."""
+    idle_cfg = _load_employee_session_idle_settings()
     if not session.get("employee_id"):
         next_url = _request_continuation_url()
         return (
@@ -2256,12 +2352,14 @@ def employee_session_activity_ping():
             ),
             401,
         )
-    _touch_employee_session_activity()
+    if idle_cfg["enabled"]:
+        _touch_employee_session_activity()
     return jsonify(
         {
             "ok": True,
-            "idle_seconds": EMPLOYEE_SESSION_IDLE_SECONDS,
-            "warn_seconds": EMPLOYEE_SESSION_IDLE_WARN_SECONDS,
+            "enabled": idle_cfg["enabled"],
+            "idle_seconds": idle_cfg["idle_seconds"],
+            "warn_seconds": idle_cfg["warn_seconds"],
         }
     )
 
@@ -2331,7 +2429,7 @@ def _flash_login_welcome(full_name: str) -> None:
 
 
 def _flash_idle_signout() -> None:
-    flash(str(_EMPLOYEE_IDLE_MINUTES), "idle_signout")
+    flash(str(_load_employee_session_idle_settings()["idle_minutes"]), "idle_signout")
 
 
 def _notify_employee_signup_pending_email(full_name: str, email: str, employee_code: str) -> None:
@@ -7163,6 +7261,9 @@ def it_support_system_settings():
                 COMPANY_OPENING_HOURS_JSON_KEY: json.dumps(
                     _company_opening_hours_from_form(), separators=(",", ":")
                 ),
+                EMPLOYEE_SESSION_IDLE_JSON_KEY: json.dumps(
+                    _employee_session_idle_settings_from_form(), separators=(",", ":")
+                ),
             }
             values.update(_daraja_settings_persist_payload(daraja_form))
             if app_icon_path is not None:
@@ -7232,6 +7333,7 @@ def it_support_system_settings():
         preview_url=_public_storefront_url(),
         company_opening_hours=_load_company_opening_hours(),
         company_weekdays=COMPANY_WEEKDAYS,
+        employee_session_idle_settings=_load_employee_session_idle_settings(),
     )
 
 
@@ -12691,6 +12793,41 @@ def shop_pos_refill_kitchen_portions(shop_id: int):
     return redirect(url_for("shop_pos", shop_id=shop_id))
 
 
+def _parse_pos_stock_in_lines(request, entry_type: str) -> list:
+    """Parse multi-line stock-in / expense payload from the POS buy modal."""
+    raw = (request.form.get("lines_json") or "").strip()
+    lines: list = []
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                lines = [x for x in parsed if isinstance(x, dict)]
+        except Exception:
+            pass
+    if lines:
+        return lines
+    if entry_type == "expense":
+        line = {
+            "expense_category": (request.form.get("expense_category") or "").strip().upper(),
+            "expense_name": (request.form.get("expense_name") or "").strip().upper(),
+            "qty": (request.form.get("qty") or "").strip(),
+            "unit_price": (
+                request.form.get("unit_price") or request.form.get("buying_price") or ""
+            ).strip(),
+        }
+        if line.get("expense_name"):
+            lines.append(line)
+    else:
+        line = {
+            "item_id": (request.form.get("item_id") or "").strip(),
+            "qty": (request.form.get("qty") or "").strip(),
+            "buying_price": (request.form.get("buying_price") or "").strip(),
+        }
+        if line.get("item_id"):
+            lines.append(line)
+    return lines
+
+
 @app.route("/shops/<int:shop_id>/shop-pos/stock-in", methods=["POST"])
 def shop_pos_stock_in(shop_id: int):
     """Quick manual stock-in from the POS page."""
@@ -12721,186 +12858,264 @@ def shop_pos_stock_in(shop_id: int):
     created_by_employee_id = int(emp_row["id"])
 
     if entry_type == "expense":
-        expense_category = (request.form.get("expense_category") or "").strip().upper()
-        expense_name = (request.form.get("expense_name") or "").strip().upper()
-        qty_raw = (request.form.get("qty") or "").strip()
-        unit_price_raw = (request.form.get("unit_price") or request.form.get("buying_price") or "").strip()
+        lines = _parse_pos_stock_in_lines(request, "expense")
+        if not lines:
+            msg = "Add at least one expense line."
+            if wants_json:
+                return jsonify({"ok": False, "error": msg}), 400
+            flash(msg, "error")
+            return redirect(url_for("shop_pos", shop_id=shop_id))
+
         note = (request.form.get("note") or "").strip().upper()
         seller_phone = (request.form.get("seller_phone") or "").strip()
         seller_name = (request.form.get("seller_name") or "").strip().upper()
+
+        success_count = 0
+        expense_ids: list = []
+        receipt_urls: list = []
+        errors: list = []
         try:
             from database import init_operational_expense_tables, register_shop_operational_expense
 
             init_operational_expense_tables()
-            ok, expense_id, err_msg = register_shop_operational_expense(
-                shop_id=shop_id,
-                category_name=expense_category,
-                expense_name=expense_name,
-                qty=qty_raw,
-                unit_price=unit_price_raw,
-                seller_phone=seller_phone,
-                supplier_name=seller_name,
-                note=note or None,
-                created_by_employee_id=created_by_employee_id,
-                payment_status="pending_payment",
-            )
+            for idx, line in enumerate(lines):
+                expense_category = (line.get("expense_category") or "").strip().upper()
+                expense_name = (line.get("expense_name") or "").strip().upper()
+                qty_raw = (line.get("qty") or "").strip()
+                unit_price_raw = (line.get("unit_price") or "").strip()
+                ok, expense_id, err_msg = register_shop_operational_expense(
+                    shop_id=shop_id,
+                    category_name=expense_category,
+                    expense_name=expense_name,
+                    qty=qty_raw,
+                    unit_price=unit_price_raw,
+                    seller_phone=seller_phone,
+                    supplier_name=seller_name,
+                    note=note or None,
+                    created_by_employee_id=created_by_employee_id,
+                    payment_status="pending_payment",
+                )
+                if ok:
+                    success_count += 1
+                    expense_ids.append(expense_id)
+                    if expense_id:
+                        receipt_urls.append(
+                            url_for(
+                                "shop_stock_in_receipt",
+                                shop_id=shop_id,
+                                tx_id=expense_id,
+                                kind="expense",
+                                auto_print=1,
+                            )
+                        )
+                else:
+                    label = expense_name or f"Line {idx + 1}"
+                    errors.append(f"{label}: {err_msg or 'Could not register expense.'}")
         except Exception:
-            ok = False
-            expense_id = None
-            err_msg = "Could not register expense."
-        if not ok:
+            success_count = 0
+            errors = ["Could not register expense."]
+
+        if success_count <= 0:
+            err_text = errors[0] if errors else "Could not register expense."
             if wants_json:
-                return jsonify({"ok": False, "error": err_msg or "Could not register expense."}), 400
-            flash(err_msg or "Could not register expense.", "error")
+                return jsonify({"ok": False, "error": err_text, "errors": errors}), 400
+            flash(err_text, "error")
         else:
+            if success_count == len(lines):
+                message = (
+                    f"{success_count} expenses registered successfully."
+                    if success_count > 1
+                    else "Expense registered successfully."
+                )
+            else:
+                message = (
+                    f"{success_count} of {len(lines)} expenses registered. "
+                    + "; ".join(errors[:3])
+                )
             if wants_json:
-                receipt_url = None
-                if expense_id:
-                    receipt_url = url_for(
-                        "shop_stock_in_receipt",
-                        shop_id=shop_id,
-                        tx_id=expense_id,
-                        kind="expense",
-                        auto_print=1,
-                    )
                 return jsonify(
                     {
                         "ok": True,
-                        "message": "Expense registered successfully.",
-                        "expense_id": expense_id,
+                        "message": message,
+                        "expense_id": expense_ids[0] if expense_ids else None,
+                        "expense_ids": expense_ids,
                         "entry_type": "expense",
-                        "receipt_url": receipt_url,
+                        "receipt_url": receipt_urls[0] if receipt_urls else None,
+                        "receipt_urls": receipt_urls,
+                        "saved_count": success_count,
+                        "errors": errors,
                     }
                 )
-            flash("Expense registered successfully.", "success")
+            flash(message, "success" if not errors else "warning")
         return redirect(url_for("shop_pos", shop_id=shop_id))
 
     is_store_stock_mode = _pos_inventory_mode(shop) == "both"
+    lines = _parse_pos_stock_in_lines(request, "stock")
+    if not lines:
+        msg = "Add at least one item line."
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
 
-    item_id_raw = (request.form.get("item_id") or "").strip()
-    qty_raw = (request.form.get("qty") or "").strip()
-    buying_price_raw = (request.form.get("buying_price") or "").strip()
     seller_phone = (request.form.get("seller_phone") or "").strip()
     seller_name = (request.form.get("seller_name") or "").strip().upper()
     payment_status = "pending_payment"
     note = (request.form.get("note") or "").strip().upper()
 
     try:
-        from database import normalize_stock_move_qty
-
-        item_id = int(item_id_raw)
-        qty = normalize_stock_move_qty(qty_raw)
-    except Exception:
-        if wants_json:
-            return jsonify({"ok": False, "error": "Invalid stock-in values."}), 400
-        flash("Invalid stock-in values.", "error")
-        return redirect(url_for("shop_pos", shop_id=shop_id))
-
-    if qty is None:
-        if wants_json:
-            return jsonify({"ok": False, "error": "Quantity must be greater than zero."}), 400
-        flash("Quantity must be greater than zero.", "error")
-        return redirect(url_for("shop_pos", shop_id=shop_id))
-
-    tx_id = None
-    try:
-        from database import resolve_seller_name_and_phone
+        from database import normalize_stock_move_qty, resolve_seller_name_and_phone
 
         resolved_name, resolved_phone = resolve_seller_name_and_phone(
             seller_phone=seller_phone,
             seller_name=seller_name,
         )
         if not resolved_name or not resolved_phone:
+            msg = "Seller phone must be valid. If new, provide seller name to register."
             if wants_json:
-                return jsonify({"ok": False, "error": "Seller phone must be valid. If new, provide seller name to register."}), 400
-            flash("Seller phone must be valid. If new, provide seller name to register.", "error")
+                return jsonify({"ok": False, "error": msg}), 400
+            flash(msg, "error")
             return redirect(url_for("shop_pos", shop_id=shop_id))
+    except Exception:
+        msg = "Could not validate seller details."
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("shop_pos", shop_id=shop_id))
 
-        if is_store_stock_mode:
-            from database import (
-                get_latest_shop_manual_store_stock_in_tx_id,
-                shop_manual_store_stock_in,
-            )
+    success_count = 0
+    tx_ids: list = []
+    receipt_urls: list = []
+    errors: list = []
 
-            ok = shop_manual_store_stock_in(
-                shop_id=shop_id,
-                store_stock_item_id=item_id,
-                qty=qty,
-                buying_price=buying_price_raw,
-                place_brought_from=resolved_name,
-                seller_phone=resolved_phone,
-                payment_status=payment_status,
-                note=note or None,
-                created_by_employee_id=created_by_employee_id,
-            )
-            if ok:
-                tx_id = get_latest_shop_manual_store_stock_in_tx_id(
+    for idx, line in enumerate(lines):
+        item_id_raw = (line.get("item_id") or "").strip()
+        qty_raw = (line.get("qty") or "").strip()
+        buying_price_raw = (line.get("buying_price") or "").strip()
+        line_label = (line.get("label") or "").strip() or f"Line {idx + 1}"
+
+        try:
+            item_id = int(item_id_raw)
+            qty = normalize_stock_move_qty(qty_raw)
+        except Exception:
+            errors.append(f"{line_label}: Invalid stock-in values.")
+            continue
+
+        if qty is None:
+            errors.append(f"{line_label}: Quantity must be greater than zero.")
+            continue
+
+        tx_id = None
+        ok = False
+        try:
+            if is_store_stock_mode:
+                from database import (
+                    get_latest_shop_manual_store_stock_in_tx_id,
+                    shop_manual_store_stock_in,
+                )
+
+                ok = shop_manual_store_stock_in(
                     shop_id=shop_id,
                     store_stock_item_id=item_id,
+                    qty=qty,
+                    buying_price=buying_price_raw,
+                    place_brought_from=resolved_name,
+                    seller_phone=resolved_phone,
+                    payment_status=payment_status,
+                    note=note or None,
                     created_by_employee_id=created_by_employee_id,
                 )
-        else:
-            from database import (
-                ensure_shop_items_for_shop,
-                get_latest_shop_manual_stock_in_tx_id,
-                shop_manual_stock_in,
-            )
+                if ok:
+                    tx_id = get_latest_shop_manual_store_stock_in_tx_id(
+                        shop_id=shop_id,
+                        store_stock_item_id=item_id,
+                        created_by_employee_id=created_by_employee_id,
+                    )
+            else:
+                from database import (
+                    ensure_shop_items_for_shop,
+                    get_latest_shop_manual_stock_in_tx_id,
+                    shop_manual_stock_in,
+                )
 
-            ensure_shop_items_for_shop(shop_id)
-            ok = shop_manual_stock_in(
-                shop_id=shop_id,
-                item_id=item_id,
-                qty=qty,
-                buying_price=buying_price_raw,
-                place_brought_from=resolved_name,
-                seller_phone=resolved_phone,
-                payment_status=payment_status,
-                note=note or None,
-                created_by_employee_id=created_by_employee_id,
-            )
-            if ok:
-                tx_id = get_latest_shop_manual_stock_in_tx_id(
+                ensure_shop_items_for_shop(shop_id)
+                ok = shop_manual_stock_in(
                     shop_id=shop_id,
                     item_id=item_id,
+                    qty=qty,
+                    buying_price=buying_price_raw,
+                    place_brought_from=resolved_name,
+                    seller_phone=resolved_phone,
+                    payment_status=payment_status,
+                    note=note or None,
                     created_by_employee_id=created_by_employee_id,
                 )
-    except Exception:
-        ok = False
+                if ok:
+                    tx_id = get_latest_shop_manual_stock_in_tx_id(
+                        shop_id=shop_id,
+                        item_id=item_id,
+                        created_by_employee_id=created_by_employee_id,
+                    )
+        except Exception:
+            ok = False
 
-    if not ok:
-        if wants_json:
-            return jsonify({"ok": False, "error": "Could not stock in item. Check item and input details."}), 400
-        flash("Could not stock in item. Check item and input details.", "error")
-    else:
-        if wants_json:
-            receipt_url = None
+        if ok:
+            success_count += 1
             if tx_id:
-                if is_store_stock_mode:
-                    receipt_url = url_for(
+                tx_ids.append(tx_id)
+                receipt_kind = "store" if is_store_stock_mode else None
+                receipt_urls.append(
+                    url_for(
                         "shop_stock_in_receipt",
                         shop_id=shop_id,
                         tx_id=tx_id,
-                        kind="store",
+                        kind=receipt_kind,
                         embed=1,
                         auto_print=1,
                     )
-                else:
-                    receipt_url = url_for(
+                    if receipt_kind
+                    else url_for(
                         "shop_stock_in_receipt",
                         shop_id=shop_id,
                         tx_id=tx_id,
                         embed=1,
                         auto_print=1,
                     )
+                )
+        else:
+            errors.append(f"{line_label}: Could not stock in item. Check item and input details.")
+
+    if success_count <= 0:
+        err_text = errors[0] if errors else "Could not stock in item. Check item and input details."
+        if wants_json:
+            return jsonify({"ok": False, "error": err_text, "errors": errors}), 400
+        flash(err_text, "error")
+    else:
+        if success_count == len(lines):
+            message = (
+                f"{success_count} items stocked in successfully."
+                if success_count > 1
+                else "Item stocked in successfully."
+            )
+        else:
+            message = (
+                f"{success_count} of {len(lines)} items stocked in. "
+                + "; ".join(errors[:3])
+            )
+        if wants_json:
             return jsonify(
                 {
                     "ok": True,
-                    "message": "Item stocked in successfully.",
-                    "tx_id": tx_id,
-                    "receipt_url": receipt_url,
+                    "message": message,
+                    "tx_id": tx_ids[0] if tx_ids else None,
+                    "tx_ids": tx_ids,
+                    "receipt_url": receipt_urls[0] if receipt_urls else None,
+                    "receipt_urls": receipt_urls,
+                    "saved_count": success_count,
+                    "errors": errors,
                 }
             )
-        flash("Item stocked in successfully.", "success")
+        flash(message, "success" if not errors else "warning")
     return redirect(url_for("shop_pos", shop_id=shop_id))
 
 
@@ -18372,6 +18587,28 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
             flash("Removed from shelf stock list." if ok_un else "Could not unregister item.", "success" if ok_un else "error")
             return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
 
+        if action == "cancel_stock_request":
+            view_arg = _shop_stock_mgmt_view(request.form.get("view") or request.args.get("view"))
+            try:
+                cancel_rid = int(request.form.get("request_id") or 0)
+            except Exception:
+                cancel_rid = 0
+            try:
+                from database import cancel_stock_request_by_requester
+
+                ok_cancel, cancel_err = cancel_stock_request_by_requester(
+                    request_id=cancel_rid,
+                    requesting_shop_id=shop_id,
+                    employee_id=session.get("employee_id"),
+                )
+            except Exception:
+                ok_cancel, cancel_err = False, "Could not cancel request."
+            flash(
+                "Stock request cancelled." if ok_cancel else (cancel_err or "Could not cancel request."),
+                "success" if ok_cancel else "error",
+            )
+            return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
+
         if action == "batch_request_stock":
             try:
                 from database import ensure_shop_items_for_shop, create_shop_stock_request
@@ -18391,18 +18628,12 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         flash("Choose a valid other shop to request stock from.", "error")
                         return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
                 batch_note = (request.form.get("batch_note") or "").strip().upper() or None
-                from database import get_request_source_stock_snapshot, normalize_stock_move_qty
-
-                try:
-                    _, stock_map = get_request_source_stock_snapshot(
-                        requesting_shop_id=shop_id,
-                        batch_request_source=source_target,
-                    )
-                except Exception:
-                    stock_map = {}
+                from database import normalize_stock_move_qty
                 ok_count = 0
                 fail_count = 0
                 fail_note = 0
+                merged_count = 0
+                line_specs: list[tuple[int, str, str | None]] = []
                 for key in request.form:
                     m = re.match(r"^qty_(\d+)$", key)
                     if not m:
@@ -18411,21 +18642,20 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     q_raw = (request.form.get(key) or "").strip()
                     if not q_raw:
                         continue
+                    per_note = (request.form.get(f"note_{iid}") or "").strip().upper() or None
+                    line_specs.append((iid, q_raw, per_note))
+                line_specs.sort(key=lambda t: t[0])
+                for iid, q_raw, per_note in line_specs:
                     q = normalize_stock_move_qty(q_raw)
                     if q is None:
                         fail_count += 1
                         continue
-                    per_note = (request.form.get(f"note_{iid}") or "").strip().upper() or None
                     line_note = per_note or batch_note
                     if ws.get("require_request_stock_notes") and not line_note:
                         fail_note += 1
                         fail_count += 1
                         continue
-                    avail = float((stock_map or {}).get(iid) or 0)
-                    if q > avail + 1e-9:
-                        fail_count += 1
-                        continue
-                    req_id = create_shop_stock_request(
+                    req_id, req_tag = create_shop_stock_request(
                         requesting_shop_id=shop_id,
                         request_type="stock_in",
                         source_type=source_type,
@@ -18436,20 +18666,26 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         requested_by_employee_id=session.get("employee_id"),
                     )
                     if req_id:
-                        _notify_new_shop_stock_request(
-                            req_id=int(req_id),
-                            requesting_shop_id=shop_id,
-                            source_type=source_type,
-                            source_shop_id=source_shop_id,
-                            request_type="stock_in",
-                            item_id=iid,
-                            qty=q,
-                        )
+                        if req_tag == "merged":
+                            merged_count += 1
+                        if req_tag != "merged":
+                            _notify_new_shop_stock_request(
+                                req_id=int(req_id),
+                                requesting_shop_id=shop_id,
+                                source_type=source_type,
+                                source_shop_id=source_shop_id,
+                                request_type="stock_in",
+                                item_id=iid,
+                                qty=q,
+                            )
                         ok_count += 1
                     else:
                         fail_count += 1
                 if ok_count and not fail_count:
-                    flash(f"Submitted {ok_count} stock request(s) for approval.", "success")
+                    msg = f"Submitted {ok_count} stock request(s) for approval."
+                    if merged_count:
+                        msg += f" {merged_count} line(s) added to existing pending requests."
+                    flash(msg, "success")
                 elif ok_count:
                     flash(
                         f"Submitted {ok_count} request(s). {fail_count} line(s) were skipped "
@@ -18459,7 +18695,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 else:
                     bits = [
                         "No requests submitted. Enter at least one quantity that does not exceed "
-                        "stock at the selected source (company warehouse or other shop)."
+                        "available stock at the selected source (pending requests reduce availability)."
                     ]
                     if fail_note:
                         bits.append(f"{fail_note} line(s) missing required notes.")
@@ -18737,8 +18973,6 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 resolve_seller_name_and_phone,
                 shop_manual_stock_in,
                 shop_manual_stock_out,
-                shop_request_stock_from_company,
-                shop_return_stock_to_company,
             )
 
             ensure_shop_items_for_shop(shop_id)
@@ -18758,7 +18992,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         source_shop_id = int(source_target.split(":", 1)[1])
                     except Exception:
                         source_shop_id = None
-                req_id = create_shop_stock_request(
+                req_id, req_tag = create_shop_stock_request(
                     requesting_shop_id=shop_id,
                     request_type="stock_in",
                     source_type=source_type,
@@ -18771,22 +19005,29 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 if not req_id:
                     flash(
                         "Could not create stock request. Quantity must not exceed available stock "
-                        "at the selected source, and stock updates must be enabled where required.",
+                        "(including other pending requests) at the selected source, and stock updates "
+                        "must be enabled where required.",
                         "error",
                     )
                 else:
-                    _notify_new_shop_stock_request(
-                        req_id=int(req_id),
-                        requesting_shop_id=shop_id,
-                        source_type=source_type,
-                        source_shop_id=source_shop_id,
-                        request_type="stock_in",
-                        item_id=item_id,
-                        qty=qty,
+                    if req_tag != "merged":
+                        _notify_new_shop_stock_request(
+                            req_id=int(req_id),
+                            requesting_shop_id=shop_id,
+                            source_type=source_type,
+                            source_shop_id=source_shop_id,
+                            request_type="stock_in",
+                            item_id=item_id,
+                            qty=qty,
+                        )
+                    flash(
+                        "Quantity added to existing pending request."
+                        if req_tag == "merged"
+                        else "Stock request submitted for approval.",
+                        "success",
                     )
-                    flash("Stock request submitted for approval.", "success")
             elif action == "request_return":
-                req_id = create_shop_stock_request(
+                req_id, req_tag = create_shop_stock_request(
                     requesting_shop_id=shop_id,
                     request_type="return_to_company",
                     source_type="company",
@@ -18797,45 +19038,28 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     requested_by_employee_id=session.get("employee_id"),
                 )
                 if not req_id:
-                    flash("Could not create return request. Check shop stock availability.", "error")
-                else:
-                    _notify_new_shop_stock_request(
-                        req_id=int(req_id),
-                        requesting_shop_id=shop_id,
-                        source_type="company",
-                        source_shop_id=None,
-                        request_type="return_to_company",
-                        item_id=item_id,
-                        qty=qty,
+                    flash(
+                        "Could not create return request. Check shop stock availability "
+                        "(pending returns count toward the limit).",
+                        "error",
                     )
-                    flash("Return request submitted for company approval.", "success")
-            elif action == "request_company":
-                ok = shop_request_stock_from_company(
-                    shop_id=shop_id,
-                    item_id=item_id,
-                    qty=qty,
-                    note=note or None,
-                    created_by_employee_id=session.get("employee_id"),
-                )
-                if not ok:
-                    flash("Could not request stock. Ensure shop stock update is ON and company stock is enough.", "error")
                 else:
-                    flash("Stock requested from company.", "success")
-            elif action == "return_company":
-                ok = shop_return_stock_to_company(
-                    shop_id=shop_id,
-                    item_id=item_id,
-                    qty=qty,
-                    reason=reason,
-                    refunded=False,
-                    refund_amount=None,
-                    note=note or None,
-                    created_by_employee_id=session.get("employee_id"),
-                )
-                if not ok:
-                    flash("Could not return stock. Ensure shop stock update is ON and shop stock is enough.", "error")
-                else:
-                    flash("Stock returned to company.", "success")
+                    if req_tag != "merged":
+                        _notify_new_shop_stock_request(
+                            req_id=int(req_id),
+                            requesting_shop_id=shop_id,
+                            source_type="company",
+                            source_shop_id=None,
+                            request_type="return_to_company",
+                            item_id=item_id,
+                            qty=qty,
+                        )
+                    flash(
+                        "Quantity added to existing pending return request."
+                        if req_tag == "merged"
+                        else "Return request submitted for company approval.",
+                        "success",
+                    )
             elif action == "manual_in":
                 place_brought_from_raw = (request.form.get("place_brought_from") or "").strip().upper()
                 resolved_name, resolved_phone = resolve_seller_name_and_phone(
@@ -19145,6 +19369,20 @@ def shop_notifications(shop_id: int):
 def approve_stock_request(request_id: int):
     role_key = (session.get("employee_role") or "employee").strip().lower()
     shop_id = session.get("shop_id")
+    fulfill_qty = None
+    fulfill_raw = (request.form.get("fulfill_qty") or "").strip()
+    if fulfill_raw:
+        try:
+            from database import normalize_stock_move_qty
+
+            fulfill_qty = normalize_stock_move_qty(fulfill_raw)
+            if fulfill_qty is None:
+                flash("Enter a valid positive quantity to approve.", "error")
+                if shop_id:
+                    return redirect(url_for("shop_notifications", shop_id=int(shop_id)))
+                return redirect(url_for("notifications"))
+        except Exception:
+            fulfill_qty = None
     try:
         from database import review_stock_request
 
@@ -19155,6 +19393,7 @@ def approve_stock_request(request_id: int):
             approver_role=role_key,
             approver_shop_id=int(shop_id) if shop_id else None,
             review_note=(request.form.get("review_note") or "").strip() or None,
+            fulfill_qty=fulfill_qty,
         )
     except Exception:
         ok, err_msg = False, "Could not approve stock request."

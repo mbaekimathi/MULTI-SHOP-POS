@@ -22,6 +22,8 @@
   var logoutBtn = modal.querySelector("[data-idle-logout]");
 
   var lastActivity = Date.now();
+  var lastServerPing = Date.now();
+  var serverPingIntervalMs = Math.min(60000, Math.max(30000, Math.floor(idleMs / 5)));
   var warnVisible = false;
   var countdownTimer = null;
   var signingOut = false;
@@ -60,6 +62,16 @@
     return appendQuery(url, "reason", "idle");
   }
 
+  function maybePingServer(force) {
+    if (!pingUrl || warnVisible || signingOut) return;
+    var now = Date.now();
+    if (!force && now - lastServerPing < serverPingIntervalMs) return;
+    lastServerPing = now;
+    pingServer().then(function (res) {
+      if (!res.ok) redirectExpired(res.data);
+    }).catch(function () {});
+  }
+
   function pingServer() {
     if (!pingUrl) return Promise.resolve({ ok: true });
     return fetch(pingUrl, {
@@ -96,6 +108,7 @@
     if (fromUser) {
       pingServer().then(function (res) {
         if (!res.ok) redirectExpired(res.data);
+        else lastServerPing = Date.now();
       }).catch(function () {});
     }
   }
@@ -139,6 +152,7 @@
           markActive(true);
         } else {
           lastActivity = Date.now();
+          maybePingServer(false);
         }
       },
       { passive: true }
@@ -153,6 +167,7 @@
           if (res.ok && res.data && res.data.ok) {
             markActive(false);
             lastActivity = Date.now();
+            lastServerPing = Date.now();
           } else {
             redirectExpired(res.data);
           }
@@ -173,6 +188,10 @@
 
   setInterval(checkIdle, 5000);
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") checkIdle();
+    if (document.visibilityState !== "visible") return;
+    checkIdle();
+    if (!warnVisible && Date.now() - lastActivity < warnMs) {
+      maybePingServer(true);
+    }
   });
 })();

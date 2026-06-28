@@ -89,12 +89,14 @@
                   </td>
                   <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
                   <td>
-                    <div class="rc-actions">
-                      {% if r.can_review %}
+                    <div class="rc-actions flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                      {% if r.can_review and st == 'pending' %}
                         {% if not r.can_approve_now %}
-                          <span class="text-[10px] font-bold uppercase tracking-wide text-rose-300" title="Not enough stock at source">Low stock</span>
+                          <span class="text-[10px] font-bold uppercase tracking-wide text-rose-300" title="Not enough stock at source (after pending reservations)">Low stock</span>
                         {% endif %}
-                        <form method="post" action="{{ url_for('approve_stock_request', request_id=r.id) }}">
+                        <form method="post" action="{{ url_for('approve_stock_request', request_id=r.id) }}" class="flex flex-wrap items-center gap-1.5">
+                          <label class="sr-only" for="fulfill-qty-{{ r.id }}">Approve quantity</label>
+                          <input id="fulfill-qty-{{ r.id }}" type="text" name="fulfill_qty" inputmode="decimal" autocomplete="off" value="{{ r.qty }}" class="w-16 rounded border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-1.5 py-1 text-xs tabular-nums" title="Quantity to approve (max {{ r.qty }})"{% if not r.can_approve_now %} disabled{% endif %} />
                           <button type="submit" class="btn-rc btn-rc-success px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"{% if not r.can_approve_now %} disabled title="Not enough stock at the source to approve"{% endif %}>Approve</button>
                         </form>
                         <form method="post" action="{{ url_for('reject_stock_request', request_id=r.id) }}" onsubmit="return confirm('Cancel this stock request? The requesting shop will be notified.');">
