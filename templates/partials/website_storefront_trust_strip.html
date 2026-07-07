@@ -5,12 +5,13 @@
 {% set _trust_tt = _tt|default(_c.tiktok if _c is defined else '') %}
 {% set _trust_has_social = _trust_fb or _trust_ig or _trust_tw or _trust_tt %}
 {% set _trust_in_hero = trust_strip_in_hero|default(false) %}
+{% set _trust_catalog = _catalog_url|default('') %}
 <section class="wsf-trust wsf-reveal{% if _trust_in_hero %} wsf-trust--in-hero{% endif %}" role="region" aria-label="Why shop with us">
   {% if not _trust_in_hero %}<div class="wsf-trust__ambient" aria-hidden="true"></div>{% endif %}
   <div class="{% if not _trust_in_hero %}wsf-shell {% endif %}wsf-trust__inner">
     <div class="wsf-trust__deck">
       <div class="wsf-trust__grid">
-        <article class="wsf-trust__card wsf-reveal-child" style="--wsf-i: 0">
+        <a href="{{ _trust_catalog }}" class="wsf-trust__card wsf-trust__card--link wsf-reveal-child" style="--wsf-i: 0">
           <div class="wsf-trust__icon-wrap wsf-trust__icon-wrap--quality">
             <span class="wsf-trust__icon-ring" aria-hidden="true"></span>
             <span class="wsf-trust__icon" aria-hidden="true">
@@ -21,9 +22,9 @@
             <h3 class="wsf-trust__title">Curated quality</h3>
             <p class="wsf-trust__text">Hand-picked products from our catalogue</p>
           </div>
-        </article>
+        </a>
 
-        <article class="wsf-trust__card wsf-reveal-child" style="--wsf-i: 1">
+        <button type="button" class="wsf-trust__card wsf-trust__card--link wsf-reveal-child" style="--wsf-i: 1" data-wsf-open-cart>
           <div class="wsf-trust__icon-wrap wsf-trust__icon-wrap--quote">
             <span class="wsf-trust__icon-ring" aria-hidden="true"></span>
             <span class="wsf-trust__icon" aria-hidden="true">
@@ -34,10 +35,10 @@
             <h3 class="wsf-trust__title">Easy quote request</h3>
             <p class="wsf-trust__text">Tap any item — checkout in seconds</p>
           </div>
-        </article>
+        </button>
 
         {% if _phone %}
-        <article class="wsf-trust__card wsf-trust__card--live wsf-reveal-child" style="--wsf-i: 2">
+        <a href="tel:{{ _phone }}" class="wsf-trust__card wsf-trust__card--link wsf-trust__card--live wsf-reveal-child" style="--wsf-i: 2">
           <div class="wsf-trust__icon-wrap wsf-trust__icon-wrap--support">
             <span class="wsf-trust__icon-ring" aria-hidden="true"></span>
             <span class="wsf-trust__live-dot" aria-hidden="true"></span>
@@ -47,13 +48,13 @@
           </div>
           <div class="wsf-trust__body">
             <h3 class="wsf-trust__title">Expert support</h3>
-            <p class="wsf-trust__text"><a href="tel:{{ _phone }}">{{ _phone }}</a></p>
+            <p class="wsf-trust__text">{{ _phone }}</p>
           </div>
-        </article>
+        </a>
         {% endif %}
 
         {% if _c is defined and (_c.return_refund_policy or _c.shipping_delivery_guidelines) %}
-        <article class="wsf-trust__card wsf-reveal-child" style="--wsf-i: 3">
+        <a href="#wsf-policies" class="wsf-trust__card wsf-trust__card--link wsf-reveal-child" style="--wsf-i: 3">
           <div class="wsf-trust__icon-wrap wsf-trust__icon-wrap--policy">
             <span class="wsf-trust__icon-ring" aria-hidden="true"></span>
             <span class="wsf-trust__icon" aria-hidden="true">
@@ -62,9 +63,9 @@
           </div>
           <div class="wsf-trust__body">
             <h3 class="wsf-trust__title">Clear policies</h3>
-            <p class="wsf-trust__text"><a href="#wsf-policies">Returns &amp; delivery info</a></p>
+            <p class="wsf-trust__text">Returns &amp; delivery info</p>
           </div>
-        </article>
+        </a>
         {% endif %}
       </div>
 

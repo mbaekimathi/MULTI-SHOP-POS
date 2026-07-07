@@ -1,0 +1,92 @@
+{# Cyrclo-style hero — centred copy with orbiting best-seller product cards #}
+{% set _orbit = orbit_products|default([]) %}
+{% if _orbit|length > 0 and _orbit|length < 12 %}
+  {% set _orbit_fill = namespace(items=[]) %}
+  {% for i in range(12) %}
+    {% set _ = _orbit_fill.items.append(_orbit[i % _orbit|length]) %}
+  {% endfor %}
+  {% set _orbit = _orbit_fill.items %}
+{% endif %}
+{% set _orbit_n = _orbit|length %}
+<section class="wsf-hero wsf-hero--full wsf-hero--orbit wsf-reveal" aria-labelledby="wsf-hero-heading">
+  <div class="wsf-hero-orbit__bg" aria-hidden="true"></div>
+  <div class="wsf-shell wsf-hero-orbit__stage">
+    <div class="wsf-hero-orbit__arena"{% if _orbit_n %} style="--wsf-orbit-count: {{ _orbit_n }}"{% endif %}>
+      {% if _orbit_n %}
+      <div class="wsf-hero-orbit__ring" data-wsf-orbit-ring aria-hidden="true">
+        {% for p in _orbit %}
+        <a
+          href="{{ storefront_product_url(p) }}"
+          class="wsf-hero-orbit__card{% if p.on_sale %} wsf-hero-orbit__card--sale{% endif %}"
+          style="--wsf-orbit-i: {{ loop.index0 }}"
+          tabindex="-1"
+          aria-hidden="true"
+        >
+          {% if p.image_url %}
+            <img
+              src="{{ p.image_url }}"
+              alt=""
+              class="wsf-hero-orbit__img"
+              loading="{% if loop.index0 < 4 %}eager{% else %}lazy{% endif %}"
+              width="80"
+              height="80"
+              decoding="async"
+            />
+          {% else %}
+            <span class="wsf-hero-orbit__ph" aria-hidden="true">{{ p.name[:1]|upper }}</span>
+          {% endif %}
+          {% if p.on_sale %}
+            <span class="wsf-hero-orbit__badge">−{{ p.discount_percent }}%</span>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="wsf-hero-orbit__center">
+        {% if _c.hero_show_eyebrow %}
+        <p class="wsf-kicker wsf-hero-orbit__kicker">{{ _c.hero_eyebrow }}</p>
+        {% endif %}
+        {% if _icon %}
+        <div class="wsf-hero-orbit__logo" aria-hidden="true">
+          <img src="{{ url_for('static', filename=_icon) }}" alt="" width="48" height="48" decoding="async" />
+        </div>
+        {% endif %}
+        <h1 id="wsf-hero-heading" class="wsf-hero-orbit__title">
+          {{ _c.hero_headline }}{% if _c.hero_show_accent %} <span class="wsf-hero-orbit__accent">{{ _c.hero_headline_accent }}</span>{% endif %}
+        </h1>
+        <p class="wsf-hero-orbit__lead">{{ _c.hero_lead }}</p>
+      </div>
+    </div>
+
+    <div class="wsf-hero-orbit__actions">
+      <div class="wsf-hero-orbit__cta">
+        <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--primary">{{ _c.cta_primary_label }}</a>
+        <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--ghost wsf-hero-orbit__cta-ghost">{{ _c.cta_secondary_label }}</a>
+      </div>
+      {% if _phone or _email or _loc %}
+      <ul class="wsf-hero-orbit__meta">
+        {% if _phone %}<li><a href="tel:{{ _phone }}">{{ _phone }}</a></li>{% endif %}
+        {% if _email %}<li><a href="mailto:{{ _email }}">{{ _email }}</a></li>{% endif %}
+        {% if _loc %}<li>{{ _loc }}</li>{% endif %}
+      </ul>
+      {% endif %}
+    </div>
+
+    {% if _orbit_n %}
+    <p class="wsf-hero-orbit__orbit-label">
+      <span class="wsf-kicker">Best sellers</span>
+      — tap any card to view
+    </p>
+    <ul class="wsf-hero-orbit__sr-list" aria-label="Best selling products">
+      {% for p in _orbit[:8] %}
+      <li><a href="{{ storefront_product_url(p) }}">{{ p.name }} — KES {{ '%.0f'|format(p.price) }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% set trust_strip_in_hero = true %}
+    {% include "partials/website_storefront_trust_strip.html" %}
+    {% set trust_strip_in_hero = none %}
+  </div>
+</section>

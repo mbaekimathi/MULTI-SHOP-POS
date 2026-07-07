@@ -265,6 +265,61 @@ html[data-marketing-theme="dark"] .wsf-root--luxury:not(.wsf-root--catalog) .wsf
   background: rgba(255, 255, 255, 0.18);
 }
 
+/* ── Orbit hero ── */
+.wsf-root--luxury .wsf-hero--orbit.wsf-hero--full {
+  padding: 1.25rem 0 2.5rem;
+}
+
+.wsf-root--luxury .wsf-hero-orbit__title {
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.wsf-root--luxury .wsf-hero-orbit__accent {
+  font-style: italic;
+  color: color-mix(in srgb, #fff 58%, var(--wsf-primary));
+}
+
+.wsf-root--luxury .wsf-hero--orbit .wsf-btn--primary {
+  color: #fff;
+  background: var(--wsf-primary);
+  border-color: var(--wsf-primary);
+}
+
+.wsf-root--luxury .wsf-hero--orbit .wsf-btn--primary:hover {
+  color: #fff;
+  background: color-mix(in srgb, var(--wsf-primary) 88%, #000);
+  border-color: color-mix(in srgb, var(--wsf-primary) 88%, #000);
+}
+
+.wsf-root--luxury .wsf-hero-orbit__cta-ghost {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wsf-root--luxury .wsf-hero-orbit__cta-ghost:hover {
+  color: #fff;
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.wsf-root--luxury .wsf-hero-orbit__card {
+  border-radius: 0.65rem;
+}
+
+@media (min-width: 640px) {
+  .wsf-root--luxury .wsf-hero--orbit.wsf-hero--full {
+    padding: 1.5rem 0 3rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .wsf-root--luxury .wsf-hero--orbit.wsf-hero--full {
+    padding: clamp(1.5rem, 3vw, 2.25rem) 0 clamp(2.5rem, 5vw, 3.5rem);
+  }
+}
+
 .wsf-root--luxury .wsf-hero--slideshow.wsf-hero--full {
   padding: 1.25rem 0 2.75rem;
 }
@@ -629,6 +684,33 @@ html[data-marketing-theme="dark"] .wsf-root--luxury .wsf-hero__bg,
     box-shadow 0.28s ease;
   animation: wsf-trust-card-in 0.65s var(--wsf-lux-ease) both;
   animation-delay: calc(var(--wsf-i, 0) * 90ms);
+}
+
+a.wsf-trust__card,
+button.wsf-trust__card {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+button.wsf-trust__card {
+  background: color-mix(in srgb, var(--wsf-lux-surface) 88%, transparent);
+}
+
+a.wsf-trust__card:focus-visible,
+button.wsf-trust__card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wsf-primary, #2563eb) 65%, #fff);
+  outline-offset: 2px;
+}
+
+.wsf-trust__card--link:hover .wsf-trust__text {
+  color: var(--wsf-lux-text);
 }
 
 .wsf-trust__card:hover {

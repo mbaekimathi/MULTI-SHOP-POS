@@ -1,7 +1,9 @@
 {# Fresh storefront — clean, minimal, responsive #}
 {% set _c = storefront_homepage_copy %}
 {% set _products = website_featured_products|default([]) %}
-{% set _bestsellers = (_products|sort(attribute='qty_sold', reverse=true))[:2] %}
+{% set _sorted_products = _products|sort(attribute='qty_sold', reverse=true) %}
+{% set _orbit_with_img = _sorted_products|selectattr('image_url')|list %}
+{% set _orbit_products = (_orbit_with_img[:12] if _orbit_with_img|length >= 3 else _sorted_products[:12]) %}
 {% set _shops = website_public_shops|default([]) %}
 {% set _cats = website_product_categories|default([]) %}
 {% set _company = _c.company_name %}
@@ -214,66 +216,9 @@
   </section>
 
   {% elif not _catalog_mode %}
-  <section class="wsf-hero wsf-hero--full wsf-hero--slideshow wsf-reveal" aria-labelledby="wsf-hero-heading">
-    {% include "partials/website_storefront_bg_slideshow.html" %}
-    <div class="wsf-pagehead__scrim" aria-hidden="true"></div>
-    <div class="wsf-shell wsf-hero__stage">
-    <div class="wsf-hero__grid">
-      <div class="wsf-hero__content wsf-hero__content--float wsf-hero__float-panel" data-wsf-hero-parallax style="--wsf-float-i: 0">
-        {% if _c.hero_show_eyebrow %}
-        <p class="wsf-kicker wsf-hero__kicker">{{ _c.hero_eyebrow }}</p>
-        {% endif %}
-        <h1 id="wsf-hero-heading" class="wsf-hero__title">
-          {{ _c.hero_headline }}{% if _c.hero_show_accent %} <span class="wsf-hero__accent">{{ _c.hero_headline_accent }}</span>{% endif %}
-        </h1>
-        <p class="wsf-hero__lead">{{ _c.hero_lead }}</p>
-        <div class="wsf-hero__cta">
-          <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--primary">{{ _c.cta_primary_label }}</a>
-          <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--ghost wsf-hero__cta-ghost">{{ _c.cta_secondary_label }}</a>
-        </div>
-        {% if _phone or _email or _loc %}
-        <ul class="wsf-hero__meta">
-          {% if _phone %}<li><a href="tel:{{ _phone }}">{{ _phone }}</a></li>{% endif %}
-          {% if _email %}<li><a href="mailto:{{ _email }}">{{ _email }}</a></li>{% endif %}
-          {% if _loc %}<li>{{ _loc }}</li>{% endif %}
-        </ul>
-        {% endif %}
-      </div>
-
-      <div class="wsf-hero__aside">
-        {% if _bestsellers %}
-        <div class="wsf-hero__showcase wsf-hero__showcase--float wsf-hero__float-panel" data-wsf-hero-parallax style="--wsf-float-i: 1">
-          <p class="wsf-kicker">Best sellers</p>
-          <div class="wsf-hero__showcase-grid">
-            {% for p in _bestsellers %}
-            <a href="{{ storefront_product_url(p) }}" class="wsf-hero__showcase-item{% if p.on_sale %} wsf-hero__showcase-item--sale{% endif %}" aria-label="{{ p.name }} — KES {{ '%.0f'|format(p.price) }}">
-              <div class="wsf-hero__showcase-media">
-                {% if p.image_url %}
-                  <img src="{{ p.image_url }}" alt="" class="wsf-hero__showcase-img" loading="{% if loop.first %}eager{% else %}lazy{% endif %}" width="120" height="120" decoding="async" />
-                {% else %}
-                  <span class="wsf-hero__showcase-ph" aria-hidden="true">{{ p.name[:1]|upper }}</span>
-                {% endif %}
-                {% if p.on_sale %}<span class="wsf-hero__showcase-badge">−{{ p.discount_percent }}%</span>{% endif %}
-                <div class="wsf-hero__showcase-float">
-                  <span class="wsf-hero__showcase-name">{{ p.name }}</span>
-                  <span class="wsf-hero__showcase-price">KES {{ '%.0f'|format(p.price) }}</span>
-                </div>
-              </div>
-            </a>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-        <div class="wsf-hero__float-panel" data-wsf-hero-parallax style="--wsf-float-i: 2">
-        {% include "partials/website_storefront_slide_ui.html" %}
-        </div>
-      </div>
-    </div>
-    {% set trust_strip_in_hero = true %}
-    {% include "partials/website_storefront_trust_strip.html" %}
-    {% set trust_strip_in_hero = none %}
-    </div>
-  </section>
+  {% with orbit_products=_orbit_products %}
+    {% include "partials/website_hero_orbit.html" %}
+  {% endwith %}
 
   {% if _cats %}
   <section id="wsf-products" class="wsf-section wsf-section--collections wsf-reveal" aria-labelledby="wsf-featured-heading">

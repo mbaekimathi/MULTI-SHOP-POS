@@ -175,6 +175,17 @@
     });
   }
 
+  var orbitRing = root.querySelector("[data-wsf-orbit-ring]");
+  var orbitArena = root.querySelector(".wsf-hero-orbit__arena");
+  if (orbitRing && orbitArena && window.matchMedia("(prefers-reduced-motion: no-preference)").matches) {
+    orbitArena.addEventListener("mouseenter", function () {
+      orbitRing.style.animationPlayState = "paused";
+    });
+    orbitArena.addEventListener("mouseleave", function () {
+      orbitRing.style.animationPlayState = "running";
+    });
+  }
+
   root.querySelectorAll('a[href^="#"]').forEach(function (link) {
     if (link.hasAttribute("data-wsf-cat-nav")) return;
     link.addEventListener("click", function (e) {
