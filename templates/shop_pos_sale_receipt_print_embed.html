@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt reprint</title>
+</head>
+<body>
+  <script type="application/json" id="receipt-reprint-embed-data">{{ embed_data|tojson }}</script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=4"></script>
+  {% if request.args.get('auto_print') in ('1', 'true', 'yes') %}
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        try {
+          var el = document.getElementById("receipt-reprint-embed-data");
+          if (!el || typeof window.receiptThermalEmbedAutoPrint !== "function") return;
+          var data = JSON.parse(el.textContent || "{}");
+          window.receiptThermalEmbedAutoPrint(data);
+        } catch (e) {}
+      }, 300);
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

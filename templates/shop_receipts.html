@@ -62,11 +62,15 @@
 
       'markUrl': url_for('shop_receipts_mark', shop_id=shop.id) if can_mark_receipts else none,
 
+      'reprintUrl': url_for('shop_receipts_record_reprint', shop_id=shop.id),
+
+      'printEmbedUrl': url_for('shop_receipts_print_embed', shop_id=shop.id),
+
     }|tojson }}
 
   </script>
 
-  <script src="{{ url_for('static', filename='js/receipt-register.js') }}?v=7" defer></script>
+  <script src="{{ url_for('static', filename='js/receipt-register.js') }}?v=10" defer></script>
 
   {% include 'partials/receipt_register_live_search_script.html' %}
 

@@ -5795,6 +5795,78 @@ def _effective_receipt_settings_for_shop(shop: dict) -> dict:
     return merged
 
 
+def _receipt_logo_static_url(shop: dict) -> str:
+    """Thermal receipt logo URL (shop override, then company app icon)."""
+    shop_co = _effective_company_settings_for_shop(shop)
+    if (shop_co.get("shop_logo") or "").strip():
+        return url_for("static", filename=str(shop_co["shop_logo"]).strip())
+    if (shop.get("shop_logo") or "").strip():
+        return url_for("static", filename=str(shop["shop_logo"]).strip())
+    if (shop_co.get("app_icon") or "").strip():
+        return url_for("static", filename=str(shop_co["app_icon"]).strip())
+    base = _load_company_identity_settings()
+    if (base.get("app_icon") or "").strip():
+        return url_for("static", filename=str(base["app_icon"]).strip())
+    return url_for("static", filename="app-icon.svg")
+
+
+def _pos_receipt_reprint_boot_payload(shop: dict) -> dict:
+    """Client boot data for thermal receipt reprint (matches POS slip layout)."""
+    shop_co = _effective_company_settings_for_shop(shop)
+    logo_url = _receipt_logo_static_url(shop)
+    base = _load_company_identity_settings()
+    return {
+        "receiptSettings": _effective_receipt_settings_for_shop(shop),
+        "printing": _effective_printing_settings_for_shop(shop),
+        "site": {
+            "company_name": (shop_co.get("company_name") or base.get("company_name") or "").strip(),
+            "company_email": (shop_co.get("company_email") or base.get("company_email") or "").strip(),
+            "company_phone": (shop_co.get("company_phone") or base.get("company_phone") or "").strip(),
+            "shop_name": (shop.get("shop_name") or "").strip(),
+            "shop_code": (shop.get("shop_code") or "").strip(),
+            "shop_location": (shop.get("shop_location") or "").strip(),
+            "app_icon_url": logo_url,
+            "receipt_logo_url": logo_url,
+        },
+    }
+
+
+def _pos_receipt_detail_json_payload(shop: dict, detail: dict) -> dict:
+    return {
+        "ok": True,
+        "sale": detail.get("sale") or {},
+        "items": detail.get("items") or [],
+        "print_boot": _pos_receipt_reprint_boot_payload(shop),
+    }
+
+
+def _pos_sale_receipt_print_embed_payload(
+    shop: dict, sale_id: int, *, reprint_record_url: str
+) -> Optional[dict]:
+    """Sale + receipt settings for thermal reprint embed (hidden iframe print)."""
+    try:
+        from database import get_shop_pos_sale_detail
+
+        d = get_shop_pos_sale_detail(shop_id=int(shop["id"]), sale_id=int(sale_id)) or {}
+    except Exception:
+        logger.exception(
+            "_pos_sale_receipt_print_embed_payload failed shop_id=%s sale_id=%s",
+            shop.get("id"),
+            sale_id,
+        )
+        return None
+    if not d.get("sale"):
+        return None
+    return {
+        "sale": d.get("sale") or {},
+        "items": d.get("items") or [],
+        "boot": _pos_receipt_reprint_boot_payload(shop),
+        "reprintRecordUrl": reprint_record_url,
+        "shopId": int(shop["id"]),
+        "saleId": int(sale_id),
+    }
+
+
 DARAJA_CREDENTIAL_KEYS = (
     "daraja_consumer_key",
     "daraja_consumer_secret",
@@ -15399,7 +15471,53 @@ def it_support_receipts_detail():
         return jsonify({"ok": False, "error": "Could not load receipt detail."}), 500
     if not d.get("sale"):
         return jsonify({"ok": False, "error": "Receipt not found."}), 404
-    return jsonify({"ok": True, "sale": d.get("sale") or {}, "items": d.get("items") or []})
+    shop = _get_shop_or_404(int(shop_id))
+    return jsonify(_pos_receipt_detail_json_payload(shop, d))
+
+
+@app.route("/it_support/receipts/reprint", methods=["POST"])
+@login_required
+def it_support_receipts_record_reprint():
+    """Record a receipt reprint from IT Support receipt register."""
+    _it_support_or_super_admin_only()
+    data = request.get_json(force=True, silent=True) or {}
+    shop_id = int(data.get("shop_id") or 0)
+    sale_id = int(data.get("sale_id") or 0)
+    if shop_id <= 0 or sale_id <= 0:
+        return jsonify({"ok": False, "error": "Invalid receipt reference."}), 400
+    _get_shop_or_404(shop_id)
+    try:
+        from database import record_shop_pos_sale_reprint
+
+        ok, err, count = record_shop_pos_sale_reprint(shop_id=shop_id, sale_id=sale_id)
+    except Exception:
+        logger.exception(
+            "it_support_receipts_record_reprint failed shop_id=%s sale_id=%s", shop_id, sale_id
+        )
+        return jsonify({"ok": False, "error": "Could not record reprint."}), 500
+    if not ok:
+        return jsonify({"ok": False, "error": err or "Could not record reprint."}), 500
+    return jsonify({"ok": True, "reprint_count": int(count or 0)})
+
+
+@app.route("/it_support/receipts/print-embed")
+@login_required
+def it_support_receipts_print_embed():
+    """Thermal receipt HTML in a hidden iframe (same pattern as stock-in print)."""
+    _it_support_or_super_admin_only()
+    shop_id = request.args.get("shop_id", type=int)
+    sale_id = request.args.get("sale_id", type=int)
+    if not shop_id or not sale_id:
+        return ("Missing receipt reference.", 400)
+    shop = _get_shop_or_404(int(shop_id))
+    embed_data = _pos_sale_receipt_print_embed_payload(
+        shop,
+        int(sale_id),
+        reprint_record_url=url_for("it_support_receipts_record_reprint"),
+    )
+    if not embed_data:
+        return ("Receipt not found.", 404)
+    return render_template("shop_pos_sale_receipt_print_embed.html", embed_data=embed_data)
 
 
 @app.route("/it_support/receipts/return-lines", methods=["POST"])
@@ -17143,7 +17261,7 @@ def shop_receipts_detail(shop_id: int):
         return jsonify({"ok": False, "error": "Could not load receipt detail."}), 500
     if not d.get("sale"):
         return jsonify({"ok": False, "error": "Receipt not found."}), 404
-    return jsonify({"ok": True, "sale": d.get("sale") or {}, "items": d.get("items") or []})
+    return jsonify(_pos_receipt_detail_json_payload(shop, d))
 
 
 @app.route("/shops/<int:shop_id>/shop-receipts/reprint", methods=["POST"])
@@ -17167,6 +17285,26 @@ def shop_receipts_record_reprint(shop_id: int):
     if not ok:
         return jsonify({"ok": False, "error": err or "Could not record reprint."}), 400
     return jsonify({"ok": True, "reprint_count": int(count or 0)})
+
+
+@app.route("/shops/<int:shop_id>/shop-receipts/print-embed")
+def shop_receipts_print_embed(shop_id: int):
+    """Thermal receipt HTML in a hidden iframe (same pattern as stock-in print)."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    sale_id = request.args.get("sale_id", type=int)
+    if not sale_id:
+        return ("Missing receipt reference.", 400)
+    embed_data = _pos_sale_receipt_print_embed_payload(
+        shop,
+        int(sale_id),
+        reprint_record_url=url_for("shop_receipts_record_reprint", shop_id=shop_id),
+    )
+    if not embed_data:
+        return ("Receipt not found.", 404)
+    return render_template("shop_pos_sale_receipt_print_embed.html", embed_data=embed_data)
 
 
 @app.route("/shops/<int:shop_id>/shop-receipts/return-lines", methods=["POST"])

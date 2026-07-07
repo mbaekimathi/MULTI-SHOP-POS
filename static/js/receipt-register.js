@@ -23,6 +23,7 @@
 
   var selected = new Set();
   var variant = CFG.variant || "hq";
+  var modalReceiptState = null;
 
   function showPageMsg(text) {
     if (!pageMsg) return;
@@ -320,11 +321,13 @@
       '<p id="receipt-items-subtitle" class="rev-panel__desc"></p></div>' +
       '<button type="button" id="receipt-items-close" class="rev-btn rev-btn--ghost">Close</button></div>' +
       '<div id="receipt-items-body" class="rcpt-modal__body"></div>' +
-      '<div id="receipt-return-footer" class="rcpt-modal__footer hidden">' +
+      '<div id="receipt-modal-footer" class="rcpt-modal__footer hidden">' +
       '<div class="flex flex-wrap items-center justify-between gap-2">' +
-      '<p id="receipt-return-msg" class="text-xs text-[rgb(var(--rc-muted))]"></p>' +
-      '<button type="button" id="receipt-return-submit" class="btn-rc btn-rc-primary rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider">Return selected items</button>' +
-      "</div></div></div>";
+      '<p id="receipt-return-msg" class="text-xs text-[rgb(var(--rc-muted))] min-w-0"></p>' +
+      '<div class="flex flex-wrap items-center justify-end gap-2">' +
+      '<button type="button" id="receipt-reprint-btn" class="btn-rc rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))]">Reprint receipt</button>' +
+      '<button type="button" id="receipt-return-submit" class="btn-rc btn-rc-primary hidden rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider">Return selected items</button>' +
+      "</div></div></div></div>";
     document.body.appendChild(wrap);
     wrap.addEventListener("click", function (e) {
       if (
@@ -400,6 +403,85 @@
     return '<span class="' + escHtml(cls) + ' receipt-mark-badge">' + escHtml(statusBadgeLabel(s)) + "</span>";
   }
 
+  function recordReceiptReprint(sale) {
+    if (!CFG.reprintUrl || !sale) return Promise.resolve(null);
+    var body = { sale_id: parseInt(sale.id || 0, 10) || 0 };
+    if (variant === "hq") body.shop_id = parseInt(sale.shop_id || 0, 10) || 0;
+    return fetch(CFG.reprintUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) {
+        return r.json().catch(function () {
+          return {};
+        });
+      })
+      .then(function (j) {
+        if (j && j.ok) return parseInt(j.reprint_count || 0, 10) || 0;
+        return null;
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function receiptPrintEmbedUrl(sale) {
+    if (!CFG.printEmbedUrl || !sale) return "";
+    var url = String(CFG.printEmbedUrl);
+    var sid = parseInt(sale.id || 0, 10) || 0;
+    if (!sid) return "";
+    url += (url.indexOf("?") >= 0 ? "&" : "?") + "sale_id=" + encodeURIComponent(String(sid));
+    if (variant === "hq") {
+      var shopId = parseInt(sale.shop_id || 0, 10) || 0;
+      if (shopId) url += "&shop_id=" + encodeURIComponent(String(shopId));
+    }
+    if (url.indexOf("auto_print=") < 0) {
+      url += "&auto_print=1";
+    }
+    return url;
+  }
+
+  function triggerReceiptEmbedPrint(sale) {
+    var url = receiptPrintEmbedUrl(sale);
+    if (!url) return false;
+    var frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText =
+      "position:fixed;left:-9999px;top:0;width:80mm;height:900px;border:0;opacity:0;pointer-events:none;z-index:-1";
+    document.body.appendChild(frame);
+    frame.src = url;
+    setTimeout(function () {
+      try {
+        frame.remove();
+      } catch (e) {}
+    }, 15000);
+    return true;
+  }
+
+  function reprintCurrentReceipt() {
+    var state = modalReceiptState;
+    if (!state || !state.sale || !state.items || !state.items.length) return;
+    var reprintBtn = document.getElementById("receipt-reprint-btn");
+    var returnMsg = document.getElementById("receipt-return-msg");
+    if (!CFG.printEmbedUrl) {
+      if (returnMsg) returnMsg.textContent = "Reprint is unavailable. Hard-refresh this page (Ctrl+F5).";
+      return;
+    }
+    if (reprintBtn) reprintBtn.disabled = true;
+    if (returnMsg) returnMsg.textContent = "Sending receipt to printer…";
+    if (!triggerReceiptEmbedPrint(state.sale)) {
+      if (returnMsg) returnMsg.textContent = "Could not start reprint.";
+      if (reprintBtn) reprintBtn.disabled = false;
+      return;
+    }
+    if (returnMsg) {
+      returnMsg.textContent = "Reprint sent. Choose your printer in the print dialog.";
+    }
+    if (reprintBtn) reprintBtn.disabled = false;
+  }
+
   function openReceiptModal(data) {
     var modal = ensureReceiptModal();
     var sale = (data && data.sale) || {};
@@ -407,7 +489,13 @@
     var title = document.getElementById("receipt-items-title");
     var subtitle = document.getElementById("receipt-items-subtitle");
     var body = document.getElementById("receipt-items-body");
-    var footer = document.getElementById("receipt-return-footer");
+    var footer = document.getElementById("receipt-modal-footer");
+    var returnSubmitBtn = document.getElementById("receipt-return-submit");
+    modalReceiptState = {
+      sale: sale,
+      items: items,
+      printBoot: (data && data.print_boot) || null,
+    };
     if (title) title.textContent = "Receipt " + String(sale.receipt_number || "#" + String(sale.id || ""));
     if (subtitle) {
       var parts = [];
@@ -490,10 +578,18 @@
       }
     }
 
-    if (footer) footer.classList.toggle("hidden", !(CFG.canMark && CFG.returnUrl));
+    if (footer) footer.classList.toggle("hidden", !items.length);
 
-    var submitBtn = document.getElementById("receipt-return-submit");
+    var submitBtn = returnSubmitBtn;
     var returnMsg = document.getElementById("receipt-return-msg");
+    var reprintBtn = document.getElementById("receipt-reprint-btn");
+    if (reprintBtn) {
+      reprintBtn.disabled = !items.length;
+      reprintBtn.onclick = reprintCurrentReceipt;
+    }
+    if (returnSubmitBtn) {
+      returnSubmitBtn.classList.toggle("hidden", !(CFG.canMark && CFG.returnUrl));
+    }
     if (CFG.canMark && CFG.returnUrl && submitBtn && returnMsg) {
       returnMsg.textContent = "Select item lines to return. For qty > 1, enter how many to return.";
       submitBtn.disabled = false;
@@ -535,6 +631,8 @@
             submitBtn.disabled = false;
           });
       };
+    } else if (returnMsg) {
+      returnMsg.textContent = "Reprint duplicates the original slip with a reprint label.";
     }
 
     modal.classList.remove("hidden");

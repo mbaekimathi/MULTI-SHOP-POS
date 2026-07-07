@@ -64,13 +64,17 @@
 
       'returnUrl': url_for('it_support_receipts_return_lines'),
 
+      'reprintUrl': url_for('it_support_receipts_record_reprint'),
+
+      'printEmbedUrl': url_for('it_support_receipts_print_embed'),
+
     }|tojson }}
 
   </script>
 
   <script src="{{ url_for('static', filename='js/shop-analytics-filters.js') }}?v=1" defer></script>
 
-  <script src="{{ url_for('static', filename='js/receipt-register.js') }}?v=7" defer></script>
+  <script src="{{ url_for('static', filename='js/receipt-register.js') }}?v=10" defer></script>
 
   {% include 'partials/receipt_register_live_search_script.html' %}
   <script>
