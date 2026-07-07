@@ -3,7 +3,7 @@
 {% set _products = website_featured_products|default([]) %}
 {% set _sorted_products = _products|sort(attribute='qty_sold', reverse=true) %}
 {% set _orbit_with_img = _sorted_products|selectattr('image_url')|list %}
-{% set _orbit_products = (_orbit_with_img[:12] if _orbit_with_img|length >= 3 else _sorted_products[:12]) %}
+{% set _orbit_products = (_orbit_with_img[:6] if _orbit_with_img|length >= 3 else _sorted_products[:6]) %}
 {% set _shops = website_public_shops|default([]) %}
 {% set _cats = website_product_categories|default([]) %}
 {% set _company = _c.company_name %}

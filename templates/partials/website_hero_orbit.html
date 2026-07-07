@@ -1,8 +1,8 @@
 {# Cyrclo-style hero — centred copy with orbiting best-seller product cards #}
 {% set _orbit = orbit_products|default([]) %}
-{% if _orbit|length > 0 and _orbit|length < 12 %}
+{% if _orbit|length > 0 and _orbit|length < 6 %}
   {% set _orbit_fill = namespace(items=[]) %}
-  {% for i in range(12) %}
+  {% for i in range(6) %}
     {% set _ = _orbit_fill.items.append(_orbit[i % _orbit|length]) %}
   {% endfor %}
   {% set _orbit = _orbit_fill.items %}
@@ -28,8 +28,8 @@
               alt=""
               class="wsf-hero-orbit__img"
               loading="{% if loop.index0 < 4 %}eager{% else %}lazy{% endif %}"
-              width="80"
-              height="80"
+              width="120"
+              height="120"
               decoding="async"
             />
           {% else %}
@@ -79,7 +79,7 @@
       — tap any card to view
     </p>
     <ul class="wsf-hero-orbit__sr-list" aria-label="Best selling products">
-      {% for p in _orbit[:8] %}
+      {% for p in _orbit[:6] %}
       <li><a href="{{ storefront_product_url(p) }}">{{ p.name }} — KES {{ '%.0f'|format(p.price) }}</a></li>
       {% endfor %}
     </ul>

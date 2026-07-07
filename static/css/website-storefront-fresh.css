@@ -3257,9 +3257,9 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
   display: flex;
   align-items: center;
   justify-content: center;
-  --wsf-orbit-radius: min(36vw, 15.5rem);
-  --wsf-orbit-card-w: clamp(3.15rem, 7.2vw, 4.75rem);
-  --wsf-orbit-card-h: clamp(4rem, 9vw, 6.15rem);
+  --wsf-orbit-radius: min(38vw, 17.5rem);
+  --wsf-orbit-card-w: clamp(4.5rem, 10vw, 7rem);
+  --wsf-orbit-card-h: clamp(5.75rem, 12vw, 9rem);
 }
 
 .wsf-hero-orbit__ring {
@@ -3288,7 +3288,7 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
   height: var(--wsf-orbit-card-h);
   margin-left: calc(var(--wsf-orbit-card-w) / -2);
   margin-top: calc(var(--wsf-orbit-card-h) / -2);
-  border-radius: 0.85rem;
+  border-radius: 1rem;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.06);
@@ -3331,14 +3331,14 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
 
 .wsf-hero-orbit__badge {
   position: absolute;
-  top: 0.28rem;
-  left: 0.28rem;
+  top: 0.35rem;
+  left: 0.35rem;
   z-index: 2;
-  padding: 0.1rem 0.32rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 4px;
   background: #dc2626;
   color: #fff;
-  font-size: 0.5rem;
+  font-size: 0.625rem;
   font-weight: 800;
   line-height: 1.2;
 }
@@ -3528,9 +3528,9 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
   .wsf-hero-orbit__arena {
     width: 100%;
     margin-left: 0;
-    --wsf-orbit-radius: min(34vw, 18rem);
-    --wsf-orbit-card-w: clamp(3.15rem, 7.2vw, 4.75rem);
-    --wsf-orbit-card-h: clamp(4rem, 9vw, 6.15rem);
+    --wsf-orbit-radius: min(36vw, 20rem);
+    --wsf-orbit-card-w: clamp(4.5rem, 10vw, 7rem);
+    --wsf-orbit-card-h: clamp(5.75rem, 12vw, 9rem);
     min-height: clamp(26rem, 68vmin, 42rem);
   }
 
@@ -3568,9 +3568,9 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
   }
 
   .wsf-hero-orbit__arena {
-    --wsf-orbit-radius: min(31vw, 21rem);
-    --wsf-orbit-card-w: clamp(3.75rem, 4.8vw, 5.25rem);
-    --wsf-orbit-card-h: clamp(4.85rem, 6.2vw, 6.85rem);
+    --wsf-orbit-radius: min(33vw, 23rem);
+    --wsf-orbit-card-w: clamp(5.5rem, 7vw, 8.25rem);
+    --wsf-orbit-card-h: clamp(7rem, 9vw, 10.5rem);
     min-height: clamp(28rem, 62vmin, 44rem);
   }
 
@@ -3586,7 +3586,7 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
 
 @media (min-width: 1200px) {
   .wsf-hero-orbit__arena {
-    --wsf-orbit-radius: 22rem;
+    --wsf-orbit-radius: 24rem;
   }
 }
 
@@ -3618,7 +3618,7 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
     width: 100vw;
     max-width: 100vw;
     margin-left: calc(50% - 50vw);
-    --wsf-orbit-card-w: clamp(2.55rem, 13.2vw, 3.15rem);
+    --wsf-orbit-card-w: clamp(3.75rem, 16vw, 4.75rem);
     --wsf-orbit-card-h: var(--wsf-orbit-card-w);
     --wsf-orbit-radius: calc(50vw - (var(--wsf-orbit-card-w) / 2) - 0.3rem);
     --wsf-orbit-inner-w: calc((var(--wsf-orbit-radius) - var(--wsf-orbit-card-w) - 0.35rem) * 1.72);
@@ -3634,7 +3634,7 @@ html[data-marketing-theme="dark"] .wsf-root--fresh .wsf-footer,
   }
 
   .wsf-hero-orbit__card {
-    border-radius: 0.7rem;
+    border-radius: 0.9rem;
   }
 
   .wsf-hero-orbit__center {

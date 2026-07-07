@@ -305,7 +305,7 @@ html[data-marketing-theme="dark"] .wsf-root--luxury:not(.wsf-root--catalog) .wsf
 }
 
 .wsf-root--luxury .wsf-hero-orbit__card {
-  border-radius: 0.65rem;
+  border-radius: 0.85rem;
 }
 
 @media (min-width: 640px) {
