@@ -5,8 +5,11 @@
 {% set total_str = "%.2f"|format(r.total_cost or 0) %}
 {% set qty_str = (r.qty or 0) | string %}
 {% set price_str = "%.2f"|format(r.buying_price or 0) %}
+{% set lines = receipt_lines if receipt_lines else [] %}
+{% set is_multi_line = lines|length > 1 %}
 {% set is_stock_transfer = (receipt_kind or '')|lower == 'stock transfer' %}
 {% set is_expense = (receipt_kind or '')|lower == 'operational expense' %}
+{% set id_label = batch_id_label if is_multi_line and batch_id_label else ('#' ~ (r.id or '')) %}
 {% set note_text = (r.note or '')|trim %}
 {% set supplier_name = (r.place_brought_from or '—')|trim %}
 {% set supplier_phone = (r.seller_phone or '—')|trim %}
@@ -68,13 +71,13 @@
     <div class="receipt-thermal-customhdr">{{ S.receipt_header }}</div>
   {% endif %}
 
-  <pre class="receipt receipt--meta">{% if is_stock_transfer %}TX        #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
-{% elif is_expense %}EXPENSE   #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
-CATEGORY  {{ r.category_name or '—' }}
-SUPPLIER  {{ supplier_name }}
+  <pre class="receipt receipt--meta">{% if is_stock_transfer %}TX        {{ id_label }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+{% elif is_expense %}EXPENSE   {{ id_label }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+{% if not is_multi_line %}CATEGORY  {{ r.category_name or '—' }}
+{% endif %}SUPPLIER  {{ supplier_name }}
 PHONE     {{ supplier_phone }}
 {% if S.show_server %}RECORDED  {{ r.served_by or '—' }}
-{% endif %}{% else %}INVOICE   #{{ r.id }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+{% endif %}{% else %}INVOICE   {{ id_label }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
 SUPPLIER  {{ supplier_name }}
 PHONE     {{ supplier_phone }}
 {% if S.show_server %}RECORDED  {{ r.served_by or '—' }}
@@ -89,8 +92,10 @@ QTY       {{ qty_str }}</pre>
   {% else %}
   <pre class="receipt receipt--items">Item              Qty   Rate      Amt
 ----------------------------------------
-{{ r.item_name }}
-                  {{ qty_str }}  {{ price_str }}  {{ total_str }}</pre>
+{% if is_multi_line %}{% for ln in lines %}{% set ln_qty = (ln.qty or 0)|string %}{% set ln_price = "%.2f"|format(ln.buying_price or 0) %}{% set ln_total = "%.2f"|format(ln.total_cost or 0) %}{{ ln.display_name or ln.item_name }}
+                  {{ ln_qty }}  {{ ln_price }}  {{ ln_total }}
+{% endfor %}{% else %}{{ r.item_name }}
+                  {{ qty_str }}  {{ price_str }}  {{ total_str }}{% endif %}</pre>
 
   <pre class="receipt receipt--totals">AMOUNT DUE        {{ total_str }}</pre>
 

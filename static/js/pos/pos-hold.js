@@ -72,56 +72,22 @@ function loadCheckoutPathPreference() {
           }
         }
         if (row && holdSave) {
-          // Layout the action row based on the active checkout path.
-          //   • Direct sale       → only the green "Authorize & proceed" button
-          //   • Hold tab (new)    → only the "Save & hold" button (no duplicate
-          //                          authorize-and-save button — the 6-digit
-          //                          code path is reached through Save & hold)
-          //   • Hold tab (linked) → both buttons side-by-side so the cashier
-          //                          can either keep updating the held order
-          //                          (Save & hold) or finalize payment
-          //                          (Authorize & proceed).
-          var proceedBtnEl = document.getElementById("pos-cart-proceed");
           if (pref === "hold") {
             holdSave.classList.remove("hidden");
-            if (forcedHold) {
-              if (proceedBtnEl) proceedBtnEl.classList.remove("hidden");
-              row.className = "grid grid-cols-2 gap-2";
-            } else {
-              if (proceedBtnEl) proceedBtnEl.classList.add("hidden");
-              row.className = "grid grid-cols-1 gap-2";
-            }
+            row.className = "grid grid-cols-1 gap-2";
           } else {
             holdSave.classList.add("hidden");
-            if (proceedBtnEl) proceedBtnEl.classList.remove("hidden");
             row.className = "grid grid-cols-1 gap-2";
           }
         }
-        // Relabel the primary proceed button so cashiers see exactly what entering the
-        // 6-digit code will do in the current hold/direct context. The button is hidden
-        // entirely when a brand-new hold cart has no order linked yet (see action-row
-        // layout above) — Save & hold handles that flow on its own.
-        try {
-          var proceedBtn = document.getElementById("pos-cart-proceed");
-          if (proceedBtn) {
-            var labelEl = proceedBtn.querySelector("span");
-            var hdrProceedBtn = null;
-            try {
-              hdrProceedBtn = document.querySelector(
-                ".pos-cart-drawer-header #pos-cart-proceed, #pos-cart-drawer #pos-cart-proceed"
-              );
-            } catch (eSel) {}
-            var newLabel = "Authorize & proceed";
-            var titleText = "Enter a 6-digit code to authorize and finalize the sale";
-            if (labelEl) labelEl.textContent = newLabel;
-            proceedBtn.setAttribute("title", titleText);
-            proceedBtn.setAttribute("aria-label", newLabel);
-            if (hdrProceedBtn && hdrProceedBtn !== proceedBtn) {
-              var hl = hdrProceedBtn.querySelector("span");
-              if (hl) hl.textContent = newLabel;
-            }
+        var headerProceed = document.getElementById("pos-cart-proceed");
+        if (headerProceed) {
+          if (pref === "hold" && !forcedHold) {
+            headerProceed.classList.add("hidden");
+          } else {
+            headerProceed.classList.remove("hidden");
           }
-        } catch (eRelabel) {}
+        }
         try {
           if (typeof window.applyPosCartUiSettings === "function") {
             window.applyPosCartUiSettings();

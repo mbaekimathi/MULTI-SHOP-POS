@@ -3,7 +3,7 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-pos-settings.css') }}?v=3" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-system-settings.css') }}?v=2" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-system-settings.css') }}?v=3" />
   {% if appearance_fonts_google_url %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -592,6 +592,7 @@
             <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment instruction type</label>
             <select
               name="receipt_payment_type"
+              id="receipt_payment_type"
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
             >
               <option value="buy_goods" {% if rs.payment_detail_type == 'buy_goods' or not rs.payment_detail_type %}selected{% endif %}>Buy goods</option>
@@ -599,13 +600,35 @@
               <option value="send_money" {% if rs.payment_detail_type == 'send_money' %}selected{% endif %}>Send money</option>
             </select>
           </div>
-          <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (shop / paybill / phone etc.)</label>
+          <div id="receipt-payment-paybill-fields" class="grid gap-3 md:grid-cols-2 {% if rs.payment_detail_type != 'paybill' %}hidden{% endif %}">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Business</label>
+              <input
+                type="text"
+                name="receipt_payment_paybill_business"
+                value="{{ rs.payment_paybill_business or '' }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                placeholder="e.g. Your Business Ltd"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Account</label>
+              <input
+                type="text"
+                name="receipt_payment_paybill_account"
+                value="{{ rs.payment_paybill_account or '' }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                placeholder="e.g. 123456"
+              />
+            </div>
+          </div>
+          <div id="receipt-payment-general-fields" class="{% if rs.payment_detail_type == 'paybill' %}hidden{% endif %}">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (shop / phone etc.)</label>
             <textarea
               name="receipt_payment_detail_text"
               rows="3"
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
-              placeholder="e.g. Shop: 123456 · Business: Your Shop Ltd"
+              placeholder="e.g. Till: 123456 · Phone: 0700 000000"
             >{{ rs.payment_detail_text or '' }}</textarea>
           </div>
         </div>
@@ -740,7 +763,7 @@
       <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
         <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Print preview</h3>
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-          Approximate thermal layout (black on white). Updates as you edit; settings save automatically shortly after changes.
+          Live preview using the same thermal layout as POS printed receipts. Updates as you edit; settings save automatically shortly after changes.
         </p>
         <div class="mt-6 flex justify-center px-2">
           <div
@@ -750,10 +773,10 @@
             role="region"
             aria-label="Receipt print preview"
           >
-            <div id="receipt-preview-body" class="receipt-preview-body px-3 py-4 font-mono leading-snug"></div>
+            <div id="receipt-preview-root" class="receipt-preview-root"></div>
           </div>
         </div>
-        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Preview width follows “Receipt width”; font size follows “Font size”.</p>
+        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Sample sale receipt (customer copy). Width and font size match your settings above.</p>
         </div>
       </div>
     </div>
@@ -783,6 +806,7 @@
 
 {% block scripts %}
   {{ super() }}
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=19"></script>
   <script>
     (function () {
       var DEFAULT_TAB = "system";
@@ -919,14 +943,25 @@
           if (qrOpt) qrOpt.classList.toggle("hidden", !qrEn || !qrEn.checked);
           syncQrUrl();
         }
+        function syncPaymentType() {
+          var sel = document.getElementById("receipt_payment_type") || document.querySelector('[name="receipt_payment_type"]');
+          var paybill = document.getElementById("receipt-payment-paybill-fields");
+          var general = document.getElementById("receipt-payment-general-fields");
+          var isPaybill = sel && sel.value === "paybill";
+          if (paybill) paybill.classList.toggle("hidden", !isPaybill);
+          if (general) general.classList.toggle("hidden", !!isPaybill);
+        }
         function sync() {
           if (payW) payW.classList.toggle("hidden", !pay || !pay.checked);
           if (taxW) taxW.classList.toggle("hidden", !tax || !tax.checked);
+          syncPaymentType();
           syncQr();
           if (window.updateReceiptPreview) window.updateReceiptPreview();
         }
         if (pay) pay.addEventListener("change", sync);
         if (tax) tax.addEventListener("change", sync);
+        var payTypeSel = document.getElementById("receipt_payment_type") || document.querySelector('[name="receipt_payment_type"]');
+        if (payTypeSel) payTypeSel.addEventListener("change", sync);
         if (qrEn) {
           qrEn.addEventListener("change", function () {
             qrEn.setAttribute("aria-checked", qrEn.checked ? "true" : "false");
@@ -947,222 +982,107 @@
 
     (function () {
       var tab = document.getElementById("receipt");
-      if (!tab) return;
-      var body = document.getElementById("receipt-preview-body");
+      var form = document.getElementById("it-settings-form");
+      var root = document.getElementById("receipt-preview-root");
       var paper = document.getElementById("receipt-print-preview");
-      window.RECEIPT_PREVIEW_META = {
-        companyName: {{ (site_settings.company_name if site_settings else "Point of Sale")|tojson }},
-        companyEmail: {{ (site_settings.company_email if site_settings else "")|tojson }},
-        companyPhone: {{ (site_settings.company_phone if site_settings else "")|tojson }},
-        companyAddress: "",
-        appIconUrl: {{ (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'))|tojson }},
-      };
+      if (!tab || !form || !root || !paper) return;
 
-      function esc(s) {
-        var d = document.createElement("div");
-        d.textContent = s == null ? "" : String(s);
-        return d.innerHTML;
-      }
+      var defaultAppIconUrl = {{ (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else url_for('static', filename='app-icon.svg'))|tojson }};
 
-      function previewLineWidth(narrow) {
-        return narrow ? 24 : 32;
-      }
-
-      function thermalPreviewMetaLine(label, value, width) {
-        label = String(label || "").toUpperCase();
-        value = String(value == null ? "" : value);
-        var left = (label.length > 9 ? label.slice(0, 9) : label) + " ";
-        var valMax = Math.max(8, width - left.length);
-        var val = value.length > valMax ? value.slice(0, valMax - 1) + "\u2026" : value;
-        return left + val.padStart(valMax, " ");
-      }
-
-      function thermalPreviewPreBlock(lines, extraClass) {
-        return (
-          '<pre class="receipt-preview-pre' +
-          (extraClass ? " " + extraClass : "") +
-          '" style="margin:8px 0;padding:6px 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:700;font-family:ui-monospace,Cascadia Mono,Consolas,monospace;font-size:0.85em;line-height:1.35;white-space:pre-wrap">' +
-          esc(lines.join("\n")) +
-          "</pre>"
-        );
-      }
-
-      function val(name) {
-        var el = tab.querySelector('[name="' + name + '"]');
+      function fieldVal(name) {
+        var el = form.querySelector('[name="' + name + '"]');
         if (!el) return "";
         if (el.type === "checkbox") return el.checked;
         return el.value;
       }
 
-      function radioVal(name) {
-        var el = tab.querySelector('[name="' + name + '"]:checked');
-        return el ? el.value : "";
+      function receiptSettingsFromForm() {
+        return {
+          receipt_width: fieldVal("receipt_width") || "80mm",
+          font_size: fieldVal("receipt_font_size") || "12pt",
+          bold_headers: !!fieldVal("receipt_bold_headers"),
+          receipt_number_prefix: fieldVal("receipt_number_prefix") || "T",
+          starting_number: fieldVal("receipt_starting_number") || "1001",
+          include_tax: !!fieldVal("receipt_include_tax"),
+          tax_percent: fieldVal("receipt_tax_percent") || "",
+          show_logo: !!fieldVal("receipt_show_logo"),
+          show_address: !!fieldVal("receipt_show_address"),
+          show_contact: !!fieldVal("receipt_show_contact"),
+          show_server: !!fieldVal("receipt_show_server"),
+          show_datetime: !!fieldVal("receipt_show_datetime"),
+          show_payment_details: !!fieldVal("receipt_show_payment_details"),
+          payment_detail_type: fieldVal("receipt_payment_type") || "buy_goods",
+          payment_detail_text:
+            fieldVal("receipt_payment_type") === "paybill" ? "" : fieldVal("receipt_payment_detail_text") || "",
+          payment_paybill_business: fieldVal("receipt_payment_paybill_business") || "",
+          payment_paybill_account: fieldVal("receipt_payment_paybill_account") || "",
+          receipt_header: fieldVal("receipt_header") || "",
+          receipt_footer: fieldVal("receipt_footer") || "",
+          receipt_qr_enabled: !!fieldVal("receipt_qr_enabled"),
+          receipt_qr_mode: (form.querySelector('[name="receipt_qr_mode"]:checked') || {}).value || "receipt_details",
+          receipt_qr_website_url: fieldVal("receipt_qr_website_url") || "",
+        };
+      }
+
+      function siteFromForm() {
+        return {
+          company_name: fieldVal("company_name") || "Point of Sale",
+          company_email: fieldVal("company_email") || "",
+          company_phone: fieldVal("company_phone") || "",
+          company_location_name: fieldVal("company_location_name") || "",
+          shop_location: fieldVal("company_location_name") || "",
+          app_icon_url: defaultAppIconUrl,
+          receipt_logo_url: defaultAppIconUrl,
+        };
       }
 
       function updateReceiptPreview() {
-        if (!body || !paper) return;
-        var meta = window.RECEIPT_PREVIEW_META || {};
-        var width = String(val("receipt_width") || "80mm").trim().toLowerCase();
-        var narrow = width === "58mm" || width === "50mm" || width === "50";
-        paper.style.width = narrow ? "58mm" : "80mm";
-
-        var fsize = val("receipt_font_size") || "12pt";
-        var fsMap = { "8pt": "8px", "10pt": "10px", "12pt": "12px" };
-        body.style.fontSize = fsMap[fsize] || "12px";
-
-        var prefix = String(val("receipt_number_prefix") || "T").trim() || "T";
-        var startNum = String(val("receipt_starting_number") || "1001").trim() || "1001";
-        var receiptNo = prefix + "-" + startNum;
-        var demoDate = new Date().toLocaleString();
-
-        var showLogo = !!val("receipt_show_logo");
-        var showAddr = !!val("receipt_show_address");
-        var showContact = !!val("receipt_show_contact");
-        var showServer = !!val("receipt_show_server");
-        var showDt = !!val("receipt_show_datetime");
-
-        var incTax = !!val("receipt_include_tax");
-        var taxPct = parseFloat(String(val("receipt_tax_percent") || "0").replace(",", ".")) || 0;
-
-        var showPay = !!val("receipt_show_payment_details");
-        var payType = String(val("receipt_payment_type") || "buy_goods");
-        var payTypeLabel =
-          { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" }[payType] || payType;
-        var payText = String(val("receipt_payment_detail_text") || "").trim();
-
-        var header = String(val("receipt_header") || "").trim();
-        var footer = String(val("receipt_footer") || "").trim();
-
-        var qrOn = !!val("receipt_qr_enabled");
-        var qrMode = radioVal("receipt_qr_mode") || "receipt_details";
-        var qrUrl = String(val("receipt_qr_website_url") || "").trim();
-
-        var demoLines = [
-          { name: "Coffee · Regular", qty: 2, total: 9.0 },
-          { name: "Bread · Loaf", qty: 1, total: 2.0 },
-        ];
-        var subtotal = 11.0;
-        var taxAmt = incTax ? subtotal * (taxPct / 100) : 0;
-        var grand = subtotal + taxAmt;
-
-        var html = "";
-        html += '<div style="text-align:center;font-weight:700;font-size:1.05em;letter-spacing:0.03em">' + esc(meta.companyName || "Point of Sale") + "</div>";
-        html += '<div style="text-align:center;opacity:0.75;font-size:0.85em;margin-top:2px">THERMAL RECEIPT</div>';
-        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
-
-        if (showLogo) {
-          html +=
-            '<div style="text-align:center;margin-bottom:8px"><img src="' +
-            esc(meta.appIconUrl || "") +
-            '" alt="" style="height:3rem;width:3rem;object-fit:contain" /></div>';
-        }
-
-        if (header) {
-          html +=
-            '<div style="text-align:center;font-size:0.85em;white-space:pre-wrap;margin-bottom:8px">' +
-            esc(header) +
-            "</div>";
-        }
-
-        if (showAddr) {
-          html +=
-            '<div style="text-align:center;font-size:0.85em;opacity:0.75;margin-bottom:4px">' +
-            (meta.companyAddress
-              ? esc(meta.companyAddress)
-              : '<span style="opacity:0.5">[Business address]</span>') +
-            "</div>";
-        }
-
-        if (showContact) {
-          var bits = [];
-          if (meta.companyPhone) bits.push(meta.companyPhone);
-          if (meta.companyEmail) bits.push(meta.companyEmail);
-          html +=
-            '<div style="text-align:center;font-size:0.85em;margin-bottom:6px">' +
-            (bits.length ? esc(bits.join(" · ")) : '<span style="opacity:0.5">[Phone / email]</span>') +
-            "</div>";
-        }
-
-        var W = previewLineWidth(narrow);
-        var metaLines = [];
-        metaLines.push(thermalPreviewMetaLine("RECEIPT", receiptNo, W));
-        if (showDt) metaLines.push(thermalPreviewMetaLine("DATE", demoDate, W));
-        metaLines.push(thermalPreviewMetaLine("BUYER", "Walk-in customer · -", W));
-        if (showServer) metaLines.push(thermalPreviewMetaLine("STAFF", "Jane Doe (123456)", W));
-        html += thermalPreviewPreBlock(metaLines, "receipt-preview-meta");
-
-        var itemLines = [];
-        var qtyW = 4;
-        var amtW = 9;
-        var rightHdr = " " + "Qty".padStart(qtyW, " ") + " " + "Amt".padStart(amtW, " ");
-        var nameW = Math.max(6, W - rightHdr.length);
-        itemLines.push(("Item" + " ".repeat(nameW)).slice(0, nameW) + rightHdr);
-        itemLines.push(new Array(Math.min(W, 32) + 1).join("-"));
-        demoLines.forEach(function (l) {
-          var qty = String(l.qty);
-          var amt = l.total.toFixed(2);
-          itemLines.push(
-            (String(l.name) + " ".repeat(nameW)).slice(0, nameW) +
-              " " +
-              qty.padStart(qtyW, " ") +
-              " " +
-              amt.padStart(amtW, " ")
-          );
+        if (typeof window.receiptThermalRenderSettingsPreview !== "function") return;
+        var rendered = window.receiptThermalRenderSettingsPreview({
+          receiptSettings: receiptSettingsFromForm(),
+          site: siteFromForm(),
         });
-        html += thermalPreviewPreBlock(itemLines, "receipt-preview-items");
+        paper.style.width = (rendered.widthMm || 80) + "mm";
 
-        var totalLines = [];
-        if (incTax) {
-          totalLines.push(thermalPreviewMetaLine("SUBTOTAL", subtotal.toFixed(2), W));
-          totalLines.push(
-            thermalPreviewMetaLine("TAX", taxAmt.toFixed(2) + " (" + String(taxPct) + "%)", W)
-          );
-          totalLines.push(thermalPreviewMetaLine("TOTAL", grand.toFixed(2), W));
-        } else {
-          totalLines.push(thermalPreviewMetaLine("TOTAL", subtotal.toFixed(2), W));
-        }
-        html += thermalPreviewPreBlock(totalLines, "receipt-preview-totals");
-
-        if (showPay) {
-          var payLines = [payTypeLabel];
-          if (payText) payLines.push(payText);
-          html += thermalPreviewPreBlock(payLines, "receipt-preview-payment");
+        var iframe = root.querySelector("iframe");
+        if (!iframe) {
+          iframe = document.createElement("iframe");
+          iframe.setAttribute("title", "Receipt preview");
+          iframe.setAttribute("aria-label", "Receipt preview");
+          iframe.style.border = "0";
+          iframe.style.display = "block";
+          iframe.style.width = "100%";
+          iframe.scrolling = "no";
+          root.innerHTML = "";
+          root.appendChild(iframe);
         }
 
-        if (qrOn) {
-          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
-          html += '<div style="text-align:center">';
-          html +=
-            '<div style="display:inline-flex;height:5rem;width:5rem;align-items:center;justify-content:center;border:2px dashed #999;border-radius:4px;background:#f5f5f5;font-size:8px;color:#666">QR</div>';
-          if (qrMode === "website" && qrUrl) {
-            html +=
-              '<div style="font-size:9px;margin-top:6px;word-break:break-all;opacity:0.85">' +
-              esc(qrUrl) +
-              "</div>";
-          } else if (qrMode === "website") {
-            html +=
-              '<div style="font-size:9px;margin-top:6px;opacity:0.55">[Website URL]</div>';
-          } else {
-            html +=
-              '<div style="font-size:9px;margin-top:6px;opacity:0.75">Receipt: ' +
-              esc(receiptNo) +
-              " · …</div>";
-          }
-          html += "</div>";
+        var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+        if (!doc) return;
+        var previewHtml = String(rendered.fullHtml || "").replace(
+          "</style>",
+          ".receipt-browser-print-tip{display:none!important}" +
+            "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +
+            ".receipt-thermal{width:100%!important;max-width:100%!important;padding-left:1mm!important;padding-right:1mm!important}" +
+            ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}" +
+            "</style>"
+        );
+        doc.open();
+        doc.write(previewHtml);
+        doc.close();
+
+        function resizeFrame() {
+          try {
+            var h = Math.max(
+              doc.body ? doc.body.scrollHeight : 0,
+              doc.documentElement ? doc.documentElement.scrollHeight : 0
+            );
+            iframe.style.height = Math.max(180, h + 4) + "px";
+          } catch (e) {}
         }
-
-        if (footer) {
-          html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
-          html +=
-            '<div style="text-align:center;font-size:0.85em;white-space:pre-wrap">' + esc(footer) + "</div>";
-        }
-
-        html += '<div style="border-top:1px dashed #000;margin:8px 0;opacity:0.35"></div>';
-        html += '<div style="text-align:center;font-size:0.85em;opacity:0.7">Thank you</div>';
-        html +=
-          '<div style="text-align:center;font-size:0.72em;opacity:0.45;margin-top:2px;line-height:1.35">BUILT &amp; MAINTAINED BY<br>FINAGRITECH SOLUTIONS</div>';
-
-        body.innerHTML = html;
+        resizeFrame();
+        setTimeout(resizeFrame, 80);
+        setTimeout(resizeFrame, 400);
       }
 
       window.updateReceiptPreview = updateReceiptPreview;
@@ -1172,10 +1092,17 @@
           el.addEventListener("input", updateReceiptPreview);
           el.addEventListener("change", updateReceiptPreview);
         });
+        ["company_name", "company_email", "company_phone", "company_location_name"].forEach(function (name) {
+          var el = form.querySelector('[name="' + name + '"]');
+          if (!el) return;
+          el.addEventListener("input", updateReceiptPreview);
+          el.addEventListener("change", updateReceiptPreview);
+        });
       }
 
       window.addEventListener("hashchange", function () {
-        if ((location.hash || "").replace("#", "") === "receipt") {
+        var active = (location.hash || "").replace("#", "") || {{ (initial_settings_tab or "")|tojson }};
+        if (active === "receipt" || active === "printing") {
           setTimeout(updateReceiptPreview, 0);
         }
       });

@@ -2413,24 +2413,20 @@ var saleType = "sale";
       }
 
       function triggerStockInReceiptPrint() {
-        var urls = stockInReceiptUrls && stockInReceiptUrls.length ? stockInReceiptUrls.slice() : [];
-        if (!urls.length && stockInReceiptUrl) urls = [stockInReceiptUrl];
-        if (!urls.length) return;
-        urls.forEach(function (rawUrl, idx) {
-          var url = stockInReceiptPrintUrl(rawUrl);
-          if (!url) return;
-          setTimeout(function () {
-            var frame = document.createElement("iframe");
-            frame.setAttribute("aria-hidden", "true");
-            frame.style.cssText =
-              "position:fixed;left:-9999px;top:0;width:80mm;height:800px;border:0;opacity:0;pointer-events:none;z-index:-1";
-            document.body.appendChild(frame);
-            frame.src = url;
-            setTimeout(function () {
-              try { frame.remove(); } catch (e) {}
-            }, 12000);
-          }, idx * 900);
-        });
+        var url = stockInReceiptPrintUrl(stockInReceiptUrl);
+        if (!url && stockInReceiptUrls && stockInReceiptUrls.length) {
+          url = stockInReceiptPrintUrl(stockInReceiptUrls[0]);
+        }
+        if (!url) return;
+        var frame = document.createElement("iframe");
+        frame.setAttribute("aria-hidden", "true");
+        frame.style.cssText =
+          "position:fixed;left:-9999px;top:0;width:80mm;height:800px;border:0;opacity:0;pointer-events:none;z-index:-1";
+        document.body.appendChild(frame);
+        frame.src = url;
+        setTimeout(function () {
+          try { frame.remove(); } catch (e) {}
+        }, 12000);
       }
       if (stockInAddLineBtn) {
         stockInAddLineBtn.addEventListener("click", function (e) {
@@ -6852,7 +6848,7 @@ var saleType = "sale";
       }
 
       function receiptLineWidthChars() {
-        return normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm" ? 24 : 32;
+        return normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm" ? 32 : 48;
       }
 
       /** Physical roll width for @page / print iframe (matches receipt_width setting). */
@@ -7115,10 +7111,8 @@ var saleType = "sale";
         var includeTax = tx.includeTax;
         var taxAmt = tx.taxAmt;
         var grand = tx.grand;
-        var payLabels = { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" };
-        var pt = rs.payment_detail_type || "buy_goods";
-        var paymentTypeLabel = payLabels[pt] || pt;
-        var paymentDetailText = (rs.payment_detail_text || "").trim();
+        var paymentTypeLabel = "";
+        var paymentDetailText = "";
         if (mode !== "credit" && !opts.isQuotation) {
           var rcCashEl = document.getElementById("pos-payment-cash-amount");
           var rcMpesaEl = document.getElementById("pos-payment-mpesa-amount");
@@ -7139,12 +7133,16 @@ var saleType = "sale";
             rcMpesa = Math.max(0, round2(grand - rcCash));
             paymentTypeLabel = "Payment: Cash + M-Pesa";
             paymentDetailText = "Cash: " + fmt(rcCash) + " | M-Pesa: " + fmt(rcMpesa);
+          } else {
+            paymentTypeLabel = "Payment: Cash";
+            paymentDetailText = "Cash: " + fmt(grand);
           }
         } else if (mode === "credit") {
           paymentTypeLabel = "Payment: Credit";
-          paymentDetailText = paymentDetailText || "Pending payment";
+          paymentDetailText = "Pending payment";
         } else if (opts.isQuotation) {
           paymentTypeLabel = "Payment: Quotation";
+          paymentDetailText = "";
         }
         var mpesaRef = resolveMpesaReceiptRef();
         if (
@@ -7363,14 +7361,191 @@ var saleType = "sale";
         return out;
       }
 
-      /** Monospace item rows: name (wrapped) with Qty / Amt right-aligned on the last name line. */
+      /** One-row item layout: name + Qty / Price / Amt on the same line. */
+      function thermalItemLayout(W) {
+        if (W <= 32) {
+          return { nameMin: 6, qtyW: 3, priceW: 6, amtW: 7 };
+        }
+        return { nameMin: 10, qtyW: 3, priceW: 8, amtW: 9 };
+      }
+
+      function thermalItemRightWidth(W) {
+        var L = thermalItemLayout(W);
+        return 1 + L.qtyW + 1 + L.priceW + 1 + L.amtW;
+      }
+
+      function thermalItemValues(l) {
+        var qtyN = parseFloat((l && l.qty) != null ? l.qty : 0);
+        if (isNaN(qtyN) || qtyN < 0) qtyN = 0;
+        var unit = (l && l.price) != null ? parseFloat(l.price) : NaN;
+        if (isNaN(unit) && l && l.unit_price != null) unit = parseFloat(l.unit_price);
+        if (isNaN(unit) && l && l.listPrice != null) unit = parseFloat(l.listPrice);
+        if (isNaN(unit) && qtyN > 0) unit = (parseFloat((l && l.total) || 0) || 0) / qtyN;
+        if (isNaN(unit)) unit = 0;
+        return {
+          qty: fmtQty(qtyN),
+          price: fmt(unit),
+          amt: fmt((l && l.total) || 0),
+        };
+      }
+
+      function thermalItemRightPart(W, cols) {
+        var L = thermalItemLayout(W);
+        function col(v, w) {
+          var s = String(v == null ? "" : v);
+          if (s.length > w) s = s.slice(0, w);
+          return s.padStart(w, " ");
+        }
+        return (
+          " " +
+          col(cols.qty, L.qtyW) +
+          " " +
+          col(cols.price, L.priceW) +
+          " " +
+          col(cols.amt, L.amtW)
+        );
+      }
+
       function thermalItemHeaderLine(W) {
-        var qtyW = 4;
-        var amtW = 9;
-        var right = " " + "Qty".padStart(qtyW, " ") + " " + "Amt".padStart(amtW, " ");
-        var nameW = W - right.length;
-        if (nameW < 6) nameW = 6;
+        var L = thermalItemLayout(W);
+        var right = thermalItemRightPart(W, {
+          qty: "Qty",
+          price: "Price",
+          amt: "Amt",
+        });
+        var nameW = Math.max(L.nameMin, W - right.length);
         return ("Item" + " ".repeat(nameW)).slice(0, nameW) + right;
+      }
+
+      function thermalItemLines(l, W) {
+        var vals = thermalItemValues(l);
+        var right = thermalItemRightPart(W, vals);
+        var L = thermalItemLayout(W);
+        var nameW = Math.max(L.nameMin, W - right.length);
+        var rawName = String((l && l.name) || "Item");
+        if (rawName.length > nameW) {
+          rawName = rawName.slice(0, Math.max(1, nameW - 1)) + "\u2026";
+        }
+        var out = [(rawName + " ".repeat(nameW)).slice(0, nameW) + right];
+        if (l && l.discounted) {
+          thermalLineDiscountSuffix(l, W).forEach(function (row) {
+            out.push(row);
+          });
+        }
+        return out;
+      }
+
+      function thermalKvRowHtml(label, value, extraClass) {
+        return (
+          '<div class="receipt-kv__row' +
+          (extraClass ? " " + extraClass : "") +
+          '"><span class="receipt-kv__label">' +
+          receiptEsc(label) +
+          '</span><span class="receipt-kv__value">' +
+          receiptEsc(value) +
+          "</span></div>"
+        );
+      }
+
+      function thermalKvBlockHtml(rows, blockClass) {
+        if (!rows || !rows.length) return "";
+        var inner = rows
+          .map(function (r) {
+            return thermalKvRowHtml(r[0], r[1], r[2]);
+          })
+          .join("");
+        return (
+          '<div class="receipt-kv receipt-body' +
+          (blockClass ? " " + blockClass : "") +
+          '">' +
+          inner +
+          "</div>"
+        );
+      }
+
+      function thermalSaleItemsTableHtml(lines) {
+        if (!lines || !lines.length) return "";
+        var rows = "";
+        lines.forEach(function (l) {
+          var vals = thermalItemValues(l);
+          var name = String((l && l.name) || "Item");
+          if (l && l.discounted) name += " *";
+          rows +=
+            "<tr>" +
+            '<td class="receipt-items__name">' +
+            receiptEsc(name) +
+            "</td>" +
+            '<td class="receipt-items__qty">' +
+            receiptEsc(vals.qty) +
+            "</td>" +
+            '<td class="receipt-items__price">' +
+            receiptEsc(vals.price) +
+            "</td>" +
+            '<td class="receipt-items__amt">' +
+            receiptEsc(vals.amt) +
+            "</td>" +
+            "</tr>";
+          if (l && l.discounted) {
+            rows +=
+              '<tr class="receipt-items__disc-row"><td colspan="4" class="receipt-items__disc">* Discount save ' +
+              receiptEsc(fmt(l.lineDiscount || 0)) +
+              "</td></tr>";
+          }
+        });
+        return (
+          '<div class="receipt-items-wrap receipt-body">' +
+          '<table class="receipt-items" role="table">' +
+          '<colgroup><col class="receipt-items__name"><col class="receipt-items__qty"><col class="receipt-items__price"><col class="receipt-items__amt"></colgroup>' +
+          "<thead><tr>" +
+          '<th class="receipt-items__name">Item</th>' +
+          '<th class="receipt-items__qty">Qty</th>' +
+          '<th class="receipt-items__price">Price</th>' +
+          '<th class="receipt-items__amt">Amt</th>' +
+          "</tr></thead><tbody>" +
+          rows +
+          "</tbody></table></div>"
+        );
+      }
+
+      function thermalTransferItemsTableHtml(lines) {
+        if (!lines || !lines.length) return "";
+        var rows = "";
+        lines.forEach(function (l) {
+          var qty = fmtQty((l && l.qty) != null ? l.qty : 0);
+          rows +=
+            "<tr>" +
+            '<td class="receipt-items__name">' +
+            receiptEsc(String((l && l.name) || "Item")) +
+            "</td>" +
+            '<td class="receipt-items__qty">' +
+            receiptEsc(qty) +
+            "</td>" +
+            "</tr>";
+        });
+        return (
+          '<div class="receipt-items-wrap receipt-body">' +
+          '<table class="receipt-items receipt-items--transfer" role="table">' +
+          "<thead><tr>" +
+          '<th class="receipt-items__name">Item</th>' +
+          '<th class="receipt-items__qty">Qty</th>' +
+          "</tr></thead><tbody>" +
+          rows +
+          "</tbody></table></div>"
+        );
+      }
+
+      function receiptTailHtml(isCompany) {
+        var parts = [];
+        if (!isCompany) {
+          parts.push('<p class="receipt-tail__thanks">Thank you</p>');
+        }
+        parts.push('<p class="receipt-tail__line">' + receiptEsc(RECEIPT_ATTRIBUTION_BY) + "</p>");
+        parts.push(
+          '<p class="receipt-tail__line receipt-tail__line--brand">' +
+            receiptEsc(RECEIPT_ATTRIBUTION_NAME) +
+            "</p>"
+        );
+        return '<footer class="receipt-tail receipt-body">' + parts.join("") + "</footer>";
       }
 
       /** Label + value on one monospace line (receipt meta, totals) — prints reliably on thermal. */
@@ -7394,39 +7569,6 @@ var saleType = "sale";
           return left + shown.padStart(valMax, " ");
         }
         return left + "_".repeat(valMax);
-      }
-
-      function thermalItemLines(l, W) {
-        var qtyW = 4;
-        var amtW = 9;
-        var qty = fmtQty((l && l.qty) != null ? l.qty : 0);
-        var amt = fmt((l && l.total) || 0);
-        var right = " " + qty.padStart(qtyW, " ") + " " + amt.padStart(amtW, " ");
-        var nameW = W - right.length;
-        if (nameW < 6) nameW = 6;
-        var rawName = String((l && l.name) || "Item");
-        var out = [];
-        var idx = 0;
-        while (idx < rawName.length) {
-          var take = Math.min(nameW, rawName.length - idx);
-          var chunk = rawName.slice(idx, idx + take);
-          idx += take;
-          var isLast = idx >= rawName.length;
-          if (isLast) {
-            out.push((chunk + " ".repeat(nameW)).slice(0, nameW) + right);
-          } else {
-            out.push(chunk);
-          }
-        }
-        if (!out.length) {
-          out.push((" ".repeat(nameW) + right).slice(0, W));
-        }
-        if (l && l.discounted) {
-          thermalLineDiscountSuffix(l, W).forEach(function (row) {
-            out.push(row);
-          });
-        }
-        return out;
       }
 
       /** Extra monospace line(s) under a discounted line item on thermal receipts. */
@@ -7513,6 +7655,68 @@ var saleType = "sale";
         return s;
       }
 
+      function receiptThermalMonoFontCss() {
+        return receiptThermalFontCss();
+      }
+
+      function isReceiptTransactionPaymentLabel(label) {
+        return /^Payment:/i.test(String(label || "").trim());
+      }
+
+      function receiptPaymentInstructionLabel(rs) {
+        var payLabels = { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" };
+        var pt = (rs && rs.payment_detail_type) || "buy_goods";
+        return payLabels[pt] || String(pt);
+      }
+
+      function receiptPaymentInstructionLines(rs) {
+        var pt = (rs && rs.payment_detail_type) || "buy_goods";
+        if (pt === "paybill") {
+          return [];
+        }
+        var text = String((rs && rs.payment_detail_text) || "").trim();
+        if (!text) return [];
+        return text
+          .split(/\r?\n/)
+          .map(function (ln) {
+            return String(ln).trim();
+          })
+          .filter(Boolean);
+      }
+
+      function receiptPaybillInstructionFields(rs) {
+        return {
+          business: String((rs && rs.payment_paybill_business) || "").trim(),
+          account: String((rs && rs.payment_paybill_account) || "").trim(),
+        };
+      }
+
+      function receiptPaybillInstructionHtml(rs) {
+        var fields = receiptPaybillInstructionFields(rs);
+        if (!fields.business && !fields.account) return "";
+        var label = receiptPaymentInstructionLabel(rs);
+        return (
+          '<div class="receipt-payment receipt-payment--instructions receipt-payment--paybill">' +
+          '<p class="receipt-payment__type receipt-body">' +
+          receiptEsc(label) +
+          "</p>" +
+          '<div class="receipt-paybill-stack receipt-body">' +
+          '<div class="receipt-paybill-row">' +
+          '<span class="receipt-paybill-label">Business</span>' +
+          '<span class="receipt-paybill-value">' +
+          receiptEsc(fields.business || "—") +
+          "</span>" +
+          "</div>" +
+          '<div class="receipt-paybill-row">' +
+          '<span class="receipt-paybill-label">Account</span>' +
+          '<span class="receipt-paybill-value">' +
+          receiptEsc(fields.account || "—") +
+          "</span>" +
+          "</div>" +
+          "</div></div>"
+        );
+      }
+
       /** Stock transfer / delivery note receipts (approve incoming request). */
       function isStockTransferReceipt(payload) {
         return String((payload && payload.mode) || "")
@@ -7534,61 +7738,119 @@ var saleType = "sale";
         var sep = thermalPlainSep(W);
         var heavy = thermalPlainSepHeavy(W);
         var baseFont = receiptThermalFontCss();
+        var monoFont = receiptThermalMonoFontCss();
+        var boldHeaders = !!S.bold_headers;
+        var receiptWeight = boldHeaders ? "700" : "600";
+        var titleWeight = boldHeaders ? "900" : "700";
         var lines = [];
         function L(t) {
           lines.push(String(t == null ? "" : t));
         }
 
-        function buildThermalReceiptStyles(rollCss, rwmm, fontCss) {
+        function buildThermalReceiptStyles(rollCss, rwmm, fontCss, monoCss, preWeight, headingWeight) {
+          monoCss = monoCss || monoFont;
+          preWeight = preWeight || receiptWeight;
+          headingWeight = headingWeight || titleWeight;
           return (
             "@page{margin:0;size:" +
             rollCss +
             " auto}" +
             "*{box-sizing:border-box}" +
             "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
-            "html,body{margin:0!important;padding:0!important;background:#fff;color:#111;" +
-            "width:" +
-            rollCss +
-            ";min-width:" +
-            rollCss +
-            ";max-width:" +
-            rollCss +
-            "}" +
-            ".receipt-thermal{padding:0 1.5mm 2mm;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
+            "html,body{margin:0!important;padding:0!important;background:#fff;color:#111;width:100%;max-width:100%}" +
+            ".receipt-thermal{padding:0 1mm 2mm;width:100%;max-width:100%;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
             fontCss +
             ";line-height:1.22}" +
             ".receipt-thermal-accent{height:2mm;margin:0 0 1.5mm;background:linear-gradient(90deg,#1d4ed8,#2563eb,#1d4ed8)}" +
             ".receipt-logo-row{text-align:center;margin:0 auto 1mm;padding:0 1mm}" +
             ".receipt-logo-row img{display:block;margin:0 auto;max-height:10mm;max-width:68mm;height:auto;width:auto;object-fit:contain}" +
             ".receipt-thermal-brand{text-align:center;padding:0 0 0.5mm}" +
-            ".receipt-thermal-badge{margin:0 0 1mm;padding:1px 6px;display:inline-block;border-radius:999px;font-size:7.5px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}" +
+            ".receipt-thermal-badge{margin:0 0 1mm;padding:1px 6px;display:inline-block;border-radius:999px;font-size:0.625em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}" +
             ".receipt-thermal-badge--company{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}" +
             ".receipt-thermal-badge--cashier{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}" +
-            ".receipt-thermal-shopname{margin:0;font-size:clamp(11px,3.2mm,15px);font-weight:900;letter-spacing:-0.02em;line-height:1.12;color:#1e3a8a}" +
-            ".receipt-thermal-company{margin:1px 0 0;font-size:9px;font-weight:600;color:#4b5563}" +
+            ".receipt-thermal-shopname{margin:0;font-size:1.05em;font-weight:" +
+            headingWeight +
+            ";letter-spacing:-0.02em;line-height:1.12;color:#1e3a8a}" +
+            ".receipt-thermal-company{margin:1px 0 0;font-size:0.75em;font-weight:600;color:#4b5563}" +
             ".receipt-thermal-rule{height:0;border:none;border-top:1px solid #d1d5db;margin:0 0 1.5mm}" +
             ".receipt-thermal-contact{margin:0 0 1mm;text-align:center}" +
-            ".receipt-thermal-customhdr{margin:0 0 1mm;font-size:8.5px;line-height:1.25;color:#000;font-weight:600;white-space:pre-wrap}" +
-            ".receipt-thermal-mut{margin:0;font-size:8px;line-height:1.2;color:#000;font-weight:600}" +
+            ".receipt-thermal-customhdr{margin:0 0 1mm;font-size:0.71em;line-height:1.25;color:#000;font-weight:600;white-space:pre-wrap}" +
+            ".receipt-thermal-mut{margin:0;font-size:0.67em;line-height:1.2;color:#000;font-weight:600}" +
             ".receipt-thermal-placeholder{font-style:italic}" +
             ".receipt-thermal-quote{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #94a3b8;background:#f8fafc;text-align:center}" +
-            ".receipt-thermal-quote__title{display:block;font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#0f172a}" +
-            ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:9.5px;color:#64748b}" +
+            ".receipt-thermal-quote__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#0f172a}" +
+            ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:0.79em;color:#64748b}" +
             ".receipt-thermal-reprint{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #f59e0b;background:#fffbeb;text-align:center}" +
-            ".receipt-thermal-reprint__title{display:block;font-size:10px;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#92400e}" +
-            ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:9.5px;color:#b45309}" +
-            ".receipt-thermal-stock-transfer__title{margin:0 0 2px;font-size:11px;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:#0f172a}" +
-            ".receipt-thermal-stock-transfer__sub{margin:0;font-size:9.5px;font-weight:700;line-height:1.25;color:#1e3a8a;text-transform:none}" +
-            "pre.receipt{margin:0;width:100%;max-width:100%;font-family:'Cascadia Mono','Courier New',Consolas,'Liberation Mono',monospace;font-size:9.5px;font-weight:700;line-height:1.35;white-space:pre-wrap;word-wrap:break-word;overflow:visible;color:#000}" +
-            "pre.receipt--meta,pre.receipt--payment,pre.receipt--totals{margin:0;padding:0.8mm 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:700}" +
+            ".receipt-thermal-reprint__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#92400e}" +
+            ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:0.79em;color:#b45309}" +
+            ".receipt-thermal-stock-transfer__title{margin:0 0 2px;font-size:0.92em;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:#0f172a}" +
+            ".receipt-thermal-stock-transfer__sub{margin:0;font-size:0.79em;font-weight:700;line-height:1.25;color:#1e3a8a;text-transform:none}" +
+            "pre.receipt{margin:0;width:100%;max-width:100%;display:block;font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:1em;font-weight:" +
+            preWeight +
+            ";line-height:1.3;white-space:pre-wrap;word-wrap:break-word;color:#000;letter-spacing:0}" +
+            ".receipt-body{font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:0.94em;font-weight:" +
+            preWeight +
+            ";color:#000;width:100%;max-width:100%}" +
+            ".receipt-kv{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:1mm 0;margin:0;width:100%}" +
+            ".receipt-kv__row{display:grid;grid-template-columns:minmax(0,36%) minmax(0,64%);column-gap:1.5mm;align-items:baseline;padding:0.3mm 0;line-height:1.28;width:100%}" +
+            ".receipt-kv__label{font-size:0.94em;font-weight:" +
+            (boldHeaders ? "800" : "700") +
+            ";letter-spacing:0.03em;text-transform:uppercase;color:#111;overflow-wrap:break-word}" +
+            ".receipt-kv__value{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:break-word;word-break:break-word}" +
+            ".receipt-items-wrap{border-top:1.5px solid #000;padding:0.8mm 0 0;margin:0;width:100%}" +
+            ".receipt-items{width:100%;border-collapse:collapse;table-layout:fixed}" +
+            ".receipt-items thead th{font-size:0.9em;font-weight:" +
+            (boldHeaders ? "900" : "800") +
+            ";letter-spacing:0.02em;text-transform:uppercase;padding:0 0 0.6mm;border-bottom:1px dashed #444;color:#111}" +
+            ".receipt-items th,.receipt-items td{padding:0.4mm 0;vertical-align:top;line-height:1.28;font-variant-numeric:tabular-nums}" +
+            ".receipt-items__name{text-align:left;width:52%;padding-right:0.6mm;white-space:normal;word-break:break-word;overflow-wrap:break-word;font-size:0.94em}" +
+            ".receipt-items__qty{width:8%;text-align:center;white-space:nowrap;font-size:0.88em;padding:0}" +
+            ".receipt-items__price{width:20%;text-align:right;white-space:nowrap;font-size:0.88em;padding:0 0.2mm 0 0}" +
+            ".receipt-items__amt{width:20%;text-align:right;white-space:nowrap;font-weight:" +
+            (boldHeaders ? "800" : "700") +
+            ";font-size:0.88em;padding:0}" +
+            ".receipt-items thead th.receipt-items__qty,.receipt-items thead th.receipt-items__price,.receipt-items thead th.receipt-items__amt{font-size:0.82em;letter-spacing:0.01em;padding:0}" +
+            ".receipt-items--transfer .receipt-items__name{width:72%}" +
+            ".receipt-items--transfer .receipt-items__qty{width:28%}" +
+            ".receipt-items tbody tr+tr td{border-top:1px dotted #ccc}" +
+            ".receipt-items__disc-row td{border-top:none!important;padding-top:0}" +
+            ".receipt-items__disc{font-size:0.86em;font-style:italic;color:#333;padding:0 0 0.5mm!important}" +
+            ".receipt-totals{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:0.8mm 0;margin:0}" +
+            ".receipt-totals .receipt-kv__row--grand{margin-top:0.6mm;padding-top:0.8mm;border-top:1px solid #000}" +
+            ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-size:1.04em;font-weight:" +
+            (boldHeaders ? "900" : "800") +
+            "}" +
+            ".receipt-payment{border-top:1px dashed #666;padding:1mm 0 0.6mm;margin:0;text-align:center}" +
+            ".receipt-payment--instructions{border-top-style:solid;border-top-color:#999}" +
+            ".receipt-paybill-stack{display:flex;flex-direction:column;gap:1.2mm;margin-top:0.5mm;width:100%}" +
+            ".receipt-paybill-row{min-width:0;text-align:center}" +
+            ".receipt-paybill-label{display:block;font-size:0.82em;font-weight:" +
+            (boldHeaders ? "800" : "700") +
+            ";letter-spacing:0.03em;text-transform:uppercase}" +
+            ".receipt-paybill-value{display:block;margin-top:0.3mm;font-variant-numeric:tabular-nums;word-break:break-word}" +
+            ".receipt-payment__type{margin:0;font-weight:" +
+            (boldHeaders ? "800" : "700") +
+            ";font-size:0.95em}" +
+            ".receipt-payment__detail{margin:0.4mm 0 0;font-variant-numeric:tabular-nums;font-size:0.92em}" +
+            ".receipt-tail{margin:1.2mm 0 0;padding:1mm 0 0;border-top:1px dashed #888;text-align:center;line-height:1.38}" +
+            ".receipt-tail__thanks{margin:0 0 0.6mm;font-size:1em;font-weight:" +
+            (boldHeaders ? "800" : "700") +
+            "}" +
+            ".receipt-tail__line{margin:0;font-size:0.82em;letter-spacing:0.03em;text-transform:uppercase;color:#333}" +
+            ".receipt-tail__line--brand{margin-top:0.3mm;font-weight:" +
+            (boldHeaders ? "800" : "700") +
+            ";color:#111}" +
+            "pre.receipt--meta,pre.receipt--payment,pre.receipt--totals{margin:0;padding:0.8mm 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:" +
+            preWeight +
+            "}" +
             "pre.receipt--items{margin:0;padding:0.8mm 0 0;border-top:1px solid #000}" +
             "pre.receipt--block{margin:1mm 0 0;padding:1mm 0 0;border-top:1px dashed #d1d5db}" +
             "pre.receipt--tail{margin:1mm 0 0;padding:1mm 0 0;border-top:1px solid #e5e7eb}" +
-            ".receipt-thermal-footer{margin:0 0 1mm;padding:1mm 0 0;text-align:center;font-size:8px;line-height:1.25;color:#000;font-weight:600;border-top:1px dashed #000}" +
+            ".receipt-thermal-footer{margin:0 0 1mm;padding:1mm 0 0;text-align:center;font-size:0.67em;line-height:1.25;color:#000;font-weight:600;border-top:1px dashed #000}" +
             ".receipt-qr{display:flex;flex-direction:column;align-items:center;width:100%;margin:0.5mm 0 0;padding:1mm 1mm 0;min-height:22mm}" +
             ".receipt-qr img{display:block;width:22mm;height:22mm;max-width:72%;object-fit:contain}" +
-            ".receipt-qr-caption{margin:0.5mm 0 0;padding:0;width:100%;text-align:center;font-size:7.5px;line-height:1.25;color:#6b7280}" +
-            ".receipt-browser-print-tip{margin:0 0 1.5mm;padding:1.5mm 2mm;border:1px solid #fcd34d;background:linear-gradient(180deg,#fffbeb,#fff7ed);color:#92400e;font-size:8px;line-height:1.3;border-radius:4px}" +
+            ".receipt-qr-caption{margin:0.5mm 0 0;padding:0;width:100%;text-align:center;font-size:0.625em;line-height:1.25;color:#6b7280}" +
+            ".receipt-browser-print-tip{margin:0 0 1.5mm;padding:1.5mm 2mm;border:1px solid #fcd34d;background:linear-gradient(180deg,#fffbeb,#fff7ed);color:#92400e;font-size:0.67em;line-height:1.3;border-radius:4px}" +
             "@media print{" +
             "@page{margin:0;size:" +
             rollCss +
@@ -7596,15 +7858,19 @@ var saleType = "sale";
             ".receipt-browser-print-tip{display:none!important}" +
             "html,body{width:" +
             rollCss +
-            "!important;min-width:" +
-            rollCss +
             "!important;max-width:" +
             rollCss +
             "!important}" +
-            "pre.receipt,pre.receipt--meta,pre.receipt--items,pre.receipt--totals,pre.receipt--payment{font-size:" +
-            (rwmm === 58 ? "8.5" : "9.5") +
-            "pt!important;font-weight:700!important;color:#000!important}" +
-            ".receipt-thermal-mut,.receipt-thermal-customhdr,.receipt-thermal-footer,.receipt-thermal-company{color:#000!important;font-weight:700!important}" +
+            "pre.receipt,pre.receipt--meta,pre.receipt--items,pre.receipt--totals,pre.receipt--payment{font-size:1em!important;font-weight:" +
+            preWeight +
+            "!important;color:#000!important}" +
+            ".receipt-body,.receipt-kv,.receipt-items-wrap,.receipt-totals,.receipt-payment,.receipt-tail{font-size:1em!important;font-weight:" +
+            "!important;font-weight:" +
+            preWeight +
+            "!important;color:#000!important}" +
+            ".receipt-thermal-mut,.receipt-thermal-customhdr,.receipt-thermal-footer,.receipt-thermal-company{color:#000!important;font-weight:" +
+            preWeight +
+            "!important}" +
             ".receipt-logo-row img{max-height:9mm}" +
             ".receipt-qr img{width:20mm!important;height:20mm!important}" +
             "}"
@@ -7643,60 +7909,52 @@ var saleType = "sale";
           );
         }
 
-        function metaPlainPreHtml() {
-          var metaLines = [];
-          metaLines.push(thermalMetaLabelLine("RECEIPT", payload.receiptNo, W));
+        function metaBlockHtml() {
+          var rows = [];
+          rows.push(["Receipt", payload.receiptNo]);
           if (S.show_datetime || isCompany) {
-            metaLines.push(thermalMetaLabelLine("DATE", payload.printedAt, W));
+            rows.push(["Date", payload.printedAt]);
           }
           if (showCustomerBlock) {
             var modeStr = String(payload.mode || "");
             var isCredit = modeStr.toLowerCase().indexOf("credit") !== -1;
             if (modeStr && (isCredit || payload.isQuotation) && !isStockTransferReceipt(payload)) {
-              metaLines.push(thermalMetaLabelLine("MODE", modeStr, W));
+              rows.push(["Mode", modeStr]);
             }
             var dueT = (payload.creditDueDate || "").trim();
             if (dueT && isCredit) {
-              metaLines.push(thermalMetaLabelLine("DUE", dueT, W));
+              rows.push(["Due", dueT]);
             }
             if (isStockTransferReceipt(payload)) {
-              metaLines.push(
-                thermalMetaLabelLine(
-                  "TO",
-                  String(payload.transferToShop || payload.customerName || "—").trim(),
-                  W
-                )
-              );
+              rows.push([
+                "To",
+                String(payload.transferToShop || payload.customerName || "—").trim(),
+              ]);
             } else {
               var buyer =
                 String(payload.customerName || "").trim() +
-                (String(payload.customerPhone || "").trim() ? " · " + String(payload.customerPhone).trim() : "");
-              metaLines.push(thermalMetaLabelLine("BUYER", buyer || "—", W));
+                (String(payload.customerPhone || "").trim()
+                  ? " · " + String(payload.customerPhone).trim()
+                  : "");
+              rows.push(["Buyer", buyer || "—"]);
             }
           }
           if (isCompany) {
-            metaLines.push(
-              thermalMetaLabelLine("STAFF", String(payload.employeeName || "").trim() || "—", W)
-            );
+            rows.push(["Staff", String(payload.employeeName || "").trim() || "—"]);
             if (isStockTransferReceipt(payload)) {
-              metaLines.push(
-                thermalMetaLabelLine(
-                  "TO",
-                  String(payload.transferToShop || payload.customerName || "—").trim(),
-                  W
-                )
-              );
+              rows.push([
+                "To",
+                String(payload.transferToShop || payload.customerName || "—").trim(),
+              ]);
             }
           } else if (S.show_server) {
-            metaLines.push(thermalMetaLabelLine("STAFF", payload.employeeName, W));
+            rows.push(["Staff", payload.employeeName]);
           }
           if (isStockTransferReceipt(payload)) {
-            metaLines.push(thermalDeliveredByLine(payload.deliveredBy, W));
+            var delivered = String(payload.deliveredBy || "").trim();
+            rows.push(["Delivered by", delivered || "____________"]);
           }
-          if (!metaLines.length) return "";
-          return (
-            '<pre class="receipt receipt--meta">' + receiptEsc(metaLines.join("\n")) + "</pre>"
-          );
+          return thermalKvBlockHtml(rows);
         }
 
         function headerAndContactHtml() {
@@ -7746,49 +8004,68 @@ var saleType = "sale";
           );
         }
 
-        function totalsPlainPreHtml() {
+        function totalsBlockHtml() {
           if (!showPrices || isCompany) return "";
-          var totalLines = [];
+          var rows = [];
           if (payload.hasDiscount && (payload.discountTotal || 0) > 0.001) {
-            totalLines.push(
-              thermalMetaLabelLine("DISCOUNT", "−" + fmt(payload.discountTotal), W)
-            );
+            rows.push(["Discount", "−" + fmt(payload.discountTotal)]);
           }
           if (payload.includeTax) {
-            totalLines.push(thermalMetaLabelLine("SUBTOTAL", fmt(payload.subtotal || 0), W));
-            totalLines.push(
-              thermalMetaLabelLine("TAX", fmt(payload.taxAmount || 0) + " (" + String(payload.taxPercent || 0) + "%)", W)
-            );
-            totalLines.push(
-              thermalMetaLabelLine(
-                "TOTAL",
-                fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0),
-                W
-              )
-            );
+            rows.push(["Subtotal", fmt(payload.subtotal || 0)]);
+            rows.push([
+              "Tax",
+              fmt(payload.taxAmount || 0) + " (" + String(payload.taxPercent || 0) + "%)",
+            ]);
+            rows.push([
+              "Total",
+              fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0),
+              "receipt-kv__row--grand",
+            ]);
           } else {
-            totalLines.push(thermalMetaLabelLine("TOTAL", fmt(payload.subtotal || 0), W));
+            rows.push(["Total", fmt(payload.subtotal || 0), "receipt-kv__row--grand"]);
           }
-          return (
-            '<pre class="receipt receipt--totals">' + receiptEsc(totalLines.join("\n")) + "</pre>"
-          );
+          return thermalKvBlockHtml(rows, "receipt-totals");
         }
 
-        function paymentPlainPreHtml() {
+        function paymentBlockHtml() {
           if (!showPrices) return "";
           var payType = String(payload.paymentTypeLabel || "").trim();
+          if (!isReceiptTransactionPaymentLabel(payType)) return "";
           var pd = (payload.paymentDetailText || "").trim();
           if (!payType && !pd) return "";
-          var payLines = [];
-          if (payType) payLines.push(payType);
+          var parts = [];
+          if (payType) {
+            parts.push('<p class="receipt-payment__type receipt-body">' + receiptEsc(payType) + "</p>");
+          }
           if (pd) {
             pd.split(/\r?\n/).forEach(function (ln) {
-              if (String(ln).trim()) payLines.push(String(ln).trim());
+              if (String(ln).trim()) {
+                parts.push(
+                  '<p class="receipt-payment__detail receipt-body">' + receiptEsc(String(ln).trim()) + "</p>"
+                );
+              }
             });
           }
-          return (
-            '<pre class="receipt receipt--payment">' + receiptEsc(payLines.join("\n")) + "</pre>"
-          );
+          return '<div class="receipt-payment">' + parts.join("") + "</div>";
+        }
+
+        function paymentInstructionBlockHtml() {
+          if (!showPrices || isCompany || !S.show_payment_details) return "";
+          var pt = String(S.payment_detail_type || "buy_goods");
+          if (pt === "paybill") {
+            return receiptPaybillInstructionHtml(S);
+          }
+          var label = receiptPaymentInstructionLabel(S);
+          var lines = receiptPaymentInstructionLines(S);
+          if (!label && !lines.length) return "";
+          var parts = [];
+          if (label) {
+            parts.push('<p class="receipt-payment__type receipt-body">' + receiptEsc(label) + "</p>");
+          }
+          lines.forEach(function (ln) {
+            parts.push('<p class="receipt-payment__detail receipt-body">' + receiptEsc(ln) + "</p>");
+          });
+          return '<div class="receipt-payment receipt-payment--instructions">' + parts.join("") + "</div>";
         }
 
         function footerHtmlBlock() {
@@ -7823,8 +8100,8 @@ var saleType = "sale";
           }
         }
 
-        var tailPlain = heavy + "\n" + receiptAttributionTailPlain(isCompany, W);
-        var escapedTail = receiptEsc(tailPlain);
+        var rollCss = rollWmm === 58 ? "58mm" : "80mm";
+        var thermalStyles = buildThermalReceiptStyles(rollCss, rollWmm, baseFont, monoFont, receiptWeight, titleWeight);
 
         /* ── Company copy: monospace body (no prices), after brand. ── */
         if (isCompany) {
@@ -7837,7 +8114,7 @@ var saleType = "sale";
           });
           var plainCompany = lines.join("\n");
           var rollCssC = rollWmm === 58 ? "58mm" : "80mm";
-          var thermalStylesC = buildThermalReceiptStyles(rollCssC, rollWmm, baseFont);
+          var thermalStylesC = buildThermalReceiptStyles(rollCssC, rollWmm, baseFont, monoFont, receiptWeight, titleWeight);
           return (
             "<!doctype html><html><head><meta charset='utf-8'><title>Receipt</title>" +
             "<style>" +
@@ -7848,41 +8125,19 @@ var saleType = "sale";
             "<div class=\"receipt-browser-print-tip\" role=\"status\"><strong>Print:</strong> Choose your physical printer under <strong>Destination</strong>, not Save as PDF.</div>" +
             logoHtml +
             brandBlockHtml() +
-            metaPlainPreHtml() +
+            metaBlockHtml() +
             "<pre class=\"receipt receipt--block\">" +
             receiptEsc(plainCompany) +
             "</pre>" +
             qrHtml +
-            "<pre class=\"receipt receipt--tail\">" +
-            escapedTail +
-            "</pre>" +
+            receiptTailHtml(true) +
             "</div></body></html>"
           );
         }
 
-        /* ── Customer / cashier: hybrid layout. ── */
-        lines.length = 0;
-        if (isStockTransferReceipt(payload)) {
-          L(thermalTransferItemHeaderLine(W));
-          L(sep);
-          (payload.lines || []).forEach(function (l) {
-            thermalTransferItemLines(l, W).forEach(function (row) {
-              L(row);
-            });
-          });
-        } else {
-          L(thermalItemHeaderLine(W));
-          L(sep);
-          (payload.lines || []).forEach(function (l) {
-            thermalItemLines(l, W).forEach(function (row) {
-              L(row);
-            });
-          });
-        }
-
-        var itemsPlain = lines.join("\n");
-        var rollCss = rollWmm === 58 ? "58mm" : "80mm";
-        var thermalStyles = buildThermalReceiptStyles(rollCss, rollWmm, baseFont);
+        var itemsHtml = isStockTransferReceipt(payload)
+          ? thermalTransferItemsTableHtml(payload.lines || [])
+          : thermalSaleItemsTableHtml(payload.lines || []);
         var transferReceipt = isStockTransferReceipt(payload);
 
         return (
@@ -7898,17 +8153,14 @@ var saleType = "sale";
           headerAndContactHtml() +
           quoteBannerHtml() +
           reprintBannerHtml() +
-          metaPlainPreHtml() +
-          '<pre class="receipt receipt--items">' +
-          receiptEsc(itemsPlain) +
-          "</pre>" +
-          (transferReceipt ? "" : totalsPlainPreHtml()) +
-          (transferReceipt ? "" : paymentPlainPreHtml()) +
+          metaBlockHtml() +
+          itemsHtml +
+          (transferReceipt ? "" : totalsBlockHtml()) +
+          (transferReceipt ? "" : paymentBlockHtml()) +
+          (transferReceipt ? "" : paymentInstructionBlockHtml()) +
           footerHtmlBlock() +
           qrHtml +
-          "<pre class=\"receipt receipt--tail\">" +
-          escapedTail +
-          "</pre>" +
+          receiptTailHtml(isCompany) +
           "</div></body></html>"
         );
       }
@@ -8028,7 +8280,7 @@ var saleType = "sale";
           pushBytes([GS, 0x21, 0x00]);
         }
         function charSizeTitle() {
-          if (W <= 24) {
+          if (W <= 32) {
             pushBytes([ESC, 0x21, 0x10]);
           } else {
             pushBytes([ESC, 0x21, 0x30]);
@@ -8221,7 +8473,7 @@ var saleType = "sale";
         if (showPrices && !isStockTransferReceipt(payload)) {
           var payTypeEsc = String(payload.paymentTypeLabel || "").trim();
           var pdEsc = (payload.paymentDetailText || "").trim();
-          if (payTypeEsc || pdEsc) {
+          if (isReceiptTransactionPaymentLabel(payTypeEsc) && (payTypeEsc || pdEsc)) {
             sep();
             if (payTypeEsc) {
               boldOn();
@@ -8229,6 +8481,37 @@ var saleType = "sale";
               boldOff();
             }
             if (pdEsc) pdEsc.split(/\r?\n/).forEach(function (ln) { pushLn(ln.slice(0, W + 8)); });
+          }
+        }
+
+        if (showPrices && !isCompany && S.show_payment_details) {
+          var instrPt = String(S.payment_detail_type || "buy_goods");
+          if (instrPt === "paybill") {
+            var pb = receiptPaybillInstructionFields(S);
+            if (pb.business || pb.account) {
+              sep();
+              boldOn();
+              pushLn("Pay bill");
+              boldOff();
+              pushLn("Business");
+              pushLn(pb.business.slice(0, W + 8));
+              pushLn("Account");
+              pushLn(pb.account.slice(0, W + 8));
+            }
+          } else {
+            var instrLabel = receiptPaymentInstructionLabel(S);
+            var instrLines = receiptPaymentInstructionLines(S);
+            if (instrLabel || instrLines.length) {
+              sep();
+              if (instrLabel) {
+                boldOn();
+                pushLn(instrLabel.slice(0, W + 8));
+                boldOff();
+              }
+              instrLines.forEach(function (ln) {
+                pushLn(String(ln).slice(0, W + 8));
+              });
+            }
           }
         }
 
@@ -9366,7 +9649,7 @@ var saleType = "sale";
         if (showPrices) {
           var payType = String(payload.paymentTypeLabel || "").trim();
           var pd = (payload.paymentDetailText || "").trim();
-          if (payType || pd) {
+          if (isReceiptTransactionPaymentLabel(payType) && (payType || pd)) {
             payBlock = "<div class='sep'></div>";
             if (payType) payBlock += "<div class='b'>" + receiptEsc(payType) + "</div>";
             if (pd) {
@@ -10500,7 +10783,7 @@ var saleType = "sale";
         if (!drawer || !backdrop) return;
         cartUiOpen = open;
         if (open) {
-          drawer.hidden = false;
+          drawer.removeAttribute("hidden");
           backdrop.setAttribute("aria-hidden", "false");
           backdrop.style.pointerEvents = "auto";
           requestAnimationFrame(function () {

@@ -2720,6 +2720,8 @@ def _default_receipt_settings() -> dict:
         "show_payment_details": False,
         "payment_detail_type": "buy_goods",
         "payment_detail_text": "",
+        "payment_paybill_business": "",
+        "payment_paybill_account": "",
         "include_tax": False,
         "tax_percent": "",
         "show_logo": True,
@@ -6857,6 +6859,14 @@ def _receipt_settings_from_form() -> dict:
     qr_mode = _s("receipt_qr_mode", "receipt_details")
     if qr_mode not in ("website", "receipt_details"):
         qr_mode = "receipt_details"
+    paybill_business = _s("receipt_payment_paybill_business", "", 256)
+    paybill_account = _s("receipt_payment_paybill_account", "", 64)
+    if ptype == "paybill":
+        detail_text = ""
+    else:
+        detail_text = _s("receipt_payment_detail_text", "", 2000)
+        paybill_business = ""
+        paybill_account = ""
     return {
         "receipt_width": width,
         "font_size": fsize,
@@ -6866,7 +6876,9 @@ def _receipt_settings_from_form() -> dict:
         "starting_number": _s("receipt_starting_number", "1001", 32),
         "show_payment_details": _b("receipt_show_payment_details"),
         "payment_detail_type": ptype,
-        "payment_detail_text": _s("receipt_payment_detail_text", "", 2000),
+        "payment_detail_text": detail_text,
+        "payment_paybill_business": paybill_business,
+        "payment_paybill_account": paybill_account,
         "include_tax": _b("receipt_include_tax"),
         "tax_percent": _s("receipt_tax_percent", "", 16),
         "show_logo": _b("receipt_show_logo"),
@@ -12865,6 +12877,105 @@ def shop_pos_refill_kitchen_portions(shop_id: int):
     return redirect(url_for("shop_pos", shop_id=shop_id))
 
 
+def _parse_pos_stock_in_batch_ids(raw: str) -> list:
+    """Parse comma-separated transaction / expense ids for batch receipt printing."""
+    out: list = []
+    for part in (raw or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            n = int(part)
+        except (TypeError, ValueError):
+            continue
+        if n > 0 and n not in out:
+            out.append(n)
+    return out
+
+
+def _fetch_pos_stock_in_receipt_rows(shop_id: int, tx_ids: list, kind: str) -> list:
+    """Load receipt rows for one or more stock-in / expense transactions."""
+    rows: list = []
+    kind_norm = (kind or "").strip().lower()
+    for tx_id in tx_ids:
+        row = None
+        try:
+            if kind_norm == "store":
+                from database import get_shop_store_stock_in_receipt_row
+
+                row = get_shop_store_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+            elif kind_norm == "expense":
+                from database import get_shop_operational_expense_receipt_row
+
+                row = get_shop_operational_expense_receipt_row(
+                    shop_id=shop_id,
+                    expense_id=tx_id,
+                )
+            else:
+                from database import get_shop_stock_in_receipt_row
+
+                row = get_shop_stock_in_receipt_row(shop_id=shop_id, tx_id=tx_id)
+        except Exception:
+            row = None
+        if row:
+            rows.append(dict(row))
+    return rows
+
+
+def _build_pos_stock_in_batch_receipt_ctx(receipt_rows: list, kind: str) -> dict:
+    """Aggregate multiple stock-in / expense rows into one printable receipt context."""
+    if not receipt_rows:
+        return {}
+    first = dict(receipt_rows[0])
+    kind_norm = (kind or "").strip().lower()
+    lines: list = []
+    total_cost = 0.0
+    for row in receipt_rows:
+        line_total = float(row.get("total_cost") or 0.0)
+        total_cost += line_total
+        display_name = (row.get("item_name") or "—").strip() or "—"
+        if kind_norm == "expense":
+            cat = (row.get("category_name") or "").strip()
+            if cat and cat != "—":
+                display_name = f"{cat} — {display_name}"
+        lines.append(
+            {
+                "id": row.get("id"),
+                "item_name": row.get("item_name") or "—",
+                "display_name": display_name,
+                "category_name": row.get("category_name") or "",
+                "qty": row.get("qty") or 0,
+                "buying_price": row.get("buying_price") or 0,
+                "total_cost": line_total,
+            }
+        )
+    id_parts = [f"#{int(r['id'])}" for r in receipt_rows if r.get("id")]
+    receipt = dict(first)
+    receipt["total_cost"] = round(total_cost, 2)
+    return {
+        "receipt": receipt,
+        "receipt_lines": lines,
+        "batch_id_label": " · ".join(id_parts) if id_parts else "—",
+    }
+
+
+def _pos_stock_in_batch_receipt_url(shop_id: int, ids: list, kind: str = "") -> str:
+    """URL for a combined thermal receipt covering multiple stock-in / expense lines."""
+    clean_ids = [int(x) for x in ids if x]
+    if not clean_ids:
+        return ""
+    kw = {
+        "shop_id": shop_id,
+        "ids": ",".join(str(x) for x in clean_ids),
+        "embed": 1,
+        "auto_print": 1,
+    }
+    kind_norm = (kind or "").strip().lower()
+    if kind_norm in ("store", "expense"):
+        kw["kind"] = kind_norm
+    return url_for("shop_stock_in_batch_receipt", **kw)
+
+
 def _parse_pos_stock_in_lines(request, entry_type: str) -> list:
     """Parse multi-line stock-in / expense payload from the POS buy modal."""
     raw = (request.form.get("lines_json") or "").strip()
@@ -13005,6 +13116,14 @@ def shop_pos_stock_in(shop_id: int):
                     + "; ".join(errors[:3])
                 )
             if wants_json:
+                expense_receipt_url = None
+                if expense_ids:
+                    if len(expense_ids) > 1:
+                        expense_receipt_url = _pos_stock_in_batch_receipt_url(
+                            shop_id, expense_ids, kind="expense"
+                        )
+                    else:
+                        expense_receipt_url = receipt_urls[0] if receipt_urls else None
                 return jsonify(
                     {
                         "ok": True,
@@ -13012,8 +13131,8 @@ def shop_pos_stock_in(shop_id: int):
                         "expense_id": expense_ids[0] if expense_ids else None,
                         "expense_ids": expense_ids,
                         "entry_type": "expense",
-                        "receipt_url": receipt_urls[0] if receipt_urls else None,
-                        "receipt_urls": receipt_urls,
+                        "receipt_url": expense_receipt_url,
+                        "receipt_urls": [expense_receipt_url] if expense_receipt_url else [],
                         "saved_count": success_count,
                         "errors": errors,
                     }
@@ -13175,14 +13294,23 @@ def shop_pos_stock_in(shop_id: int):
                 + "; ".join(errors[:3])
             )
         if wants_json:
+            stock_receipt_url = None
+            if tx_ids:
+                receipt_kind = "store" if is_store_stock_mode else ""
+                if len(tx_ids) > 1:
+                    stock_receipt_url = _pos_stock_in_batch_receipt_url(
+                        shop_id, tx_ids, kind=receipt_kind
+                    )
+                else:
+                    stock_receipt_url = receipt_urls[0] if receipt_urls else None
             return jsonify(
                 {
                     "ok": True,
                     "message": message,
                     "tx_id": tx_ids[0] if tx_ids else None,
                     "tx_ids": tx_ids,
-                    "receipt_url": receipt_urls[0] if receipt_urls else None,
-                    "receipt_urls": receipt_urls,
+                    "receipt_url": stock_receipt_url,
+                    "receipt_urls": [stock_receipt_url] if stock_receipt_url else [],
                     "saved_count": success_count,
                     "errors": errors,
                 }
@@ -13240,6 +13368,77 @@ def shop_stock_in_receipt(shop_id: int, tx_id: int):
             "shop_stock_in_receipt",
             shop_id=shop_id,
             tx_id=tx_id,
+            embed=1,
+            auto_print=1,
+            **embed_kind_kw,
+        ),
+    }
+    use_embed = request.args.get("embed") in ("1", "true", "yes") or request.args.get("auto_print") in (
+        "1",
+        "true",
+        "yes",
+    )
+    if use_embed:
+        return render_template("shop_stock_in_receipt_embed.html", **receipt_ctx)
+    return render_template(
+        "shop_stock_in_receipt.html",
+        **receipt_ctx,
+        theme_key=f"richcom-theme-shop-{shop['id']}",
+        theme_default=shop.get("default_theme") or "dark",
+        font_family=shop.get("font_family") or "Plus Jakarta Sans",
+        primary_color_rgb=_hex_to_rgb_triplet(shop.get("primary_color") or "#10b981"),
+        accent_color_rgb=_hex_to_rgb_triplet(shop.get("accent_color") or "#14b8a6"),
+    )
+
+
+@app.route("/shops/<int:shop_id>/stock-in-receipt/batch")
+def shop_stock_in_batch_receipt(shop_id: int):
+    """Combined thermal receipt for multiple POS stock-in or expense lines."""
+    shop = _get_shop_or_404(shop_id)
+    gate = _require_shop_access(shop)
+    if gate is not None:
+        return gate
+    kind = (request.args.get("kind") or "").strip().lower()
+    receipt_kind_label = (request.args.get("receipt_kind") or "").strip()
+    tx_ids = _parse_pos_stock_in_batch_ids(request.args.get("ids") or "")
+    if not tx_ids:
+        if request.args.get("embed") in ("1", "true", "yes"):
+            return ("Receipt not found.", 404)
+        flash("Receipt not found.", "error")
+        if kind == "expense":
+            return redirect(url_for("shop_expenses", shop_id=shop_id))
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, view="manual"))
+
+    receipt_rows = _fetch_pos_stock_in_receipt_rows(shop_id=shop_id, tx_ids=tx_ids, kind=kind)
+    if not receipt_rows:
+        if request.args.get("embed") in ("1", "true", "yes"):
+            return ("Receipt not found.", 404)
+        flash("Receipt not found.", "error")
+        if kind == "expense":
+            return redirect(url_for("shop_expenses", shop_id=shop_id))
+        return redirect(url_for("shop_stock_management", shop_id=shop_id, view="manual"))
+
+    if not receipt_kind_label:
+        if kind == "store":
+            receipt_kind_label = "Purchase invoice"
+        elif kind == "expense":
+            receipt_kind_label = "Operational expense"
+        else:
+            receipt_kind_label = "Purchase invoice"
+
+    batch_ctx = _build_pos_stock_in_batch_receipt_ctx(receipt_rows, kind=kind)
+    embed_kind_kw = {"kind": kind} if kind in ("store", "expense") else {}
+    receipt_ctx = {
+        "shop": shop,
+        "receipt": batch_ctx.get("receipt"),
+        "receipt_lines": batch_ctx.get("receipt_lines") or [],
+        "batch_id_label": batch_ctx.get("batch_id_label") or "—",
+        "receipt_kind": receipt_kind_label,
+        "pos_receipt_settings": _effective_receipt_settings_for_shop(shop),
+        "embed_print_url": url_for(
+            "shop_stock_in_batch_receipt",
+            shop_id=shop_id,
+            ids=",".join(str(x) for x in tx_ids),
             embed=1,
             auto_print=1,
             **embed_kind_kw,

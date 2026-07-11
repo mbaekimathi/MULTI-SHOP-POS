@@ -121,6 +121,7 @@
             <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Payment instruction type</label>
             <select
               name="receipt_payment_type"
+              id="receipt_payment_type"
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
             >
               <option value="buy_goods" {% if rs.payment_detail_type == 'buy_goods' or not rs.payment_detail_type %}selected{% endif %}>Buy goods</option>
@@ -128,13 +129,35 @@
               <option value="send_money" {% if rs.payment_detail_type == 'send_money' %}selected{% endif %}>Send money</option>
             </select>
           </div>
-          <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (shop / paybill / phone etc.)</label>
+          <div id="receipt-payment-paybill-fields" class="grid gap-3 md:grid-cols-2 {% if rs.payment_detail_type != 'paybill' %}hidden{% endif %}">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Business</label>
+              <input
+                type="text"
+                name="receipt_payment_paybill_business"
+                value="{{ rs.payment_paybill_business or '' }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                placeholder="e.g. Your Business Ltd"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Account</label>
+              <input
+                type="text"
+                name="receipt_payment_paybill_account"
+                value="{{ rs.payment_paybill_account or '' }}"
+                class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+                placeholder="e.g. 123456"
+              />
+            </div>
+          </div>
+          <div id="receipt-payment-general-fields" class="{% if rs.payment_detail_type == 'paybill' %}hidden{% endif %}">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Details to print (shop / phone etc.)</label>
             <textarea
               name="receipt_payment_detail_text"
               rows="3"
               class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
-              placeholder="e.g. Shop: 123456 Â· Business: Your Shop Ltd"
+              placeholder="e.g. Till: 123456 · Phone: 0700 000000"
             >{{ rs.payment_detail_text or '' }}</textarea>
           </div>
         </div>

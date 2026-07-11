@@ -40,14 +40,25 @@
           if (qrOpt) qrOpt.classList.toggle("hidden", !qrEn || !qrEn.checked);
           syncQrUrl();
         }
+        function syncPaymentType() {
+          var sel = document.getElementById("receipt_payment_type") || root.querySelector('[name="receipt_payment_type"]');
+          var paybill = document.getElementById("receipt-payment-paybill-fields");
+          var general = document.getElementById("receipt-payment-general-fields");
+          var isPaybill = sel && sel.value === "paybill";
+          if (paybill) paybill.classList.toggle("hidden", !isPaybill);
+          if (general) general.classList.toggle("hidden", !!isPaybill);
+        }
         function sync() {
           if (payW) payW.classList.toggle("hidden", !pay || !pay.checked);
           if (taxW) taxW.classList.toggle("hidden", !tax || !tax.checked);
+          syncPaymentType();
           syncQr();
           if (window.updateReceiptPreview) window.updateReceiptPreview();
         }
         if (pay) pay.addEventListener("change", sync);
         if (tax) tax.addEventListener("change", sync);
+        var payTypeSel = document.getElementById("receipt_payment_type") || root.querySelector('[name="receipt_payment_type"]');
+        if (payTypeSel) payTypeSel.addEventListener("change", sync);
         if (qrEn) {
           qrEn.addEventListener("change", function () {
             qrEn.setAttribute("aria-checked", qrEn.checked ? "true" : "false");
@@ -150,6 +161,8 @@
         var payTypeLabel =
           { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" }[payType] || payType;
         var payText = String(val("receipt_payment_detail_text") || "").trim();
+        var paybillBusiness = String(val("receipt_payment_paybill_business") || "").trim();
+        var paybillAccount = String(val("receipt_payment_paybill_account") || "").trim();
 
         var header = String(val("receipt_header") || "").trim();
         var footer = String(val("receipt_footer") || "").trim();
@@ -245,8 +258,23 @@
         html += thermalPreviewPreBlock(totalLines, "receipt-preview-totals");
 
         if (showPay) {
-          var payLines = [payTypeLabel];
-          if (payText) payLines.push(payText);
+          var payLines = [];
+          if (payType === "paybill") {
+            payLines.push(payTypeLabel);
+            payLines.push(
+              ("Business" + "          " + "Account").slice(0, W)
+            );
+            payLines.push(
+              (
+                (paybillBusiness || "—").slice(0, Math.floor(W / 2)) +
+                " " +
+                (paybillAccount || "—").slice(0, Math.floor(W / 2))
+              ).slice(0, W)
+            );
+          } else {
+            payLines.push(payTypeLabel);
+            if (payText) payLines.push(payText);
+          }
           html += thermalPreviewPreBlock(payLines, "receipt-preview-payment");
         }
 

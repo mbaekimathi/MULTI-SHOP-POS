@@ -4,20 +4,43 @@
 
 /* ── Drawer shell ── */
 .pos-cart-drawer--modern.pos-cart-drawer {
-  background:
-    linear-gradient(180deg, rgba(var(--rc-surface), 1) 0%, rgba(var(--rc-surface-2), 0.92) 100%) !important;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--rc-surface)) 0%,
+    rgb(var(--rc-surface-2)) 100%
+  ) !important;
   box-shadow:
     0 -24px 64px -20px rgba(15, 23, 42, 0.28),
-    0 0 0 1px rgba(99, 102, 241, 0.14) !important;
+    0 0 0 1px rgb(var(--rc-border)) !important;
+  color: rgb(var(--rc-page-fg));
+}
+
+html[data-theme="light"] .pos-cart-drawer--modern.pos-cart-drawer,
+html:not(.dark) .pos-cart-drawer--modern.pos-cart-drawer {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--rc-surface)) 0%,
+    rgb(var(--rc-surface-2)) 100%
+  ) !important;
 }
 
 .dark .pos-cart-drawer--modern.pos-cart-drawer,
 html[data-theme="dark"] .pos-cart-drawer--modern.pos-cart-drawer {
-  background:
-    linear-gradient(180deg, #0f172a 0%, #1e293b 55%, #0f172a 100%) !important;
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 55%, #0f172a 100%) !important;
   box-shadow:
     0 -28px 72px -24px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(129, 140, 248, 0.22) !important;
+  color: rgb(var(--rc-page-fg));
+}
+
+#pos-cart-drawer.pos-cart-drawer--modern.is-open {
+  display: flex !important;
+  visibility: visible;
+  opacity: 1;
+}
+
+#pos-cart-drawer.pos-cart-drawer--modern[hidden] {
+  display: none !important;
 }
 
 @media (min-width: 1024px) {
@@ -49,17 +72,33 @@ html[data-theme="dark"] .pos-cart-drawer--modern.pos-cart-drawer {
 
 /* ── Header ── */
 .pos-cart-drawer--modern .pos-cart-drawer__header--modern {
-  border-bottom: 1px solid rgba(var(--rc-border), 0.55) !important;
-  background:
-    linear-gradient(125deg, rgba(99, 102, 241, 0.1) 0%, rgba(var(--rc-surface), 0.95) 45%, rgba(14, 165, 233, 0.08) 100%) !important;
+  border-bottom: 1px solid rgb(var(--rc-border) / 0.55) !important;
+  background: linear-gradient(
+    125deg,
+    rgb(var(--rc-primary) / 0.1) 0%,
+    rgb(var(--rc-surface)) 45%,
+    rgb(14 165 233 / 0.08) 100%
+  ) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 .dark .pos-cart-drawer--modern .pos-cart-drawer__header--modern,
 html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-drawer__header--modern {
-  background:
-    linear-gradient(125deg, rgba(99, 102, 241, 0.18) 0%, rgba(15, 23, 42, 0.92) 50%, rgba(14, 165, 233, 0.12) 100%) !important;
+  background: linear-gradient(
+    125deg,
+    rgba(99, 102, 241, 0.18) 0%,
+    rgba(15, 23, 42, 0.92) 50%,
+    rgba(14, 165, 233, 0.12) 100%
+  ) !important;
+}
+
+html[data-theme="light"] .pos-cart-drawer--modern .pos-cart-drawer__header--modern,
+html:not(.dark) .pos-cart-drawer--modern .pos-cart-drawer__header--modern {
+  background: rgb(var(--rc-surface)) !important;
+  border-bottom: 1px solid rgb(var(--rc-border)) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .pos-cart-drawer--modern .pos-cart-drawer__icon-tile {
@@ -103,16 +142,25 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-close-btn {
 
 /* ── Lines section ── */
 .pos-cart-drawer--modern .pos-cart-lines-section {
-  background:
-    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(99, 102, 241, 0.08), transparent 55%),
-    linear-gradient(180deg, rgba(var(--rc-surface-2), 0.35), rgba(var(--rc-surface), 0.15)) !important;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--rc-surface-2) / 0.35),
+    rgb(var(--rc-surface) / 0.15)
+  ) !important;
 }
 
 .dark .pos-cart-drawer--modern .pos-cart-lines-section,
 html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-lines-section {
-  background:
-    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(99, 102, 241, 0.14), transparent 55%),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.5), rgba(30, 41, 59, 0.25)) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.5),
+    rgba(30, 41, 59, 0.25)
+  ) !important;
+}
+
+html[data-theme="light"] .pos-cart-drawer--modern .pos-cart-lines-section,
+html:not(.dark) .pos-cart-drawer--modern .pos-cart-lines-section {
+  background: rgb(var(--rc-surface-2)) !important;
 }
 
 .pos-cart-drawer--modern .pos-cart-lines-toolbar {
@@ -150,8 +198,12 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-line-count {
   gap: 0.65rem;
   padding: 0.65rem 0.7rem;
   border-radius: 0.85rem;
-  border: 1px solid rgba(var(--rc-border), 0.55);
-  background: linear-gradient(165deg, rgba(var(--rc-surface), 1), rgba(var(--rc-surface-2), 0.55));
+  border: 1px solid rgb(var(--rc-border) / 0.55);
+  background: linear-gradient(
+    165deg,
+    rgb(var(--rc-surface)),
+    rgb(var(--rc-surface-2) / 0.55)
+  );
   box-shadow: 0 2px 10px -6px rgba(15, 23, 42, 0.12);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
@@ -258,9 +310,12 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-empty__icon {
 
 /* ── Summary / total card ── */
 .pos-cart-drawer--modern .pos-cart-summary-bar--modern {
-  background:
-    linear-gradient(180deg, rgba(var(--rc-surface), 0.95), rgba(var(--rc-surface-2), 0.75)) !important;
-  border-top-color: rgba(99, 102, 241, 0.22) !important;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--rc-surface)),
+    rgb(var(--rc-surface-2) / 0.75)
+  ) !important;
+  border-top-color: rgb(var(--rc-border) / 0.7) !important;
 }
 
 .dark .pos-cart-drawer--modern .pos-cart-summary-bar--modern,
@@ -320,10 +375,19 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-total-card__amount {
 
 /* ── Checkout shell ── */
 .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
-  border-top: 1px solid rgba(var(--rc-border), 0.5) !important;
-  background:
-    radial-gradient(100% 80% at 0% 0%, rgba(99, 102, 241, 0.1), transparent 55%),
-    linear-gradient(180deg, rgba(var(--rc-surface-2), 0.65), rgba(var(--rc-surface), 0.9)) !important;
+  border-top: 1px solid rgb(var(--rc-border) / 0.5) !important;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--rc-surface-2) / 0.65),
+    rgb(var(--rc-surface))
+  ) !important;
+  flex-shrink: 0;
+}
+
+html[data-theme="light"] .pos-cart-drawer--modern .pos-cart-checkout-shell--modern,
+html:not(.dark) .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
+  background: rgb(var(--rc-surface-2)) !important;
+  border-top: 1px solid rgb(var(--rc-border)) !important;
 }
 
 .dark .pos-cart-drawer--modern .pos-cart-checkout-shell--modern,
@@ -415,8 +479,8 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-checkout-panel__body {
 
 .pos-cart-drawer--modern .pos-cart-checkout-card {
   border-radius: 0.9rem !important;
-  border: 1px solid rgba(var(--rc-border), 0.55) !important;
-  background: rgba(var(--rc-surface), 0.95) !important;
+  border: 1px solid rgb(var(--rc-border) / 0.55) !important;
+  background: rgb(var(--rc-surface)) !important;
   box-shadow: 0 4px 16px -12px rgba(15, 23, 42, 0.18) !important;
 }
 
@@ -472,10 +536,92 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-auth-input {
   border-style: solid;
 }
 
-/* Withhold toolbar polish */
+/* Withhold toolbar — same visual family as the Direct POS cart header */
+.pos-cart-drawer--modern .pos-cart-withhold-toolbar,
 .pos-cart-drawer--modern #pos-cart-withhold-toolbar {
-  border-top: 1px solid rgba(var(--rc-border), 0.45);
-  background: rgba(var(--rc-surface-2), 0.5) !important;
+  border-top: 1px solid rgb(var(--rc-border) / 0.55);
+  background: linear-gradient(
+    125deg,
+    rgb(var(--rc-primary) / 0.08) 0%,
+    rgb(var(--rc-surface)) 45%,
+    rgb(14 165 233 / 0.06) 100%
+  ) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html[data-theme="light"] .pos-cart-drawer--modern .pos-cart-withhold-toolbar,
+html[data-theme="light"] .pos-cart-drawer--modern #pos-cart-withhold-toolbar,
+html:not(.dark) .pos-cart-drawer--modern .pos-cart-withhold-toolbar,
+html:not(.dark) .pos-cart-drawer--modern #pos-cart-withhold-toolbar {
+  background: rgb(var(--rc-surface)) !important;
+  border-top: 1px solid rgb(var(--rc-border)) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dark .pos-cart-drawer--modern .pos-cart-withhold-toolbar,
+.dark .pos-cart-drawer--modern #pos-cart-withhold-toolbar,
+html[data-theme="dark"] .pos-cart-drawer--modern .pos-cart-withhold-toolbar,
+html[data-theme="dark"] .pos-cart-drawer--modern #pos-cart-withhold-toolbar {
+  background:
+    linear-gradient(125deg, rgba(99, 102, 241, 0.14) 0%, rgba(15, 23, 42, 0.92) 50%, rgba(14, 165, 233, 0.1) 100%) !important;
+}
+
+.pos-cart-drawer--modern .pos-cart-path-btn {
+  border-radius: 9999px;
+}
+
+.pos-cart-drawer--modern #pos-cart-hold-resume-select,
+.pos-cart-drawer--modern #pos-cart-hold-table-number {
+  border-radius: 0.75rem;
+  border-color: rgba(var(--rc-border), 0.55);
+  background: rgba(var(--rc-surface), 0.95);
+}
+
+.dark .pos-cart-drawer--modern #pos-cart-hold-resume-select,
+.dark .pos-cart-drawer--modern #pos-cart-hold-table-number,
+html[data-theme="dark"] .pos-cart-drawer--modern #pos-cart-hold-resume-select,
+html[data-theme="dark"] .pos-cart-drawer--modern #pos-cart-hold-table-number {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.85);
+}
+
+.pos-cart-drawer--modern #pos-cart-hold-banner > div {
+  border-radius: 9999px;
+  border-color: rgba(99, 102, 241, 0.35);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(14, 165, 233, 0.08));
+}
+
+/* Shared mobile layout — keep line items in view in both cart workflows */
+@media (max-width: 1023px) {
+  .pos-cart-drawer--modern.pos-cart-drawer.is-open {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pos-cart-drawer--modern #pos-cart-lines-section {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .pos-cart-drawer--modern #pos-cart-lines {
+    max-height: min(52dvh, 26rem) !important;
+    flex: 0 0 auto !important;
+    min-height: 5rem;
+    overflow-y: auto;
+  }
+
+  .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
+    flex: 0 0 auto;
+    max-height: min(46dvh, 22rem);
+    overflow-y: auto;
+  }
+
+  .pos-cart-drawer--modern.pos-cart-drawer--withhold #pos-cart-lines {
+    max-height: min(44dvh, 24rem) !important;
+  }
 }
 
 .pos-cart-drawer--modern #pos-cart-lines.pos-cart-lines-list {
@@ -485,7 +631,11 @@ html[data-theme="dark"] .pos-cart-drawer--modern .pos-auth-input {
 }
 
 html:not(.dark) .pos-cart-drawer--modern #pos-cart-lines .pos-cart-line-card:hover {
-  background: linear-gradient(165deg, rgba(var(--rc-surface), 1), rgba(99, 102, 241, 0.08)) !important;
+  background: linear-gradient(
+    165deg,
+    rgb(var(--rc-surface)),
+    rgb(var(--rc-primary) / 0.08)
+  ) !important;
 }
 
 /* Backdrop */
@@ -499,10 +649,6 @@ html[data-theme="dark"] #pos-cart-backdrop.is-visible {
 }
 
 @media (max-width: 1023px) {
-  .pos-cart-drawer--modern #pos-cart-lines {
-    max-height: min(52dvh, 26rem);
-  }
-
   /* Compact typography for cart details on mobile / tablet sheet */
   .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
     padding-top: 0.65rem !important;
@@ -586,7 +732,8 @@ html[data-theme="dark"] #pos-cart-backdrop.is-visible {
   .pos-cart-drawer--modern #pos-auth-verify,
   .pos-cart-drawer--modern .pos-cart-clear-btn,
   .pos-cart-drawer--modern .pos-cart-action-btn,
-  .pos-cart-drawer--modern .pos-cart-proceed-header {
+  .pos-cart-drawer--modern .pos-cart-proceed-header,
+  .pos-cart-drawer--modern #pos-cart-proceed.pos-cart-proceed-header {
     font-size: 0.5625rem !important;
     padding-top: 0.35rem !important;
     padding-bottom: 0.35rem !important;
@@ -598,6 +745,7 @@ html[data-theme="dark"] #pos-cart-backdrop.is-visible {
     padding: 0.35rem 0.45rem !important;
   }
 
+  .pos-cart-drawer--modern .pos-cart-withhold-toolbar,
   .pos-cart-drawer--modern #pos-cart-withhold-toolbar {
     padding: 0.45rem 0.75rem !important;
     gap: 0.35rem !important;
