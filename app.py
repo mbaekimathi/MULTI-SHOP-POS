@@ -3951,7 +3951,7 @@ def _default_website_settings() -> dict:
         "primary_color": style["primary"],
         "accent_color": style["accent"],
         "font_family": "Plus Jakarta Sans",
-        "default_theme": "system",
+        "default_theme": "dark",
         "design": _default_website_design(),
         "featured_item_ids": [],
         "public_website_enabled": True,
@@ -5516,6 +5516,8 @@ def _load_website_settings() -> dict:
 
     merged["font_family"] = normalize_font_family(str(merged.get("font_family") or defaults["font_family"]))
     merged["default_theme"] = normalize_default_theme(str(merged.get("default_theme") or defaults["default_theme"]))
+    if merged["default_theme"] in ("system", "light"):
+        merged["default_theme"] = "dark"
     for color_key in ("primary_color", "accent_color"):
         if not _ok_hex_color(str(merged.get(color_key) or "")):
             merged[color_key] = defaults[color_key]
@@ -5564,9 +5566,7 @@ def _website_settings_for_template() -> dict:
     ws["font_family_stack"] = font_css_stack(ws.get("font_family"))
     ws["font_google_url"] = google_fonts_url(ws.get("font_family"))
     ws["theme_style_label"] = style["label"]
-    theme_default = ws.get("default_theme") or "system"
-    if theme_default == "light":
-        theme_default = "system"
+    theme_default = "dark"
     ws["default_theme"] = theme_default
     ws["theme_config_key"] = "|".join(
         [

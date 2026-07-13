@@ -1,11 +1,10 @@
 {% set _sf_font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
-{% set _ws_theme = website_settings.default_theme if website_settings else 'system' %}
-{% set _mk_theme_default = 'system' if _ws_theme == 'light' else (_ws_theme if _ws_theme in ['dark', 'light', 'system'] else 'system') %}
+{% set _mk_theme_default = 'dark' %}
 <!DOCTYPE html>
 <html
   lang="en"
-  data-marketing-theme-default="{{ _mk_theme_default }}"
-  data-marketing-theme="{{ _mk_theme_default }}"
+  data-marketing-theme-default="dark"
+  data-marketing-theme="dark"
   data-marketing-theme-config="{{ (website_settings.theme_config_key if website_settings else none)|default(site_settings.theme_config_key if site_settings else '', true) }}"
   data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
   style="--mk-primary: {{ site_settings.primary_color if site_settings else '#f97316' }}; --mk-accent: {{ site_settings.accent_color if site_settings else '#fb923c' }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '249, 115, 22' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '251, 146, 60' }}; --rc-font-family: {{ _sf_font }};"
@@ -14,28 +13,9 @@
     (function () {
       try {
         var docEl = document.documentElement;
-        var def = docEl.getAttribute("data-marketing-theme-default") || docEl.getAttribute("data-marketing-theme") || "system";
-        function resolveDefault(mode) {
-          if (mode === "system") {
-            try {
-              return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-            } catch (e2) {
-              return "light";
-            }
-          }
-          return mode === "light" || mode === "dark" ? mode : "light";
-        }
-        var cfg = docEl.getAttribute("data-marketing-theme-config") || "";
-        var storedCfg = localStorage.getItem("marketing-theme-config");
-        var t = localStorage.getItem("marketing-theme");
-        var theme;
-        if (storedCfg && cfg && storedCfg === cfg && (t === "dark" || t === "light")) {
-          theme = t;
-        } else {
-          theme = resolveDefault(def);
-        }
-        docEl.setAttribute("data-marketing-theme", theme);
-        docEl.style.colorScheme = theme === "dark" ? "dark" : "light";
+        docEl.setAttribute("data-marketing-theme", "dark");
+        docEl.setAttribute("data-marketing-theme-default", "dark");
+        docEl.style.colorScheme = "dark";
       } catch (e) {}
     })();
   </script>
@@ -64,7 +44,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-fresh.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-luxury.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-modern.css') }}?v=3" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-home.css') }}?v=3" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-home.css') }}?v=4" />
     {% block extra_head %}{% endblock %}
   </head>
   <body class="overflow-x-hidden text-zinc-900 dark:text-zinc-100">

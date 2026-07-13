@@ -62,7 +62,7 @@
     <div class="wsf-header__accent" aria-hidden="true"></div>
     <div class="wsf-shell wsf-header__shell">
       <div class="wsf-header__bar">
-        <a href="{{ _home_url }}" class="wsf-header-brand" aria-label="{{ _company }} home">
+        <a href="{{ _shop_login_url }}" class="wsf-header-brand" title="Shop staff login" aria-label="{{ _company }} — shop staff login">
           <span class="wsf-header-brand__mark">
             {% if _icon %}
               <img src="{{ url_for('static', filename=_icon) }}" alt="" width="40" height="40" decoding="async" />
@@ -105,14 +105,6 @@
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
               <span class="wsf-header-cart__count hidden" data-wsf-cart-count>0</span>
             </button>
-            <button type="button" class="wsf-header-tool" data-wsf-theme-toggle aria-label="Toggle theme" aria-pressed="false">
-              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-            </button>
-            <a href="{{ _shop_login_url }}" class="wsf-header-tool wsf-header-tool--text" title="Shop staff login">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
-              <span>Login</span>
-            </a>
           </div>
           <button type="button" class="wsf-header-cta" data-wsf-open-cart>
             <span class="wsf-header-cta__label">Request quote</span>
@@ -129,7 +121,7 @@
     <div id="wsf-menu-backdrop" class="wsf-menu-backdrop" aria-hidden="true"></div>
     <nav id="wsf-menu-drawer" class="wsf-menu-drawer" aria-label="Mobile navigation" aria-hidden="true">
       <div class="wsf-menu-drawer__head">
-        <span class="wsf-menu-drawer__title">{{ _company }}</span>
+        <a href="{{ _shop_login_url }}" class="wsf-menu-drawer__brand" title="Shop staff login">{{ _company }}</a>
         <button type="button" class="wsf-icon-btn" data-wsf-close-menu aria-label="Close menu">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -151,7 +143,6 @@
         {% if _phone or _email %}
         <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-open-contact data-wsf-close-menu-on-click>Contact us</button>
         {% endif %}
-        <a href="{{ _shop_login_url }}" class="wsf-menu-drawer__link wsf-menu-drawer__link--muted" data-wsf-close-menu-on-click>Shop login</a>
       </div>
       {% if _phone or _loc %}
       <div class="wsf-menu-drawer__foot">

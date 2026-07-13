@@ -12,7 +12,7 @@
     <a href="{{ storefront_product_url(p) }}" class="wsf-card__view-link" tabindex="-1" aria-hidden="true">
       <span class="wsf-card__img-frame">
         {% if p.image_url %}
-          <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" width="400" height="400" />
+          <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" sizes="(min-width: 1024px) 280px, (min-width: 640px) 33vw, 50vw" />
           <span class="wsf-card__img-shimmer" aria-hidden="true"></span>
         {% else %}
           <span class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</span>

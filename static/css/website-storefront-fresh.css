@@ -374,9 +374,19 @@ body.wsf-menu-open .wsf-menu-btn__icon--close {
   border-bottom: 1px solid var(--wsf-border);
 }
 
-.wsf-menu-drawer__title {
+.wsf-menu-drawer__title,
+.wsf-menu-drawer__brand {
   font-weight: 700;
   font-size: 0.9375rem;
+}
+
+.wsf-menu-drawer__brand {
+  color: var(--wsf-text);
+  text-decoration: none;
+}
+
+.wsf-menu-drawer__brand:hover {
+  color: var(--wsf-primary);
 }
 
 .wsf-menu-drawer__links {
@@ -1746,9 +1756,12 @@ html[data-marketing-theme="dark"] .wsf-hero--slideshow .wsf-hero__aside .wsf-pag
 }
 
 .wsf-card__img {
+  display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
   object-fit: cover;
+  object-position: center;
 }
 
 .wsf-card__img-frame {
@@ -2263,12 +2276,12 @@ html[data-marketing-theme="dark"] .wsf-root--catalog.wsf-root--fresh {
 }
 
 .wsf-root--catalog .wsf-product-grid .wsf-card__img {
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: filter 0.35s ease;
 }
 
 .wsf-root--catalog .wsf-product-grid .wsf-card:hover .wsf-card__img,
 .wsf-root--catalog .wsf-product-grid .wsf-card:focus-within .wsf-card__img {
-  transform: scale(1.05);
+  filter: brightness(0.96);
 }
 
 .wsf-card__hover-panel {

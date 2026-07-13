@@ -68,38 +68,18 @@
         applyTheme(stored);
       }
     } else {
-      root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
-        btn.setAttribute("aria-pressed", currentTheme() === "dark" ? "true" : "false");
-      });
+      applyTheme("dark", false);
     }
 
     root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
       if (btn.getAttribute("data-wsf-theme-bound") === "1") return;
       btn.setAttribute("data-wsf-theme-bound", "1");
       btn.addEventListener("click", function () {
-        applyTheme(currentTheme() === "dark" ? "light" : "dark");
+        if (isPreview) {
+          applyTheme(currentTheme() === "dark" ? "light" : "dark");
+        }
       });
     });
-
-    if (!isPreview) {
-      var themeDefault = docEl.getAttribute("data-marketing-theme-default") || "system";
-      if (themeDefault === "system") {
-        try {
-          var cfg = docEl.getAttribute("data-marketing-theme-config") || "";
-          var mq = window.matchMedia("(prefers-color-scheme: dark)");
-          mq.addEventListener("change", function () {
-            var storedCfg = null;
-            var stored = null;
-            try {
-              storedCfg = localStorage.getItem("marketing-theme-config");
-              stored = localStorage.getItem(storageKey);
-            } catch (e) {}
-            if (storedCfg && cfg && storedCfg === cfg && (stored === "dark" || stored === "light")) return;
-            applyTheme(mq.matches ? "dark" : "light", false);
-          });
-        } catch (e) {}
-      }
-    }
   })();
 
   if (header) {

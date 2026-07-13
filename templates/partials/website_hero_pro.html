@@ -46,7 +46,7 @@
               <a href="{{ storefront_product_url(p) }}" class="wsf-home-hero__tile{% if loop.index == 1 and _hero_products|length >= 3 %} wsf-home-hero__tile--featured{% endif %}{% if p.on_sale %} wsf-home-hero__tile--sale{% endif %}" style="--wsf-tile-i: {{ loop.index0 }}">
                 <span class="wsf-home-hero__tile-media">
                   {% if p.image_url %}
-                    <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="{% if loop.index <= 2 %}eager{% else %}lazy{% endif %}" width="320" height="320" decoding="async" />
+                    <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="{% if loop.index <= 2 %}eager{% else %}lazy{% endif %}" decoding="async" sizes="(min-width: 960px) 280px, 45vw" />
                     <span class="wsf-home-hero__tile-shimmer" aria-hidden="true"></span>
                   {% else %}
                     <span class="wsf-home-hero__tile-ph">{{ p.name[:1]|upper }}</span>
