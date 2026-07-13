@@ -8588,6 +8588,7 @@ def get_shop_credit_sale_detail(shop_id: int, sale_id: int):
 def get_shop_pos_sale_detail(shop_id: int, sale_id: int):
     """Return one POS sale (sale/credit) with line items for receipt popup."""
     ensure_shop_pos_sales_receipt_columns()
+    ensure_shop_pos_sales_mpesa_receipt_column()
     sale_sql = """
     SELECT
         sps.id,
@@ -8599,6 +8600,7 @@ def get_shop_pos_sale_detail(shop_id: int, sale_id: int):
         sps.total_amount,
         sps.cash_amount,
         sps.mpesa_amount,
+        sps.mpesa_receipt_number,
         sps.credit_paid_amount,
         COALESCE(sps.credit_status, 'not_paid') AS credit_status,
         sps.item_count,
@@ -8645,6 +8647,7 @@ def get_shop_pos_sale_detail(shop_id: int, sale_id: int):
                 "total_amount": float(sale.get("total_amount") or 0),
                 "cash_amount": float(sale.get("cash_amount") or 0),
                 "mpesa_amount": float(sale.get("mpesa_amount") or 0),
+                "mpesa_receipt_number": (sale.get("mpesa_receipt_number") or "").strip(),
                 "credit_paid_amount": float(sale.get("credit_paid_amount") or 0),
                 "credit_status": (sale.get("credit_status") or "not_paid").strip().lower(),
                 "item_count": int(sale.get("item_count") or 0),

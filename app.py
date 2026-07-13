@@ -2709,6 +2709,13 @@ def _normalize_receipt_width_value(raw: object) -> str:
     return "80mm"
 
 
+def _normalize_receipt_payment_detail_type(raw: object) -> str:
+    pt = str(raw or "").strip().lower()
+    if pt in ("buy_goods", "paybill", "send_money"):
+        return pt
+    return "buy_goods"
+
+
 def _default_receipt_settings() -> dict:
     return {
         "receipt_width": "80mm",
@@ -2766,6 +2773,14 @@ def _load_receipt_settings() -> dict:
         qm = "receipt_details"
     merged["receipt_qr_mode"] = qm
     merged["receipt_width"] = _normalize_receipt_width_value(merged.get("receipt_width"))
+    merged["payment_detail_type"] = _normalize_receipt_payment_detail_type(
+        merged.get("payment_detail_type")
+    )
+    if merged["payment_detail_type"] == "paybill":
+        merged["payment_detail_text"] = ""
+    else:
+        merged["payment_paybill_business"] = ""
+        merged["payment_paybill_account"] = ""
     return merged
 
 
@@ -5794,6 +5809,14 @@ def _effective_receipt_settings_for_shop(shop: dict) -> dict:
         qm = "receipt_details"
     merged["receipt_qr_mode"] = qm
     merged["receipt_width"] = _normalize_receipt_width_value(merged.get("receipt_width"))
+    merged["payment_detail_type"] = _normalize_receipt_payment_detail_type(
+        merged.get("payment_detail_type")
+    )
+    if merged["payment_detail_type"] == "paybill":
+        merged["payment_detail_text"] = ""
+    else:
+        merged["payment_paybill_business"] = ""
+        merged["payment_paybill_account"] = ""
     return merged
 
 

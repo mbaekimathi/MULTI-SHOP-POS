@@ -806,7 +806,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=19"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=23"></script>
   <script>
     (function () {
       var DEFAULT_TAB = "system";
@@ -1059,14 +1059,18 @@
 
         var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
         if (!doc) return;
-        var previewHtml = String(rendered.fullHtml || "").replace(
-          "</style>",
-          ".receipt-browser-print-tip{display:none!important}" +
-            "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +
-            ".receipt-thermal{width:100%!important;max-width:100%!important;padding-left:1mm!important;padding-right:1mm!important}" +
-            ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}" +
-            "</style>"
-        );
+        var previewHtml =
+          window.receiptThermalEngine &&
+          typeof window.receiptThermalEngine.prepareHtmlForPrint === "function"
+            ? window.receiptThermalEngine.prepareHtmlForPrint(rendered.fullHtml)
+            : String(rendered.fullHtml || "").replace(
+                "</style>",
+                ".receipt-browser-print-tip{display:none!important}" +
+                  "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +
+                  ".receipt-thermal{width:100%!important;max-width:100%!important;padding-left:1mm!important;padding-right:1mm!important}" +
+                  ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}" +
+                  "</style>"
+              );
         doc.open();
         doc.write(previewHtml);
         doc.close();

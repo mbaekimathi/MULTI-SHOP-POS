@@ -56,10 +56,25 @@ funcs = [
     "thermalDeliveredByLine",
     "thermalItemLines",
     "thermalLineDiscountSuffix",
+    "thermalKvRowHtml",
+    "thermalKvBlockHtml",
+    "thermalSaleItemsTableHtml",
+    "thermalTransferItemsTableHtml",
+    "receiptTailHtml",
     "thermalPlainSep",
     "thermalPlainSepHeavy",
     "thermalPlainCenter",
     "receiptAttributionTailPlain",
+    "isReceiptTransactionPaymentLabel",
+    "receiptTxnPaymentMethodTitle",
+    "receiptExpandPaymentDetailLines",
+    "receiptPaymentDetailKvRows",
+    "receiptNormalizePaymentDetailType",
+    "receiptPaymentInstructionLabel",
+    "receiptPaymentInstructionLines",
+    "receiptPaybillInstructionFields",
+    "receiptPaymentInstructionHasContent",
+    "receiptPaybillInstructionHtml",
     "isStockTransferReceipt",
     "buildThermalReceiptPlainHtml",
     "thermalReceiptDocExtractStyle",
@@ -85,6 +100,7 @@ out.append(
 out.append("  }")
 out.append('  var RECEIPT_ATTRIBUTION_BY = "BUILT & MAINTAINED BY";')
 out.append('  var RECEIPT_ATTRIBUTION_NAME = "FINAGRITECH SOLUTIONS";')
+out.append("  function syncReceiptThermalEngineBoot() {}")
 
 for fn in funcs:
     if fn == "buildThermalReceiptPlainHtml":
@@ -127,6 +143,23 @@ out.append("      \"</style></head><body>\" +")
 out.append("      combinedInner +")
 out.append("      \"</body></html>\"")
 out.append("    );")
+out.append("  }")
+out.append("")
+out.append("  var RECEIPT_PREVIEW_PRINT_CSS = (")
+out.append('    ".receipt-browser-print-tip{display:none!important}" +')
+out.append(
+    '    "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +'
+)
+out.append(
+    '    ".receipt-thermal{width:100%!important;max-width:100%!important;padding-left:1mm!important;padding-right:1mm!important}" +'
+)
+out.append(
+    '    ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}"'
+)
+out.append("  );")
+out.append("")
+out.append("  function receiptThermalPrepareHtmlForPrint(fullHtml) {")
+out.append('    return String(fullHtml || "").replace("</style>", RECEIPT_PREVIEW_PRINT_CSS + "</style>");')
 out.append("  }")
 out.append("")
 out.append("  function buildDemoReceiptPreviewPayload(opts) {")
@@ -187,6 +220,17 @@ out.append("      fullHtml: fullHtml,")
 out.append("      style: thermalReceiptDocExtractStyle(fullHtml),")
 out.append("      body: thermalReceiptDocExtractBodyInner(fullHtml),")
 out.append("    };")
+out.append("  };")
+out.append("")
+out.append("  /** Shared thermal receipt engine — POS checkout uses the same HTML layout as IT preview. */")
+out.append("  window.receiptThermalEngine = {")
+out.append("    setBoot: function (boot) { ACTIVE_BOOT = boot || {}; },")
+out.append("    buildPlainHtml: buildThermalReceiptPlainHtml,")
+out.append("    buildHtmlMulti: buildReceiptThermalHtmlMulti,")
+out.append("    variantsForCheckout: receiptVariantsForCheckout,")
+out.append("    docExtractStyle: thermalReceiptDocExtractStyle,")
+out.append("    docExtractBody: thermalReceiptDocExtractBodyInner,")
+out.append("    prepareHtmlForPrint: receiptThermalPrepareHtmlForPrint,")
 out.append("  };")
 out.append("")
 out.append("  window.receiptThermalReprint = function (sale, items, boot) {")
