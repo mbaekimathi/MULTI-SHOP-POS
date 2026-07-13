@@ -1,202 +1,142 @@
 {% set nav = [
-
   ('marketing_home', 'Home', url_for('marketing_home')),
-
   ('marketing_features', 'Features', url_for('marketing_features')),
-
   ('marketing_pricing', 'Pricing', url_for('marketing_pricing')),
-
+  ('marketing_dashboard_preview', 'Dashboard', url_for('marketing_dashboard_preview')),
   ('marketing_about', 'About', url_for('marketing_about')),
-
   ('marketing_contact', 'Contact', url_for('marketing_contact')),
-
 ] %}
-
+{% set nav_util = [
+  ('storefront', 'Storefront', url_for('index'), 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'),
+  ('shop_login', 'Shop login', url_for('public_shop_login'), 'M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1'),
+] %}
 {% set ep = request.endpoint %}
 
 <header
-
-  class="mk-site-header fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-zinc-950/95 backdrop-blur-md"
-
+  class="mk-site-header"
   x-data="{ mobileOpen: false }"
-
   x-effect="document.body.classList.toggle('mk-nav-open', mobileOpen)"
-
   @keydown.escape.window="mobileOpen = false"
-
+  data-mk-header
 >
+  <div class="mk-site-header__accent" aria-hidden="true"></div>
 
-  <div class="mk-site-header__bar mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6 md:h-[3.75rem]">
+  <div class="mk-site-header__shell">
+    <div class="mk-site-header__bar">
+      {# Brand #}
+      <a href="{{ url_for('marketing_home') }}" class="mk-header-brand">
+        <span class="mk-header-brand__mark">
+          {% if site_settings and site_settings.app_icon %}
+            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" width="40" height="40" />
+          {% else %}
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4V6zm2 2v8h12V8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>
+          {% endif %}
+        </span>
+        <span class="mk-header-brand__copy">
+          <span class="mk-header-brand__name">{{ pub_brand_name }}</span>
+          <span class="mk-header-brand__tag">Retail POS platform</span>
+        </span>
+      </a>
 
-    <a href="{{ url_for('marketing_home') }}" class="flex min-w-0 max-w-[58%] items-center gap-2 sm:max-w-none sm:gap-2.5">
+      {# Desktop nav pill #}
+      <nav class="mk-header-nav" aria-label="Primary">
+        <div class="mk-header-nav__track">
+          {% for key, label, href in nav %}
+            <a href="{{ href }}" class="mk-header-nav__link{% if ep == key %} is-active{% endif %}">
+              <span>{{ label }}</span>
+            </a>
+          {% endfor %}
+        </div>
+      </nav>
 
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg mk-brand-bg text-white ring-2 mk-brand-ring sm:h-8 sm:w-8">
-
-        {% if site_settings and site_settings.app_icon %}
-
-          <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" class="h-full w-full rounded-md object-cover" width="32" height="32" />
-
-        {% else %}
-
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4V6zm2 2v8h12V8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>
-
-        {% endif %}
-
-      </span>
-
-      <span class="truncate font-display text-sm font-semibold tracking-tight text-white sm:text-[15px]">{{ pub_brand_name }}</span>
-
-    </a>
-
-
-
-    <nav class="mk-site-header__desktop hidden items-center gap-0.5 md:flex" aria-label="Primary">
-
-      {% for key, label, href in nav %}
-
-        <a
-
-          href="{{ href }}"
-
-          class="rounded-md px-2.5 py-2 text-[13px] font-medium transition lg:px-3 {% if ep == key %}mk-brand-text{% else %}text-zinc-400 hover:text-white{% endif %}"
-
-        >
-
-          {{ label }}
-
+      {# Actions #}
+      <div class="mk-header-actions">
+        <div class="mk-header-actions__tools" aria-label="Header tools">
+          {% for key, label, href, icon in nav_util %}
+            <a href="{{ href }}" class="mk-header-tool" title="{{ label }}">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon }}"/></svg>
+              <span class="mk-header-tool__label">{{ label }}</span>
+            </a>
+          {% endfor %}
+          <button type="button" data-mk-theme-toggle class="mk-header-tool" aria-label="Toggle theme">
+            <svg class="mk-header-tool__moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+            <svg class="mk-header-tool__sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          </button>
+        </div>
+        <a href="{{ url_for('marketing_contact') }}" class="mk-header-cta">
+          <span>Get started</span>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
         </a>
+        <button
+          type="button"
+          class="mk-header-menu-btn"
+          :class="{ 'is-open': mobileOpen }"
+          @click="mobileOpen = !mobileOpen"
+          :aria-expanded="mobileOpen.toString()"
+          aria-controls="mk-mobile-drawer"
+          aria-label="Open menu"
+        >
+          <svg class="mk-header-menu-btn__open" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <svg class="mk-header-menu-btn__close" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
 
-      {% endfor %}
-
-    </nav>
-
-
-
-    <div class="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
-
-      <button
-
-        type="button"
-
-        data-mk-theme-toggle
-
-        class="mk-icon-btn rounded-md p-2.5 text-zinc-500 transition hover:bg-white/10 hover:text-white sm:p-2"
-
-        aria-label="Toggle theme"
-
-      >
-
-        <span class="dark:hidden"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg></span>
-
-        <span class="hidden dark:inline"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></span>
-
+  {# Mobile drawer #}
+  <div class="mk-mobile-backdrop" x-show="mobileOpen" @click="mobileOpen = false" x-cloak aria-hidden="true"></div>
+  <aside
+    id="mk-mobile-drawer"
+    class="mk-mobile-drawer"
+    x-show="mobileOpen"
+    x-cloak
+    role="dialog"
+    aria-modal="true"
+    aria-label="Navigation menu"
+  >
+    <div class="mk-mobile-drawer__head">
+      <a href="{{ url_for('marketing_home') }}" class="mk-header-brand mk-header-brand--compact" @click="mobileOpen = false">
+        <span class="mk-header-brand__mark">
+          {% if site_settings and site_settings.app_icon %}
+            <img src="{{ url_for('static', filename=site_settings.app_icon) }}" alt="" width="36" height="36" />
+          {% else %}
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6h16v12H4V6zm2 2v8h12V8H6zm2 2h8v2H8v-2zm0 3h5v2H8v-2z"/></svg>
+          {% endif %}
+        </span>
+        <span class="mk-header-brand__copy">
+          <span class="mk-header-brand__name">{{ pub_brand_name }}</span>
+        </span>
+      </a>
+      <button type="button" class="mk-header-menu-btn is-open" @click="mobileOpen = false" aria-label="Close menu">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
-
-      <button
-
-        type="button"
-
-        class="mk-icon-btn inline-flex rounded-md p-2.5 text-zinc-300 transition hover:bg-white/10 hover:text-white md:hidden"
-
-        @click="mobileOpen = !mobileOpen"
-
-        :aria-expanded="mobileOpen.toString()"
-
-        aria-controls="mk-mobile-nav"
-
-      >
-
-        <span class="sr-only" x-text="mobileOpen ? 'Close menu' : 'Open menu'"></span>
-
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!mobileOpen" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-
-        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="mobileOpen" x-cloak aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-
-      </button>
-
     </div>
 
-  </div>
-
-
-
-  <div
-
-    class="mk-mobile-nav-backdrop fixed inset-0 z-40 bg-black/60 md:hidden"
-
-    x-show="mobileOpen"
-
-    x-transition:enter="transition ease-out duration-200"
-
-    x-transition:enter-start="opacity-0"
-
-    x-transition:enter-end="opacity-100"
-
-    x-transition:leave="transition ease-in duration-150"
-
-    x-transition:leave-start="opacity-100"
-
-    x-transition:leave-end="opacity-0"
-
-    @click="mobileOpen = false"
-
-    x-cloak
-
-    aria-hidden="true"
-
-  ></div>
-
-
-
-  <div
-
-    id="mk-mobile-nav"
-
-    class="mk-mobile-nav fixed inset-x-0 z-40 overflow-y-auto overscroll-contain border-t border-white/10 bg-zinc-950 px-4 py-4 md:hidden"
-
-    x-show="mobileOpen"
-
-    x-transition:enter="transition ease-out duration-200"
-
-    x-transition:enter-start="opacity-0 -translate-y-2"
-
-    x-transition:enter-end="opacity-100 translate-y-0"
-
-    x-transition:leave="transition ease-in duration-150"
-
-    x-transition:leave-start="opacity-100 translate-y-0"
-
-    x-transition:leave-end="opacity-0 -translate-y-2"
-
-    x-cloak
-
-    role="dialog"
-
-    aria-modal="true"
-
-    aria-label="Site menu"
-
-  >
-
-    <nav class="flex flex-col" aria-label="Mobile">
-
+    <nav class="mk-mobile-drawer__nav" aria-label="Mobile primary">
       {% for key, label, href in nav %}
-
-        <a
-
-          href="{{ href }}"
-
-          class="rounded-lg px-2 py-3 text-base font-medium transition {% if ep == key %}bg-white/5 mk-brand-text{% else %}text-zinc-200 hover:bg-white/5 hover:text-white{% endif %}"
-
-          @click="mobileOpen = false"
-
-        >{{ label }}</a>
-
+        <a href="{{ href }}" class="mk-mobile-drawer__link{% if ep == key %} is-active{% endif %}" @click="mobileOpen = false">
+          <span>{{ label }}</span>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
       {% endfor %}
-
     </nav>
 
-  </div>
+    <div class="mk-mobile-drawer__divider" aria-hidden="true"></div>
 
+    <nav class="mk-mobile-drawer__util" aria-label="Mobile quick links">
+      {% for key, label, href, icon in nav_util %}
+        <a href="{{ href }}" class="mk-mobile-drawer__util-link" @click="mobileOpen = false">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon }}"/></svg>
+          {{ label }}
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div class="mk-mobile-drawer__foot">
+      <a href="{{ url_for('marketing_contact') }}" class="mk-header-cta mk-header-cta--block" @click="mobileOpen = false">
+        <span>Get started — free consultation</span>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+      </a>
+    </div>
+  </aside>
 </header>
-

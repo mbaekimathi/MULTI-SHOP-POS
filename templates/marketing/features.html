@@ -1,90 +1,134 @@
 {% extends "marketing/base_marketing.html" %}
 {% block title %}Solutions{% endblock %}
 {% block meta_description %}Faster checkout, trusted stock across branches, clear roles, and reporting finance can use — one operational picture.{% endblock %}
+
 {% block content %}
-  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-    <h1 class="font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">What you can run</h1>
-    <p class="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-      <strong class="font-medium text-slate-800 dark:text-slate-200">Sales</strong> happen on the floor;
-      <strong class="font-medium text-slate-800 dark:text-slate-200">control</strong> (stock, people, numbers) draws from the same facts — no reconciling between systems every Friday.
-    </p>
-
-    <div class="mt-10 grid gap-6 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2 sm:items-center dark:border-slate-700 dark:bg-slate-900/40">
-      <div class="text-sm text-slate-600 dark:text-slate-400">
-        <p class="font-medium text-slate-900 dark:text-white">Sale → payment → receipt</p>
-        <p class="mt-2">Line items use your central catalogue. Permissions control discounts, voids, and who sees company‑wide reports.</p>
+  <section class="mk-page-hero">
+    <div class="mk-page-hero__mesh" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-page-hero__inner mk-reveal">
+      <span class="mk-eyebrow">Platform capabilities</span>
+      <h1 class="mk-page-hero__title text-slate-900 dark:text-white">Everything your stores need — in one system</h1>
+      <p class="mk-page-hero__lead text-slate-600 dark:text-slate-400">
+        <strong class="font-semibold text-slate-800 dark:text-slate-200">Sales</strong> happen on the floor;
+        <strong class="font-semibold text-slate-800 dark:text-slate-200">control</strong> (stock, people, numbers) draws from the same facts — no reconciling between systems every Friday.
+      </p>
+      <div class="mk-page-hero__actions">
+        <a href="{{ url_for('marketing_dashboard_preview') }}" class="mk-btn mk-btn--primary">See dashboard</a>
+        <a href="{{ url_for('marketing_contact') }}" class="mk-btn mk-btn--ghost">Book a walkthrough</a>
       </div>
-      <img
-        src="{{ url_for('static', filename='marketing/svg/illu-pos-flow.svg') }}"
-        alt="Steps: add items, pay, receipt"
-        class="w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700"
-        width="560"
-        height="200"
-        loading="lazy"
-      />
     </div>
+  </section>
 
-    <div class="mt-8 grid gap-6 sm:grid-cols-2">
-      {% set blocks = [
-        {
-          'title': 'Inventory & products',
-          'body': 'One catalogue, stock per branch. Transfers and adjustments when a shop runs low.',
-          'img': 'marketing/svg/illu-inventory.svg',
-        },
-        {
-          'title': 'Shops & sync',
-          'body': 'Add branches without duplicating setup. Shared pricing with optional local rules.',
-          'img': 'marketing/svg/illu-sync.svg',
-        },
-        {
-          'title': 'Staff & access',
-          'body': 'Roles for cashiers, managers, and IT — who can discount, refund, or see all stores.',
-          'img': 'marketing/svg/illu-staff.svg',
-        },
-        {
-          'title': 'Sales reporting',
-          'body': 'Slice by store, item, and time. Export for accounting from the same figures the branch rings up.',
-          'img': 'marketing/svg/illu-analytics.svg',
-        },
-      ] %}
-      {% for b in blocks %}
-        <div class="flex gap-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/50">
-          <img
-            src="{{ url_for('static', filename=b.img) }}"
-            alt=""
-            class="h-20 w-24 shrink-0 rounded-md border border-slate-100 object-cover object-top dark:border-slate-700"
-            width="160"
-            height="128"
-            loading="lazy"
-          />
-          <div class="min-w-0">
-            <h2 class="font-display text-sm font-semibold text-slate-900 dark:text-white">{{ b.title }}</h2>
-            <p class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{{ b.body }}</p>
+  <section class="mk-section mk-section--alt">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="mk-section__head mk-reveal">
+        <span class="mk-eyebrow">Explore by area</span>
+        <h2 class="mk-section__title text-slate-900 dark:text-white">Pick what matters most to you</h2>
+        <p class="mk-section__sub text-slate-600 dark:text-slate-400">Tap a category to see how {{ pub_brand_name }} handles it end to end.</p>
+      </div>
+
+      <div class="mk-reveal" data-mk-tabs>
+        <div class="mk-tabs" role="tablist" aria-label="Feature categories">
+          <button type="button" class="mk-tab is-active" data-mk-tab="sales" role="tab" aria-selected="true">Sales & POS</button>
+          <button type="button" class="mk-tab" data-mk-tab="stock" role="tab" aria-selected="false">Inventory</button>
+          <button type="button" class="mk-tab" data-mk-tab="people" role="tab" aria-selected="false">People</button>
+          <button type="button" class="mk-tab" data-mk-tab="insights" role="tab" aria-selected="false">Insights</button>
+        </div>
+
+        <div class="mk-tab-panel is-active" data-mk-panel="sales" role="tabpanel">
+          <div class="mk-card mk-card--hover overflow-hidden lg:flex lg:items-center lg:gap-8 lg:p-2">
+            <img src="{{ url_for('static', filename='marketing/svg/illu-pos-flow.svg') }}" alt="Sale to receipt flow" class="w-full lg:w-1/2 rounded-xl" width="560" height="200" loading="lazy" />
+            <div class="p-5 lg:p-6">
+              <h3 class="font-display text-lg font-semibold text-slate-900 dark:text-white">Sale → payment → receipt</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">Line items use your central catalogue. Permissions control discounts, voids, and who sees company‑wide reports.</p>
+              <ul class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                <li class="flex gap-2"><span class="mk-brand-text font-bold">✓</span> Fast checkout on any device</li>
+                <li class="flex gap-2"><span class="mk-brand-text font-bold">✓</span> Thermal & digital receipts</li>
+                <li class="flex gap-2"><span class="mk-brand-text font-bold">✓</span> Credit sales with audit trail</li>
+              </ul>
+            </div>
           </div>
         </div>
-      {% endfor %}
-    </div>
 
-    <div class="mt-10 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">
-      <img
-        src="{{ url_for('static', filename='marketing/svg/illu-company-management.svg') }}"
-        alt="Head office connected to branches"
-        class="mx-auto w-full max-w-lg"
-        width="520"
-        height="300"
-        loading="lazy"
-      />
-      <p class="mx-auto mt-3 max-w-xl text-center text-xs text-slate-500 dark:text-slate-500">Company rules and reporting sit above every shop; each shop runs its own POS.</p>
-    </div>
-  </div>
+        <div class="mk-tab-panel" data-mk-panel="stock" role="tabpanel" hidden>
+          <div class="mk-bento">
+            <div class="mk-card mk-card--hover p-5">
+              <span class="mk-card__icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></span>
+              <h3 class="mt-4 font-display text-base font-semibold text-slate-900 dark:text-white">One catalogue, stock per branch</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Transfers and adjustments when a shop runs low — always tied to sales.</p>
+            </div>
+            <div class="mk-card mk-card--hover p-5">
+              <span class="mk-card__icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></span>
+              <h3 class="mt-4 font-display text-base font-semibold text-slate-900 dark:text-white">Multi-branch sync</h3>
+              <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Add branches without duplicating setup. Shared pricing with optional local rules.</p>
+            </div>
+            <div class="mk-card mk-card--hover mk-bento__wide p-5 lg:flex lg:items-center lg:gap-6">
+              <img src="{{ url_for('static', filename='marketing/svg/illu-inventory.svg') }}" alt="" class="h-24 w-28 shrink-0 rounded-lg" width="160" height="128" loading="lazy" />
+              <div>
+                <h3 class="font-display text-base font-semibold text-slate-900 dark:text-white">Stock you can trust</h3>
+                <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Stock-ins, stock-outs, and POS sales update the same ledger — no mystery gaps.</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-  <section class="border-t border-slate-100 bg-slate-50 py-12 dark:border-slate-800 dark:bg-slate-900/30">
-    <div class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 sm:flex-row sm:items-center sm:px-6">
+        <div class="mk-tab-panel" data-mk-panel="people" role="tabpanel" hidden>
+          <div class="mk-card mk-card--hover p-6 lg:flex lg:items-center lg:gap-8">
+            <img src="{{ url_for('static', filename='marketing/svg/illu-staff.svg') }}" alt="" class="h-32 w-40 shrink-0 rounded-lg" width="160" height="128" loading="lazy" />
+            <div>
+              <h3 class="font-display text-lg font-semibold text-slate-900 dark:text-white">Staff & access</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">Roles for cashiers, managers, and IT — who can discount, refund, or see all stores. Session idle guards keep shared terminals secure.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mk-tab-panel" data-mk-panel="insights" role="tabpanel" hidden>
+          <div class="mk-card mk-card--hover p-6 lg:flex lg:items-center lg:gap-8">
+            <img src="{{ url_for('static', filename='marketing/svg/illu-analytics.svg') }}" alt="" class="h-32 w-40 shrink-0 rounded-lg" width="160" height="128" loading="lazy" />
+            <div>
+              <h3 class="font-display text-lg font-semibold text-slate-900 dark:text-white">Sales reporting</h3>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">Slice by store, item, and time. Export for accounting from the same figures the branch rings up.</p>
+              <a href="{{ url_for('marketing_dashboard_preview') }}" class="mk-btn mk-btn--ghost mt-4 text-sm">Preview dashboard →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-section">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="mk-bento mk-stagger">
+        {% set blocks = [
+          {'title': 'Inventory & products', 'body': 'One catalogue, stock per branch. Transfers and adjustments when a shop runs low.', 'img': 'marketing/svg/illu-inventory.svg'},
+          {'title': 'Shops & sync', 'body': 'Add branches without duplicating setup. Shared pricing with optional local rules.', 'img': 'marketing/svg/illu-sync.svg'},
+          {'title': 'Staff & access', 'body': 'Roles for cashiers, managers, and IT — who can discount, refund, or see all stores.', 'img': 'marketing/svg/illu-staff.svg'},
+          {'title': 'Sales reporting', 'body': 'Slice by store, item, and time. Export for accounting from the same figures the branch rings up.', 'img': 'marketing/svg/illu-analytics.svg'},
+        ] %}
+        {% for b in blocks %}
+          <div class="mk-card mk-card--hover mk-reveal p-5">
+            <img src="{{ url_for('static', filename=b.img) }}" alt="" class="h-20 w-full max-w-[8rem] rounded-lg object-cover object-top" width="160" height="128" loading="lazy" />
+            <h2 class="mt-4 font-display text-sm font-semibold text-slate-900 dark:text-white">{{ b.title }}</h2>
+            <p class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{{ b.body }}</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="mk-card mk-reveal mt-10 overflow-hidden p-4 sm:p-6">
+        <img src="{{ url_for('static', filename='marketing/svg/illu-company-management.svg') }}" alt="Head office connected to branches" class="mx-auto w-full max-w-lg" width="520" height="300" loading="lazy" />
+        <p class="mx-auto mt-4 max-w-xl text-center text-sm text-slate-500 dark:text-slate-400">Company rules and reporting sit above every shop; each shop runs its own POS.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-cta-band">
+    <div class="mk-cta-band__glow" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-cta-band__inner mk-reveal">
       <div>
-        <p class="font-display text-sm font-semibold text-slate-900 dark:text-white">Want a walkthrough?</p>
+        <p class="font-display text-lg font-semibold text-slate-900 dark:text-white">Want a walkthrough?</p>
         <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">We’ll walk through branch checkout and head‑office for your store count.</p>
       </div>
-      <a href="{{ url_for('marketing_contact') }}" class="shrink-0 rounded-md bg-violet-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-600">Contact</a>
+      <a href="{{ url_for('marketing_contact') }}" class="mk-btn mk-btn--primary mk-btn--lg shrink-0">Contact us</a>
     </div>
   </section>
 {% endblock %}

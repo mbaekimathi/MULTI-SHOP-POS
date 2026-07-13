@@ -93,8 +93,10 @@
         },
       };
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing-base.css') }}?v=2" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing-base.css') }}?v=3" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing.css') }}?v=3" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing-modern.css') }}?v=2" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='marketing/css/marketing-header.css') }}?v=1" />
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
     {% block extra_head %}{% endblock %}
   </head>
@@ -106,7 +108,7 @@
     {% block marketing_footer %}
       {% include "marketing/partials/footer.html" %}
     {% endblock %}
-    <script src="{{ url_for('static', filename='marketing/js/marketing.js') }}"></script>
+    <script src="{{ url_for('static', filename='marketing/js/marketing.js') }}?v=2"></script>
     {% block extra_scripts %}{% endblock %}
   </body>
 </html>

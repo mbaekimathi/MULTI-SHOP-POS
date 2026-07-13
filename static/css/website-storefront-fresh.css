@@ -1751,6 +1751,18 @@ html[data-marketing-theme="dark"] .wsf-hero--slideshow .wsf-hero__aside .wsf-pag
   object-fit: cover;
 }
 
+.wsf-card__img-frame {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.wsf-card__img-shimmer {
+  display: none;
+}
+
 .wsf-card__placeholder {
   display: flex;
   align-items: center;

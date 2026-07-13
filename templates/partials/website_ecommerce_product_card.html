@@ -4,16 +4,20 @@
   class="wsf-card wsf-product-card wsf-product-card--tappable{% if p.on_sale %} wsf-card--sale{% endif %}"
   data-wsf-product-cat="{{ (p.category or 'General')|upper }}"
   data-wsf-add-id="{{ p.id }}"
+  style="--wsf-delay: {{ ((delay|default(0)) * 0.08)|round(2) }}s"
   itemscope
   itemtype="https://schema.org/Product"
 >
   <div class="wsf-card__media">
     <a href="{{ storefront_product_url(p) }}" class="wsf-card__view-link" tabindex="-1" aria-hidden="true">
-      {% if p.image_url %}
-        <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" width="160" height="160" />
-      {% else %}
-        <div class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</div>
-      {% endif %}
+      <span class="wsf-card__img-frame">
+        {% if p.image_url %}
+          <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" width="400" height="400" />
+          <span class="wsf-card__img-shimmer" aria-hidden="true"></span>
+        {% else %}
+          <span class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</span>
+        {% endif %}
+      </span>
     </a>
 
     {% if p.on_sale %}
@@ -32,7 +36,7 @@
       <span class="wsf-card__quick">Add to quote</span>
     </div>
 
-    <button type="button" class="wsf-card__add wsf-add-btn wsf-product-card__cart" tabindex="-1" aria-hidden="true">
+    <button type="button" class="wsf-card__add wsf-add-btn wsf-product-card__cart" aria-label="Add {{ p.name }} to quote">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
     </button>
   </div>
@@ -46,6 +50,9 @@
         <span itemprop="name">{{ p.name }}</span>
       </a>
     </h3>
+    {% if p.description %}
+      <p class="wsf-card__desc-cover">{{ p.description }}</p>
+    {% endif %}
     <div
       class="wsf-card__price-row{% if p.on_sale %} wsf-card__price-row--deal{% endif %}"
       itemprop="offers"
@@ -66,5 +73,6 @@
         <span class="wsf-card__price" itemprop="price" content="{{ '%.2f'|format(p.price) }}">KES {{ '%.0f'|format(p.price) }}</span>
       {% endif %}
     </div>
+    <span class="wsf-card__cta-cover">Add to quote</span>
   </div>
 </article>

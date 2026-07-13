@@ -44,7 +44,8 @@
       {% set cat_alt = (cat.top_product_name if cat is mapping else cat_name) or cat_name %}
       <a
         href="{{ (_catalog_url ~ '?cat=' ~ (cat_name|urlencode)) if _cat_nav_catalog else ('#wsf-cat-' ~ loop.index0|string) }}"
-        class="wsf-cat-tile{% if _cat_nav_pills %} wsf-cat-tile--pill{% elif _cat_nav_cards %} wsf-cat-tile--card{% elif _cat_nav_compact %} wsf-cat-tile--compact{% endif %}"
+        class="wsf-cat-tile{% if _cat_nav_pills %} wsf-cat-tile--pill{% elif _cat_nav_cards %} wsf-cat-tile--card wsf-reveal-child{% elif _cat_nav_compact %} wsf-cat-tile--compact{% endif %}"
+        {% if _cat_nav_cards %}style="--wsf-i: {{ loop.index0 + 1 }}"{% endif %}
         {% if not _cat_nav_catalog or _cat_nav_pills %}data-wsf-cat-nav="{{ cat_key }}" data-wsf-cat-label="{{ cat_name|urlencode }}"{% endif %}
         title="{{ cat_name }}"
       >

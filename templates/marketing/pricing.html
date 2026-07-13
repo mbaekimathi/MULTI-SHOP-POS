@@ -1,55 +1,94 @@
 {% extends "marketing/base_marketing.html" %}
 {% block title %}Pricing{% endblock %}
 {% block meta_description %}Indicative per‑store tiers — talk to us for volume, rollout, and enterprise needs.{% endblock %}
+
 {% block content %}
-  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-    <h1 class="font-display text-display-sm text-slate-900 dark:text-white">Pricing</h1>
-    <p class="mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-400">
-      Figures below are indicative — final pricing depends on store count, modules, and support level.
-    </p>
-  </div>
-
-  <div class="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-    <div class="mk-stagger grid gap-6 lg:grid-cols-3">
-      {% set plans = [
-        {'name': 'Starter', 'price': '$49', 'period': '/store/mo', 'desc': 'One location, full checkout and stock basics.', 'featured': False,
-         'bullets': ['Checkout & receipts', 'Core stock visibility', 'Email support']},
-        {'name': 'Professional', 'price': '$129', 'period': '/store/mo', 'desc': 'Multiple lanes & branches.', 'featured': True,
-         'bullets': ['Multi‑shop views', 'Advanced reports', 'Priority support', 'Role policies']},
-        {'name': 'Enterprise', 'price': 'Custom', 'period': '', 'desc': 'Large rollouts & integrations.', 'featured': False,
-         'bullets': ['Dedicated contact', 'SLA options', 'Custom integrations', 'Deployment help']},
-      ] %}
-      {% for p in plans %}
-        <div
-          class="mk-reveal flex flex-col rounded-lg border p-6 {% if p.featured %}border-violet-500 bg-white shadow-card dark:border-violet-400 dark:bg-slate-900{% else %}border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/50{% endif %}"
-        >
-          {% if p.featured %}
-            <span class="mb-3 inline-block w-fit rounded bg-violet-500 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">Recommended</span>
-          {% endif %}
-          <h2 class="font-display text-base font-semibold text-slate-900 dark:text-white">{{ p.name }}</h2>
-          <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">{{ p.desc }}</p>
-          <p class="mt-5 flex items-baseline gap-1">
-            <span class="font-display text-3xl font-bold text-slate-900 dark:text-white">{{ p.price }}</span>
-            <span class="text-xs text-slate-500">{{ p.period }}</span>
-          </p>
-          <ul class="mt-6 flex-1 space-y-2 text-sm text-slate-700 dark:text-slate-300">
-            {% for b in p.bullets %}
-              <li class="flex gap-2">
-                <span class="text-violet-600 dark:text-violet-400">✓</span> {{ b }}
-              </li>
-            {% endfor %}
-          </ul>
-          <a
-            href="{{ url_for('marketing_contact') }}"
-            class="mt-8 inline-flex justify-center rounded-md py-2.5 text-sm font-semibold transition {% if p.featured %}bg-violet-500 text-white hover:bg-violet-600{% else %}border border-slate-300 text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800{% endif %}"
-            >Contact sales</a
-          >
+  <section class="mk-page-hero">
+    <div class="mk-page-hero__mesh" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-page-hero__inner mk-reveal">
+      <span class="mk-eyebrow">Simple tiers</span>
+      <h1 class="mk-page-hero__title text-slate-900 dark:text-white">Pricing that scales with your stores</h1>
+      <p class="mk-page-hero__lead text-slate-600 dark:text-slate-400">
+        Figures below are indicative — final pricing depends on store count, modules, and support level.
+      </p>
+      <div class="mt-8 flex flex-wrap items-center gap-4">
+        <div class="mk-billing-toggle" data-mk-billing role="group" aria-label="Billing period">
+          <button type="button" class="is-active" data-mk-billing-mode="monthly">Monthly</button>
+          <button type="button" data-mk-billing-mode="yearly">Yearly <span class="opacity-80">(save 20%)</span></button>
         </div>
-      {% endfor %}
+      </div>
     </div>
+  </section>
 
-    <p class="mk-reveal mt-10 text-center text-sm text-slate-600 dark:text-slate-400">
-      Volume pricing and non‑profit rates available — ask in your first message.
-    </p>
-  </div>
+  <section class="mk-section">
+    <div class="mx-auto max-w-6xl px-4 pb-8 sm:px-6">
+      <div class="mk-stagger grid gap-6 lg:grid-cols-3 lg:items-stretch">
+        {% set plans = [
+          {'name': 'Starter', 'price_m': '$49', 'price_y': '$39', 'period': '/store/mo', 'desc': 'One location, full checkout and stock basics.', 'featured': False,
+           'bullets': ['Checkout & receipts', 'Core stock visibility', 'Email support']},
+          {'name': 'Professional', 'price_m': '$129', 'price_y': '$103', 'period': '/store/mo', 'desc': 'Multiple lanes & branches.', 'featured': True,
+           'bullets': ['Multi‑shop views', 'Advanced reports', 'Priority support', 'Role policies']},
+          {'name': 'Enterprise', 'price_m': 'Custom', 'price_y': 'Custom', 'period': '', 'desc': 'Large rollouts & integrations.', 'featured': False,
+           'bullets': ['Dedicated contact', 'SLA options', 'Custom integrations', 'Deployment help']},
+        ] %}
+        {% for p in plans %}
+          <div class="mk-reveal mk-card mk-plan {% if p.featured %}mk-plan--featured{% else %}mk-card--hover{% endif %}">
+            {% if p.featured %}
+              <span class="mk-plan__badge">Recommended</span>
+            {% endif %}
+            <h2 class="font-display text-lg font-semibold text-slate-900 dark:text-white">{{ p.name }}</h2>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ p.desc }}</p>
+            <p class="mt-5 flex items-baseline gap-1">
+              <span class="mk-plan__price text-slate-900 dark:text-white" data-mk-price-monthly="{{ p.price_m }}" data-mk-price-yearly="{{ p.price_y }}">{{ p.price_m }}</span>
+              <span class="text-xs text-slate-500">{{ p.period }}</span>
+            </p>
+            <ul class="mk-plan__list text-slate-700 dark:text-slate-300">
+              {% for b in p.bullets %}
+                <li><span class="mk-plan__check">✓</span> {{ b }}</li>
+              {% endfor %}
+            </ul>
+            <a href="{{ url_for('marketing_contact') }}" class="mk-btn mt-8 w-full {% if p.featured %}mk-btn--primary{% else %}mk-btn--ghost{% endif %}">Contact sales</a>
+          </div>
+        {% endfor %}
+      </div>
+
+      <p class="mk-reveal mt-10 text-center text-sm text-slate-600 dark:text-slate-400">
+        Volume pricing and non‑profit rates available — ask in your first message.
+      </p>
+    </div>
+  </section>
+
+  <section class="mk-section mk-section--alt">
+    <div class="mx-auto max-w-2xl px-4 sm:px-6">
+      <div class="mk-section__head mx-auto text-center mk-reveal">
+        <span class="mk-eyebrow">FAQ</span>
+        <h2 class="mk-section__title text-slate-900 dark:text-white">Common questions</h2>
+      </div>
+      <div class="mk-reveal">
+        {% for q, a in [
+          ('Is there a free trial?', 'We offer guided pilots for qualified rollouts — contact us with your store count and timeline.'),
+          ('Can I migrate from spreadsheets?', 'Yes. We help map products, opening stock, and users so go-live is structured, not chaotic.'),
+          ('Do you support multiple countries?', 'Pricing is shown in USD as a guide. Billing can be adapted for your region and tax rules.'),
+        ] %}
+          <div class="mk-faq-item" data-mk-faq-item>
+            <button type="button" class="mk-faq-q" data-mk-faq-q aria-expanded="false">{{ q }}
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="mk-faq-a"><div class="mk-faq-a__inner"><p>{{ a }}</p></div></div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-cta-band">
+    <div class="mk-cta-band__glow" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-cta-band__inner mk-reveal">
+      <div>
+        <p class="font-display text-lg font-semibold text-slate-900 dark:text-white">Not sure which tier fits?</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Tell us your branches and we’ll recommend a rollout plan.</p>
+      </div>
+      <a href="{{ url_for('marketing_contact') }}" class="mk-btn mk-btn--primary mk-btn--lg">Get a quote</a>
+    </div>
+  </section>
 {% endblock %}

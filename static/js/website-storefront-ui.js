@@ -140,6 +140,24 @@
     root.classList.add("wsf-is-ready");
   });
 
+  function markCardImageLoaded(img) {
+    var media = img.closest(".wsf-card__media") || img.closest(".wsf-home-hero__tile");
+    if (media) media.classList.add("is-img-loaded");
+  }
+
+  root.querySelectorAll(".wsf-card__img, .wsf-home-hero__tile-media img").forEach(function (img) {
+    if (img.complete && img.naturalWidth > 0) {
+      markCardImageLoaded(img);
+    } else {
+      img.addEventListener("load", function () {
+        markCardImageLoaded(img);
+      });
+      img.addEventListener("error", function () {
+        markCardImageLoaded(img);
+      });
+    }
+  });
+
   root.querySelectorAll(".wsf-stat-pill__num[data-wsf-count]").forEach(function (el) {
     var target = parseInt(el.getAttribute("data-wsf-count") || "0", 10);
     if (!target || target < 2) return;

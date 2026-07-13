@@ -1,43 +1,133 @@
 {% extends "marketing/base_marketing.html" %}
 {% block title %}Dashboard preview{% endblock %}
 {% block meta_description %}Illustrative dashboard — revenue, risk, and activity in one view.{% endblock %}
+
 {% block content %}
-  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-    <p class="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Preview</p>
-    <h1 class="mt-1 font-display text-display-sm text-slate-900 dark:text-white">Dashboard</h1>
-    <p class="mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-400">
-      Illustrative layout. Live views use the same sales and stock as your branches — so leadership sees what stores ring up, without waiting for emailed exports.
-    </p>
-  </div>
-
-  <section class="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-    <div class="overflow-hidden rounded-lg border border-slate-200 bg-slate-900 p-3 dark:border-slate-700">
-      <img
-        src="{{ url_for('static', filename='marketing/svg/illu-dashboard.svg') }}"
-        alt="Dashboard mockup"
-        class="w-full rounded-md"
-        width="480"
-        height="340"
-        loading="lazy"
-      />
+  <section class="mk-page-hero">
+    <div class="mk-page-hero__mesh" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-page-hero__inner mk-reveal">
+      <span class="mk-eyebrow">Preview</span>
+      <h1 class="mk-page-hero__title text-slate-900 dark:text-white">Leadership dashboard</h1>
+      <p class="mk-page-hero__lead text-slate-600 dark:text-slate-400">
+        Illustrative layout. Live views use the same sales and stock as your branches — so leadership sees what stores ring up, without waiting for emailed exports.
+      </p>
+      <div class="mk-page-hero__actions">
+        <a href="{{ url_for('marketing_contact') }}" class="mk-btn mk-btn--primary">Request live demo</a>
+        <a href="{{ url_for('marketing_features') }}" class="mk-btn mk-btn--ghost">See all features</a>
+      </div>
     </div>
+  </section>
 
-    <div class="mt-10 grid gap-4 md:grid-cols-3">
-      {% for title, sub, icon in [
-        ('Revenue', 'By branch and period', 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'),
-        ('Stock risk', 'Low stock and velocity', 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'),
-        ('Activity', 'Sign‑ins and approvals', 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'),
-      ] %}
-        <div class="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/50">
-          <span class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-violet-600 dark:border-slate-600 dark:text-violet-400">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="{{ icon }}" />
-            </svg>
-          </span>
-          <h2 class="mt-3 font-display text-sm font-semibold text-slate-900 dark:text-white">{{ title }}</h2>
-          <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">{{ sub }}</p>
+  <section class="mk-section">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="mk-dash mk-reveal" data-mk-dash>
+        <div class="mk-dash__chrome">
+          <span class="mk-dash__dot mk-dash__dot--r"></span>
+          <span class="mk-dash__dot mk-dash__dot--y"></span>
+          <span class="mk-dash__dot mk-dash__dot--g"></span>
+          <span class="ml-3 text-xs text-white/40">{{ pub_brand_name }} · Operations</span>
         </div>
-      {% endfor %}
+        <div class="mk-dash__body">
+          <nav class="mk-dash__nav" aria-label="Dashboard views">
+            <button type="button" class="mk-dash__nav-btn is-active" data-mk-tab="revenue" aria-selected="true">Revenue</button>
+            <button type="button" class="mk-dash__nav-btn" data-mk-tab="stock" aria-selected="false">Stock risk</button>
+            <button type="button" class="mk-dash__nav-btn" data-mk-tab="activity" aria-selected="false">Activity</button>
+          </nav>
+          <div class="mk-dash__main">
+            <div class="mk-dash-view is-active" data-mk-panel="revenue" role="tabpanel">
+              <div class="mk-dash__kpis">
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Today</p>
+                  <p class="mk-dash__kpi-val mk-dash__kpi-val--up">KES 842K</p>
+                </div>
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">This week</p>
+                  <p class="mk-dash__kpi-val">KES 4.2M</p>
+                </div>
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Branches</p>
+                  <p class="mk-dash__kpi-val">12 active</p>
+                </div>
+              </div>
+              <div class="mk-dash__chart">
+                <p class="text-xs font-semibold uppercase tracking-wide text-white/50">Revenue — last 7 days</p>
+                <div class="mk-dash__bars" aria-hidden="true">
+                  <div class="mk-dash__bar"></div>
+                  <div class="mk-dash__bar"></div>
+                  <div class="mk-dash__bar"></div>
+                  <div class="mk-dash__bar"></div>
+                  <div class="mk-dash__bar"></div>
+                  <div class="mk-dash__bar"></div>
+                  <div class="mk-dash__bar"></div>
+                </div>
+              </div>
+            </div>
+            <div class="mk-dash-view" data-mk-panel="stock" role="tabpanel" hidden>
+              <div class="mk-dash__kpis">
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Low stock</p>
+                  <p class="mk-dash__kpi-val">23 SKUs</p>
+                </div>
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Transfers pending</p>
+                  <p class="mk-dash__kpi-val">7</p>
+                </div>
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Stock value</p>
+                  <p class="mk-dash__kpi-val">KES 18.4M</p>
+                </div>
+              </div>
+              <p class="mt-4 text-sm text-white/55">Velocity alerts highlight items selling faster than replenishment across branches.</p>
+            </div>
+            <div class="mk-dash-view" data-mk-panel="activity" role="tabpanel" hidden>
+              <div class="mk-dash__kpis">
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Sign-ins today</p>
+                  <p class="mk-dash__kpi-val">48</p>
+                </div>
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Approvals</p>
+                  <p class="mk-dash__kpi-val">3 pending</p>
+                </div>
+                <div class="mk-dash__kpi">
+                  <p class="mk-dash__kpi-label">Receipts</p>
+                  <p class="mk-dash__kpi-val">1,204</p>
+                </div>
+              </div>
+              <p class="mt-4 text-sm text-white/55">Audit trail for discounts, voids, and manager overrides — searchable by store and user.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mk-stagger mt-10 grid gap-4 md:grid-cols-3">
+        {% for title, sub, icon in [
+          ('Revenue', 'By branch and period', 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'),
+          ('Stock risk', 'Low stock and velocity', 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'),
+          ('Activity', 'Sign‑ins and approvals', 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'),
+        ] %}
+          <div class="mk-card mk-card--hover mk-reveal p-5">
+            <span class="mk-card__icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="{{ icon }}" />
+              </svg>
+            </span>
+            <h2 class="mt-3 font-display text-sm font-semibold text-slate-900 dark:text-white">{{ title }}</h2>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">{{ sub }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-cta-band">
+    <div class="mk-cta-band__glow" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-cta-band__inner mk-reveal">
+      <div>
+        <p class="font-display text-lg font-semibold text-slate-900 dark:text-white">See it with your data</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">We’ll configure a pilot view for your branches and catalogue.</p>
+      </div>
+      <a href="{{ url_for('marketing_contact') }}" class="mk-btn mk-btn--primary mk-btn--lg">Book a demo</a>
     </div>
   </section>
 {% endblock %}

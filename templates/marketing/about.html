@@ -1,37 +1,70 @@
 {% extends "marketing/base_marketing.html" %}
 {% block title %}About{% endblock %}
 {% block meta_description %}{{ pub_brand_name }} helps retail businesses unify stores, stock, and reporting — delivered with {{ pub_builder_name }}.{% endblock %}
+
 {% block content %}
-  <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-    <div class="grid items-start gap-10 lg:grid-cols-2">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Who we work with</p>
-        <h1 class="mt-2 font-display text-display-sm text-slate-900 dark:text-white">Built for businesses that outgrow spreadsheets</h1>
-        <p class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          <strong class="text-slate-800 dark:text-slate-200">{{ pub_builder_name }}</strong> partners with retailers and operators who want <strong class="text-slate-800 dark:text-slate-200">{{ pub_brand_name }}</strong>: fast checkout in every branch, stock you can trust, and leadership views that match what actually happened on the floor — without emailing files store by store.
-        </p>
-        <p class="mt-4 text-sm text-slate-600 dark:text-slate-400">
-          Reach us at <a href="tel:{{ pub_phone_tel }}" class="font-semibold text-violet-700 hover:underline dark:text-violet-400">{{ pub_phone_display }}</a>.
-        </p>
-      </div>
-      <div class="flex justify-center lg:justify-end">
-        <img src="{{ url_for('static', filename='marketing/svg/illu-team.svg') }}" alt="" class="max-w-sm w-full" width="400" height="320" loading="lazy" />
+  <section class="mk-page-hero">
+    <div class="mk-page-hero__mesh" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 mk-page-hero__inner">
+      <div class="grid items-center gap-10 lg:grid-cols-2">
+        <div class="mk-reveal">
+          <span class="mk-eyebrow">Who we work with</span>
+          <h1 class="mk-page-hero__title text-slate-900 dark:text-white">Built for businesses that outgrow spreadsheets</h1>
+          <p class="mk-page-hero__lead text-slate-600 dark:text-slate-400">
+            <strong class="font-semibold text-slate-800 dark:text-slate-200">{{ pub_builder_name }}</strong> partners with retailers and operators who want <strong class="font-semibold text-slate-800 dark:text-slate-200">{{ pub_brand_name }}</strong>: fast checkout in every branch, stock you can trust, and leadership views that match what actually happened on the floor.
+          </p>
+          <p class="mt-4 text-sm text-slate-600 dark:text-slate-400">
+            Reach us at <a href="tel:{{ pub_phone_tel }}" class="font-semibold mk-brand-text hover:underline">{{ pub_phone_display }}</a>.
+          </p>
+        </div>
+        <div class="mk-reveal flex justify-center lg:justify-end">
+          <div class="mk-card overflow-hidden p-4">
+            <img src="{{ url_for('static', filename='marketing/svg/illu-team.svg') }}" alt="" class="max-w-sm w-full" width="400" height="320" loading="lazy" />
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <section class="border-t border-slate-100 bg-slate-50 py-14 dark:border-slate-800 dark:bg-slate-900/40">
+  <section class="mk-section mk-section--alt">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="mk-stats mk-reveal">
+        <div class="mk-stat mk-card">
+          <p class="mk-stat__num" data-mk-count="500" data-mk-count-suffix="+">0</p>
+          <p class="mk-stat__label text-slate-600 dark:text-slate-400">Stores supported</p>
+        </div>
+        <div class="mk-stat mk-card">
+          <p class="mk-stat__num" data-mk-count="12" data-mk-count-suffix="">0</p>
+          <p class="mk-stat__label text-slate-600 dark:text-slate-400">Regions</p>
+        </div>
+        <div class="mk-stat mk-card">
+          <p class="mk-stat__num" data-mk-count="99" data-mk-count-suffix=".9%">0</p>
+          <p class="mk-stat__label text-slate-600 dark:text-slate-400">Uptime target</p>
+        </div>
+        <div class="mk-stat mk-card">
+          <p class="mk-stat__num" data-mk-count="24" data-mk-count-suffix="h">0</p>
+          <p class="mk-stat__label text-slate-600 dark:text-slate-400">Support response</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6">
-      <h2 class="font-display text-lg font-semibold text-slate-900 dark:text-white">Timeline</h2>
-      <div class="mt-6 space-y-6">
+      <div class="mk-section__head mk-reveal">
+        <span class="mk-eyebrow">Our journey</span>
+        <h2 class="mk-section__title text-slate-900 dark:text-white">Timeline</h2>
+      </div>
+      <div class="mk-timeline mk-reveal">
         {% for year, title, body in [
           ('2019', 'Start', 'First retailers moved day‑to‑day sales and stock off spreadsheets.'),
           ('2021', 'Scale', 'More branches — one catalogue and reporting leadership could trust.'),
           ('Today', 'Now', 'Ship often, support honestly, keep every store on the same picture.'),
         ] %}
-          <div class="border-l-2 border-slate-200 pl-5 dark:border-slate-700">
-            <p class="text-xs font-semibold text-violet-600 dark:text-violet-400">{{ year }}</p>
-            <h3 class="mt-0.5 font-display text-sm font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+          <div class="mk-timeline__item">
+            <span class="mk-timeline__dot" aria-hidden="true"></span>
+            <p class="text-xs font-bold uppercase tracking-wide mk-brand-text">{{ year }}</p>
+            <h3 class="mt-1 font-display text-base font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
             <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ body }}</p>
           </div>
         {% endfor %}
@@ -39,10 +72,30 @@
     </div>
   </section>
 
-  <section class="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-    <div class="rounded-lg border border-slate-200 bg-white px-6 py-8 sm:flex sm:items-center sm:justify-between dark:border-slate-700 dark:bg-slate-900/50">
-      <p class="text-sm text-slate-600 dark:text-slate-400">Hiring or partnering? Send a short note.</p>
-      <a href="{{ url_for('marketing_contact') }}" class="mt-4 inline-flex rounded-md bg-violet-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-600 sm:mt-0">Contact</a>
+  <section class="mk-section mk-section--alt">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="mk-bento mk-stagger">
+        {% for title, body in [
+          ('Honest support', 'Real people who know retail ops — not ticket ping-pong.'),
+          ('One source of truth', 'Sales, stock, and reports from the same data layer.'),
+          ('Built to grow', 'From one shop to dozens without re-platforming.'),
+        ] %}
+          <div class="mk-card mk-card--hover mk-reveal p-5">
+            <h3 class="font-display text-sm font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">{{ body }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-cta-band">
+    <div class="mk-cta-band__glow" aria-hidden="true"></div>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6">
+      <div class="mk-card mk-reveal flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <p class="text-sm text-slate-600 dark:text-slate-400">Hiring or partnering? Send a short note.</p>
+        <a href="{{ url_for('marketing_contact') }}" class="mk-btn mk-btn--primary shrink-0">Contact</a>
+      </div>
     </div>
   </section>
 {% endblock %}

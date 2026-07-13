@@ -1,5 +1,5 @@
 /**
- * Marketing site: optional scroll reveals, theme toggle. Kept minimal on purpose.
+ * Marketing site — scroll reveals, theme toggle, tabs, FAQ, counters.
  */
 (function () {
   "use strict";
@@ -82,8 +82,140 @@
     } catch (e) {}
   }
 
+  function initHeaderScroll() {
+    var header = document.querySelector("[data-mk-header]");
+    if (!header) return;
+    var onScroll = function () {
+      header.classList.toggle("is-scrolled", window.scrollY > 12);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  }
+
+  function initTabs(root) {
+    if (!root) return;
+    var tabs = root.querySelectorAll("[data-mk-tab]");
+    var panels = root.querySelectorAll("[data-mk-panel]");
+    if (!tabs.length) return;
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var id = tab.getAttribute("data-mk-tab");
+        tabs.forEach(function (t) {
+          t.classList.toggle("is-active", t === tab);
+          t.setAttribute("aria-selected", t === tab ? "true" : "false");
+        });
+        panels.forEach(function (panel) {
+          var match = panel.getAttribute("data-mk-panel") === id;
+          panel.classList.toggle("is-active", match);
+          panel.hidden = !match;
+        });
+      });
+    });
+  }
+
+  function initBillingToggle() {
+    var wrap = document.querySelector("[data-mk-billing]");
+    if (!wrap) return;
+    var buttons = wrap.querySelectorAll("button[data-mk-billing-mode]");
+    var prices = document.querySelectorAll("[data-mk-price-monthly]");
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var yearly = btn.getAttribute("data-mk-billing-mode") === "yearly";
+        buttons.forEach(function (b) {
+          b.classList.toggle("is-active", b === btn);
+        });
+        prices.forEach(function (el) {
+          var monthly = el.getAttribute("data-mk-price-monthly");
+          var yearlyPrice = el.getAttribute("data-mk-price-yearly");
+          if (monthly && yearlyPrice) {
+            el.textContent = yearly ? yearlyPrice : monthly;
+          }
+        });
+      });
+    });
+  }
+
+  function initFaq() {
+    document.querySelectorAll("[data-mk-faq-item]").forEach(function (item) {
+      var btn = item.querySelector("[data-mk-faq-q]");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        var open = item.classList.contains("is-open");
+        document.querySelectorAll("[data-mk-faq-item].is-open").forEach(function (other) {
+          if (other !== item) {
+            other.classList.remove("is-open");
+            var ob = other.querySelector("[data-mk-faq-q]");
+            if (ob) ob.setAttribute("aria-expanded", "false");
+          }
+        });
+        item.classList.toggle("is-open", !open);
+        btn.setAttribute("aria-expanded", !open ? "true" : "false");
+      });
+    });
+  }
+
+  function initCounters() {
+    var nodes = document.querySelectorAll("[data-mk-count]");
+    if (!nodes.length || !("IntersectionObserver" in window)) return;
+    var io = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var el = entry.target;
+          var target = parseInt(el.getAttribute("data-mk-count") || "0", 10);
+          var suffix = el.getAttribute("data-mk-count-suffix") || "";
+          if (!target) return;
+          var start = 0;
+          var duration = 900;
+          var t0 = null;
+          function step(ts) {
+            if (!t0) t0 = ts;
+            var p = Math.min((ts - t0) / duration, 1);
+            var eased = 1 - Math.pow(1 - p, 3);
+            el.textContent = Math.round(start + (target - start) * eased) + suffix;
+            if (p < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+          io.unobserve(el);
+        });
+      },
+      { threshold: 0.4 }
+    );
+    nodes.forEach(function (el) {
+      io.observe(el);
+    });
+  }
+
+  function initDashPreview() {
+    var root = document.querySelector("[data-mk-dash]");
+    if (!root) return;
+    var tabs = root.querySelectorAll("[data-mk-tab]");
+    var panels = root.querySelectorAll("[data-mk-panel]");
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var id = tab.getAttribute("data-mk-tab");
+        tabs.forEach(function (t) {
+          t.classList.toggle("is-active", t === tab);
+          t.setAttribute("aria-selected", t === tab ? "true" : "false");
+        });
+        panels.forEach(function (panel) {
+          var match = panel.getAttribute("data-mk-panel") === id;
+          panel.classList.toggle("is-active", match);
+          panel.hidden = !match;
+        });
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initReveals();
     initMarketingThemeToggle();
+    initHeaderScroll();
+    initBillingToggle();
+    initFaq();
+    initCounters();
+    initDashPreview();
+    document.querySelectorAll("[data-mk-tabs]").forEach(initTabs);
   });
 })();

@@ -29,7 +29,7 @@
 
 <div
   id="wsf-root"
-  class="wsf-root wsf-root--fresh wsf-root--luxury{% if _catalog_mode %} wsf-root--catalog{% endif %}"
+  class="wsf-root wsf-root--fresh wsf-root--luxury{% if _catalog_mode %} wsf-root--catalog{% elif not _product_mode %} wsf-root--home{% endif %}"
   style="--mk-primary: {{ _primary }}; --mk-accent: {{ _accent }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '37, 99, 235' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '59, 130, 246' }}; --rc-font-family: {{ _font }};"
   data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
   data-marketing-theme-config="{{ (website_settings.theme_config_key if website_settings else none)|default(site_settings.theme_config_key if site_settings else '', true) }}"
@@ -58,50 +58,71 @@
   <div class="wsf-announce" role="status">{{ _c.promo_banner_text }}</div>
   {% endif %}
 
-  <header class="wsf-header">
-    <div class="wsf-shell wsf-header__inner">
-      <a href="{{ _shop_login_url }}" class="wsf-brand" aria-label="Shop login">
-        <span class="wsf-brand__logo">
-          {% if _icon %}
-            <img src="{{ url_for('static', filename=_icon) }}" alt="" width="36" height="36" decoding="async" />
-          {% else %}
-            {{ _company[:1]|upper }}
-          {% endif %}
-        </span>
-        <span class="wsf-brand__text">
-          <span class="wsf-brand__name">{{ _company }}</span>
-          {% if _c.header_tagline and not _catalog_mode %}
-          <span class="wsf-brand__tag">{{ _c.header_tagline }}</span>
-          {% endif %}
-        </span>
-      </a>
+  <header class="wsf-header wsf-header--pro" data-wsf-header>
+    <div class="wsf-header__accent" aria-hidden="true"></div>
+    <div class="wsf-shell wsf-header__shell">
+      <div class="wsf-header__bar">
+        <a href="{{ _home_url }}" class="wsf-header-brand" aria-label="{{ _company }} home">
+          <span class="wsf-header-brand__mark">
+            {% if _icon %}
+              <img src="{{ url_for('static', filename=_icon) }}" alt="" width="40" height="40" decoding="async" />
+            {% else %}
+              <span aria-hidden="true">{{ _company[:1]|upper }}</span>
+            {% endif %}
+          </span>
+          <span class="wsf-header-brand__copy">
+            <span class="wsf-header-brand__name">{{ _company }}</span>
+            {% if _c.header_tagline and not _catalog_mode %}
+            <span class="wsf-header-brand__tag">{{ _c.header_tagline }}</span>
+            {% endif %}
+          </span>
+        </a>
 
-      <nav class="wsf-header__nav" aria-label="Primary">
-        <a href="{{ _home_url }}" class="wsf-header__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
-        <a href="{{ _catalog_url }}" class="wsf-header__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
-        {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
-        <a href="#wsf-policies" class="wsf-header__link">Policies</a>
-        {% endif %}
-      </nav>
+        <nav class="wsf-header-nav" aria-label="Primary">
+          <div class="wsf-header-nav__track">
+            <a href="{{ _home_url }}" class="wsf-header-nav__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
+            <a href="{{ _catalog_url }}" class="wsf-header-nav__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
+            {% if _shops %}
+            <a href="{{ _home_url }}#wsf-shops" class="wsf-header-nav__link">Locations</a>
+            {% endif %}
+            {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
+            <a href="{% if _catalog_mode or _product_mode %}{{ _home_url }}{% endif %}#wsf-policies" class="wsf-header-nav__link">Policies</a>
+            {% endif %}
+            {% if _phone or _email %}
+            <button type="button" class="wsf-header-nav__link wsf-header-nav__link--btn" data-wsf-open-contact>Contact</button>
+            {% endif %}
+          </div>
+        </nav>
 
-      <div class="wsf-header__actions">
-        {% if _catalog_mode %}
-        <div class="wsf-header__search">
-          {% include "partials/website_storefront_search.html" %}
+        <div class="wsf-header-actions">
+          {% if _catalog_mode %}
+          <div class="wsf-header-actions__search">
+            {% include "partials/website_storefront_search.html" %}
+          </div>
+          {% endif %}
+          <div class="wsf-header-actions__tools">
+            <button type="button" class="wsf-header-tool wsf-header-tool--cart" data-wsf-open-cart aria-label="Open quote cart">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+              <span class="wsf-header-cart__count hidden" data-wsf-cart-count>0</span>
+            </button>
+            <button type="button" class="wsf-header-tool" data-wsf-theme-toggle aria-label="Toggle theme" aria-pressed="false">
+              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            </button>
+            <a href="{{ _shop_login_url }}" class="wsf-header-tool wsf-header-tool--text" title="Shop staff login">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+              <span>Login</span>
+            </a>
+          </div>
+          <button type="button" class="wsf-header-cta" data-wsf-open-cart>
+            <span class="wsf-header-cta__label">Request quote</span>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </button>
+          <button type="button" class="wsf-header-menu-btn wsf-menu-btn" data-wsf-open-menu aria-label="Open menu" aria-expanded="false" aria-controls="wsf-menu-drawer">
+            <svg class="wsf-header-menu-btn__open wsf-menu-btn__icon wsf-menu-btn__icon--open" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <svg class="wsf-header-menu-btn__close wsf-menu-btn__icon wsf-menu-btn__icon--close" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </div>
-        {% endif %}
-        <button type="button" class="wsf-icon-btn wsf-header-cart" data-wsf-open-cart aria-label="Open cart">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-          <span class="wsf-header-cart__count hidden" data-wsf-cart-count>0</span>
-        </button>
-        <button type="button" class="wsf-icon-btn" data-wsf-theme-toggle aria-label="Toggle theme" aria-pressed="false">
-          <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-          <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-        </button>
-        <button type="button" class="wsf-icon-btn wsf-menu-btn" data-wsf-open-menu aria-label="Open menu" aria-expanded="false" aria-controls="wsf-menu-drawer">
-          <svg class="wsf-menu-btn__icon wsf-menu-btn__icon--open" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-          <svg class="wsf-menu-btn__icon wsf-menu-btn__icon--close" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
       </div>
     </div>
 
@@ -113,16 +134,24 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
+      <p class="wsf-menu-drawer__section-label">Browse</p>
       <div class="wsf-menu-drawer__links">
         <a href="{{ _home_url }}" class="wsf-menu-drawer__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
         <a href="{{ _catalog_url }}" class="wsf-menu-drawer__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
+        {% if _shops %}
+        <a href="{{ _home_url }}#wsf-shops" class="wsf-menu-drawer__link" data-wsf-close-menu-on-click>Locations</a>
+        {% endif %}
         {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
-        <a href="#wsf-policies" class="wsf-menu-drawer__link" data-wsf-close-menu-on-click>Policies</a>
+        <a href="{% if _catalog_mode or _product_mode %}{{ _home_url }}{% endif %}#wsf-policies" class="wsf-menu-drawer__link" data-wsf-close-menu-on-click>Policies</a>
         {% endif %}
-        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-open-cart data-wsf-close-menu-on-click>Request quote</button>
+      </div>
+      <p class="wsf-menu-drawer__section-label">Actions</p>
+      <div class="wsf-menu-drawer__links">
+        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn wsf-menu-drawer__link--accent" data-wsf-open-cart data-wsf-close-menu-on-click>Request quote</button>
         {% if _phone or _email %}
-        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-open-contact data-wsf-close-menu-on-click>Contact</button>
+        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-open-contact data-wsf-close-menu-on-click>Contact us</button>
         {% endif %}
+        <a href="{{ _shop_login_url }}" class="wsf-menu-drawer__link wsf-menu-drawer__link--muted" data-wsf-close-menu-on-click>Shop login</a>
       </div>
       {% if _phone or _loc %}
       <div class="wsf-menu-drawer__foot">
@@ -216,45 +245,24 @@
   </section>
 
   {% elif not _catalog_mode %}
-  {% with orbit_products=_orbit_products %}
-    {% include "partials/website_hero_orbit.html" %}
+  {% with hero_products=_sorted_products %}
+    {% include "partials/website_hero_pro.html" %}
   {% endwith %}
 
-  {% if _cats %}
-  <section id="wsf-products" class="wsf-section wsf-section--collections wsf-reveal" aria-labelledby="wsf-featured-heading">
-    <div class="wsf-shell">
-      <div class="wsf-section__head">
-        <div>
-          <p class="wsf-kicker">Browse</p>
-          <h2 id="wsf-featured-heading" class="wsf-section__title">Shop by category</h2>
-          <p class="wsf-section__sub">Every category shows our top seller — tap to browse products in that range.</p>
-        </div>
-        <span class="wsf-pill">{{ _cats|length }} {{ 'category' if _cats|length == 1 else 'categories' }}</span>
-      </div>
-
-      <div class="wsf-catalog__categories">
-        {% with cats=_cats, category_nav_homepage=true, category_nav_catalog_links=true, category_nav_show_all=false %}
-          {% include "partials/website_category_nav.html" %}
-        {% endwith %}
-      </div>
-
-      <div class="wsf-section__foot">
-        <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--primary">Browse full catalogue</a>
-      </div>
-    </div>
-  </section>
-  {% endif %}
+  {% with featured_products=_sorted_products %}
+    {% include "partials/website_home_sections.html" %}
+  {% endwith %}
 
   {% if _shops %}
-  <section id="wsf-shops" class="wsf-section wsf-section--shops wsf-reveal" aria-labelledby="wsf-shops-heading">
+  <section id="wsf-shops" class="wsf-home-section wsf-home-section--shops wsf-reveal" aria-labelledby="wsf-shops-heading">
     <div class="wsf-shell">
-      <div class="wsf-section__head">
+      <div class="wsf-home-section__head">
         <div>
-          <p class="wsf-kicker">Locations</p>
-          <h2 id="wsf-shops-heading" class="wsf-section__title">{{ _c.shops_section_title }}</h2>
-          <p class="wsf-section__sub">{{ _c.shops_section_subtitle }}</p>
+          <p class="wsf-home-kicker">Locations</p>
+          <h2 id="wsf-shops-heading" class="wsf-home-section__title">{{ _c.shops_section_title }}</h2>
+          <p class="wsf-home-section__sub">{{ _c.shops_section_subtitle }}</p>
         </div>
-        <span class="wsf-pill">{{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}</span>
+        <span class="wsf-home-pill">{{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}</span>
       </div>
       <div class="wsf-shops-grid">
         {% for shop in _shops %}
@@ -421,26 +429,41 @@
   {% endif %}
 
   {# ── FOOTER ── #}
-  <footer class="wsf-footer">
+  <footer class="wsf-footer wsf-footer--enhanced">
+    <div class="wsf-footer__glow" aria-hidden="true"></div>
     <div class="wsf-shell wsf-footer__grid">
       <div class="wsf-footer__brand">
-        <span class="wsf-footer__logo">
-          {% if _icon %}
-            <img src="{{ url_for('static', filename=_icon) }}" alt="" />
-          {% else %}
-            {{ _company[:1]|upper }}
-          {% endif %}
-        </span>
-        <div>
-          <p class="wsf-footer__name">{{ _company }}</p>
-          {% if _c.header_tagline %}<p class="wsf-footer__tag">{{ _c.header_tagline[:80] }}</p>{% endif %}
-        </div>
+        <a href="{{ _home_url }}" class="wsf-footer__brand-link">
+          <span class="wsf-footer__logo">
+            {% if _icon %}
+              <img src="{{ url_for('static', filename=_icon) }}" alt="" />
+            {% else %}
+              {{ _company[:1]|upper }}
+            {% endif %}
+          </span>
+          <div>
+            <p class="wsf-footer__name">{{ _company }}</p>
+            {% if _c.header_tagline %}<p class="wsf-footer__tag">{{ _c.header_tagline[:80] }}</p>{% endif %}
+          </div>
+        </a>
         {% if _fb or _ig or _tw or _tt %}
         <div class="wsf-footer__social">
-          {% if _fb %}{% set _fb_url = _fb if _fb.lower().startswith('http') else 'https://' ~ _fb %}<a href="{{ _fb_url }}" target="_blank" rel="noopener noreferrer" aria-label="Facebook">Fb</a>{% endif %}
-          {% if _ig %}{% set _ig_url = _ig if _ig.lower().startswith('http') else 'https://' ~ _ig %}<a href="{{ _ig_url }}" target="_blank" rel="noopener noreferrer" aria-label="Instagram">Ig</a>{% endif %}
-          {% if _tw %}{% set _tw_url = _tw if _tw.lower().startswith('http') else 'https://' ~ _tw %}<a href="{{ _tw_url }}" target="_blank" rel="noopener noreferrer" aria-label="X">X</a>{% endif %}
-          {% if _tt %}{% set _tt_url = _tt if _tt.lower().startswith('http') else 'https://' ~ _tt %}<a href="{{ _tt_url }}" target="_blank" rel="noopener noreferrer" aria-label="TikTok">Tk</a>{% endif %}
+          {% if _fb %}{% set _fb_url = _fb if _fb.lower().startswith('http') else 'https://' ~ _fb %}
+          <a href="{{ _fb_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="Facebook">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </a>{% endif %}
+          {% if _ig %}{% set _ig_url = _ig if _ig.lower().startswith('http') else 'https://' ~ _ig %}
+          <a href="{{ _ig_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="Instagram">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+          </a>{% endif %}
+          {% if _tw %}{% set _tw_url = _tw if _tw.lower().startswith('http') else 'https://' ~ _tw %}
+          <a href="{{ _tw_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="X">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>{% endif %}
+          {% if _tt %}{% set _tt_url = _tt if _tt.lower().startswith('http') else 'https://' ~ _tt %}
+          <a href="{{ _tt_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="TikTok">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.75a8.18 8.18 0 004.78 1.52V6.84a4.85 4.85 0 01-1.01-.15z"/></svg>
+          </a>{% endif %}
         </div>
         {% endif %}
       </div>
@@ -448,14 +471,27 @@
         <h3 class="wsf-footer__heading">Shop</h3>
         <ul class="wsf-footer__links">
           <li><a href="{{ _home_url }}">Home</a></li>
-          <li><a href="{{ _catalog_url }}">Products</a></li>
+          <li><a href="{{ _catalog_url }}">All products</a></li>
+          {% if _shops %}<li><a href="{{ _home_url }}#wsf-shops">Our locations</a></li>{% endif %}
           <li><button type="button" data-wsf-open-cart>Request quote</button></li>
+        </ul>
+      </div>
+      <div class="wsf-footer__col">
+        <h3 class="wsf-footer__heading">Help</h3>
+        <ul class="wsf-footer__links">
+          {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
+          <li><a href="{{ _home_url }}#wsf-policies">Policies</a></li>
+          {% endif %}
+          {% if _phone or _email %}
+          <li><button type="button" data-wsf-open-contact>Contact us</button></li>
+          {% endif %}
+          <li><a href="{{ _shop_login_url }}">Shop staff login</a></li>
         </ul>
       </div>
       {% if _email or _phone or _loc %}
       <div class="wsf-footer__col">
         <h3 class="wsf-footer__heading">Contact</h3>
-        <ul class="wsf-footer__links">
+        <ul class="wsf-footer__links wsf-footer__links--contact">
           {% if _phone %}<li><a href="tel:{{ _phone }}">{{ _phone }}</a></li>{% endif %}
           {% if _email %}<li><a href="mailto:{{ _email }}">{{ _email }}</a></li>{% endif %}
           {% if _loc %}
@@ -470,8 +506,20 @@
       {% endif %}
     </div>
     <div class="wsf-shell wsf-footer__bottom">
-      <p>© {{ _company }}. All rights reserved.</p>
+      <p class="wsf-footer__copy">© <span data-wsf-year></span> {{ _company }}. All rights reserved.</p>
+      <nav class="wsf-footer__bar-nav" aria-label="Footer quick links">
+        <a href="{{ _home_url }}">Home</a>
+        <span aria-hidden="true">·</span>
+        <a href="{{ _catalog_url }}">Products</a>
+        <span aria-hidden="true">·</span>
+        <button type="button" data-wsf-open-cart>Quote</button>
+        {% if _phone or _email %}
+        <span aria-hidden="true">·</span>
+        <button type="button" data-wsf-open-contact>Contact</button>
+        {% endif %}
+      </nav>
     </div>
+    <script>document.querySelectorAll("[data-wsf-year]").forEach(function(el){el.textContent=new Date().getFullYear()});</script>
   </footer>
 
   {% if _phone or _email %}

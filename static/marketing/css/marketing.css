@@ -1,12 +1,12 @@
 /* Marketing — site chrome (header / footer / main offset) */
 
 :root {
-  --mk-header-h: 3.5rem;
+  --mk-header-h: 4.75rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   :root {
-    --mk-header-h: 3.75rem;
+    --mk-header-h: 5.25rem;
   }
 }
 
@@ -36,6 +36,8 @@
   padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
 }
 
+/* Legacy mobile nav — superseded by mk-mobile-drawer; keep for safety */
+
 .mk-icon-btn {
   min-width: 2.75rem;
   min-height: 2.75rem;
@@ -52,6 +54,13 @@ body.mk-nav-open {
   body.mk-nav-open {
     overflow: auto;
     touch-action: auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  body.mk-nav-open {
+    overflow: hidden;
+    touch-action: none;
   }
 }
 
