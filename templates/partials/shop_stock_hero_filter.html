@@ -1,7 +1,7 @@
 {# expects: stock_shell_title, stock_shell_desc, stock_shell_badge, f, stock_shell_show_tabs (optional), stock_filter_extra_hidden (optional), stock_filter_mode_all (optional bool) #}
 {% set _fm = f.mode or ('all' if stock_filter_mode_all else 'single_day') %}
-<section class="sa-stock-hero overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
-  <div class="sa-stock-hero-top border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+<section class="sa-stock-hero rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+  <div class="sa-stock-hero-top overflow-hidden rounded-t-2xl border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0 flex-1">
         <p class="sa-stock-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock workspace</p>

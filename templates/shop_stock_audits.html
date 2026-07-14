@@ -11,11 +11,19 @@
   <div class="sa-stock-analytics">
   <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
     {% set stock_shell_title = 'Stock movement analysis' %}
-    {% set stock_shell_desc = 'Full ledger for this shop. Newest first — up to ' ~ '{:,}'.format(audit_row_limit|default(25000)) ~ ' lines (URL limit max 50,000).' %}
+    {% set stock_shell_desc = 'Full ledger for this shop. Newest first — up to ' ~ '{:,}'.format(audit_row_limit|default(2000)) ~ ' lines (URL limit max 50,000).' %}
     {% set stock_shell_badge = 'Movement' %}
     {% set stock_filter_mode_all = true %}
-    {% set stock_filter_extra_hidden = '<input type="hidden" name="limit" value="' ~ (audit_row_limit|default(25000)|string) ~ '" />' %}
+    {% set stock_filter_extra_hidden = '<input type="hidden" name="limit" value="' ~ (audit_row_limit|default(2000)|string) ~ '" />' %}
     {% set stock_filter_extra_row %}
+    {% set ns = namespace(item_label='') %}
+    {% if audit_item_id %}
+      {% for it in filter_items or [] %}
+        {% if it.id == audit_item_id %}
+          {% set ns.item_label = ((it.category ~ ' — ') if it.category else '') ~ (it.name or '') %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
     <div class="mt-3 flex flex-wrap items-end gap-2.5 border-t border-[rgb(var(--rc-border))]/60 pt-3">
       <div class="min-w-[7rem] flex-1 sm:max-w-[9rem]">
         <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
@@ -34,24 +42,50 @@
           <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
         </select>
       </div>
-      <div class="min-w-[10rem] flex-[2]">
-        <label for="audit-item-id" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
-        <select id="audit-item-id" name="item_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
-          <option value="">All items</option>
-          {% for it in filter_items or [] %}
-          <option value="{{ it.id }}" {% if audit_item_id == it.id %}selected{% endif %}>{{ it.category }} — {{ it.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="min-w-[9rem] flex-[2]">
-        <label for="audit-q" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Search</label>
-        <input id="audit-q" type="search" name="q" value="{{ audit_q or '' }}" placeholder="Name or category…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]" />
+      <div class="min-w-[14rem] flex-[2] sm:min-w-[18rem]" data-audit-item-filter>
+        <label for="audit-item-combo" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
+        <div class="audit-item-combo relative">
+          <input
+            id="audit-item-combo"
+            type="search"
+            autocomplete="off"
+            data-portal-live-ignore="1"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="false"
+            aria-controls="audit-item-suggestions"
+            placeholder="Search or select item…"
+            value="{{ ns.item_label or audit_q or '' }}"
+            class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 pr-8 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+            data-audit-item-combo
+          />
+          <button
+            type="button"
+            class="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]"
+            aria-label="Show items"
+            data-audit-item-toggle
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            id="audit-item-suggestions"
+            class="audit-item-suggestions hidden max-h-64 overflow-y-auto rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl"
+            role="listbox"
+            aria-label="Items"
+            hidden
+            data-audit-item-list
+          ></div>
+        </div>
+        <input type="hidden" name="item_id" value="{{ audit_item_id or '' }}" data-audit-item-id data-portal-live-watch />
+        <input type="hidden" name="q" value="{{ '' if audit_item_id else (audit_q or '') }}" data-audit-item-q data-portal-live-watch />
+        <script type="application/json" data-audit-item-data>{{ filter_items|default([])|tojson }}</script>
       </div>
       <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
     </div>
     {% endset %}
     {% include "partials/shop_stock_hero_filter.html" %}
 
+    <div id="portal-live-content" data-portal-live-content class="space-y-4">
     <div class="sa-stock-kpis grid gap-3 lg:grid-cols-3">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm lg:col-span-3">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Rows loaded</p>
@@ -59,12 +93,6 @@
         <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ f.range_label or 'All dates' }}</p>
       </div>
     </div>
-
-    {% if transactions and (transactions|length) >= (audit_row_limit|default(25000)) %}
-    <p class="sa-stock-banner rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-200">
-      Showing the {{ audit_row_limit|default(25000) }} most recent rows only. Narrow filters or increase <span class="font-mono">limit</span> in the URL (max 50,000).
-    </p>
-    {% endif %}
 
     {% if not transactions %}
     <p class="text-sm text-[rgb(var(--rc-muted))]">No transactions yet.</p>
@@ -115,6 +143,240 @@
       </div>
     </div>
     {% endif %}
+    </div>
   </div>
   </div>
+  <script>
+  (function () {
+    var root = document.querySelector("[data-audit-item-filter]");
+    if (!root || root.getAttribute("data-audit-item-wired") === "1") return;
+    root.setAttribute("data-audit-item-wired", "1");
+
+    var form = root.closest("form");
+    var combo = root.querySelector("[data-audit-item-combo]");
+    var list = root.querySelector("[data-audit-item-list]");
+    var toggle = root.querySelector("[data-audit-item-toggle]");
+    var hiddenId = root.querySelector("[data-audit-item-id]");
+    var hiddenQ = root.querySelector("[data-audit-item-q]");
+    var dataNode = root.querySelector("[data-audit-item-data]");
+    if (!combo || !list || !hiddenId || !hiddenQ) return;
+
+    var items = [];
+    try {
+      items = JSON.parse(dataNode && dataNode.textContent ? dataNode.textContent : "[]") || [];
+    } catch (e) {
+      items = [];
+    }
+
+    var textTimer = null;
+    var applying = false;
+
+    function labelFor(it) {
+      var cat = String((it && it.category) || "").trim();
+      var name = String((it && it.name) || "").trim();
+      return cat ? cat + " — " + name : name;
+    }
+
+    function searchHay(it) {
+      return (String((it && it.category) || "") + " " + String((it && it.name) || "")).toLowerCase();
+    }
+
+    function requestLive(delay) {
+      if (!form || !window.PortalLiveFilters || typeof window.PortalLiveFilters.scheduleFetch !== "function") {
+        if (form && typeof form.requestSubmit === "function") form.requestSubmit();
+        else if (form) form.submit();
+        return;
+      }
+      window.PortalLiveFilters.scheduleFetch(form, delay == null ? 120 : delay);
+    }
+
+    function setValues(itemId, q, display, opts) {
+      opts = opts || {};
+      applying = true;
+      hiddenId.value = itemId ? String(itemId) : "";
+      hiddenQ.value = itemId ? "" : String(q || "").trim();
+      if (typeof display === "string") combo.value = display;
+      applying = false;
+      if (opts.fetch) requestLive(opts.delay == null ? 80 : opts.delay);
+    }
+
+    function hideList() {
+      list.classList.add("hidden");
+      list.hidden = true;
+      combo.setAttribute("aria-expanded", "false");
+      list.style.visibility = "";
+    }
+
+    function placeList() {
+      var rect = combo.getBoundingClientRect();
+      var gap = 4;
+      var maxH = Math.min(256, Math.floor(window.innerHeight * 0.45));
+      var spaceBelow = window.innerHeight - rect.bottom - gap - 8;
+      var spaceAbove = rect.top - gap - 8;
+      var openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+      var height = Math.max(120, Math.min(maxH, openUp ? spaceAbove : spaceBelow));
+      var width = Math.max(rect.width, Math.min(360, window.innerWidth - 24));
+      var left = Math.min(rect.left, window.innerWidth - width - 12);
+      left = Math.max(12, left);
+
+      if (list.parentElement !== document.body) {
+        document.body.appendChild(list);
+      }
+
+      list.style.position = "fixed";
+      list.style.zIndex = "9999";
+      list.style.left = left + "px";
+      list.style.width = width + "px";
+      list.style.maxHeight = height + "px";
+      list.style.right = "auto";
+      list.style.boxSizing = "border-box";
+
+      if (openUp) {
+        list.style.top = "auto";
+        list.style.bottom = window.innerHeight - rect.top + gap + "px";
+      } else {
+        list.style.bottom = "auto";
+        list.style.top = rect.bottom + gap + "px";
+      }
+    }
+
+    function showList() {
+      placeList();
+      list.classList.remove("hidden");
+      list.hidden = false;
+      combo.setAttribute("aria-expanded", "true");
+    }
+
+    function renderList(query) {
+      var q = String(query || "").trim().toLowerCase();
+      var matches = [];
+      var i;
+      for (i = 0; i < items.length; i++) {
+        if (!q || searchHay(items[i]).indexOf(q) !== -1) {
+          matches.push(items[i]);
+          if (matches.length >= 60) break;
+        }
+      }
+
+      var html = [];
+      html.push(
+        '<button type="button" class="block w-full px-3 py-2 text-left text-sm text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" data-all-items>All items</button>'
+      );
+      if (!matches.length) {
+        html.push('<p class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">No matching items</p>');
+      } else {
+        matches.forEach(function (it) {
+          var id = String(it.id || "");
+          var label = labelFor(it);
+          var selected = hiddenId.value && hiddenId.value === id;
+          html.push(
+            '<button type="button" role="option" class="block w-full px-3 py-2 text-left text-sm hover:bg-[rgb(var(--rc-surface-2))] ' +
+              (selected ? "bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]" : "text-[rgb(var(--rc-page-fg))]") +
+              '" data-item-id="' +
+              id.replace(/"/g, "&quot;") +
+              '" data-item-label="' +
+              label.replace(/"/g, "&quot;") +
+              '"><span class="block text-[10px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">' +
+              String(it.category || "").replace(/</g, "&lt;") +
+              '</span><span class="font-medium">' +
+              String(it.name || "").replace(/</g, "&lt;") +
+              "</span></button>"
+          );
+        });
+      }
+      list.innerHTML = html.join("");
+      showList();
+    }
+
+    combo.addEventListener("focus", function () {
+      renderList(combo.value);
+    });
+
+    combo.addEventListener("input", function () {
+      if (applying) return;
+      // Local dropdown filter only — do not hit the server on every keystroke.
+      hiddenId.value = "";
+      hiddenQ.value = String(combo.value || "").trim();
+      renderList(combo.value);
+      if (textTimer) clearTimeout(textTimer);
+      textTimer = setTimeout(function () {
+        var q = String(combo.value || "").trim();
+        // Empty clears; 2+ chars searches text. Single char waits.
+        if (!q || q.length >= 2) {
+          setValues("", q, combo.value, { fetch: true, delay: 100 });
+        }
+      }, 650);
+    });
+
+    combo.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        hideList();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (textTimer) clearTimeout(textTimer);
+        var q = String(combo.value || "").trim();
+        hideList();
+        setValues("", q.length >= 2 ? q : "", combo.value, { fetch: true, delay: 0 });
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        renderList(combo.value);
+        var first = list.querySelector("[data-item-id], [data-all-items]");
+        if (first) first.focus();
+      }
+    });
+
+    if (toggle) {
+      toggle.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (list.hidden) {
+          combo.focus();
+          renderList(combo.value || "");
+        } else {
+          hideList();
+        }
+      });
+    }
+
+    list.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+    });
+
+    list.addEventListener("click", function (e) {
+      var allBtn = e.target && e.target.closest ? e.target.closest("[data-all-items]") : null;
+      if (allBtn) {
+        if (textTimer) clearTimeout(textTimer);
+        setValues("", "", "", { fetch: true, delay: 0 });
+        hideList();
+        return;
+      }
+      var btn = e.target && e.target.closest ? e.target.closest("[data-item-id]") : null;
+      if (!btn) return;
+      if (textTimer) clearTimeout(textTimer);
+      var id = btn.getAttribute("data-item-id") || "";
+      var label = btn.getAttribute("data-item-label") || "";
+      setValues(id, "", label, { fetch: true, delay: 0 });
+      hideList();
+    });
+
+    document.addEventListener("click", function (e) {
+      if (root.contains(e.target) || list.contains(e.target)) return;
+      hideList();
+    });
+
+    window.addEventListener(
+      "scroll",
+      function () {
+        if (!list.hidden) placeList();
+      },
+      true
+    );
+    window.addEventListener("resize", function () {
+      if (!list.hidden) placeList();
+    });
+  })();
+  </script>
 {% endblock %}

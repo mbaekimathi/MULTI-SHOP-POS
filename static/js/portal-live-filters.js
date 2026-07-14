@@ -536,8 +536,15 @@
     form.querySelectorAll(
       'input[type="search"], input[type="text"][name*="q"], input[type="text"][name*="search"], input[name="moved_by"], input[name="supplier_q"]'
     ).forEach(function (el) {
+      if (el.getAttribute("data-portal-live-ignore") === "1") return;
       el.addEventListener("input", function () {
         scheduleFetch(form, 500, options);
+      });
+    });
+
+    form.querySelectorAll("input[type='hidden'][data-portal-live-watch]").forEach(function (el) {
+      el.addEventListener("change", function () {
+        scheduleFetch(form, 80, options);
       });
     });
 

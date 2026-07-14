@@ -129,11 +129,24 @@ def _employee_session_idle_settings_from_form() -> dict:
     )
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-# Only set Secure when explicitly told the deployment is on HTTPS, so localhost
-# dev (http) still works without a custom env file.
-app.config["SESSION_COOKIE_SECURE"] = (
-    (os.getenv("SESSION_COOKIE_SECURE") or "").strip().lower() in {"1", "true", "yes", "on"}
-)
+
+
+def _session_cookie_secure_enabled() -> bool:
+    raw = (os.getenv("SESSION_COOKIE_SECURE") or "").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    try:
+        from database import is_hosted_deployment
+
+        return bool(is_hosted_deployment())
+    except Exception:
+        return False
+
+
+# Secure cookies auto-enable on hosted HTTPS; set SESSION_COOKIE_SECURE=0 for http://localhost.
+app.config["SESSION_COOKIE_SECURE"] = _session_cookie_secure_enabled()
 
 _STATIC_CACHE_MAX_AGE = int(os.getenv("STATIC_CACHE_MAX_AGE", "604800") or "604800")
 
@@ -3731,6 +3744,34 @@ def _load_public_app_url_setting() -> str:
     return _normalize_public_app_url(stored)
 
 
+def _public_app_url_from_request() -> str:
+    """Infer public HTTPS base from the current request (hosted / reverse proxy)."""
+    try:
+        host = (request.host or "").strip()
+    except RuntimeError:
+        return ""
+    if not host:
+        return ""
+    host_l = host.lower()
+    if host_l.startswith("localhost") or host_l.startswith("127.0.0.1") or host_l.startswith("0.0.0.0"):
+        return ""
+    try:
+        proto = (request.headers.get("X-Forwarded-Proto") or request.scheme or "https").split(",")[0].strip().lower()
+    except Exception:
+        proto = "https"
+    if proto not in ("http", "https"):
+        proto = "https"
+    # Prefer https on hosted deployments even if the app sees http behind a proxy.
+    try:
+        from database import is_hosted_deployment
+
+        if is_hosted_deployment():
+            proto = "https"
+    except Exception:
+        proto = "https"
+    return _normalize_public_app_url(f"{proto}://{host}")
+
+
 def _effective_public_app_url() -> str:
     """Public HTTPS base for share links and hosted API callbacks (env overrides DB)."""
     env = _public_app_url_from_env()
@@ -3740,9 +3781,12 @@ def _effective_public_app_url() -> str:
     if db:
         return db
     try:
-        return _normalize_website_domain(_load_website_settings().get("domain") or "")
+        domain = _normalize_website_domain(_load_website_settings().get("domain") or "")
+        if domain:
+            return domain
     except Exception:
-        return ""
+        pass
+    return _public_app_url_from_request()
 
 
 def _daraja_external_callback_hint() -> str:
@@ -20164,7 +20208,8 @@ def shop_stock_audits(shop_id: int):
         return gate
     row_limit = request.args.get("limit", type=int)
     if row_limit is None or row_limit < 1:
-        row_limit = 25000
+        # Keep default snappy for live filtering; raise via ?limit= up to 50k.
+        row_limit = 2000
     row_limit = min(row_limit, 50000)
 
     _audit_all = {
@@ -20186,13 +20231,29 @@ def shop_stock_audits(shop_id: int):
         source_f = ""
     item_id = request.args.get("item_id", type=int)
     q = (request.args.get("q") or "").strip()
+    # Item pick and free-text search are alternatives in one filter section.
+    if item_id and item_id > 0:
+        q = ""
+    # Ignore 1-char search noise (same rule as SQL).
+    if q and len(q) < 2:
+        q = ""
 
     txs = []
     filter_items = []
     try:
         from database import list_shop_items, list_shop_stock_audit_rows
 
-        filter_items = list_shop_items(shop_id=shop_id, limit=3000) or []
+        raw_items = list_shop_items(shop_id=shop_id, limit=3000) or []
+        # Slim payload for the combobox (avoids shipping full item rows in HTML).
+        filter_items = [
+            {
+                "id": int(it.get("id") or 0),
+                "name": (it.get("name") or "").strip(),
+                "category": (it.get("category") or "").strip(),
+            }
+            for it in raw_items
+            if int(it.get("id") or 0) > 0
+        ]
         txs = list_shop_stock_audit_rows(
             shop_id=shop_id,
             limit=row_limit,

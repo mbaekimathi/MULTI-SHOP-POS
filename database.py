@@ -114,14 +114,19 @@ def ensure_stock_qty_decimal_schema() -> None:
 # Avoid spamming logs when MySQL rejects credentials (e.g. Flask debug reloader / repeated init).
 _MYSQL_1045_LOGGED = False
 
-# Set RICHCOM_HOSTED=1 (or true/yes) on the production server so MySQL uses hosted defaults below.
-# Local/dev: omit it and keep root defaults unless MYSQL_* env vars are set.
+# Hosted vs local is auto-detected (cPanel / Passenger / /home/… markers).
+# Override with RICHCOM_HOSTED=0|1 in ``.env`` when needed. MYSQL_* always win.
 
 
 def is_hosted_deployment() -> bool:
-    """True when app runs on hosted/production (set RICHCOM_HOSTED=1 on the server)."""
-    v = (os.getenv("RICHCOM_HOSTED") or "").strip().lower()
-    return v in ("1", "true", "yes")
+    """True on hosted/production (auto-detect, or RICHCOM_HOSTED=1)."""
+    try:
+        from hosting_detect import detect_hosted_deployment
+
+        return bool(detect_hosted_deployment())
+    except Exception:
+        v = (os.getenv("RICHCOM_HOSTED") or "").strip().lower()
+        return v in ("1", "true", "yes", "on")
 
 
 DEFAULT_MYSQL_DATABASE = "richcom"
@@ -135,21 +140,33 @@ def _safe_database_name(raw: Optional[str]) -> str:
     return name[:64]
 
 
+def _hosted_mysql_identity() -> str:
+    """cPanel-style DB user/name, e.g. kwetufar_karisma or twigabea_pos."""
+    try:
+        from hosting_detect import suggested_mysql_user
+
+        return suggested_mysql_user()
+    except Exception:
+        return "twigabea_pos"
+
+
 def get_database_name() -> str:
     raw = os.getenv("MYSQL_DATABASE")
     if raw:
         return _safe_database_name(raw)
     if is_hosted_deployment():
-        return _safe_database_name(DEFAULT_MYSQL_DATABASE)
+        return _safe_database_name(_hosted_mysql_identity())
     return _safe_database_name(None)
 
 
 def _config(include_database: bool = True):
     if is_hosted_deployment():
+        identity = _hosted_mysql_identity()
         cfg = {
             "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
             "port": int(os.getenv("MYSQL_PORT", "3306")),
-            "user": os.getenv("MYSQL_USER", "twigabea_pos"),
+            "user": os.getenv("MYSQL_USER", identity),
+            # Password must come from .env on new hosts; legacy fallback kept for existing servers.
             "password": os.getenv("MYSQL_PASSWORD", "Itskimathi007"),
             "charset": "utf8mb4",
             "cursorclass": DictCursor,
@@ -16503,12 +16520,10 @@ def list_shop_stock_audit_rows(
         where_parts.append("sst.item_id=%s")
         params.append(iid)
     q = (search or "").strip()
-    if q:
+    if q and len(q) >= 2:
         like = f"%{q}%"
-        where_parts.append(
-            "(COALESCE(i.name,'') LIKE %s OR COALESCE(i.category,'') LIKE %s OR CAST(sst.item_id AS CHAR) LIKE %s)"
-        )
-        params.extend([like, like, like])
+        where_parts.append("(COALESCE(i.name,'') LIKE %s OR COALESCE(i.category,'') LIKE %s)")
+        params.extend([like, like])
 
     where_sql = " AND ".join(where_parts)
     sql = f"""
