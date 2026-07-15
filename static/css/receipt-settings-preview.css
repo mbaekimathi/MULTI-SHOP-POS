@@ -3,12 +3,15 @@
 .receipt-preview-stage {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   width: 100%;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0 1rem;
+  min-height: 8rem;
 }
 
 #receipt-print-preview {
-  --receipt-roll-px: 302px; /* 80mm @ 96dpi — standard wide thermal */
+  --receipt-roll-px: 302px; /* 80mm @ 96dpi — scaled by font size in JS */
+  --receipt-paper-scale: 1;
   box-sizing: border-box;
   width: var(--receipt-roll-px);
   min-width: 0;
@@ -18,15 +21,29 @@
   background: #fff;
   color: #111;
   overflow: hidden;
+  transition: width 0.22s ease, height 0.22s ease, max-width 0.22s ease, box-shadow 0.22s ease;
 }
 
 #receipt-print-preview[data-roll="58"] {
-  --receipt-roll-px: 219px; /* 58mm @ 96dpi — standard narrow thermal */
+  --receipt-roll-px: 219px; /* overridden by JS with font scale */
+}
+
+#receipt-print-preview[data-font="small"] {
+  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.28), 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+#receipt-print-preview[data-font="medium"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+#receipt-print-preview[data-font="large"] {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
 #receipt-preview-root {
   min-height: 0;
   line-height: 0;
+  transition: height 0.22s ease;
 }
 
 #receipt-preview-root iframe {
@@ -39,6 +56,7 @@
   background: #fff;
   overflow: hidden;
   vertical-align: top;
+  transition: height 0.22s ease;
 }
 
 #receipt-preview-body {
@@ -113,4 +131,3 @@
     transform: rotate(360deg);
   }
 }
-

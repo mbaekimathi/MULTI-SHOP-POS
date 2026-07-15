@@ -4,7 +4,7 @@
 {% block head %}
   {{ super() }}
   {% include "partials/shop_settings_switch_styles.html" %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-settings-preview.css') }}?v=2" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-settings-preview.css') }}?v=4" />
 {% endblock %}
 {% block shop_sidebar_links %}
   {% set shop_settings_nav_active = 'receipt' %}
@@ -26,7 +26,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=25"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=29"></script>
   <script>
     (function () {
       function initReceiptSettingsToggles() {
@@ -91,9 +91,7 @@
     (function () {
       var tab = document.getElementById("shop-settings-receipt");
       var form = document.getElementById("shop-settings-receipt-form");
-      var root = document.getElementById("receipt-preview-root");
-      var paper = document.getElementById("receipt-print-preview");
-      if (!tab || !form || !root || !paper) return;
+      if (!tab || !form) return;
 
       {% if company_settings and company_settings.shop_logo %}
         {% set _preview_logo = url_for('static', filename=company_settings.shop_logo) %}
@@ -164,67 +162,11 @@
       }
 
       function updateReceiptPreview() {
-        if (typeof window.receiptThermalRenderSettingsPreview !== "function") return;
-        var rendered = window.receiptThermalRenderSettingsPreview({
+        if (typeof window.receiptThermalMountSettingsPreview !== "function") return;
+        window.receiptThermalMountSettingsPreview({
           receiptSettings: receiptSettingsFromForm(),
           site: siteFromForm(),
         });
-        var rollMm = rendered.widthMm === 58 ? 58 : 80;
-        paper.setAttribute("data-roll", String(rollMm));
-        paper.style.width = "";
-        paper.style.maxWidth = "";
-        paper.style.minWidth = "";
-
-        var iframe = root.querySelector("iframe");
-        if (!iframe) {
-          iframe = document.createElement("iframe");
-          iframe.setAttribute("title", "Receipt preview");
-          iframe.setAttribute("aria-label", "Receipt preview");
-          iframe.setAttribute("scrolling", "no");
-          iframe.style.border = "0";
-          iframe.style.display = "block";
-          iframe.style.width = "100%";
-          iframe.style.maxWidth = "100%";
-          iframe.scrolling = "no";
-          root.innerHTML = "";
-          root.appendChild(iframe);
-        }
-
-        var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-        if (!doc) return;
-        var previewHtml =
-          window.receiptThermalEngine &&
-          typeof window.receiptThermalEngine.prepareHtmlForPrint === "function"
-            ? window.receiptThermalEngine.prepareHtmlForPrint(rendered.fullHtml)
-            : String(rendered.fullHtml || "").replace(
-                "</style>",
-                ".receipt-browser-print-tip{display:none!important}" +
-                  "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +
-                  ".receipt-thermal{width:100%!important;max-width:100%!important;padding-left:1mm!important;padding-right:1mm!important}" +
-                  ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}" +
-                  "</style>"
-              );
-        doc.open();
-        doc.write(previewHtml);
-        doc.close();
-
-        function resizeFrame() {
-          try {
-            var body = doc.body;
-            var el = doc.documentElement;
-            var h = 0;
-            if (body) {
-              h = Math.max(h, body.scrollHeight || 0, body.offsetHeight || 0);
-            }
-            if (el) {
-              h = Math.max(h, el.scrollHeight || 0, el.offsetHeight || 0);
-            }
-            iframe.style.height = Math.max(1, Math.ceil(h)) + "px";
-          } catch (e) {}
-        }
-        resizeFrame();
-        setTimeout(resizeFrame, 80);
-        setTimeout(resizeFrame, 400);
       }
 
       window.updateReceiptPreview = updateReceiptPreview;

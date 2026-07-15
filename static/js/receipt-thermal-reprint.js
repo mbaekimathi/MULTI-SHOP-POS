@@ -72,19 +72,48 @@
   function receiptRollWidthMm() {
           return normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm" ? 58 : 80;
         }
-  function receiptThermalFontCss() {
-          var raw = receiptSettings().font_size || receiptSettings().receipt_font_size || "11pt";
+  function receiptFontSizeBucket() {
+          var raw = receiptSettings().font_size || receiptSettings().receipt_font_size || "12pt";
           var s = String(raw == null ? "" : raw).trim();
-          if (!s) s = "11pt";
-          if (!/pt|px|mm|em|rem$/i.test(s)) s = s + "pt";
-          if (normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm") {
-            var n = parseFloat(s, 10);
-            if (!isNaN(n) && s.indexOf("pt") !== -1 && n > 9) return "9pt";
+          if (!s) s = "12pt";
+          var n = parseFloat(s, 10);
+          if (isNaN(n)) n = 12;
+          if (n <= 8.5) return "small";
+          if (n <= 10.5) return "medium";
+          return "large";
+        }
+  function receiptThermalFontCss() {
+          var bucket = receiptFontSizeBucket();
+          var narrow = normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm";
+          if (narrow) {
+            if (bucket === "small") return "7.5pt";
+            if (bucket === "medium") return "8.5pt";
+            return "9.5pt";
           }
-          return s;
+          if (bucket === "small") return "8pt";
+          if (bucket === "medium") return "10pt";
+          return "12pt";
         }
   function receiptThermalMonoFontCss() {
           return receiptThermalFontCss();
+        }
+  function receiptThermalLineHeightCss() {
+          var bucket = receiptFontSizeBucket();
+          if (bucket === "small") return "1.1";
+          if (bucket === "medium") return "1.18";
+          return "1.26";
+        }
+  function receiptThermalDensityFactor() {
+          var bucket = receiptFontSizeBucket();
+          if (bucket === "small") return 0.58;
+          if (bucket === "medium") return 0.82;
+          return 1.12;
+        }
+  function receiptThermalPaperScale() {
+          var bucket = receiptFontSizeBucket();
+          if (bucket === "small") return 0.82;
+          if (bucket === "medium") return 0.92;
+          return 1;
         }
   function computePosTax(subtotal) {
           var rs = receiptSettings();
@@ -503,11 +532,7 @@
           }
           var out = thermalPlainCenter("Thank you", W);
           if (showAttr) {
-            out +=
-              "\n" +
-              thermalPlainCenter(RECEIPT_ATTRIBUTION_BY, W) +
-              "\n" +
-              thermalPlainCenter(name, W);
+            out += "\n" + thermalPlainCenter(RECEIPT_ATTRIBUTION_BY, W) + "\n" + thermalPlainCenter(name, W);
           }
           return out;
         }
@@ -642,6 +667,11 @@
             monoCss = monoCss || monoFont;
             preWeight = preWeight || receiptWeight;
             headingWeight = headingWeight || titleWeight;
+            var dens = receiptThermalDensityFactor();
+            var lh = receiptThermalLineHeightCss();
+            var mm = function (v) {
+              return (v * dens).toFixed(2) + "mm";
+            };
             return (
               "@page{margin:0;size:" +
               rollCss +
@@ -649,51 +679,97 @@
               "*{box-sizing:border-box}" +
               "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
               "html,body{margin:0!important;padding:0!important;background:#fff;color:#111;width:100%;max-width:100%}" +
-              ".receipt-thermal{padding:0 1mm 2mm;width:100%;max-width:100%;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
+              ".receipt-thermal{padding:0 1mm " +
+              mm(2) +
+              ";width:100%;max-width:100%;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
               fontCss +
-              ";line-height:1.22}" +
-              ".receipt-thermal-accent{height:2mm;margin:0 0 1.5mm;background:linear-gradient(90deg,#1d4ed8,#2563eb,#1d4ed8)}" +
-              ".receipt-logo-row{text-align:center;margin:0 auto 1mm;padding:0 1mm}" +
-              ".receipt-logo-row img{display:block;margin:0 auto;max-height:10mm;max-width:68mm;height:auto;width:auto;object-fit:contain}" +
-              ".receipt-thermal-brand{text-align:center;padding:0 0 0.5mm}" +
-              ".receipt-thermal-badge{margin:0 0 1mm;padding:1px 6px;display:inline-block;border-radius:999px;font-size:0.625em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}" +
+              ";line-height:" +
+              lh +
+              "}" +
+              ".receipt-thermal-accent{height:" +
+              mm(2) +
+              ";margin:0 0 " +
+              mm(1.5) +
+              ";background:linear-gradient(90deg,#1d4ed8,#2563eb,#1d4ed8)}" +
+              ".receipt-logo-row{text-align:center;margin:0 auto " +
+              mm(1) +
+              ";padding:0 1mm}" +
+              ".receipt-logo-row img{display:block;margin:0 auto;max-height:" +
+              mm(10) +
+              ";max-width:68mm;height:auto;width:auto;object-fit:contain}" +
+              ".receipt-thermal-brand{text-align:center;padding:0 0 " +
+              mm(0.5) +
+              "}" +
+              ".receipt-thermal-badge{margin:0 0 " +
+              mm(1) +
+              ";padding:1px 6px;display:inline-block;border-radius:999px;font-size:0.625em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}" +
               ".receipt-thermal-badge--company{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}" +
               ".receipt-thermal-badge--cashier{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}" +
               ".receipt-thermal-shopname{margin:0;font-size:1.05em;font-weight:" +
               headingWeight +
               ";letter-spacing:-0.02em;line-height:1.12;color:#1e3a8a}" +
               ".receipt-thermal-company{margin:1px 0 0;font-size:0.75em;font-weight:600;color:#4b5563}" +
-              ".receipt-thermal-rule{height:0;border:none;border-top:1px solid #d1d5db;margin:0 0 1.5mm}" +
-              ".receipt-thermal-contact{margin:0 0 1mm;text-align:center}" +
-              ".receipt-thermal-customhdr{margin:0 0 1mm;font-size:0.71em;line-height:1.25;color:#000;font-weight:600;white-space:pre-wrap}" +
+              ".receipt-thermal-rule{height:0;border:none;border-top:1px solid #d1d5db;margin:0 0 " +
+              mm(1.5) +
+              "}" +
+              ".receipt-thermal-contact{margin:0 0 " +
+              mm(1) +
+              ";text-align:center}" +
+              ".receipt-thermal-customhdr{margin:0 0 " +
+              mm(1) +
+              ";font-size:0.71em;line-height:1.25;color:#000;font-weight:600;white-space:pre-wrap}" +
               ".receipt-thermal-mut{margin:0;font-size:0.67em;line-height:1.2;color:#000;font-weight:600}" +
               ".receipt-thermal-placeholder{font-style:italic}" +
-              ".receipt-thermal-quote{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #94a3b8;background:#f8fafc;text-align:center}" +
+              ".receipt-thermal-quote{margin:0 0 " +
+              mm(2.5) +
+              ";padding:" +
+              mm(2.5) +
+              " 2mm;border-radius:6px;border:1px dashed #94a3b8;background:#f8fafc;text-align:center}" +
               ".receipt-thermal-quote__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#0f172a}" +
               ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:0.79em;color:#64748b}" +
-              ".receipt-thermal-reprint{margin:0 0 2.5mm;padding:2.5mm 2mm;border-radius:6px;border:1px dashed #f59e0b;background:#fffbeb;text-align:center}" +
+              ".receipt-thermal-reprint{margin:0 0 " +
+              mm(2.5) +
+              ";padding:" +
+              mm(2.5) +
+              " 2mm;border-radius:6px;border:1px dashed #f59e0b;background:#fffbeb;text-align:center}" +
               ".receipt-thermal-reprint__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#92400e}" +
               ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:0.79em;color:#b45309}" +
               ".receipt-thermal-stock-transfer__title{margin:0 0 2px;font-size:0.92em;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:#0f172a}" +
               ".receipt-thermal-stock-transfer__sub{margin:0;font-size:0.79em;font-weight:700;line-height:1.25;color:#1e3a8a;text-transform:none}" +
               "pre.receipt{margin:0;width:100%;max-width:100%;display:block;font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:1em;font-weight:" +
               preWeight +
-              ";line-height:1.3;white-space:pre-wrap;word-wrap:break-word;color:#000;letter-spacing:0}" +
+              ";line-height:" +
+              lh +
+              ";white-space:pre-wrap;word-wrap:break-word;color:#000;letter-spacing:0}" +
               ".receipt-body{font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:0.94em;font-weight:" +
               preWeight +
               ";color:#000;width:100%;max-width:100%}" +
-              ".receipt-kv{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:1mm 0;margin:0;width:100%}" +
-              ".receipt-kv__row{display:grid;grid-template-columns:minmax(0,36%) minmax(0,64%);column-gap:1.5mm;align-items:baseline;padding:0.3mm 0;line-height:1.28;width:100%}" +
+              ".receipt-kv{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:" +
+              mm(1) +
+              " 0;margin:0;width:100%}" +
+              ".receipt-kv__row{display:grid;grid-template-columns:minmax(0,36%) minmax(0,64%);column-gap:1.5mm;align-items:baseline;padding:" +
+              mm(0.3) +
+              " 0;line-height:" +
+              lh +
+              ";width:100%}" +
               ".receipt-kv__label{font-size:0.94em;font-weight:" +
               (boldHeaders ? "800" : "700") +
               ";letter-spacing:0.03em;text-transform:uppercase;color:#111;overflow-wrap:break-word}" +
               ".receipt-kv__value{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:break-word;word-break:break-word}" +
-              ".receipt-items-wrap{border-top:1.5px solid #000;padding:0.8mm 0 0;margin:0;width:100%}" +
+              ".receipt-items-wrap{border-top:1.5px solid #000;padding:" +
+              mm(0.8) +
+              " 0 0;margin:0;width:100%}" +
               ".receipt-items{width:100%;border-collapse:collapse;table-layout:fixed}" +
               ".receipt-items thead th{font-size:0.9em;font-weight:" +
               (boldHeaders ? "900" : "800") +
-              ";letter-spacing:0.02em;text-transform:uppercase;padding:0 0 0.6mm;border-bottom:1px dashed #444;color:#111}" +
-              ".receipt-items th,.receipt-items td{padding:0.4mm 0;vertical-align:top;line-height:1.28;font-variant-numeric:tabular-nums}" +
+              ";letter-spacing:0.02em;text-transform:uppercase;padding:0 0 " +
+              mm(0.6) +
+              ";border-bottom:1px dashed #444;color:#111}" +
+              ".receipt-items th,.receipt-items td{padding:" +
+              mm(0.4) +
+              " 0;vertical-align:top;line-height:" +
+              lh +
+              ";font-variant-numeric:tabular-nums}" +
                 ".receipt-items__name{text-align:left;width:68%;padding-right:0.6mm;white-space:normal;word-break:break-word;overflow-wrap:break-word;font-size:0.94em}" +
                 ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;padding:0}" +
                 ".receipt-items__amt{width:20%;text-align:right;white-space:nowrap;font-weight:" +
@@ -704,16 +780,32 @@
               ".receipt-items--transfer .receipt-items__qty{width:28%}" +
               ".receipt-items tbody tr+tr td{border-top:1px dotted #ccc}" +
               ".receipt-items__disc-row td{border-top:none!important;padding-top:0}" +
-              ".receipt-items__disc{font-size:0.86em;font-style:italic;color:#333;padding:0 0 0.5mm!important}" +
-              ".receipt-totals{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:0.8mm 0;margin:0}" +
-              ".receipt-totals .receipt-kv__row--grand{margin-top:0.6mm;padding-top:0.8mm;border-top:1px solid #000}" +
+              ".receipt-items__disc{font-size:0.86em;font-style:italic;color:#333;padding:0 0 " +
+              mm(0.5) +
+              "!important}" +
+              ".receipt-totals{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:" +
+              mm(0.8) +
+              " 0;margin:0}" +
+              ".receipt-totals .receipt-kv__row--grand{margin-top:" +
+              mm(0.6) +
+              ";padding-top:" +
+              mm(0.8) +
+              ";border-top:1px solid #000}" +
               ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-size:1.04em;font-weight:" +
               (boldHeaders ? "900" : "800") +
               "}" +
-              ".receipt-payment{border-top:1px dashed #666;padding:1.2mm 0 0.8mm;margin:0;text-align:center}" +
+              ".receipt-payment{border-top:1px dashed #666;padding:" +
+              mm(1.2) +
+              " 0 " +
+              mm(0.8) +
+              ";margin:0;text-align:center}" +
               ".receipt-payment--txn{border-top-style:solid;border-top-color:#000}" +
-              ".receipt-payment--instructions{border-top-style:dashed;border-top-color:#666;margin-top:0.4mm}" +
-              ".receipt-payment__heading{margin:0 0 0.4mm;font-size:0.72em;font-weight:" +
+              ".receipt-payment--instructions{border-top-style:dashed;border-top-color:#666;margin-top:" +
+              mm(0.4) +
+              "}" +
+              ".receipt-payment__heading{margin:0 0 " +
+              mm(0.4) +
+              ";font-size:0.72em;font-weight:" +
               (boldHeaders ? "800" : "700") +
               ";letter-spacing:0.08em;text-transform:uppercase;color:#444}" +
               ".receipt-payment__method{margin:0;font-weight:" +
@@ -722,38 +814,90 @@
               ".receipt-payment__type{margin:0;font-weight:" +
               (boldHeaders ? "800" : "700") +
               ";font-size:0.95em}" +
-              ".receipt-payment__detail{margin:0.4mm 0 0;font-variant-numeric:tabular-nums;font-size:0.92em}" +
-              ".receipt-pay-lines{margin:0.8mm 0 0;width:100%;text-align:left}" +
-              ".receipt-pay-line{display:grid;grid-template-columns:minmax(0,42%) minmax(0,58%);column-gap:1.5mm;align-items:baseline;padding:0.25mm 0;font-variant-numeric:tabular-nums;font-size:0.9em}" +
+              ".receipt-payment__detail{margin:" +
+              mm(0.4) +
+              " 0 0;font-variant-numeric:tabular-nums;font-size:0.92em}" +
+              ".receipt-pay-lines{margin:" +
+              mm(0.8) +
+              " 0 0;width:100%;text-align:left}" +
+              ".receipt-pay-line{display:grid;grid-template-columns:minmax(0,42%) minmax(0,58%);column-gap:1.5mm;align-items:baseline;padding:" +
+              mm(0.25) +
+              " 0;font-variant-numeric:tabular-nums;font-size:0.9em}" +
               ".receipt-pay-line__label{font-weight:" +
               (boldHeaders ? "700" : "600") +
               ";text-transform:uppercase;letter-spacing:0.02em;font-size:0.88em}" +
               ".receipt-pay-line__value{text-align:right;overflow-wrap:break-word;word-break:break-word}" +
-              ".receipt-paybill-stack{display:flex;flex-direction:column;gap:1.2mm;margin-top:0.8mm;width:100%}" +
+              ".receipt-paybill-stack{display:flex;flex-direction:column;gap:" +
+              mm(1.2) +
+              ";margin-top:" +
+              mm(0.8) +
+              ";width:100%}" +
               ".receipt-paybill-row{min-width:0;text-align:center}" +
               ".receipt-paybill-label{display:block;font-size:0.82em;font-weight:" +
               (boldHeaders ? "800" : "700") +
               ";letter-spacing:0.03em;text-transform:uppercase}" +
-              ".receipt-paybill-value{display:block;margin-top:0.3mm;font-variant-numeric:tabular-nums;word-break:break-word}" +
-              ".receipt-tail{margin:1.2mm 0 0;padding:1mm 0 0;border-top:1px dashed #888;text-align:center;line-height:1.38}" +
-              ".receipt-tail__thanks{margin:0 0 0.6mm;font-size:1em;font-weight:" +
+              ".receipt-paybill-value{display:block;margin-top:" +
+              mm(0.3) +
+              ";font-variant-numeric:tabular-nums;word-break:break-word}" +
+              ".receipt-tail{margin:" +
+              mm(1.2) +
+              " 0 0;padding:" +
+              mm(1) +
+              " 0 0;border-top:1px dashed #888;text-align:center;line-height:1.38}" +
+              ".receipt-tail__thanks{margin:0 0 " +
+              mm(0.6) +
+              ";font-size:1em;font-weight:" +
               (boldHeaders ? "800" : "700") +
               "}" +
               ".receipt-tail__line{margin:0;font-size:0.82em;letter-spacing:0.03em;text-transform:uppercase;color:#333}" +
-              ".receipt-tail__line--brand{margin-top:0.3mm;font-weight:" +
+              ".receipt-tail__line--brand{margin-top:" +
+              mm(0.3) +
+              ";font-weight:" +
               (boldHeaders ? "800" : "700") +
               ";color:#111}" +
-              "pre.receipt--meta,pre.receipt--payment,pre.receipt--totals{margin:0;padding:0.8mm 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:" +
+              "pre.receipt--meta,pre.receipt--payment,pre.receipt--totals{margin:0;padding:" +
+              mm(0.8) +
+              " 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:" +
               preWeight +
               "}" +
-              "pre.receipt--items{margin:0;padding:0.8mm 0 0;border-top:1px solid #000}" +
-              "pre.receipt--block{margin:1mm 0 0;padding:1mm 0 0;border-top:1px dashed #d1d5db}" +
-              "pre.receipt--tail{margin:1mm 0 0;padding:1mm 0 0;border-top:1px solid #e5e7eb}" +
-              ".receipt-thermal-footer{margin:0 0 1mm;padding:1mm 0 0;text-align:center;font-size:0.67em;line-height:1.25;color:#000;font-weight:600;border-top:1px dashed #000}" +
-              ".receipt-qr{display:flex;flex-direction:column;align-items:center;width:100%;margin:0.5mm 0 0;padding:1mm 1mm 0;min-height:22mm}" +
-              ".receipt-qr img{display:block;width:22mm;height:22mm;max-width:72%;object-fit:contain}" +
-              ".receipt-qr-caption{margin:0.5mm 0 0;padding:0;width:100%;text-align:center;font-size:0.625em;line-height:1.25;color:#6b7280}" +
-              ".receipt-browser-print-tip{margin:0 0 1.5mm;padding:1.5mm 2mm;border:1px solid #fcd34d;background:linear-gradient(180deg,#fffbeb,#fff7ed);color:#92400e;font-size:0.67em;line-height:1.3;border-radius:4px}" +
+              "pre.receipt--items{margin:0;padding:" +
+              mm(0.8) +
+              " 0 0;border-top:1px solid #000}" +
+              "pre.receipt--block{margin:" +
+              mm(1) +
+              " 0 0;padding:" +
+              mm(1) +
+              " 0 0;border-top:1px dashed #d1d5db}" +
+              "pre.receipt--tail{margin:" +
+              mm(1) +
+              " 0 0;padding:" +
+              mm(1) +
+              " 0 0;border-top:1px solid #e5e7eb}" +
+              ".receipt-thermal-footer{margin:0 0 " +
+              mm(1) +
+              ";padding:" +
+              mm(1) +
+              " 0 0;text-align:center;font-size:0.67em;line-height:1.25;color:#000;font-weight:600;border-top:1px dashed #000}" +
+              ".receipt-qr{display:flex;flex-direction:column;align-items:center;width:100%;margin:" +
+              mm(0.5) +
+              " 0 0;padding:" +
+              mm(1) +
+              " 1mm 0;min-height:" +
+              mm(22) +
+              "}" +
+              ".receipt-qr img{display:block;width:" +
+              mm(22) +
+              ";height:" +
+              mm(22) +
+              ";max-width:72%;object-fit:contain}" +
+              ".receipt-qr-caption{margin:" +
+              mm(0.5) +
+              " 0 0;padding:0;width:100%;text-align:center;font-size:0.625em;line-height:1.25;color:#6b7280}" +
+              ".receipt-browser-print-tip{margin:0 0 " +
+              mm(1.5) +
+              ";padding:" +
+              mm(1.5) +
+              " 2mm;border:1px solid #fcd34d;background:linear-gradient(180deg,#fffbeb,#fff7ed);color:#92400e;font-size:0.67em;line-height:1.3;border-radius:4px}" +
               "@media print{" +
               "@page{margin:0;size:" +
               rollCss +
@@ -773,8 +917,14 @@
               ".receipt-thermal-mut,.receipt-thermal-customhdr,.receipt-thermal-footer,.receipt-thermal-company{color:#000!important;font-weight:" +
               preWeight +
               "!important}" +
-              ".receipt-logo-row img{max-height:9mm}" +
-              ".receipt-qr img{width:20mm!important;height:20mm!important}" +
+              ".receipt-logo-row img{max-height:" +
+              mm(9) +
+              "}" +
+              ".receipt-qr img{width:" +
+              mm(20) +
+              "!important;height:" +
+              mm(20) +
+              "!important}" +
               "}"
             );
           }
@@ -1264,6 +1414,49 @@
     return String(fullHtml || "").replace("</style>", RECEIPT_PREVIEW_PRINT_CSS + "</style>");
   }
 
+  function receiptCssSizeToPx(cssSize) {
+    var s = String(cssSize == null ? "" : cssSize).trim();
+    var n = parseFloat(s, 10);
+    if (isNaN(n) || n <= 0) n = 12;
+    if (/px$/i.test(s)) return n.toFixed(2) + "px";
+    return ((n * 96) / 72).toFixed(2) + "px";
+  }
+
+  function receiptThermalPrepareHtmlForPreview(fullHtml, widthMm) {
+    var w = widthMm === 58 ? 58 : 80;
+    var fontPx = receiptCssSizeToPx(receiptThermalFontCss());
+    var dens = receiptThermalDensityFactor();
+    var lh = receiptThermalLineHeightCss();
+    var css =
+      ".receipt-browser-print-tip{display:none!important}" +
+      "html{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}" +
+      "html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important;height:auto!important;min-height:0!important;" +
+      "width:" +
+      w +
+      "mm!important;min-width:" +
+      w +
+      "mm!important;max-width:" +
+      w +
+      "mm!important;overflow:hidden!important}" +
+      ".receipt-thermal{box-sizing:border-box!important;width:" +
+      w +
+      "mm!important;min-width:" +
+      w +
+      "mm!important;max-width:" +
+      w +
+      "mm!important;height:auto!important;min-height:0!important;font-size:" +
+      fontPx +
+      "!important;line-height:" +
+      lh +
+      "!important}" +
+      ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap," +
+      "pre.receipt{width:100%!important;max-width:100%!important}" +
+      ".receipt-thermal{--rd:" +
+      dens +
+      "}";
+    return String(fullHtml || "").replace("</style>", css + "</style>");
+  }
+
   function buildDemoReceiptPreviewPayload(opts) {
     opts = opts || {};
     var rs = opts.receiptSettings || {};
@@ -1281,13 +1474,15 @@
     var startNum = String(rs.starting_number || "1001").trim() || "1001";
     var receiptNo = prefix + "-" + startNum;
     var company = String(site.company_name || "").trim();
+    var shopLoc = String(site.shop_location || site.company_location_name || "").trim();
+    if (!shopLoc && rs.show_address) shopLoc = "123 Market Street";
     return {
       receiptNo: receiptNo,
       printedAt: new Date().toLocaleString(),
       shopName: String(site.shop_name || company || "Demo Shop"),
       companyName: company,
       shopCode: String(site.shop_code || "").trim(),
-      shopLocation: String(site.shop_location || site.company_location_name || "").trim(),
+      shopLocation: shopLoc,
       receiptLogoUrl: String(site.receipt_logo_url || site.app_icon_url || "").trim(),
       mode: "Sale",
       isQuotation: false,
@@ -1314,14 +1509,156 @@
 
   window.receiptThermalRenderSettingsPreview = function (boot, variant) {
     ACTIVE_BOOT = boot || {};
-    var payload = buildDemoReceiptPreviewPayload(boot);
+    var bootCopy = boot || {};
+    var rs = bootCopy.receiptSettings || {};
+    var site = Object.assign({}, bootCopy.site || {});
+    if (rs.show_contact) {
+      if (!String(site.company_phone || "").trim()) site.company_phone = "+254 700 000 000";
+      if (!String(site.company_email || "").trim()) site.company_email = "shop@example.com";
+    }
+    ACTIVE_BOOT = { receiptSettings: rs, site: site, printing: bootCopy.printing || {} };
+    var payload = buildDemoReceiptPreviewPayload({ receiptSettings: rs, site: site });
     var fullHtml = buildThermalReceiptPlainHtml(payload, variant || "customer");
+    var widthMm = receiptRollWidthMm();
     return {
-      widthMm: receiptRollWidthMm(),
+      widthMm: widthMm,
+      fontSize: receiptThermalFontCss(),
+      fontBucket: receiptFontSizeBucket(),
+      density: receiptThermalDensityFactor(),
+      paperScale: receiptThermalPaperScale(),
       fullHtml: fullHtml,
+      previewHtml: receiptThermalPrepareHtmlForPreview(fullHtml, widthMm),
       style: thermalReceiptDocExtractStyle(fullHtml),
       body: thermalReceiptDocExtractBodyInner(fullHtml),
     };
+  };
+
+  window.receiptThermalMountSettingsPreview = function (boot, opts) {
+    opts = opts || {};
+    var root = opts.root || document.getElementById("receipt-preview-root");
+    var paper = opts.paper || document.getElementById("receipt-print-preview");
+    var caption = opts.caption || document.getElementById("receipt-preview-caption");
+    if (!root || !paper) return false;
+    if (typeof window.receiptThermalRenderSettingsPreview !== "function") return false;
+
+    var rendered = window.receiptThermalRenderSettingsPreview(boot);
+    var rollMm = rendered.widthMm === 58 ? 58 : 80;
+    var scale = Number(rendered.paperScale);
+    if (!(scale > 0.2 && scale <= 1.5)) scale = 1;
+    var rollPx = rollMm === 58 ? 219 : 302;
+    var paperPx = Math.max(120, Math.round(rollPx * scale));
+
+    paper.setAttribute("data-roll", String(rollMm));
+    paper.setAttribute("data-font", String(rendered.fontBucket || "large"));
+    paper.style.setProperty("--receipt-roll-px", paperPx + "px");
+    paper.style.setProperty("--receipt-paper-scale", String(scale));
+    paper.style.width = paperPx + "px";
+    paper.style.maxWidth = "min(100%, " + paperPx + "px)";
+    paper.style.minWidth = "0";
+    paper.style.overflow = "hidden";
+    /* Clear previous Large height so Small does not keep leftover paper. */
+    paper.style.height = "auto";
+    root.style.height = "auto";
+
+    var bucketLabel =
+      rendered.fontBucket === "small" ? "Small" : rendered.fontBucket === "medium" ? "Medium" : "Large";
+    if (caption) {
+      caption.textContent =
+        "Sample customer copy · " +
+        rollMm +
+        "mm roll · " +
+        bucketLabel +
+        " paper — width and length grow/shrink with font size.";
+    }
+
+    var iframe = root.querySelector("iframe");
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.setAttribute("title", "Receipt print preview");
+      iframe.setAttribute("aria-label", "Receipt print preview");
+      iframe.setAttribute("scrolling", "no");
+      iframe.style.border = "0";
+      iframe.style.display = "block";
+      iframe.scrolling = "no";
+      root.innerHTML = "";
+      root.appendChild(iframe);
+    }
+
+    /* Full roll layout inside iframe; scale root so paper frame matches font size. */
+    root.style.width = rollPx + "px";
+    root.style.maxWidth = "none";
+    root.style.transformOrigin = "top left";
+    root.style.transform = "scale(" + scale + ")";
+    root.style.marginBottom = "0";
+    iframe.style.width = rollPx + "px";
+    iframe.style.maxWidth = "none";
+    iframe.style.height = "0";
+
+    var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+    if (!doc) return false;
+    var html = rendered.previewHtml || rendered.fullHtml || "";
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    function measureSlipHeight() {
+      var thermal = doc.querySelector(".receipt-thermal");
+      if (thermal) {
+        var rect = thermal.getBoundingClientRect();
+        var th = Math.max(
+          rect.height || 0,
+          thermal.scrollHeight || 0,
+          thermal.offsetHeight || 0
+        );
+        if (th > 1) return Math.ceil(th);
+      }
+      var body = doc.body;
+      var el = doc.documentElement;
+      var h = 0;
+      if (body) {
+        var kids = body.children;
+        for (var i = 0; i < kids.length; i++) {
+          h = Math.max(h, kids[i].offsetTop + kids[i].offsetHeight);
+        }
+        h = Math.max(h, body.scrollHeight || 0);
+      }
+      if (el) h = Math.max(h, el.scrollHeight || 0);
+      return Math.max(1, Math.ceil(h));
+    }
+
+    function resizeFrame() {
+      try {
+        /* Collapse first — otherwise scrollHeight keeps the previous Large iframe size. */
+        iframe.style.height = "0px";
+        root.style.height = "0px";
+        paper.style.height = "0px";
+        void iframe.offsetHeight;
+
+        var h = measureSlipHeight();
+        iframe.style.height = h + "px";
+        root.style.width = rollPx + "px";
+        root.style.height = h + "px";
+        /* Pull layout up so transform scale does not leave blank frame space. */
+        root.style.marginBottom = Math.round(h * (scale - 1)) + "px";
+        paper.style.width = paperPx + "px";
+        paper.style.height = Math.max(1, Math.ceil(h * scale)) + "px";
+      } catch (e) {}
+    }
+
+    resizeFrame();
+    waitForIframeImages(
+      doc,
+      function () {
+        resizeFrame();
+        setTimeout(resizeFrame, 40);
+        setTimeout(resizeFrame, 200);
+      },
+      4000
+    );
+    setTimeout(resizeFrame, 80);
+    setTimeout(resizeFrame, 250);
+    setTimeout(resizeFrame, 500);
+    return true;
   };
 
   /** Shared thermal receipt engine — POS checkout uses the same HTML layout as IT preview. */
@@ -1333,6 +1670,7 @@
     docExtractStyle: thermalReceiptDocExtractStyle,
     docExtractBody: thermalReceiptDocExtractBodyInner,
     prepareHtmlForPrint: receiptThermalPrepareHtmlForPrint,
+    prepareHtmlForPreview: receiptThermalPrepareHtmlForPreview,
   };
 
   window.receiptThermalReprint = function (sale, items, boot) {

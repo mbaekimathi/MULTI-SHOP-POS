@@ -2,18 +2,44 @@
 {% set S = S if S is defined else (pos_receipt_settings or {}) %}
 {% set roll_mm = 58 if (S.receipt_width or '80mm')|string|trim == '58mm' else 80 %}
 {% set roll_css = '58mm' if roll_mm == 58 else '80mm' %}
-{% set fsize_raw = (S.font_size or S.receipt_font_size or '11pt') | string | trim %}
-{% if not (fsize_raw.endswith('pt') or fsize_raw.endswith('px') or fsize_raw.endswith('mm')) %}
-  {% set fsize_raw = fsize_raw ~ 'pt' %}
+{% set fsize_raw = (S.font_size or S.receipt_font_size or '12pt') | string | trim %}
+{% if not fsize_raw %}{% set fsize_raw = '12pt' %}{% endif %}
+{% set fnum = fsize_raw|replace('pt','')|replace('px','')|replace('mm','')|trim|float %}
+{% if fnum <= 8.5 %}
+  {% set fbucket = 'small' %}
+{% elif fnum <= 10.5 %}
+  {% set fbucket = 'medium' %}
+{% else %}
+  {% set fbucket = 'large' %}
 {% endif %}
-{% set n = (fsize_raw[:-2] | float) if roll_mm == 58 and fsize_raw.endswith('pt') else 0 %}
-{% set fsize = '9pt' if roll_mm == 58 and fsize_raw.endswith('pt') and n > 9 else fsize_raw %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/shop-stock-receipt-thermal.css') }}?v=1" />
+{# Distinct Small / Medium / Large on both roll widths (no flattening Medium+Large). #}
+{% if roll_mm == 58 %}
+  {% if fbucket == 'small' %}{% set fsize = '7.5pt' %}
+  {% elif fbucket == 'medium' %}{% set fsize = '8.5pt' %}
+  {% else %}{% set fsize = '9.5pt' %}{% endif %}
+{% else %}
+  {% if fbucket == 'small' %}{% set fsize = '8pt' %}
+  {% elif fbucket == 'medium' %}{% set fsize = '10pt' %}
+  {% else %}{% set fsize = '12pt' %}{% endif %}
+{% endif %}
+{% if fbucket == 'small' %}
+  {% set fdens = '0.58' %}
+  {% set flh = '1.1' %}
+{% elif fbucket == 'medium' %}
+  {% set fdens = '0.82' %}
+  {% set flh = '1.18' %}
+{% else %}
+  {% set fdens = '1.12' %}
+  {% set flh = '1.26' %}
+{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shop-stock-receipt-thermal.css') }}?v=2" />
 <style>
   :root {
     --receipt-roll-mm: {{ roll_mm }}mm;
     --receipt-roll-width: {{ roll_css }};
     --receipt-font-size: {{ fsize }};
-    --receipt-mono-pt: {% if roll_mm == 58 %}8.5pt{% else %}9.5pt{% endif %};
+    --receipt-mono-pt: {{ fsize }};
+    --receipt-density: {{ fdens }};
+    --receipt-line-height: {{ flh }};
   }
 </style>
