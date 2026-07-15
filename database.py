@@ -11113,6 +11113,90 @@ def get_shop_pos_sale_by_client_txn(shop_id: int, client_txn_id: str) -> Optiona
         return None
 
 
+def find_shop_pos_sale_for_receipt_pay(
+    shop_id: int,
+    *,
+    sale_id: int = 0,
+    receipt_number: str = "",
+    amount: float | None = None,
+) -> Optional[dict]:
+    """Best-effort sale lookup for the public receipt Pay QR page."""
+    ensure_shop_pos_sales_receipt_columns()
+    ensure_shop_pos_sales_mpesa_receipt_column()
+    sid = int(sale_id or 0)
+    shop_id = int(shop_id or 0)
+    if shop_id <= 0:
+        return None
+    rn = str(receipt_number or "").strip()
+    if rn.startswith("#"):
+        rn = rn[1:].strip()
+    sql = """
+    SELECT
+        sps.id,
+        sps.shop_id,
+        sps.sale_type,
+        sps.payment_method,
+        sps.total_amount,
+        sps.cash_amount,
+        sps.mpesa_amount,
+        sps.mpesa_receipt_number,
+        sps.credit_paid_amount,
+        COALESCE(sps.credit_status, 'not_paid') AS credit_status,
+        COALESCE(NULLIF(sps.customer_name, ''), 'WALK IN') AS customer_name,
+        COALESCE(NULLIF(sps.customer_phone, ''), '-') AS customer_phone,
+        COALESCE(NULLIF(sps.receipt_number, ''), CONCAT('#', sps.id)) AS receipt_number,
+        COALESCE(sps.receipt_mark_status, 'pending') AS receipt_mark_status,
+        sps.created_at
+    FROM shop_pos_sales sps
+    WHERE sps.shop_id=%s
+    """
+    try:
+        with get_cursor() as cur:
+            if sid > 0:
+                cur.execute(sql + " AND sps.id=%s LIMIT 1", (shop_id, sid))
+                row = cur.fetchone()
+                if row:
+                    return row
+            if not rn:
+                return None
+            # Exact receipt number match (also accept leading '#' / bare sale id forms).
+            clauses = ["sps.receipt_number=%s", "sps.receipt_number=%s"]
+            params: list = [shop_id, rn, "#" + rn]
+            if rn.isdigit():
+                clauses.append("CAST(sps.id AS CHAR)=%s")
+                clauses.append("CONCAT('#', sps.id)=%s")
+                params.extend([rn, "#" + rn])
+            cur.execute(
+                sql
+                + " AND ("
+                + " OR ".join(clauses)
+                + ") ORDER BY sps.created_at DESC, sps.id DESC LIMIT 5",
+                tuple(params),
+            )
+            rows = list(cur.fetchall() or [])
+    except pymysql.Error:
+        return None
+    if not rows:
+        return None
+    if len(rows) == 1 or amount is None:
+        return rows[0]
+    try:
+        target = round(float(amount), 2)
+    except (TypeError, ValueError):
+        return rows[0]
+    best = None
+    best_diff = None
+    for row in rows:
+        try:
+            diff = abs(round(float(row.get("total_amount") or 0), 2) - target)
+        except (TypeError, ValueError):
+            continue
+        if best is None or diff < best_diff:
+            best = row
+            best_diff = diff
+    return best or rows[0]
+
+
 def get_shop_revenue_analytics(
     shop_id: int, analytics_filter: dict, analytics_scope: str = "general"
 ):

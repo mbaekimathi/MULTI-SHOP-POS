@@ -1,3 +1,4 @@
+import base64
 import calendar
 import csv
 import hmac
@@ -5891,6 +5892,8 @@ def _pos_receipt_reprint_boot_payload(shop: dict) -> dict:
     logo_url = _receipt_logo_static_url(shop)
     base = _load_company_identity_settings()
     return {
+        "shopId": int(shop.get("id") or 0),
+        "receiptPayBaseUrl": _receipt_pay_public_base_url(),
         "receiptSettings": _effective_receipt_settings_for_shop(shop),
         "printing": _effective_printing_settings_for_shop(shop),
         "site": {
@@ -6193,9 +6196,301 @@ def _daraja_pos_boot_payload() -> dict:
 _CREDIT_PAY_TOKEN_SALT = "credit-mpesa-pay-v1"
 _CREDIT_PAY_TOKEN_MAX_AGE_SECONDS = 14 * 24 * 3600
 
+_RECEIPT_PAY_KIND_CODES = {"buy_goods": "b", "paybill": "p", "send_money": "m"}
+_RECEIPT_PAY_KIND_FROM_CODE = {v: k for k, v in _RECEIPT_PAY_KIND_CODES.items()}
+
 
 def _credit_pay_token_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(app.secret_key, salt=_CREDIT_PAY_TOKEN_SALT)
+
+
+def _encode_receipt_pay_token(payload: dict) -> str:
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_receipt_pay_token_raw(token: str) -> dict:
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        raise ValueError("Payment link is missing.")
+    pad = "=" * ((4 - len(raw_token) % 4) % 4)
+    try:
+        raw = base64.urlsafe_b64decode((raw_token + pad).encode("ascii"))
+        data = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("This payment link is invalid.") from exc
+    if not isinstance(data, dict):
+        raise ValueError("This payment link is invalid.")
+    return data
+
+
+def _build_receipt_pay_token_payload(
+    *,
+    shop_id: int,
+    shop_name: str,
+    settings: dict,
+    amount,
+    receipt_no: str = "",
+    sale_id: int = 0,
+) -> dict:
+    S = settings or {}
+    pt = _normalize_receipt_payment_detail_type(S.get("payment_detail_type"))
+    try:
+        amt = float(amount or 0)
+    except (TypeError, ValueError):
+        amt = 0.0
+    obj: dict = {
+        "i": int(shop_id or 0),
+        "k": _RECEIPT_PAY_KIND_CODES.get(pt, "b"),
+        "x": f"{max(amt, 0.0):.2f}",
+        "r": str(receipt_no or "").strip()[:40],
+        "s": str(shop_name or "").strip()[:80],
+    }
+    sid = int(sale_id or 0)
+    if sid > 0:
+        obj["sid"] = sid
+    if pt == "paybill":
+        biz = str(S.get("payment_paybill_business") or "").strip()[:80]
+        acc = str(S.get("payment_paybill_account") or "").strip()[:80]
+        if biz:
+            obj["b"] = biz
+        if acc:
+            obj["a"] = acc
+    else:
+        detail = str(S.get("payment_detail_text") or "").strip()[:200]
+        if detail:
+            obj["d"] = detail
+    return obj
+
+
+def _receipt_pay_public_base_url() -> str:
+    """Absolute base URL ending with /pay/receipt/ for customer QR scans."""
+    path = "/pay/receipt/"
+    public_base = _public_share_base_url()
+    if public_base:
+        link = public_base.rstrip("/") + path
+        if link.lower().startswith("http://") and "ngrok" not in link.lower():
+            link = "https://" + link[7:]
+        return link
+    try:
+        root = (request.url_root or "").strip().rstrip("/")
+        if root:
+            return root + path
+    except RuntimeError:
+        pass
+    return path
+
+
+def _receipt_pay_public_url(
+    *,
+    shop_id: int,
+    shop_name: str,
+    settings: dict,
+    amount,
+    receipt_no: str = "",
+    sale_id: int = 0,
+) -> str:
+    payload = _build_receipt_pay_token_payload(
+        shop_id=shop_id,
+        shop_name=shop_name,
+        settings=settings,
+        amount=amount,
+        receipt_no=receipt_no,
+        sale_id=sale_id,
+    )
+    return _receipt_pay_public_base_url() + _encode_receipt_pay_token(payload)
+
+
+def _parse_receipt_pay_token(token: str) -> dict:
+    raw = _decode_receipt_pay_token_raw(token)
+    kind = _RECEIPT_PAY_KIND_FROM_CODE.get(str(raw.get("k") or "").strip().lower(), "")
+    if not kind:
+        kind = _normalize_receipt_payment_detail_type(raw.get("k"))
+    labels = {
+        "buy_goods": "Buy goods",
+        "paybill": "Pay bill",
+        "send_money": "Send money",
+    }
+    label = labels.get(kind, "Buy goods")
+    try:
+        amount = float(str(raw.get("x") or "0").replace(",", ""))
+    except (TypeError, ValueError):
+        amount = 0.0
+    amount = max(amount, 0.0)
+    detail_text = str(raw.get("d") or "").strip()
+    detail_lines = [ln.strip() for ln in detail_text.splitlines() if ln.strip()]
+    business = str(raw.get("b") or "").strip()
+    account = str(raw.get("a") or "").strip()
+    shop_id = int(raw.get("i") or 0)
+    if shop_id < 0:
+        raise ValueError("This payment link is invalid.")
+    if kind == "buy_goods":
+        steps = [
+            "Open M-Pesa on your phone",
+            "Lipa na M-Pesa → Buy Goods and Services",
+            "Enter the Till / Buy Goods number shown below",
+            f"Enter amount KES {amount:.2f}",
+            "Enter your M-Pesa PIN and confirm",
+        ]
+    elif kind == "paybill":
+        steps = [
+            "Open M-Pesa on your phone",
+            "Lipa na M-Pesa → Pay Bill",
+            "Enter the Business number shown below",
+            "Enter the Account number shown below",
+            f"Enter amount KES {amount:.2f}",
+            "Enter your M-Pesa PIN and confirm",
+        ]
+    else:
+        steps = [
+            "Open M-Pesa on your phone",
+            "Send Money",
+            "Enter the phone number shown below",
+            f"Enter amount KES {amount:.2f}",
+            "Enter your M-Pesa PIN and confirm",
+        ]
+    return {
+        "shop_id": shop_id,
+        "shop_name": str(raw.get("s") or "").strip(),
+        "kind": kind,
+        "label": label,
+        "amount": amount,
+        "receipt_no": str(raw.get("r") or "").strip(),
+        "sale_id": int(raw.get("sid") or 0),
+        "detail_text": detail_text,
+        "detail_lines": detail_lines,
+        "business": business,
+        "account": account,
+        "steps": steps,
+        "token": str(token or "").strip(),
+    }
+
+
+def _receipt_pay_payment_method_label(method: str) -> str:
+    m = str(method or "").strip().lower()
+    return {
+        "cash": "Cash",
+        "mpesa": "M-Pesa",
+        "both": "Cash + M-Pesa",
+        "credit": "Credit",
+    }.get(m, (method or "Payment").strip().title() or "Payment")
+
+
+def _receipt_pay_sale_status(pay: dict) -> Optional[dict]:
+    """
+    Resolve sale against the pay QR token.
+
+    Returns None when unpaid / unknown (show pay instructions).
+    Returns a status dict when payment is complete (show success).
+    Returns {"cancelled": True, ...} when the receipt was cancelled.
+    """
+    shop_id = int((pay or {}).get("shop_id") or 0)
+    if shop_id <= 0:
+        return None
+    try:
+        from database import find_shop_pos_sale_for_receipt_pay
+
+        row = find_shop_pos_sale_for_receipt_pay(
+            shop_id,
+            sale_id=int((pay or {}).get("sale_id") or 0),
+            receipt_number=str((pay or {}).get("receipt_no") or ""),
+            amount=(pay or {}).get("amount"),
+        )
+    except Exception:
+        logger.exception("receipt pay sale lookup failed")
+        return None
+    if not row:
+        return None
+
+    sale_type = str(row.get("sale_type") or "sale").strip().lower()
+    mark = str(row.get("receipt_mark_status") or "pending").strip().lower()
+    total = float(row.get("total_amount") or 0)
+    credit_paid = float(row.get("credit_paid_amount") or 0)
+    credit_status = str(row.get("credit_status") or "not_paid").strip().lower()
+    method = str(row.get("payment_method") or "").strip().lower()
+    mpesa_code = str(row.get("mpesa_receipt_number") or "").strip()
+    cash_amt = float(row.get("cash_amount") or 0)
+    mpesa_amt = float(row.get("mpesa_amount") or 0)
+
+    if mark == "cancelled":
+        return {
+            "cancelled": True,
+            "paid": False,
+            "receipt_number": str(row.get("receipt_number") or "").strip(),
+            "sale_id": int(row.get("id") or 0),
+        }
+
+    paid = False
+    if sale_type == "credit" or method == "credit":
+        paid = credit_status == "paid" or credit_paid + 0.009 >= total
+        if not paid:
+            return None
+        method = method or "credit"
+    else:
+        # Finalized POS sale row means the sale was recorded as paid at checkout.
+        paid = True
+
+    if not paid:
+        return None
+
+    paid_at = row.get("created_at")
+    if hasattr(paid_at, "strftime"):
+        paid_at_display = paid_at.strftime("%Y-%m-%d %H:%M")
+    else:
+        paid_at_display = str(paid_at or "").strip()
+
+    details = []
+    method_label = _receipt_pay_payment_method_label(method)
+    details.append({"label": "Payment method", "value": method_label})
+    if method in ("cash", "both") and cash_amt > 0.009:
+        details.append({"label": "Cash", "value": f"KES {cash_amt:.2f}"})
+    if method in ("mpesa", "both") and mpesa_amt > 0.009:
+        details.append({"label": "M-Pesa amount", "value": f"KES {mpesa_amt:.2f}"})
+    if mpesa_code:
+        details.append({"label": "Payment code", "value": mpesa_code, "copy": True})
+    if sale_type == "credit":
+        details.append({"label": "Credit status", "value": "Paid in full"})
+    cust = str(row.get("customer_name") or "").strip()
+    if cust and cust.upper() not in ("WALK IN", "WALK-IN", "-"):
+        details.append({"label": "Customer", "value": cust})
+    if paid_at_display:
+        details.append({"label": "Paid at", "value": paid_at_display})
+
+    return {
+        "cancelled": False,
+        "paid": True,
+        "receipt_number": str(row.get("receipt_number") or "").strip(),
+        "sale_id": int(row.get("id") or 0),
+        "payment_method": method,
+        "payment_method_label": method_label,
+        "mpesa_receipt_number": mpesa_code,
+        "cash_amount": cash_amt,
+        "mpesa_amount": mpesa_amt,
+        "total_amount": total,
+        "paid_at": paid_at_display,
+        "customer_name": cust,
+        "details": details,
+    }
+
+
+@app.template_global()
+def build_receipt_pay_qr_url(shop, settings, amount, receipt_no="", sale_id=0):
+    """Jinja helper: absolute web pay URL for receipt payment-mode QR."""
+    shop = shop or {}
+    return _receipt_pay_public_url(
+        shop_id=int(shop.get("id") or 0),
+        shop_name=str(shop.get("shop_name") or "").strip(),
+        settings=settings or {},
+        amount=amount,
+        receipt_no=str(receipt_no or "").strip(),
+        sale_id=int(sale_id or 0),
+    )
+
+
+@app.template_global()
+def receipt_pay_public_base_url():
+    """Public base URL for POS receipt payment QR codes."""
+    return _receipt_pay_public_base_url()
 
 
 def _make_credit_pay_token(
@@ -14525,6 +14820,54 @@ def shop_pos_mpesa_stk_status(shop_id: int, checkout_request_id: str):
             "customer": customer,
             "auto_registered_customer": auto_registered_customer,
         }
+    )
+
+
+@app.route("/pay/receipt/<token>")
+def receipt_pay_public(token: str):
+    """Public web prompt when a customer scans a Pay-with-QR receipt code."""
+    try:
+        pay = _parse_receipt_pay_token(token)
+    except ValueError as exc:
+        return render_template("receipt_pay_public.html", error=str(exc)), 400
+
+    shop = {"id": 0, "shop_name": pay.get("shop_name") or "Shop", "shop_logo": ""}
+    if int(pay.get("shop_id") or 0) > 0:
+        try:
+            shop = _get_shop_or_404(int(pay["shop_id"]))
+            if not (pay.get("shop_name") or "").strip():
+                pay["shop_name"] = str(shop.get("shop_name") or "").strip()
+        except Exception:
+            pass
+
+    company_name = "Point of Sale"
+    try:
+        from database import get_site_settings
+
+        company_name = (
+            get_site_settings(["company_name"]).get("company_name") or company_name
+        ).strip() or company_name
+    except Exception:
+        pass
+
+    sale_status = _receipt_pay_sale_status(pay)
+    if sale_status and sale_status.get("cancelled"):
+        return render_template(
+            "receipt_pay_public.html",
+            error="This receipt was cancelled. Payment is not available.",
+            pay=pay,
+            shop=shop,
+            company_name=company_name,
+            sale_status=sale_status,
+        ), 410
+
+    return render_template(
+        "receipt_pay_public.html",
+        error=None,
+        pay=pay,
+        shop=shop,
+        company_name=company_name,
+        sale_status=sale_status,
     )
 
 

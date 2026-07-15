@@ -14,6 +14,7 @@
 <script>
   window.__POS_BOOT = {{ {
     "shopId": shop.id|int,
+    "receiptPayBaseUrl": receipt_pay_public_base_url(),
     "inventoryMode": pos_inventory_mode,
     "printing": pos_printing_settings,
     "daraja": daraja_pos_boot if daraja_pos_boot is defined else {"enabled": false},

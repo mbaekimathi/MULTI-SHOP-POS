@@ -97,7 +97,7 @@ QTY       {{ qty_str }}</pre>
 {% endfor %}{% else %}{{ r.item_name }}
                   {{ qty_str }}  {{ price_str }}  {{ total_str }}{% endif %}</pre>
 
-  <pre class="receipt receipt--totals">AMOUNT DUE        {{ total_str }}</pre>
+  <pre class="receipt receipt--totals"><strong>AMOUNT DUE        {{ total_str }}</strong></pre>
 
   <pre class="receipt receipt--note">NOTE      {% if note_text %}{{ note_text }}{% else %}_________________________{% endif %}</pre>
   {% endif %}
@@ -116,7 +116,9 @@ QTY       {{ qty_str }}</pre>
       {% set qr_caption = 'Scan for link' %}
     {% elif qm == 'payment' %}
       {% set qr_caption = 'Scan to pay' %}
-      {% set qr_payload -%}
+      {% set qr_payload = build_receipt_pay_qr_url(shop, S, r.total_cost or 0, id_label) %}
+      {% if not qr_payload %}
+        {% set qr_payload -%}
 PAY
 {{ pay_label }}
 {%- if pay_type == 'paybill' %}
@@ -131,6 +133,7 @@ Acc {{ (S.payment_paybill_account or '')|trim }}
 {%- endif %}
 Amt {{ total_str }}
 {%- endset %}
+      {% endif %}
     {% else %}
       {% set qr_payload = request.url %}
       {% set qr_caption = 'Scan for receipt details' %}

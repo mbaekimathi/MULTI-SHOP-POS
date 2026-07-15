@@ -657,6 +657,7 @@ var saleType = "sale";
           mode: String(saleObj.sale_type || "sale") === "credit" ? "Credit" : "Sale",
           isQuotation: false,
           isReprint: true,
+          saleId: parseInt(saleObj.id || 0, 10) || 0,
           customerName: String(saleObj.customer_name || "Walk-in customer"),
           customerPhone: String(saleObj.customer_phone || "-"),
           employeeName: String(saleObj.employee_name || "Unknown"),
@@ -671,6 +672,7 @@ var saleType = "sale";
           includeTax: tx.includeTax,
           paymentTypeLabel: paymentTypeLabel,
           paymentDetailText: paymentDetailText,
+          mpesaReceiptNumber: mpesaRef,
           receiptHeader: (rs.receipt_header || "").trim(),
           receiptFooter: (rs.receipt_footer || "").trim(),
           creditDueDate: "",
@@ -6483,10 +6485,14 @@ var saleType = "sale";
           }
           return commitSaleWithOfflineFallback(lines, mode).then(function (res) {
             var persistedReceiptNo = (res && res.receipt_number) ? String(res.receipt_number) : "";
+            var persistedSaleId = parseInt((res && res.sale_id) || 0, 10) || 0;
             /* Explicit variants = IT / shop “Receipts to print per sale” (customer ± company ± cashier). */
             var salePrintOpts = { receiptVariants: receiptVariantsForCheckout() };
             fireCheckoutPrint(
-              makeReceiptPayload(lines, mode, { persistedReceiptNo: persistedReceiptNo }),
+              makeReceiptPayload(lines, mode, {
+                persistedReceiptNo: persistedReceiptNo,
+                saleId: persistedSaleId,
+              }),
               salePrintOpts
             );
             return res;
@@ -7191,6 +7197,7 @@ var saleType = "sale";
           mode: b.modeLabel,
           isQuotation: !!opts.isQuotation,
           isReprint: !!opts.isReprint,
+          saleId: parseInt(opts.saleId || 0, 10) || 0,
           customerName: b.customerName,
           customerPhone: b.customerPhone,
           employeeName: (authorizedEmployee && authorizedEmployee.full_name) || "Unknown",
@@ -7250,19 +7257,79 @@ var saleType = "sale";
         }
       }
 
-      /** Human-readable pay prompt from receipt payment settings + sale amount. */
+      /** Boot fields shared by POS (__POS_BOOT) and reprint thermal engine. */
+      function receiptPayRuntimeBoot() {
+        var win = (typeof window !== "undefined" && window.__POS_BOOT) || {};
+        var active = (typeof window !== "undefined" && window.__RECEIPT_PAY_BOOT) || {};
+        return {
+          shopId: active.shopId != null ? active.shopId : win.shopId,
+          receiptPayBaseUrl: active.receiptPayBaseUrl || win.receiptPayBaseUrl || "",
+        };
+      }
+
+      function receiptPayShopId() {
+        var n = parseInt(receiptPayRuntimeBoot().shopId, 10);
+        return isNaN(n) ? 0 : n;
+      }
+
+      function receiptPayPublicBaseUrl() {
+        var configured = String(receiptPayRuntimeBoot().receiptPayBaseUrl || "").trim();
+        if (configured) return configured.replace(/\/?$/, "/");
+        try {
+          if (typeof window !== "undefined" && window.location && window.location.origin) {
+            return String(window.location.origin).replace(/\/?$/, "/") + "pay/receipt/";
+          }
+        } catch (e) {}
+        return "";
+      }
+
+      function encodeReceiptPayToken(obj) {
+        var json = JSON.stringify(obj || {});
+        var b64 = btoa(unescape(encodeURIComponent(json)));
+        return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      }
+
+      /**
+       * Pay-with-QR payload: absolute web URL that opens the payment prompt page
+       * (Buy goods / Pay bill / Send money + amount). Falls back to plain text if
+       * no base URL can be resolved.
+       */
       function buildReceiptQrPaymentPayload(payload, S) {
-        S = S || receiptSettings();
-        var lines = [];
+        S = receiptSanitizePaymentInstructionSettings(S || receiptSettings());
         var pt = receiptNormalizePaymentDetailType(S);
+        var amt = fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0);
+        var obj = {
+          i: receiptPayShopId(),
+          k: pt === "paybill" ? "p" : pt === "send_money" ? "m" : "b",
+          x: String(amt),
+          r: String(payload.receiptNo || "").trim().slice(0, 40),
+          s: String(payload.shopName || "").trim().slice(0, 80),
+        };
+        var saleId = parseInt(payload.saleId || payload.sale_id || 0, 10) || 0;
+        if (saleId > 0) obj.sid = saleId;
+        if (pt === "paybill") {
+          var fields = receiptPaybillInstructionFields(S);
+          if (fields.business) obj.b = String(fields.business).slice(0, 80);
+          if (fields.account) obj.a = String(fields.account).slice(0, 80);
+        } else {
+          var detail = String((S && S.payment_detail_text) || "").trim().slice(0, 200);
+          if (detail) obj.d = detail;
+        }
+        var base = receiptPayPublicBaseUrl();
+        if (base) {
+          try {
+            return base + encodeReceiptPayToken(obj);
+          } catch (e) {}
+        }
+        /* Offline / no origin fallback — plain pay instructions for camera notes. */
+        var lines = [];
         var label = receiptPaymentInstructionLabel(S);
-        /* Keep payload short so QR modules stay large and easy to scan. */
         lines.push("PAY");
         lines.push(label);
         if (pt === "paybill") {
-          var fields = receiptPaybillInstructionFields(S);
-          if (fields.business) lines.push("Biz " + fields.business);
-          if (fields.account) lines.push("Acc " + fields.account);
+          var pb = receiptPaybillInstructionFields(S);
+          if (pb.business) lines.push("Biz " + pb.business);
+          if (pb.account) lines.push("Acc " + pb.account);
         } else {
           var detailLines = receiptPaymentInstructionLines(S);
           if (detailLines.length) {
@@ -7271,7 +7338,6 @@ var saleType = "sale";
             });
           }
         }
-        var amt = fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0);
         if (parseFloat(String(amt).replace(",", ".")) > 0.000001) {
           lines.push("Amt " + amt);
         }
@@ -7279,6 +7345,7 @@ var saleType = "sale";
         if (rn) lines.push("#" + rn);
         return lines.join("\n");
       }
+
 
 
       /** High-contrast QR image URL (quiet zone + ECC M) for easy phone scanning. */
@@ -7501,13 +7568,20 @@ var saleType = "sale";
       }
 
       function thermalKvRowHtml(label, value, extraClass) {
+        var isGrand = String(extraClass || "").indexOf("receipt-kv__row--grand") >= 0;
+        var lab = receiptEsc(label);
+        var val = receiptEsc(value);
+        if (isGrand) {
+          lab = "<strong>" + lab + "</strong>";
+          val = "<strong>" + val + "</strong>";
+        }
         return (
           '<div class="receipt-kv__row' +
           (extraClass ? " " + extraClass : "") +
           '"><span class="receipt-kv__label">' +
-          receiptEsc(label) +
+          lab +
           '</span><span class="receipt-kv__value">' +
-          receiptEsc(value) +
+          val +
           "</span></div>"
         );
       }
@@ -7543,15 +7617,15 @@ var saleType = "sale";
             '<td class="receipt-items__qty">' +
             receiptEsc(vals.qty) +
             "</td>" +
-            '<td class="receipt-items__amt">' +
+            '<td class="receipt-items__amt"><strong>' +
             receiptEsc(vals.amt) +
-            "</td>" +
+            "</strong></td>" +
             "</tr>";
           if (l && l.discounted) {
             rows +=
-              '<tr class="receipt-items__disc-row"><td colspan="3" class="receipt-items__disc">* Discount save ' +
+              '<tr class="receipt-items__disc-row"><td colspan="3" class="receipt-items__disc"><strong>* Discount save ' +
               receiptEsc(fmt(l.lineDiscount || 0)) +
-              "</td></tr>";
+              "</strong></td></tr>";
           }
         });
         return (
@@ -7834,11 +7908,64 @@ var saleType = "sale";
       }
 
       function receiptNormalizePaymentDetailType(rs) {
-        var pt = String((rs && rs.payment_detail_type) || "buy_goods")
+        var raw =
+          (rs &&
+            (rs.payment_detail_type ||
+              rs.paymentDetailType ||
+              rs.receipt_payment_type ||
+              rs.receiptPaymentType)) ||
+          "buy_goods";
+        var pt = String(raw)
           .trim()
-          .toLowerCase();
-        if (pt === "paybill" || pt === "send_money" || pt === "buy_goods") return pt;
+          .toLowerCase()
+          .replace(/[\s-]+/g, "_");
+        if (pt === "pay_bill" || pt === "paybill") return "paybill";
+        if (pt === "buygoods" || pt === "buy_goods") return "buy_goods";
+        if (pt === "sendmoney" || pt === "send_money") return "send_money";
         return "buy_goods";
+      }
+
+      /**
+       * Keep only the selected Pay-via method. Stale fields from the other type
+       * (hidden form inputs / older saves) must never print together.
+       */
+      function receiptSanitizePaymentInstructionSettings(rs) {
+        var src = rs || {};
+        var out = {};
+        var k;
+        for (k in src) {
+          if (Object.prototype.hasOwnProperty.call(src, k)) out[k] = src[k];
+        }
+        var pt = receiptNormalizePaymentDetailType(out);
+        out.payment_detail_type = pt;
+        out.show_payment_details =
+          out.show_payment_details === true ||
+          out.show_payment_details === 1 ||
+          out.show_payment_details === "1" ||
+          out.show_payment_details === "true" ||
+          out.show_payment_details === "True";
+        if (pt === "paybill") {
+          out.payment_detail_text = "";
+          out.payment_paybill_business = String(out.payment_paybill_business || "").trim();
+          out.payment_paybill_account = String(out.payment_paybill_account || "").trim();
+        } else {
+          out.payment_paybill_business = "";
+          out.payment_paybill_account = "";
+          out.payment_detail_text = String(out.payment_detail_text || "")
+            .split(/\r?\n/)
+            .map(function (ln) {
+              return String(ln || "").trim();
+            })
+            .filter(function (ln) {
+              if (!ln) return false;
+              /* Drop bare headings / leftover lines for other Pay-via methods. */
+              if (pt === "buy_goods" && /^(pay\s*bill|paybill|send\s*money)\b/i.test(ln)) return false;
+              if (pt === "send_money" && /^(pay\s*bill|paybill|buy\s*goods)\b/i.test(ln)) return false;
+              return true;
+            })
+            .join("\n");
+        }
+        return out;
       }
 
       function receiptPaymentInstructionLabel(rs) {
@@ -7848,6 +7975,7 @@ var saleType = "sale";
       }
 
       function receiptPaymentInstructionLines(rs) {
+        rs = receiptSanitizePaymentInstructionSettings(rs);
         var pt = receiptNormalizePaymentDetailType(rs);
         if (pt === "paybill") return [];
         var text = String((rs && rs.payment_detail_text) || "").trim();
@@ -7861,6 +7989,7 @@ var saleType = "sale";
       }
 
       function receiptPaybillInstructionFields(rs) {
+        rs = receiptSanitizePaymentInstructionSettings(rs);
         if (receiptNormalizePaymentDetailType(rs) !== "paybill") {
           return { business: "", account: "" };
         }
@@ -7871,12 +8000,14 @@ var saleType = "sale";
       }
 
       function receiptPaymentInstructionHasContent(rs) {
+        rs = receiptSanitizePaymentInstructionSettings(rs);
         if (!(rs && rs.show_payment_details)) return false;
         /* Type is selected in settings — always printable when the toggle is on. */
         return true;
       }
 
       function receiptPaybillInstructionHtml(rs) {
+        rs = receiptSanitizePaymentInstructionSettings(rs);
         var fields = receiptPaybillInstructionFields(rs);
         var label = receiptPaymentInstructionLabel(rs);
         var parts = [];
@@ -7901,11 +8032,20 @@ var saleType = "sale";
 
       function syncReceiptThermalEngineBoot() {
         var eng = window.receiptThermalEngine;
+        var payBoot = {
+          shopId: SHOP_ID,
+          receiptPayBaseUrl: String((BOOT && BOOT.receiptPayBaseUrl) || "").trim(),
+        };
+        try {
+          window.__RECEIPT_PAY_BOOT = payBoot;
+        } catch (e) {}
         if (!eng || typeof eng.setBoot !== "function") return;
         eng.setBoot({
           receiptSettings: receiptSettings(),
           site: window.POS_SITE || {},
           printing: window.POS_PRINTING || {},
+          shopId: payBoot.shopId,
+          receiptPayBaseUrl: payBoot.receiptPayBaseUrl,
         });
       }
 
@@ -8046,16 +8186,15 @@ var saleType = "sale";
             lh +
             ";font-variant-numeric:tabular-nums}" +
               ".receipt-items__name{text-align:left;width:66%;padding-right:0.5mm;white-space:normal;word-break:break-word;overflow-wrap:break-word;font-size:0.94em}" +
-              ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;padding:0}" +
-              ".receipt-items__amt{width:22%;text-align:right;white-space:nowrap;font-weight:" +
-              (boldHeaders ? "800" : "700") +
-              ";font-size:0.88em;padding:0 1.2mm 0 0;box-sizing:border-box}" +
+              ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;font-weight:800;padding:0}" +
+              ".receipt-items__amt{width:22%;text-align:right;white-space:nowrap;font-weight:900;font-size:0.95em;color:#000;padding:0 1.2mm 0 0;box-sizing:border-box}" +
               ".receipt-items thead th.receipt-items__qty,.receipt-items thead th.receipt-items__amt{font-size:0.82em;letter-spacing:0.01em;padding:0}" +
             ".receipt-items--transfer .receipt-items__name{width:72%}" +
             ".receipt-items--transfer .receipt-items__qty{width:28%}" +
-            ".receipt-items tbody tr+tr td{border-top:1px solid #000}" +
-            ".receipt-items__disc-row td{border-top:none!important;padding-top:0}" +
-            ".receipt-items__disc{font-size:0.86em;font-style:normal;font-weight:800;color:#7f1d1d;padding:0 0 " +
+            ".receipt-items tbody tr+tr td{border-top:none;border-bottom:none}" +
+            ".receipt-items tbody td{border:none}" +
+            ".receipt-items__disc-row td{border-top:none!important;border-bottom:none!important;padding-top:0}" +
+            ".receipt-items__disc{font-size:0.92em;font-style:normal;font-weight:900;color:#000;padding:0 0 " +
             mm(0.5) +
             "!important}" +
             ".receipt-totals{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:" +
@@ -8065,10 +8204,9 @@ var saleType = "sale";
             mm(0.6) +
             ";padding-top:" +
             mm(0.8) +
-            ";border-top:1px solid #000}" +
-            ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-size:1.04em;font-weight:" +
-            (boldHeaders ? "900" : "800") +
-            "}" +
+            ";border-top:2px solid #000}" +
+            ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-totals .receipt-kv__row--grand strong{font-size:1.12em;font-weight:900;color:#000}" +
+            ".receipt-totals .receipt-kv__row--grand .receipt-kv__value{letter-spacing:0.01em}" +
             ".receipt-payment{border-top:1px solid #000;padding:" +
             mm(0.55) +
             " 0.8mm " +
@@ -8186,8 +8324,11 @@ var saleType = "sale";
             preWeight +
             "!important}" +
             ".receipt-thermal,.receipt-thermal *:not(img){font-weight:800!important}" +
+            ".receipt-items__amt,.receipt-items__amt *,.receipt-items__disc,.receipt-items__disc *,.receipt-totals .receipt-kv__row--grand,.receipt-totals .receipt-kv__row--grand *,.receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-weight:900!important;color:#000!important}" +
             ".receipt-thermal-shopname,.receipt-kv__label,.receipt-payment__heading,.receipt-qr-caption{color:#0b1d4a!important}" +
-            ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-items__amt{color:#7f1d1d!important}" +
+            ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-totals .receipt-kv__row--grand strong{color:#000!important;font-weight:900!important;font-size:1.14em!important}" +
+            ".receipt-items__amt,.receipt-items__disc{color:#000!important;font-weight:900!important}" +
+            ".receipt-items tbody tr+tr td,.receipt-items tbody td,.receipt-items tbody th{border:none!important;box-shadow:none!important}" +
             ".receipt-thermal-rule,pre.receipt--meta,pre.receipt--totals,pre.receipt--payment,.receipt-kv,.receipt-totals{border-color:#000!important}" +
             ".receipt-thermal{padding-left:1.4mm!important;padding-right:4.5mm!important;overflow:visible!important}" +
             "pre.receipt,.receipt-body,.receipt-kv,.receipt-items-wrap,.receipt-totals,.receipt-payment{overflow:visible!important;max-width:100%!important}" +
@@ -8391,12 +8532,13 @@ var saleType = "sale";
 
         function paymentInstructionBlockHtml() {
           if (!showPrices || isCompany || !receiptPaymentInstructionHasContent(S)) return "";
-          var pt = receiptNormalizePaymentDetailType(S);
+          var instr = receiptSanitizePaymentInstructionSettings(S);
+          var pt = receiptNormalizePaymentDetailType(instr);
           if (pt === "paybill") {
-            return receiptPaybillInstructionHtml(S);
+            return receiptPaybillInstructionHtml(instr);
           }
-          var label = receiptPaymentInstructionLabel(S);
-          var lines = receiptPaymentInstructionLines(S);
+          var label = receiptPaymentInstructionLabel(instr);
+          var lines = receiptPaymentInstructionLines(instr);
           var parts = ['<div class="receipt-pay-lines receipt-body">'];
           parts.push(receiptCompactPayLineHtml("Pay via", label || "Payment"));
           lines.forEach(function (ln) {
@@ -8875,17 +9017,18 @@ var saleType = "sale";
           !isCompany &&
           receiptPaymentInstructionHasContent(S)
         ) {
-          var instrPt = receiptNormalizePaymentDetailType(S);
+          var instrSettings = receiptSanitizePaymentInstructionSettings(S);
+          var instrPt = receiptNormalizePaymentDetailType(instrSettings);
           sep();
           pushBytes([ESC, 0x61, 0x00]);
           if (instrPt === "paybill") {
-            var pb = receiptPaybillInstructionFields(S);
+            var pb = receiptPaybillInstructionFields(instrSettings);
             pushLn(thermalMetaLabelLine("Pay via", "Pay bill", W));
             if (pb.business) pushLn(thermalMetaLabelLine("Business", pb.business, W));
             if (pb.account) pushLn(thermalMetaLabelLine("Account", pb.account, W));
           } else {
-            var instrLabel = receiptPaymentInstructionLabel(S);
-            var instrLines = receiptPaymentInstructionLines(S);
+            var instrLabel = receiptPaymentInstructionLabel(instrSettings);
+            var instrLines = receiptPaymentInstructionLines(instrSettings);
             pushLn(thermalMetaLabelLine("Pay via", instrLabel, W));
             instrLines.forEach(function (ln) {
               var m = String(ln).match(/^([^:]+):\s*(.+)$/);
@@ -9872,7 +10015,7 @@ var saleType = "sale";
 
         var rows = (payload.lines || [])
           .map(function (l) {
-            var discTag = l && l.discounted ? " <span class='mut' style='font-size:10px'>(DISCOUNTED)</span>" : "";
+            var discTag = l && l.discounted ? " <strong style='font-weight:900;color:#000'>(DISCOUNTED)</strong>" : "";
             if (isCompany) {
               return (
                 "<tr><td class='name'>" +
@@ -9889,9 +10032,9 @@ var saleType = "sale";
               discTag +
               '</td><td class="qty">' +
               receiptEsc(fmtQty(l.qty)) +
-              '</td><td class="amt">' +
+              '</td><td class="amt"><strong>' +
               receiptEsc(fmt(l.total)) +
-              "</td></tr>"
+              "</strong></td></tr>"
             );
           })
           .join("");
@@ -10015,16 +10158,16 @@ var saleType = "sale";
               "%)</span><span>" +
               receiptEsc(fmt(payload.taxAmount)) +
               "</span></div>" +
-              "<div class='row tot'><span>Total</span><span>" +
+              "<div class='row tot'><span><strong>Total</strong></span><span><strong>" +
               receiptEsc(fmt(payload.grandTotal)) +
-              "</span></div>";
+              "</strong></span></div>";
           } else {
             subRow =
               "<div class='sep'></div>" +
               discountBlock +
-              "<div class='row tot'><span>Total</span><span>" +
+              "<div class='row tot'><span><strong>Total</strong></span><span><strong>" +
               receiptEsc(fmt(payload.subtotal)) +
-              "</span></div>";
+              "</strong></span></div>";
           }
         }
 
@@ -10056,14 +10199,15 @@ var saleType = "sale";
             });
           }
           if (!isCompany && receiptPaymentInstructionHasContent(S)) {
-            var instrPtA4 = receiptNormalizePaymentDetailType(S);
+            var instrA4 = receiptSanitizePaymentInstructionSettings(S);
+            var instrPtA4 = receiptNormalizePaymentDetailType(instrA4);
             payBlock += "<div class='sep'></div>";
             payBlock +=
               "<div class='row'><span>Pay via</span><span>" +
-              receiptEsc(receiptPaymentInstructionLabel(S)) +
+              receiptEsc(receiptPaymentInstructionLabel(instrA4)) +
               "</span></div>";
             if (instrPtA4 === "paybill") {
-              var pbA4 = receiptPaybillInstructionFields(S);
+              var pbA4 = receiptPaybillInstructionFields(instrA4);
               if (pbA4.business) {
                 payBlock +=
                   "<div class='row'><span>Business</span><span>" +
@@ -10077,7 +10221,7 @@ var saleType = "sale";
                   "</span></div>";
               }
             } else {
-              receiptPaymentInstructionLines(S).forEach(function (ln) {
+              receiptPaymentInstructionLines(instrA4).forEach(function (ln) {
                 var m = String(ln).match(/^([^:]+):\s*(.+)$/);
                 if (m) {
                   payBlock +=
@@ -10131,10 +10275,10 @@ var saleType = "sale";
           "@media print{.receipt-browser-print-tip{display:none!important;}}" +
           "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
           ".c{text-align:center}.b{font-weight:800;color:#000}.bb{font-weight:900;color:#0b1d4a}.mut{color:#0b1d4a;font-size:0.92rem;font-weight:800}.sep{border-top:2px solid #000;margin:10px 0}" +
-          "table{width:100%;border-collapse:collapse}td{vertical-align:top;padding:4px 2px;font-weight:800;color:#000}.name{width:58%}.qty{width:12%;text-align:center;color:#0b1d4a;font-weight:900}.amt{width:30%;text-align:right;font-weight:900;color:#7f1d1d}" +
+          "table{width:100%;border-collapse:collapse}td{vertical-align:top;padding:4px 2px;font-weight:800;color:#000;border:none}.name{width:58%}.qty{width:12%;text-align:center;color:#000;font-weight:900}.amt{width:30%;text-align:right;font-weight:900;color:#000}" +
           ".row{display:flex;justify-content:space-between;gap:12px;margin:4px 0;padding:3px 0}.row>span:first-child{font-weight:900;color:#0b1d4a;text-transform:uppercase;font-size:0.82em;letter-spacing:0.04em}.row>span:last-child{font-weight:900;color:#000}" +
           ".row .b,.row .bb{color:#0b1d4a!important}" +
-          ".tot{font-size:1.18em;font-weight:900;color:#7f1d1d}.tot>span:first-child{color:#0b1d4a}" +
+          ".tot{font-size:1.22em;font-weight:900;color:#000}.tot>span:first-child{color:#000;font-weight:900}.tot>span:last-child,.tot strong{font-weight:900;color:#000}" +
           ".r{font-weight:800;color:#000}";
         var printTipHtml =
           "<div class=\"receipt-browser-print-tip\" role=\"status\"><strong>Print on paper:</strong> If the button says <strong>Save</strong>, open <strong>Destination</strong> and pick your physical printer (e.g. Brother), not &quot;Save as PDF&quot; — then the button becomes <strong>Print</strong>. Web pages cannot choose the printer for you.</div>";

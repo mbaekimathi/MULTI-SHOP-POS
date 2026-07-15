@@ -26,7 +26,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=37"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=42"></script>
   <script>
     (function () {
       function initReceiptSettingsToggles() {
@@ -59,6 +59,12 @@
           var isPaybill = sel && sel.value === "paybill";
           if (paybill) paybill.classList.toggle("hidden", !isPaybill);
           if (general) general.classList.toggle("hidden", !!isPaybill);
+          root.querySelectorAll('[name="receipt_payment_paybill_business"],[name="receipt_payment_paybill_account"]').forEach(function (el) {
+            el.disabled = !isPaybill;
+          });
+          root.querySelectorAll('[name="receipt_payment_detail_text"]').forEach(function (el) {
+            el.disabled = !!isPaybill;
+          });
         }
         function sync() {
           if (payW) payW.classList.toggle("hidden", !pay || !pay.checked);
@@ -121,6 +127,8 @@
       }
 
       function receiptSettingsFromForm() {
+        var payType = fieldVal("receipt_payment_type") || "buy_goods";
+        var isPaybill = payType === "paybill";
         return {
           receipt_width: fieldVal("receipt_width") || "80mm",
           font_size: fieldVal("receipt_font_size") || "12pt",
@@ -135,11 +143,10 @@
           show_server: !!fieldVal("receipt_show_server"),
           show_datetime: !!fieldVal("receipt_show_datetime"),
           show_payment_details: !!fieldVal("receipt_show_payment_details"),
-          payment_detail_type: fieldVal("receipt_payment_type") || "buy_goods",
-          payment_detail_text:
-            fieldVal("receipt_payment_type") === "paybill" ? "" : fieldVal("receipt_payment_detail_text") || "",
-          payment_paybill_business: fieldVal("receipt_payment_paybill_business") || "",
-          payment_paybill_account: fieldVal("receipt_payment_paybill_account") || "",
+          payment_detail_type: payType,
+          payment_detail_text: isPaybill ? "" : fieldVal("receipt_payment_detail_text") || "",
+          payment_paybill_business: isPaybill ? fieldVal("receipt_payment_paybill_business") || "" : "",
+          payment_paybill_account: isPaybill ? fieldVal("receipt_payment_paybill_account") || "" : "",
           show_attribution: !!fieldVal("receipt_show_attribution"),
           attribution_name: fieldVal("receipt_attribution_name") || "",
           receipt_header: fieldVal("receipt_header") || "",
@@ -167,6 +174,8 @@
       function updateReceiptPreview() {
         if (typeof window.receiptThermalMountSettingsPreview !== "function") return;
         window.receiptThermalMountSettingsPreview({
+          shopId: {{ shop.id|int }},
+          receiptPayBaseUrl: {{ receipt_pay_public_base_url()|tojson }},
           receiptSettings: receiptSettingsFromForm(),
           site: siteFromForm(),
         });

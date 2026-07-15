@@ -46,6 +46,18 @@ funcs = [
     "computePosTax",
     "buildPersistedReceiptPayload",
     "buildReceiptQrPayloadDetailsJson",
+    "receiptNormalizePaymentDetailType",
+    "receiptSanitizePaymentInstructionSettings",
+    "receiptPaymentInstructionLabel",
+    "receiptPaymentInstructionLines",
+    "receiptPaybillInstructionFields",
+    "receiptPaymentInstructionHasContent",
+    "receiptPaybillInstructionHtml",
+    "receiptCompactPayLineHtml",
+    "receiptPayRuntimeBoot",
+    "receiptPayShopId",
+    "receiptPayPublicBaseUrl",
+    "encodeReceiptPayToken",
     "buildReceiptQrPaymentPayload",
     "receiptQrCaptionText",
     "receiptQrImageUrl",
@@ -76,15 +88,8 @@ funcs = [
     "isReceiptTransactionPaymentLabel",
     "receiptTxnPaymentMethodTitle",
     "receiptShouldShowPayInstructions",
-    "receiptCompactPayLineHtml",
     "receiptExpandPaymentDetailLines",
     "receiptPaymentDetailKvRows",
-    "receiptNormalizePaymentDetailType",
-    "receiptPaymentInstructionLabel",
-    "receiptPaymentInstructionLines",
-    "receiptPaybillInstructionFields",
-    "receiptPaymentInstructionHasContent",
-    "receiptPaybillInstructionHtml",
     "isStockTransferReceipt",
     "buildThermalReceiptPlainHtml",
     "thermalReceiptDocExtractStyle",
@@ -132,6 +137,15 @@ out.append('          if (S.attribution_name === "" || S.attribution_name === nu
 out.append("          return RECEIPT_ATTRIBUTION_NAME_DEFAULT;")
 out.append("        }")
 out.append("  function syncReceiptThermalEngineBoot() {}")
+out.append("  function applyReceiptPayBoot(boot) {")
+out.append("    boot = boot || {};")
+out.append("    try {")
+out.append("      window.__RECEIPT_PAY_BOOT = {")
+out.append("        shopId: boot.shopId != null ? boot.shopId : ((window.__POS_BOOT || {}).shopId),")
+out.append('        receiptPayBaseUrl: String(boot.receiptPayBaseUrl || (window.__POS_BOOT || {}).receiptPayBaseUrl || "").trim(),')
+out.append("      };")
+out.append("    } catch (e) {}")
+out.append("  }")
 
 for fn in funcs:
     if fn == "buildThermalReceiptPlainHtml":
@@ -243,6 +257,7 @@ out.append("  }")
 out.append("")
 out.append("  window.receiptThermalRenderSettingsPreview = function (boot, variant) {")
 out.append("    ACTIVE_BOOT = boot || {};")
+out.append("    applyReceiptPayBoot(ACTIVE_BOOT);")
 out.append("    var payload = buildDemoReceiptPreviewPayload(boot);")
 out.append("    var fullHtml = buildThermalReceiptPlainHtml(payload, variant || \"customer\");")
 out.append("    return {")
@@ -255,7 +270,10 @@ out.append("  };")
 out.append("")
 out.append("  /** Shared thermal receipt engine — POS checkout uses the same HTML layout as IT preview. */")
 out.append("  window.receiptThermalEngine = {")
-out.append("    setBoot: function (boot) { ACTIVE_BOOT = boot || {}; },")
+out.append("    setBoot: function (boot) {")
+out.append("      ACTIVE_BOOT = boot || {};")
+out.append("      applyReceiptPayBoot(ACTIVE_BOOT);")
+out.append("    },")
 out.append("    buildPlainHtml: buildThermalReceiptPlainHtml,")
 out.append("    buildHtmlMulti: buildReceiptThermalHtmlMulti,")
 out.append("    variantsForCheckout: receiptVariantsForCheckout,")
@@ -266,6 +284,7 @@ out.append("  };")
 out.append("")
 out.append("  window.receiptThermalReprint = function (sale, items, boot) {")
 out.append("    ACTIVE_BOOT = boot || {};")
+out.append("    applyReceiptPayBoot(ACTIVE_BOOT);")
 out.append("    var payload = buildPersistedReprintPayload(sale, items);")
 out.append("    var variants = receiptVariantsForCheckout();")
 out.append("    return printThermalReceiptMulti(payload, variants);")

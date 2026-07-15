@@ -28,6 +28,15 @@
           return RECEIPT_ATTRIBUTION_NAME_DEFAULT;
         }
   function syncReceiptThermalEngineBoot() {}
+  function applyReceiptPayBoot(boot) {
+    boot = boot || {};
+    try {
+      window.__RECEIPT_PAY_BOOT = {
+        shopId: boot.shopId != null ? boot.shopId : ((window.__POS_BOOT || {}).shopId),
+        receiptPayBaseUrl: String(boot.receiptPayBaseUrl || (window.__POS_BOOT || {}).receiptPayBaseUrl || "").trim(),
+      };
+    } catch (e) {}
+  }
   function fmt(n) {
           var x = parseFloat(n);
           if (isNaN(x)) x = 0;
@@ -197,6 +206,7 @@
             mode: String(saleObj.sale_type || "sale") === "credit" ? "Credit" : "Sale",
             isQuotation: false,
             isReprint: true,
+            saleId: parseInt(saleObj.id || 0, 10) || 0,
             customerName: String(saleObj.customer_name || "Walk-in customer"),
             customerPhone: String(saleObj.customer_phone || "-"),
             employeeName: String(saleObj.employee_name || "Unknown"),
@@ -211,6 +221,7 @@
             includeTax: tx.includeTax,
             paymentTypeLabel: paymentTypeLabel,
             paymentDetailText: paymentDetailText,
+            mpesaReceiptNumber: mpesaRef,
             receiptHeader: (rs.receipt_header || "").trim(),
             receiptFooter: (rs.receipt_footer || "").trim(),
             creditDueDate: "",
@@ -246,18 +257,183 @@
             return "";
           }
         }
+  function receiptNormalizePaymentDetailType(rs) {
+          var raw =
+            (rs &&
+              (rs.payment_detail_type ||
+                rs.paymentDetailType ||
+                rs.receipt_payment_type ||
+                rs.receiptPaymentType)) ||
+            "buy_goods";
+          var pt = String(raw)
+            .trim()
+            .toLowerCase()
+            .replace(/[\s-]+/g, "_");
+          if (pt === "pay_bill" || pt === "paybill") return "paybill";
+          if (pt === "buygoods" || pt === "buy_goods") return "buy_goods";
+          if (pt === "sendmoney" || pt === "send_money") return "send_money";
+          return "buy_goods";
+        }
+  function receiptSanitizePaymentInstructionSettings(rs) {
+          var src = rs || {};
+          var out = {};
+          var k;
+          for (k in src) {
+            if (Object.prototype.hasOwnProperty.call(src, k)) out[k] = src[k];
+          }
+          var pt = receiptNormalizePaymentDetailType(out);
+          out.payment_detail_type = pt;
+          out.show_payment_details =
+            out.show_payment_details === true ||
+            out.show_payment_details === 1 ||
+            out.show_payment_details === "1" ||
+            out.show_payment_details === "true" ||
+            out.show_payment_details === "True";
+          if (pt === "paybill") {
+            out.payment_detail_text = "";
+            out.payment_paybill_business = String(out.payment_paybill_business || "").trim();
+            out.payment_paybill_account = String(out.payment_paybill_account || "").trim();
+          } else {
+            out.payment_paybill_business = "";
+            out.payment_paybill_account = "";
+            out.payment_detail_text = String(out.payment_detail_text || "")
+              .split(/\r?\n/)
+              .map(function (ln) {
+                return String(ln || "").trim();
+              })
+              .filter(function (ln) {
+                if (!ln) return false;
+                /* Drop bare headings / leftover lines for other Pay-via methods. */
+                if (pt === "buy_goods" && /^(pay\s*bill|paybill|send\s*money)\b/i.test(ln)) return false;
+                if (pt === "send_money" && /^(pay\s*bill|paybill|buy\s*goods)\b/i.test(ln)) return false;
+                return true;
+              })
+              .join("\n");
+          }
+          return out;
+        }
+  function receiptPaymentInstructionLabel(rs) {
+          var payLabels = { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" };
+          var pt = receiptNormalizePaymentDetailType(rs);
+          return payLabels[pt] || "Buy goods";
+        }
+  function receiptPaymentInstructionLines(rs) {
+          rs = receiptSanitizePaymentInstructionSettings(rs);
+          var pt = receiptNormalizePaymentDetailType(rs);
+          if (pt === "paybill") return [];
+          var text = String((rs && rs.payment_detail_text) || "").trim();
+          if (!text) return [];
+          return text
+            .split(/\r?\n/)
+            .map(function (ln) {
+              return String(ln).trim();
+            })
+            .filter(Boolean);
+        }
+  function receiptPaybillInstructionFields(rs) {
+          rs = receiptSanitizePaymentInstructionSettings(rs);
+          if (receiptNormalizePaymentDetailType(rs) !== "paybill") {
+            return { business: "", account: "" };
+          }
+          return {
+            business: String((rs && rs.payment_paybill_business) || "").trim(),
+            account: String((rs && rs.payment_paybill_account) || "").trim(),
+          };
+        }
+  function receiptPaymentInstructionHasContent(rs) {
+          rs = receiptSanitizePaymentInstructionSettings(rs);
+          if (!(rs && rs.show_payment_details)) return false;
+          /* Type is selected in settings — always printable when the toggle is on. */
+          return true;
+        }
+  function receiptPaybillInstructionHtml(rs) {
+          rs = receiptSanitizePaymentInstructionSettings(rs);
+          var fields = receiptPaybillInstructionFields(rs);
+          var label = receiptPaymentInstructionLabel(rs);
+          var parts = [];
+          parts.push('<div class="receipt-pay-lines receipt-body">');
+          parts.push(receiptCompactPayLineHtml("Pay via", label));
+          if (fields.business) parts.push(receiptCompactPayLineHtml("Business", fields.business));
+          if (fields.account) parts.push(receiptCompactPayLineHtml("Account", fields.account));
+          parts.push("</div>");
+          return (
+            '<div class="receipt-payment receipt-payment--instructions receipt-payment--compact receipt-payment--paybill">' +
+            parts.join("") +
+            "</div>"
+          );
+        }
+  function receiptCompactPayLineHtml(label, value) {
+          return (
+            '<div class="receipt-pay-line"><span class="receipt-pay-line__label">' +
+            receiptEsc(label) +
+            '</span><span class="receipt-pay-line__value">' +
+            receiptEsc(value) +
+            "</span></div>"
+          );
+        }
+  function receiptPayRuntimeBoot() {
+          var win = (typeof window !== "undefined" && window.__POS_BOOT) || {};
+          var active = (typeof window !== "undefined" && window.__RECEIPT_PAY_BOOT) || {};
+          return {
+            shopId: active.shopId != null ? active.shopId : win.shopId,
+            receiptPayBaseUrl: active.receiptPayBaseUrl || win.receiptPayBaseUrl || "",
+          };
+        }
+  function receiptPayShopId() {
+          var n = parseInt(receiptPayRuntimeBoot().shopId, 10);
+          return isNaN(n) ? 0 : n;
+        }
+  function receiptPayPublicBaseUrl() {
+          var configured = String(receiptPayRuntimeBoot().receiptPayBaseUrl || "").trim();
+          if (configured) return configured.replace(/\/?$/, "/");
+          try {
+            if (typeof window !== "undefined" && window.location && window.location.origin) {
+              return String(window.location.origin).replace(/\/?$/, "/") + "pay/receipt/";
+            }
+          } catch (e) {}
+          return "";
+        }
+  function encodeReceiptPayToken(obj) {
+          var json = JSON.stringify(obj || {});
+          var b64 = btoa(unescape(encodeURIComponent(json)));
+          return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        }
   function buildReceiptQrPaymentPayload(payload, S) {
-          S = S || receiptSettings();
-          var lines = [];
+          S = receiptSanitizePaymentInstructionSettings(S || receiptSettings());
           var pt = receiptNormalizePaymentDetailType(S);
+          var amt = fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0);
+          var obj = {
+            i: receiptPayShopId(),
+            k: pt === "paybill" ? "p" : pt === "send_money" ? "m" : "b",
+            x: String(amt),
+            r: String(payload.receiptNo || "").trim().slice(0, 40),
+            s: String(payload.shopName || "").trim().slice(0, 80),
+          };
+          var saleId = parseInt(payload.saleId || payload.sale_id || 0, 10) || 0;
+          if (saleId > 0) obj.sid = saleId;
+          if (pt === "paybill") {
+            var fields = receiptPaybillInstructionFields(S);
+            if (fields.business) obj.b = String(fields.business).slice(0, 80);
+            if (fields.account) obj.a = String(fields.account).slice(0, 80);
+          } else {
+            var detail = String((S && S.payment_detail_text) || "").trim().slice(0, 200);
+            if (detail) obj.d = detail;
+          }
+          var base = receiptPayPublicBaseUrl();
+          if (base) {
+            try {
+              return base + encodeReceiptPayToken(obj);
+            } catch (e) {}
+          }
+          /* Offline / no origin fallback — plain pay instructions for camera notes. */
+          var lines = [];
           var label = receiptPaymentInstructionLabel(S);
-          /* Keep payload short so QR modules stay large and easy to scan. */
           lines.push("PAY");
           lines.push(label);
           if (pt === "paybill") {
-            var fields = receiptPaybillInstructionFields(S);
-            if (fields.business) lines.push("Biz " + fields.business);
-            if (fields.account) lines.push("Acc " + fields.account);
+            var pb = receiptPaybillInstructionFields(S);
+            if (pb.business) lines.push("Biz " + pb.business);
+            if (pb.account) lines.push("Acc " + pb.account);
           } else {
             var detailLines = receiptPaymentInstructionLines(S);
             if (detailLines.length) {
@@ -266,7 +442,6 @@
               });
             }
           }
-          var amt = fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0);
           if (parseFloat(String(amt).replace(",", ".")) > 0.000001) {
             lines.push("Amt " + amt);
           }
@@ -482,13 +657,20 @@
           return [s.slice(0, W)];
         }
   function thermalKvRowHtml(label, value, extraClass) {
+          var isGrand = String(extraClass || "").indexOf("receipt-kv__row--grand") >= 0;
+          var lab = receiptEsc(label);
+          var val = receiptEsc(value);
+          if (isGrand) {
+            lab = "<strong>" + lab + "</strong>";
+            val = "<strong>" + val + "</strong>";
+          }
           return (
             '<div class="receipt-kv__row' +
             (extraClass ? " " + extraClass : "") +
             '"><span class="receipt-kv__label">' +
-            receiptEsc(label) +
+            lab +
             '</span><span class="receipt-kv__value">' +
-            receiptEsc(value) +
+            val +
             "</span></div>"
           );
         }
@@ -522,15 +704,15 @@
               '<td class="receipt-items__qty">' +
               receiptEsc(vals.qty) +
               "</td>" +
-              '<td class="receipt-items__amt">' +
+              '<td class="receipt-items__amt"><strong>' +
               receiptEsc(vals.amt) +
-              "</td>" +
+              "</strong></td>" +
               "</tr>";
             if (l && l.discounted) {
               rows +=
-                '<tr class="receipt-items__disc-row"><td colspan="3" class="receipt-items__disc">* Discount save ' +
+                '<tr class="receipt-items__disc-row"><td colspan="3" class="receipt-items__disc"><strong>* Discount save ' +
                 receiptEsc(fmt(l.lineDiscount || 0)) +
-                "</td></tr>";
+                "</strong></td></tr>";
             }
           });
           return (
@@ -629,15 +811,6 @@
   function receiptShouldShowPayInstructions(payload) {
           return true;
         }
-  function receiptCompactPayLineHtml(label, value) {
-          return (
-            '<div class="receipt-pay-line"><span class="receipt-pay-line__label">' +
-            receiptEsc(label) +
-            '</span><span class="receipt-pay-line__value">' +
-            receiptEsc(value) +
-            "</span></div>"
-          );
-        }
   function receiptExpandPaymentDetailLines(raw) {
           var out = [];
           String(raw || "")
@@ -661,59 +834,6 @@
             else plain.push(ln);
           });
           return { rows: rows, plain: plain };
-        }
-  function receiptNormalizePaymentDetailType(rs) {
-          var pt = String((rs && rs.payment_detail_type) || "buy_goods")
-            .trim()
-            .toLowerCase();
-          if (pt === "paybill" || pt === "send_money" || pt === "buy_goods") return pt;
-          return "buy_goods";
-        }
-  function receiptPaymentInstructionLabel(rs) {
-          var payLabels = { buy_goods: "Buy goods", paybill: "Pay bill", send_money: "Send money" };
-          var pt = receiptNormalizePaymentDetailType(rs);
-          return payLabels[pt] || "Buy goods";
-        }
-  function receiptPaymentInstructionLines(rs) {
-          var pt = receiptNormalizePaymentDetailType(rs);
-          if (pt === "paybill") return [];
-          var text = String((rs && rs.payment_detail_text) || "").trim();
-          if (!text) return [];
-          return text
-            .split(/\r?\n/)
-            .map(function (ln) {
-              return String(ln).trim();
-            })
-            .filter(Boolean);
-        }
-  function receiptPaybillInstructionFields(rs) {
-          if (receiptNormalizePaymentDetailType(rs) !== "paybill") {
-            return { business: "", account: "" };
-          }
-          return {
-            business: String((rs && rs.payment_paybill_business) || "").trim(),
-            account: String((rs && rs.payment_paybill_account) || "").trim(),
-          };
-        }
-  function receiptPaymentInstructionHasContent(rs) {
-          if (!(rs && rs.show_payment_details)) return false;
-          /* Type is selected in settings — always printable when the toggle is on. */
-          return true;
-        }
-  function receiptPaybillInstructionHtml(rs) {
-          var fields = receiptPaybillInstructionFields(rs);
-          var label = receiptPaymentInstructionLabel(rs);
-          var parts = [];
-          parts.push('<div class="receipt-pay-lines receipt-body">');
-          parts.push(receiptCompactPayLineHtml("Pay via", label));
-          if (fields.business) parts.push(receiptCompactPayLineHtml("Business", fields.business));
-          if (fields.account) parts.push(receiptCompactPayLineHtml("Account", fields.account));
-          parts.push("</div>");
-          return (
-            '<div class="receipt-payment receipt-payment--instructions receipt-payment--compact receipt-payment--paybill">' +
-            parts.join("") +
-            "</div>"
-          );
         }
   function isStockTransferReceipt(payload) {
           return String((payload && payload.mode) || "")
@@ -856,16 +976,15 @@
               lh +
               ";font-variant-numeric:tabular-nums}" +
                 ".receipt-items__name{text-align:left;width:66%;padding-right:0.5mm;white-space:normal;word-break:break-word;overflow-wrap:break-word;font-size:0.94em}" +
-                ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;padding:0}" +
-                ".receipt-items__amt{width:22%;text-align:right;white-space:nowrap;font-weight:" +
-                (boldHeaders ? "800" : "700") +
-                ";font-size:0.88em;padding:0 1.2mm 0 0;box-sizing:border-box}" +
+                ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;font-weight:800;padding:0}" +
+                ".receipt-items__amt{width:22%;text-align:right;white-space:nowrap;font-weight:900;font-size:0.95em;color:#000;padding:0 1.2mm 0 0;box-sizing:border-box}" +
                 ".receipt-items thead th.receipt-items__qty,.receipt-items thead th.receipt-items__amt{font-size:0.82em;letter-spacing:0.01em;padding:0}" +
               ".receipt-items--transfer .receipt-items__name{width:72%}" +
               ".receipt-items--transfer .receipt-items__qty{width:28%}" +
-              ".receipt-items tbody tr+tr td{border-top:1px solid #000}" +
-              ".receipt-items__disc-row td{border-top:none!important;padding-top:0}" +
-              ".receipt-items__disc{font-size:0.86em;font-style:normal;font-weight:800;color:#7f1d1d;padding:0 0 " +
+              ".receipt-items tbody tr+tr td{border-top:none;border-bottom:none}" +
+              ".receipt-items tbody td{border:none}" +
+              ".receipt-items__disc-row td{border-top:none!important;border-bottom:none!important;padding-top:0}" +
+              ".receipt-items__disc{font-size:0.92em;font-style:normal;font-weight:900;color:#000;padding:0 0 " +
               mm(0.5) +
               "!important}" +
               ".receipt-totals{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:" +
@@ -875,10 +994,9 @@
               mm(0.6) +
               ";padding-top:" +
               mm(0.8) +
-              ";border-top:1px solid #000}" +
-              ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-size:1.04em;font-weight:" +
-              (boldHeaders ? "900" : "800") +
-              "}" +
+              ";border-top:2px solid #000}" +
+              ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-totals .receipt-kv__row--grand strong{font-size:1.12em;font-weight:900;color:#000}" +
+              ".receipt-totals .receipt-kv__row--grand .receipt-kv__value{letter-spacing:0.01em}" +
               ".receipt-payment{border-top:1px solid #000;padding:" +
               mm(0.55) +
               " 0.8mm " +
@@ -996,8 +1114,11 @@
               preWeight +
               "!important}" +
               ".receipt-thermal,.receipt-thermal *:not(img){font-weight:800!important}" +
+              ".receipt-items__amt,.receipt-items__amt *,.receipt-items__disc,.receipt-items__disc *,.receipt-totals .receipt-kv__row--grand,.receipt-totals .receipt-kv__row--grand *,.receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-weight:900!important;color:#000!important}" +
               ".receipt-thermal-shopname,.receipt-kv__label,.receipt-payment__heading,.receipt-qr-caption{color:#0b1d4a!important}" +
-              ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-items__amt{color:#7f1d1d!important}" +
+              ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-totals .receipt-kv__row--grand strong{color:#000!important;font-weight:900!important;font-size:1.14em!important}" +
+              ".receipt-items__amt,.receipt-items__disc{color:#000!important;font-weight:900!important}" +
+              ".receipt-items tbody tr+tr td,.receipt-items tbody td,.receipt-items tbody th{border:none!important;box-shadow:none!important}" +
               ".receipt-thermal-rule,pre.receipt--meta,pre.receipt--totals,pre.receipt--payment,.receipt-kv,.receipt-totals{border-color:#000!important}" +
               ".receipt-thermal{padding-left:1.4mm!important;padding-right:4.5mm!important;overflow:visible!important}" +
               "pre.receipt,.receipt-body,.receipt-kv,.receipt-items-wrap,.receipt-totals,.receipt-payment{overflow:visible!important;max-width:100%!important}" +
@@ -1201,12 +1322,13 @@
 
           function paymentInstructionBlockHtml() {
             if (!showPrices || isCompany || !receiptPaymentInstructionHasContent(S)) return "";
-            var pt = receiptNormalizePaymentDetailType(S);
+            var instr = receiptSanitizePaymentInstructionSettings(S);
+            var pt = receiptNormalizePaymentDetailType(instr);
             if (pt === "paybill") {
-              return receiptPaybillInstructionHtml(S);
+              return receiptPaybillInstructionHtml(instr);
             }
-            var label = receiptPaymentInstructionLabel(S);
-            var lines = receiptPaymentInstructionLines(S);
+            var label = receiptPaymentInstructionLabel(instr);
+            var lines = receiptPaymentInstructionLines(instr);
             var parts = ['<div class="receipt-pay-lines receipt-body">'];
             parts.push(receiptCompactPayLineHtml("Pay via", label || "Payment"));
             lines.forEach(function (ln) {
@@ -1501,55 +1623,12 @@
   var RECEIPT_PREVIEW_PRINT_CSS = (
     ".receipt-browser-print-tip{display:none!important}" +
     "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +
-    ".receipt-thermal{width:100%!important;max-width:100%!important;box-sizing:border-box!important;border:1.5px solid #111!important;padding:2mm 4.2mm 2mm 1.4mm!important;background:#fff!important}" +
+    ".receipt-thermal{width:100%!important;max-width:100%!important;padding-left:1mm!important;padding-right:1mm!important}" +
     ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}"
   );
 
   function receiptThermalPrepareHtmlForPrint(fullHtml) {
     return String(fullHtml || "").replace("</style>", RECEIPT_PREVIEW_PRINT_CSS + "</style>");
-  }
-
-  function receiptCssSizeToPx(cssSize) {
-    var s = String(cssSize == null ? "" : cssSize).trim();
-    var n = parseFloat(s, 10);
-    if (isNaN(n) || n <= 0) n = 12;
-    if (/px$/i.test(s)) return n.toFixed(2) + "px";
-    return ((n * 96) / 72).toFixed(2) + "px";
-  }
-
-  function receiptThermalPrepareHtmlForPreview(fullHtml, widthMm) {
-    var w = widthMm === 58 ? 58 : 80;
-    var fontPx = receiptCssSizeToPx(receiptThermalFontCss());
-    var dens = receiptThermalDensityFactor();
-    var lh = receiptThermalLineHeightCss();
-    var css =
-      ".receipt-browser-print-tip{display:none!important}" +
-      "html{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}" +
-      "html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important;height:auto!important;min-height:0!important;" +
-      "width:" +
-      w +
-      "mm!important;min-width:" +
-      w +
-      "mm!important;max-width:" +
-      w +
-      "mm!important;overflow:hidden!important}" +
-      ".receipt-thermal{box-sizing:border-box!important;width:" +
-      w +
-      "mm!important;min-width:" +
-      w +
-      "mm!important;max-width:" +
-      w +
-      "mm!important;height:auto!important;min-height:0!important;border:1.5px solid #111!important;padding:2mm 4.2mm 2mm 1.4mm!important;background:#fff!important;font-size:" +
-      fontPx +
-      "!important;line-height:" +
-      lh +
-      "!important;overflow-wrap:anywhere!important;word-break:break-word!important}" +
-      ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap," +
-      "pre.receipt{width:100%!important;max-width:100%!important}" +
-      ".receipt-thermal{--rd:" +
-      dens +
-      "}";
-    return String(fullHtml || "").replace("</style>", css + "</style>");
   }
 
   function buildDemoReceiptPreviewPayload(opts) {
@@ -1569,15 +1648,13 @@
     var startNum = String(rs.starting_number || "1001").trim() || "1001";
     var receiptNo = prefix + "-" + startNum;
     var company = String(site.company_name || "").trim();
-    var shopLoc = String(site.shop_location || site.company_location_name || "").trim();
-    if (!shopLoc && rs.show_address) shopLoc = "123 Market Street";
     return {
       receiptNo: receiptNo,
       printedAt: new Date().toLocaleString(),
       shopName: String(site.shop_name || company || "Demo Shop"),
       companyName: company,
       shopCode: String(site.shop_code || "").trim(),
-      shopLocation: shopLoc,
+      shopLocation: String(site.shop_location || site.company_location_name || "").trim(),
       receiptLogoUrl: String(site.receipt_logo_url || site.app_icon_url || "").trim(),
       mode: "Sale",
       isQuotation: false,
@@ -1604,172 +1681,34 @@
 
   window.receiptThermalRenderSettingsPreview = function (boot, variant) {
     ACTIVE_BOOT = boot || {};
-    var bootCopy = boot || {};
-    var rs = bootCopy.receiptSettings || {};
-    var site = Object.assign({}, bootCopy.site || {});
-    if (rs.show_contact) {
-      if (!String(site.company_phone || "").trim()) site.company_phone = "+254 700 000 000";
-      if (!String(site.company_email || "").trim()) site.company_email = "shop@example.com";
-    }
-    ACTIVE_BOOT = { receiptSettings: rs, site: site, printing: bootCopy.printing || {} };
-    var payload = buildDemoReceiptPreviewPayload({ receiptSettings: rs, site: site });
+    applyReceiptPayBoot(ACTIVE_BOOT);
+    var payload = buildDemoReceiptPreviewPayload(boot);
     var fullHtml = buildThermalReceiptPlainHtml(payload, variant || "customer");
-    var widthMm = receiptRollWidthMm();
     return {
-      widthMm: widthMm,
-      fontSize: receiptThermalFontCss(),
-      fontBucket: receiptFontSizeBucket(),
-      density: receiptThermalDensityFactor(),
-      paperScale: receiptThermalPaperScale(),
+      widthMm: receiptRollWidthMm(),
       fullHtml: fullHtml,
-      previewHtml: receiptThermalPrepareHtmlForPreview(fullHtml, widthMm),
       style: thermalReceiptDocExtractStyle(fullHtml),
       body: thermalReceiptDocExtractBodyInner(fullHtml),
     };
   };
 
-  window.receiptThermalMountSettingsPreview = function (boot, opts) {
-    opts = opts || {};
-    var root = opts.root || document.getElementById("receipt-preview-root");
-    var paper = opts.paper || document.getElementById("receipt-print-preview");
-    var caption = opts.caption || document.getElementById("receipt-preview-caption");
-    if (!root || !paper) return false;
-    if (typeof window.receiptThermalRenderSettingsPreview !== "function") return false;
-
-    var rendered = window.receiptThermalRenderSettingsPreview(boot);
-    var rollMm = rendered.widthMm === 58 ? 58 : 80;
-    var scale = Number(rendered.paperScale);
-    if (!(scale > 0.2 && scale <= 1.5)) scale = 1;
-    var rollPx = rollMm === 58 ? 219 : 302;
-    var paperPx = Math.max(120, Math.round(rollPx * scale));
-
-    paper.setAttribute("data-roll", String(rollMm));
-    paper.setAttribute("data-font", String(rendered.fontBucket || "large"));
-    paper.style.setProperty("--receipt-roll-px", paperPx + "px");
-    paper.style.setProperty("--receipt-paper-scale", String(scale));
-    paper.style.width = paperPx + "px";
-    paper.style.maxWidth = "min(100%, " + paperPx + "px)";
-    paper.style.minWidth = "0";
-    paper.style.overflow = "hidden";
-    /* Clear previous Large height so Small does not keep leftover paper. */
-    paper.style.height = "auto";
-    root.style.height = "auto";
-
-    var bucketLabel =
-      rendered.fontBucket === "small" ? "Small" : rendered.fontBucket === "medium" ? "Medium" : "Large";
-    if (caption) {
-      caption.textContent =
-        "Sample customer copy · " +
-        rollMm +
-        "mm roll · " +
-        bucketLabel +
-        " paper — width and length grow/shrink with font size.";
-    }
-
-    var iframe = root.querySelector("iframe");
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      iframe.setAttribute("title", "Receipt print preview");
-      iframe.setAttribute("aria-label", "Receipt print preview");
-      iframe.setAttribute("scrolling", "no");
-      iframe.style.border = "0";
-      iframe.style.display = "block";
-      iframe.scrolling = "no";
-      root.innerHTML = "";
-      root.appendChild(iframe);
-    }
-
-    /* Full roll layout inside iframe; scale root so paper frame matches font size. */
-    root.style.width = rollPx + "px";
-    root.style.maxWidth = "none";
-    root.style.transformOrigin = "top left";
-    root.style.transform = "scale(" + scale + ")";
-    root.style.marginBottom = "0";
-    iframe.style.width = rollPx + "px";
-    iframe.style.maxWidth = "none";
-    iframe.style.height = "0";
-
-    var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-    if (!doc) return false;
-    var html = rendered.previewHtml || rendered.fullHtml || "";
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    function measureSlipHeight() {
-      var thermal = doc.querySelector(".receipt-thermal");
-      if (thermal) {
-        var rect = thermal.getBoundingClientRect();
-        var th = Math.max(
-          rect.height || 0,
-          thermal.scrollHeight || 0,
-          thermal.offsetHeight || 0
-        );
-        if (th > 1) return Math.ceil(th);
-      }
-      var body = doc.body;
-      var el = doc.documentElement;
-      var h = 0;
-      if (body) {
-        var kids = body.children;
-        for (var i = 0; i < kids.length; i++) {
-          h = Math.max(h, kids[i].offsetTop + kids[i].offsetHeight);
-        }
-        h = Math.max(h, body.scrollHeight || 0);
-      }
-      if (el) h = Math.max(h, el.scrollHeight || 0);
-      return Math.max(1, Math.ceil(h));
-    }
-
-    function resizeFrame() {
-      try {
-        /* Collapse first — otherwise scrollHeight keeps the previous Large iframe size. */
-        iframe.style.height = "0px";
-        root.style.height = "0px";
-        paper.style.height = "0px";
-        void iframe.offsetHeight;
-
-        var h = measureSlipHeight();
-        iframe.style.height = h + "px";
-        root.style.width = rollPx + "px";
-        root.style.height = h + "px";
-        /* Pull layout up so transform scale does not leave blank frame space. */
-        root.style.marginBottom = Math.round(h * (scale - 1)) + "px";
-        paper.style.width = paperPx + "px";
-        paper.style.height = Math.max(1, Math.ceil(h * scale)) + "px";
-      } catch (e) {}
-    }
-
-    resizeFrame();
-    waitForIframeImages(
-      doc,
-      function () {
-        resizeFrame();
-        setTimeout(resizeFrame, 40);
-        setTimeout(resizeFrame, 200);
-      },
-      4000
-    );
-    setTimeout(resizeFrame, 80);
-    setTimeout(resizeFrame, 250);
-    setTimeout(resizeFrame, 500);
-    return true;
-  };
-
   /** Shared thermal receipt engine — POS checkout uses the same HTML layout as IT preview. */
   window.receiptThermalEngine = {
-    setBoot: function (boot) { ACTIVE_BOOT = boot || {}; },
+    setBoot: function (boot) {
+      ACTIVE_BOOT = boot || {};
+      applyReceiptPayBoot(ACTIVE_BOOT);
+    },
     buildPlainHtml: buildThermalReceiptPlainHtml,
     buildHtmlMulti: buildReceiptThermalHtmlMulti,
     variantsForCheckout: receiptVariantsForCheckout,
     docExtractStyle: thermalReceiptDocExtractStyle,
     docExtractBody: thermalReceiptDocExtractBodyInner,
     prepareHtmlForPrint: receiptThermalPrepareHtmlForPrint,
-    prepareHtmlForPreview: receiptThermalPrepareHtmlForPreview,
   };
 
   window.receiptThermalReprint = function (sale, items, boot) {
     ACTIVE_BOOT = boot || {};
+    applyReceiptPayBoot(ACTIVE_BOOT);
     var payload = buildPersistedReprintPayload(sale, items);
     var variants = receiptVariantsForCheckout();
     return printThermalReceiptMulti(payload, variants);

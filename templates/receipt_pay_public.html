@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}{% if sale_status and sale_status.paid %}Paid — {% else %}Pay — {% endif %}{{ pay.shop_name if pay is defined and pay.shop_name else (shop.shop_name if shop is defined else "Shop") }}{% endblock %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-pay-public.css') }}?v=2" />
+{% endblock %}
+{% block body %}
+  {% set _co = site_settings.company_name if site_settings and site_settings.company_name else (company_name or 'Point of Sale') %}
+  {% if shop is defined and shop.shop_logo %}
+    {% set _logo = url_for('static', filename=shop.shop_logo) %}
+  {% elif site_settings and site_settings.app_icon %}
+    {% set _logo = url_for('static', filename=site_settings.app_icon) %}
+  {% else %}
+    {% set _logo = url_for('static', filename='app-icon.svg') %}
+  {% endif %}
+  {% set _paid = sale_status and sale_status.paid %}
+
+  <section class="rpay-page">
+    {% if error %}
+    <div class="rpay-shell">
+      <div class="rpay-card rpay-card--solo">
+        <div class="rpay-brand">
+          <img class="rpay-brand__logo" src="{{ _logo }}" alt="" width="48" height="48" />
+          <div>
+            <p class="rpay-brand__name">{{ _co }}</p>
+            <p class="rpay-brand__tag">Receipt payment</p>
+          </div>
+        </div>
+        <h1 class="rpay-card__title">Payment unavailable</h1>
+        <p class="rpay-card__error">{{ error }}</p>
+      </div>
+    </div>
+    {% else %}
+    <div class="rpay-shell">
+      <header class="rpay-topbar">
+        <div class="rpay-brand">
+          <img class="rpay-brand__logo" src="{{ _logo }}" alt="{{ _co }}" width="48" height="48" loading="eager" decoding="async" />
+          <div>
+            <p class="rpay-brand__name">{{ _co }}</p>
+            <p class="rpay-brand__tag">{{ pay.shop_name or shop.shop_name }}</p>
+          </div>
+        </div>
+        {% if _paid %}
+        <p class="rpay-topbar__badge rpay-topbar__badge--ok">
+          <span class="rpay-topbar__badge-dot" aria-hidden="true"></span>
+          Payment successful
+        </p>
+        {% else %}
+        <p class="rpay-topbar__badge">
+          <span class="rpay-topbar__badge-dot" aria-hidden="true"></span>
+          Pay with M-Pesa
+        </p>
+        {% endif %}
+      </header>
+
+      {% if _paid %}
+      <article class="rpay-card rpay-card--success">
+        <div class="rpay-success-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <p class="rpay-card__eyebrow">Receipt payment</p>
+        <h1 class="rpay-card__title">Payment was successful</h1>
+        <p class="rpay-card__receipt">
+          Receipt {{ sale_status.receipt_number or pay.receipt_no or '—' }}
+        </p>
+
+        <div class="rpay-amount rpay-amount--ok" role="group" aria-label="Amount paid">
+          <span class="rpay-amount__label">Amount paid</span>
+          <span class="rpay-amount__value">KES {{ "%.2f"|format(sale_status.total_amount or pay.amount or 0) }}</span>
+        </div>
+
+        {% if sale_status.mpesa_receipt_number %}
+        <div class="rpay-code" role="group" aria-label="Payment code">
+          <span class="rpay-code__label">Payment code</span>
+          <span class="rpay-code__value">{{ sale_status.mpesa_receipt_number }}</span>
+          <button type="button" class="rpay-copy" data-copy-target data-copy-value="{{ sale_status.mpesa_receipt_number }}">Copy code</button>
+        </div>
+        {% endif %}
+
+        <div class="rpay-details">
+          {% for row in sale_status.details or [] %}
+          <div class="rpay-detail">
+            <span class="rpay-detail__label">{{ row.label }}</span>
+            <span class="rpay-detail__value">{{ row.value }}</span>
+            {% if row.copy %}
+            <button type="button" class="rpay-copy" data-copy-target data-copy-value="{{ row.value }}">Copy</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <p class="rpay-foot">This receipt is fully paid. Keep the payment code for your records.</p>
+        <p id="rpay-copy-status" class="rpay-status" role="status" aria-live="polite"></p>
+      </article>
+      {% else %}
+      <article class="rpay-card">
+        <p class="rpay-card__eyebrow">Payment instructions</p>
+        <h1 class="rpay-card__title">{{ pay.label }}</h1>
+        {% if pay.receipt_no %}
+        <p class="rpay-card__receipt">Receipt {{ pay.receipt_no }}</p>
+        {% endif %}
+
+        <div class="rpay-amount" role="group" aria-label="Amount due">
+          <span class="rpay-amount__label">Amount due</span>
+          <span class="rpay-amount__value" data-copy="{{ '%.2f'|format(pay.amount or 0) }}">KES {{ "%.2f"|format(pay.amount or 0) }}</span>
+          <button type="button" class="rpay-copy" data-copy-target data-copy-value="{{ '%.2f'|format(pay.amount or 0) }}">Copy amount</button>
+        </div>
+
+        <div class="rpay-details">
+          {% if pay.kind == 'paybill' %}
+            {% if pay.business %}
+            <div class="rpay-detail">
+              <span class="rpay-detail__label">Business number</span>
+              <span class="rpay-detail__value">{{ pay.business }}</span>
+              <button type="button" class="rpay-copy" data-copy-target data-copy-value="{{ pay.business }}">Copy</button>
+            </div>
+            {% endif %}
+            {% if pay.account %}
+            <div class="rpay-detail">
+              <span class="rpay-detail__label">Account number</span>
+              <span class="rpay-detail__value">{{ pay.account }}</span>
+              <button type="button" class="rpay-copy" data-copy-target data-copy-value="{{ pay.account }}">Copy</button>
+            </div>
+            {% endif %}
+            {% if not pay.business and not pay.account %}
+            <p class="rpay-card__hint">Ask the shop for the Pay Bill business and account numbers.</p>
+            {% endif %}
+          {% else %}
+            {% if pay.detail_lines %}
+              {% for line in pay.detail_lines %}
+              <div class="rpay-detail">
+                <span class="rpay-detail__label">{% if pay.kind == 'send_money' %}Phone{% else %}Till / Buy goods{% endif %}{% if pay.detail_lines|length > 1 %} {{ loop.index }}{% endif %}</span>
+                <span class="rpay-detail__value">{{ line }}</span>
+                <button type="button" class="rpay-copy" data-copy-target data-copy-value="{{ line }}">Copy</button>
+              </div>
+              {% endfor %}
+            {% else %}
+            <p class="rpay-card__hint">Ask the shop for the {{ pay.label|lower }} details on your receipt.</p>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <ol class="rpay-steps" aria-label="How to pay">
+          {% for step in pay.steps %}
+          <li>{{ step }}</li>
+          {% endfor %}
+        </ol>
+
+        <p class="rpay-foot">Open M-Pesa on this phone and follow the steps above. No extra app is required.</p>
+        <p id="rpay-copy-status" class="rpay-status" role="status" aria-live="polite"></p>
+      </article>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block scripts %}
+  {% if not error %}
+  <script>
+  (function () {
+    var statusEl = document.getElementById("rpay-copy-status");
+    function flash(msg) {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      window.clearTimeout(flash._t);
+      flash._t = window.setTimeout(function () {
+        statusEl.textContent = "";
+      }, 1800);
+    }
+    function copyText(text) {
+      text = String(text || "");
+      if (!text) return Promise.reject();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          if (document.execCommand("copy")) resolve();
+          else reject();
+        } catch (e) {
+          reject(e);
+        } finally {
+          document.body.removeChild(ta);
+        }
+      });
+    }
+    document.querySelectorAll("[data-copy-target]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var val = btn.getAttribute("data-copy-value") || "";
+        copyText(val)
+          .then(function () {
+            flash("Copied");
+          })
+          .catch(function () {
+            flash("Could not copy — select the text manually");
+          });
+      });
+    });
+  })();
+  </script>
+  {% endif %}
+{% endblock %}
