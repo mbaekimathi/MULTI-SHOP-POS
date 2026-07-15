@@ -11897,6 +11897,7 @@ def it_support_credit_payments_customer():
         shop_id=None,
         customer_name=customer_name,
         customer_phone=customer_phone,
+        company_credit_scope=True,
         embed_record_payment=True,
         credit_payment_return_to="customer",
         credit_note_statement_full=is_full,
@@ -11976,10 +11977,19 @@ def company_credit_payments_customer():
     should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
     is_full, analytics_filter = _credit_note_statement_from_request()
     live = _is_credit_note_live_request()
+    af = None if is_full else analytics_filter
+    statement_q = _credit_note_statement_query_args(
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        is_full_account=is_full,
+        analytics_filter=analytics_filter,
+    )
+    if back_shop_id:
+        statement_q["back_shop_id"] = back_shop_id
     note_ctx = _company_customer_credit_note_context(
         customer_name,
         customer_phone,
-        analytics_filter=None if is_full else analytics_filter,
+        analytics_filter=af,
         lightweight=live,
     )
     shop_stub = {"shop_name": "All shops", "shop_code": ""}
@@ -12003,6 +12013,11 @@ def company_credit_payments_customer():
         embed_record_payment=True,
         company_should_print=should_print,
         credit_note_statement_full=is_full,
+        company_credit_scope=True,
+        credit_note_pdf_url=url_for(
+            "company_credit_payments_customer_pdf",
+            **statement_q,
+        ),
         **note_ctx,
     )
 
@@ -18513,11 +18528,19 @@ def shop_credit_payments_customer(shop_id: int):
         return canon_redirect
     is_full, analytics_filter = _credit_note_statement_from_request()
     live = _is_credit_note_live_request()
+    af = None if is_full else analytics_filter
+    statement_q = _credit_note_statement_query_args(
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        shop_id=shop_id,
+        is_full_account=is_full,
+        analytics_filter=analytics_filter,
+    )
     note_ctx = _shop_customer_credit_note_context(
         shop_id,
         customer_name,
         customer_phone,
-        analytics_filter=None if is_full else analytics_filter,
+        analytics_filter=af,
         lightweight=live,
     )
     if live:
@@ -18533,12 +18556,18 @@ def shop_credit_payments_customer(shop_id: int):
     return render_template(
         "shop_credit_payments_customer.html",
         shop=shop,
+        shop_id=shop_id,
         customer_name=customer_name,
         customer_phone=customer_phone,
         embed_record_payment=True,
         payment_return_to="customer",
         pos_allow_credit_sale=True,
         credit_note_statement_full=is_full,
+        credit_note_pdf_url=url_for(
+            "shop_credit_payments_customer_pdf",
+            shop_id=shop_id,
+            **{k: v for k, v in statement_q.items() if k != "shop_id"},
+        ),
         **note_ctx,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -21196,19 +21225,39 @@ def shop_customer_analytics_detail(shop_id: int):
         }
         transactions = []
         items_by_sale_id = {}
-    note_ctx = _shop_customer_credit_note_context(
+    allow_credit = _shop_pos_allow_credit_sale(shop)
+    is_full, cn_filter = _credit_note_statement_from_request()
+    live = _is_credit_note_live_request()
+    cn_af = None if is_full else cn_filter
+    statement_q = _credit_note_statement_query_args(
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        shop_id=shop_id,
+        is_full_account=is_full,
+        analytics_filter=cn_filter,
+    )
+    credit_note_ctx = _shop_customer_credit_note_context(
         shop_id,
         customer_name,
         customer_phone,
-        analytics_filter=analytics_filter,
+        analytics_filter=cn_af,
         analytics_scope=analytics_scope,
+        lightweight=live,
     )
-    # note_ctx also carries analytics_scope and credit-only line items; keep full tx map for raw view.
-    note_ctx.pop("transaction_items_by_sale_id", None)
-    allow_credit = _shop_pos_allow_credit_sale(shop)
+    if live and allow_credit:
+        return _render_credit_note_live_fragment(
+            shop=shop,
+            shop_id=shop_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            is_full=is_full,
+            note_ctx=credit_note_ctx,
+            company_credit_scope=False,
+        )
     return render_template(
         "shop_customer_analytics_detail.html",
         shop=shop,
+        shop_id=shop_id,
         customer_name=customer_name,
         customer_phone=customer_phone,
         analytics_filter=analytics_filter,
@@ -21218,7 +21267,13 @@ def shop_customer_analytics_detail(shop_id: int):
         embed_record_payment=allow_credit,
         payment_return_to="analytics",
         pos_allow_credit_sale=allow_credit,
-        **note_ctx,
+        credit_note_statement_full=is_full,
+        credit_note_pdf_url=url_for(
+            "shop_credit_payments_customer_pdf",
+            shop_id=shop_id,
+            **{k: v for k, v in statement_q.items() if k != "shop_id"},
+        ),
+        **credit_note_ctx,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",
@@ -21586,6 +21641,7 @@ def shop_settings_receipt(shop_id: int):
     if gate is not None:
         return gate
     if request.method == "POST":
+        wants_json = _request_wants_json()
         use_custom_receipt = (request.form.get("shop_receipt_custom") or "").strip() == "1"
         receipt_json = json.dumps(_receipt_settings_from_form(), separators=(",", ":")) if use_custom_receipt else None
         try:
@@ -21604,6 +21660,10 @@ def shop_settings_receipt(shop_id: int):
             )
         except Exception:
             ok = False
+        if wants_json:
+            if ok:
+                return jsonify({"ok": True})
+            return jsonify({"ok": False, "error": "Could not update receipt settings."}), 500
         flash("Receipt settings updated." if ok else "Could not update receipt settings.", "success" if ok else "error")
         return redirect(url_for("shop_settings_receipt", shop_id=shop["id"]))
     return render_template("shop_settings_receipt.html", shop=shop, **_shop_settings_template_extra(shop))

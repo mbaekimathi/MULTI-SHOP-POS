@@ -465,21 +465,50 @@
     if (!state || !state.sale || !state.items || !state.items.length) return;
     var reprintBtn = document.getElementById("receipt-reprint-btn");
     var returnMsg = document.getElementById("receipt-return-msg");
-    if (!CFG.printEmbedUrl) {
+    var canDirect =
+      typeof window.receiptThermalReprint === "function" && !!state.printBoot;
+    if (!canDirect && !CFG.printEmbedUrl) {
       if (returnMsg) returnMsg.textContent = "Reprint is unavailable. Hard-refresh this page (Ctrl+F5).";
       return;
     }
     if (reprintBtn) reprintBtn.disabled = true;
     if (returnMsg) returnMsg.textContent = "Sending receipt to printer…";
-    if (!triggerReceiptEmbedPrint(state.sale)) {
+
+    function doneOk(recordLocally) {
+      if (returnMsg) {
+        returnMsg.textContent = "Reprint sent. Choose your printer in the print dialog.";
+      }
+      if (reprintBtn) reprintBtn.disabled = false;
+      if (recordLocally) recordReceiptReprint(state.sale).then(function () {});
+    }
+
+    function doneFail() {
       if (returnMsg) returnMsg.textContent = "Could not start reprint.";
       if (reprintBtn) reprintBtn.disabled = false;
+    }
+
+    /* Prefer same thermal engine as settings preview / POS checkout */
+    if (canDirect) {
+      try {
+        var p = window.receiptThermalReprint(state.sale, state.items, state.printBoot);
+        if (p && typeof p.then === "function") {
+          p.then(function () {
+            doneOk(true);
+          }).catch(doneFail);
+        } else {
+          doneOk(true);
+        }
+        return;
+      } catch (e) {
+        /* fall through to embed (embed records reprint itself) */
+      }
+    }
+
+    if (!triggerReceiptEmbedPrint(state.sale)) {
+      doneFail();
       return;
     }
-    if (returnMsg) {
-      returnMsg.textContent = "Reprint sent. Choose your printer in the print dialog.";
-    }
-    if (reprintBtn) reprintBtn.disabled = false;
+    doneOk(false);
   }
 
   function openReceiptModal(data) {

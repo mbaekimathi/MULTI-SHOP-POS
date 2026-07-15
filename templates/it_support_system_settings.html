@@ -3,7 +3,8 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/website-builder.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-pos-settings.css') }}?v=3" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-system-settings.css') }}?v=3" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/it-support-system-settings.css') }}?v=4" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-settings-preview.css') }}?v=1" />
   {% if appearance_fonts_google_url %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -765,18 +766,18 @@
         <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
           Live preview using the same thermal layout as POS printed receipts. Updates as you edit; settings save automatically shortly after changes.
         </p>
-        <div class="mt-6 flex justify-center px-2">
+        <div class="receipt-preview-stage mt-6 px-2">
           <div
             id="receipt-print-preview"
-            class="receipt-preview-paper overflow-hidden rounded-sm border border-neutral-300 bg-white text-black shadow-lg ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
-            style="width: 80mm; max-width: 100%"
+            class="receipt-preview-paper rounded-sm border border-neutral-300 bg-white text-black shadow-md ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
+            data-roll="80"
             role="region"
             aria-label="Receipt print preview"
           >
             <div id="receipt-preview-root" class="receipt-preview-root"></div>
           </div>
         </div>
-        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Sample sale receipt (customer copy). Width and font size match your settings above.</p>
+        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Sample sale receipt (customer copy). Standard 58mm / 80mm roll width; font size matches your settings above.</p>
         </div>
       </div>
     </div>
@@ -806,7 +807,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=23"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=24"></script>
   <script>
     (function () {
       var DEFAULT_TAB = "system";
@@ -1042,16 +1043,22 @@
           receiptSettings: receiptSettingsFromForm(),
           site: siteFromForm(),
         });
-        paper.style.width = (rendered.widthMm || 80) + "mm";
+        var rollMm = rendered.widthMm === 58 ? 58 : 80;
+        paper.setAttribute("data-roll", String(rollMm));
+        paper.style.width = "";
+        paper.style.maxWidth = "";
+        paper.style.minWidth = "";
 
         var iframe = root.querySelector("iframe");
         if (!iframe) {
           iframe = document.createElement("iframe");
           iframe.setAttribute("title", "Receipt preview");
           iframe.setAttribute("aria-label", "Receipt preview");
+          iframe.setAttribute("scrolling", "no");
           iframe.style.border = "0";
           iframe.style.display = "block";
           iframe.style.width = "100%";
+          iframe.style.maxWidth = "100%";
           iframe.scrolling = "no";
           root.innerHTML = "";
           root.appendChild(iframe);
@@ -1077,11 +1084,17 @@
 
         function resizeFrame() {
           try {
-            var h = Math.max(
-              doc.body ? doc.body.scrollHeight : 0,
-              doc.documentElement ? doc.documentElement.scrollHeight : 0
-            );
-            iframe.style.height = Math.max(180, h + 4) + "px";
+            var body = doc.body;
+            var el = doc.documentElement;
+            var h = 0;
+            if (body) {
+              h = Math.max(h, body.scrollHeight || 0, body.offsetHeight || 0);
+            }
+            if (el) {
+              h = Math.max(h, el.scrollHeight || 0, el.offsetHeight || 0);
+            }
+            /* Fit slip height to content — no artificial min height */
+            iframe.style.height = Math.max(1, Math.ceil(h)) + "px";
           } catch (e) {}
         }
         resizeFrame();

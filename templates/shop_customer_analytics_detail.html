@@ -10,7 +10,7 @@
 {% block head %}
   {{ super() }}
   {% include "partials/portal_revenue_analytics_css.html" %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=18" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=20" />
   <script src="{{ url_for('static', filename='js/it-support-analytics-filter-shared.js') }}?v=4"></script>
 {% endblock %}
 
@@ -26,18 +26,25 @@
       <div id="analytics-view-credit-note" class="it-analytics-credit-note mt-3">
         <div class="shop-cust-credit-page">
           <div class="shop-cust-credit-page__toolbar no-print">
+            <a href="{{ url_for('shop_credit_payments_customer', shop_id=shop.id, customer_name=customer_name, customer_phone=customer_phone) }}" class="rev-btn rev-btn--ghost">Open credit workspace</a>
             {% include "partials/credit_note_whatsapp_button.html" %}
             <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
+            {% if credit_note_pdf_url is defined and credit_note_pdf_url %}
+            <a href="{{ credit_note_pdf_url }}" class="rev-btn rev-btn--ghost" target="_blank" rel="noopener">Download PDF</a>
+            {% endif %}
           </div>
-          {% with compact_only=true %}
-            {% include "partials/shop_customer_credit_note.html" %}
-          {% endwith %}
 
-          {% if embed_record_payment|default(false) %}
-            {% include "partials/shop_customer_record_payment.html" %}
+          {% if pos_allow_credit_sale|default(false) %}
+            {% include "partials/shop_customer_credit_note_stack.html" %}
+
+            {% if embed_record_payment|default(false) %}
+              {% include "partials/shop_customer_record_payment.html" %}
+            {% endif %}
+
+            {% include "partials/shop_customer_credit_history.html" %}
+          {% else %}
+            <p class="text-sm text-[rgb(var(--rc-muted))]">Credit sales are disabled for this shop.</p>
           {% endif %}
-
-          {% include "partials/shop_customer_credit_transactions.html" %}
         </div>
       </div>
 

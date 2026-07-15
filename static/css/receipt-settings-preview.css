@@ -1,0 +1,116 @@
+/* Shared receipt settings — live preview paper (standard 58/80mm roll) */
+
+.receipt-preview-stage {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0.25rem 0;
+}
+
+#receipt-print-preview {
+  --receipt-roll-px: 302px; /* 80mm @ 96dpi — standard wide thermal */
+  box-sizing: border-box;
+  width: var(--receipt-roll-px);
+  min-width: 0;
+  max-width: min(100%, var(--receipt-roll-px));
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+  color: #111;
+  overflow: hidden;
+}
+
+#receipt-print-preview[data-roll="58"] {
+  --receipt-roll-px: 219px; /* 58mm @ 96dpi — standard narrow thermal */
+}
+
+#receipt-preview-root {
+  min-height: 0;
+  line-height: 0;
+}
+
+#receipt-preview-root iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+  border: 0;
+  background: #fff;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+#receipt-preview-body {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.5rem 0.4rem 0.65rem;
+  line-height: 1.3;
+}
+
+/* Auto-save status pill (shop receipt settings) */
+.shop-receipt-settings-save-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(var(--rc-border), 0.9);
+  background: rgba(var(--rc-surface-2), 0.65);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(var(--rc-muted));
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shop-receipt-settings-save-pill--saving {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(14, 165, 233, 0.1);
+  color: rgb(14 165 233);
+}
+
+.shop-receipt-settings-save-pill--saved {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(5 150 105);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15);
+}
+
+.shop-receipt-settings-save-pill--error {
+  border-color: rgba(244, 63, 94, 0.45);
+  background: rgba(244, 63, 94, 0.1);
+  color: rgb(225 29 72);
+}
+
+.shop-receipt-settings-save-pill__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.shop-receipt-settings-save-pill--saved .shop-receipt-settings-save-pill__dot {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.shop-receipt-settings-save-pill__spinner {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: shop-receipt-settings-spin 0.65s linear infinite;
+}
+
+@keyframes shop-receipt-settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

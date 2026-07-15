@@ -1319,4 +1319,34 @@
     var variants = receiptVariantsForCheckout();
     return printThermalReceiptMulti(payload, variants);
   };
+
+  /**
+   * Hidden embed iframe entry (shop/IT receipt register auto_print=1).
+   * Uses the same thermal HTML layout as settings preview + POS checkout.
+   */
+  window.receiptThermalEmbedAutoPrint = function (data) {
+    data = data || {};
+    var sale = data.sale || {};
+    var items = data.items || [];
+    var boot = data.boot || {};
+    if (!sale || !items || !items.length) return Promise.resolve();
+    var printed = window.receiptThermalReprint(sale, items, boot);
+    var recordUrl = String(data.reprintRecordUrl || "").trim();
+    if (recordUrl) {
+      try {
+        var body = {
+          sale_id: parseInt(data.saleId || sale.id || 0, 10) || 0,
+        };
+        var shopId = parseInt(data.shopId || sale.shop_id || 0, 10) || 0;
+        if (shopId) body.shop_id = shopId;
+        fetch(recordUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    return printed;
+  };
 })();

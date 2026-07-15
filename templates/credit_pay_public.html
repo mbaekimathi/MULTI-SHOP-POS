@@ -2,8 +2,8 @@
 {% block title %}Pay credit — {{ shop.shop_name if shop is defined else "Shop" }}{% endblock %}
 {% block head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=19" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/credit-pay-public.css') }}?v=4" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=20" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/credit-pay-public.css') }}?v=5" />
 {% endblock %}
 {% block body %}
   {% set _co = site_settings.company_name if site_settings and site_settings.company_name else (company_name or 'Point of Sale') %}
@@ -114,8 +114,7 @@
           {% with compact_only=true, public_credit_pay=true %}
             {% include "partials/shop_customer_credit_note.html" %}
           {% endwith %}
-          {% include "partials/shop_customer_credit_sales.html" %}
-          {% include "partials/shop_customer_credit_transactions.html" %}
+          {% include "partials/shop_customer_credit_history.html" %}
         </div>
       </div>
     </div>
@@ -135,6 +134,6 @@
     }
   }|tojson }}
   </script>
-  <script src="{{ url_for('static', filename='js/credit-pay-public.js') }}?v=3" defer></script>
+  <script src="{{ url_for('static', filename='js/credit-pay-public.js') }}?v=4" defer></script>
   {% endif %}
 {% endblock %}

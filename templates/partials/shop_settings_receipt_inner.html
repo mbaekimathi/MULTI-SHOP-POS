@@ -291,19 +291,21 @@
 
       <div class="mt-10 border-t border-[rgb(var(--rc-border))] pt-8">
         <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Print preview</h3>
-        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Approximate thermal layout (black on white). Updates as you change settings above — not saved until you click Save settings.</p>
-        <div class="mt-6 flex justify-center px-2">
+        <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+          Live preview using the same thermal layout as POS printed receipts. Updates as you edit — edits save automatically.
+        </p>
+        <div class="receipt-preview-stage mt-6 px-2">
           <div
             id="receipt-print-preview"
-            class="receipt-preview-paper overflow-hidden rounded-sm border border-neutral-300 bg-white text-black shadow-lg ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
-            style="width: 80mm; max-width: 100%"
+            class="receipt-preview-paper rounded-sm border border-neutral-300 bg-white text-black shadow-md ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
+            data-roll="80"
             role="region"
             aria-label="Receipt print preview"
           >
-            <div id="receipt-preview-body" class="receipt-preview-body px-3 py-4 font-mono leading-snug"></div>
+            <div id="receipt-preview-root" class="receipt-preview-root"></div>
           </div>
         </div>
-        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Preview width follows &ldquo;Receipt width&rdquo;; font size follows &ldquo;Font size&rdquo;.</p>
+        <p class="mt-3 text-center text-[10px] text-[rgb(var(--rc-muted))]">Sample sale receipt (customer copy). Standard 58mm / 80mm roll width; font size matches your settings above.</p>
       </div>
     </div>
 

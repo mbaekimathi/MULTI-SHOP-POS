@@ -6,43 +6,26 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=19" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=20" />
 {% endblock %}
 {% block shop_content %}
-  <div class="rc-page space-y-6">
-    <div class="rc-page-hero rc-card--pad no-print">
-      <p class="rc-eyebrow rc-eyebrow--brand">Shop · Credit</p>
-      <h2 class="rc-page-title">{{ customer_name }}</h2>
-      <p class="rc-page-lead">
-        Customer credit note for <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name }}</strong>
-        · <span class="tabular-nums">{{ customer_phone }}</span>
-      </p>
-      <div class="rc-actions mt-4">
-        <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold">← Credit payments</a>
-        <button type="button" class="btn-rc btn-rc-ghost px-4 py-2 text-sm font-semibold" onclick="window.print()">Print credit note</button>
-      </div>
-      <div class="mt-4 border-t border-[rgb(var(--rc-border))] pt-4">
-        {% include "partials/credit_note_whatsapp_button.html" %}
-      </div>
+  <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
+    <div class="shop-cust-credit-page__toolbar no-print">
+      <a href="{{ url_for('shop_credit_payments', shop_id=shop.id) }}" class="rev-btn rev-btn--ghost">← Credit payments</a>
+      {% include "partials/credit_note_whatsapp_button.html" %}
+      <button type="button" class="rev-btn rev-btn--ghost" onclick="window.print()">Print credit note</button>
+      {% if credit_note_pdf_url is defined and credit_note_pdf_url %}
+      <a href="{{ credit_note_pdf_url }}" class="rev-btn rev-btn--ghost" target="_blank" rel="noopener">Download PDF</a>
+      {% endif %}
     </div>
 
-    {% with shop_id=shop.id %}
-      {% include "partials/credit_note_statement_filter.html" %}
-    {% endwith %}
-
-    <div id="credit-note-live-content" data-portal-live-content class="shop-cust-credit-live">
-      {% with compact_only=true %}
-        {% include "partials/shop_customer_credit_note.html" %}
-      {% endwith %}
-    </div>
-
-    {% include "partials/credit_mpesa_pay_link_card.html" %}
+    {% include "partials/shop_customer_credit_note_stack.html" %}
 
     {% if embed_record_payment %}
       {% include "partials/shop_customer_record_payment.html" %}
     {% endif %}
 
-    {% include "partials/shop_customer_credit_transactions.html" %}
+    {% include "partials/shop_customer_credit_history.html" %}
   </div>
   <script>
     (function () {

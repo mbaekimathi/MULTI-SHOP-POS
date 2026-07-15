@@ -593,34 +593,72 @@ html[data-theme="dark"] .pos-cart-drawer--modern #pos-cart-hold-table-number {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(14, 165, 233, 0.08));
 }
 
-/* Shared mobile layout — keep line items in view in both cart workflows */
+/*
+ * Shared mobile layout — keep Subtotal (#pos-cart-summary-bar) visible.
+ * Use flex so lines + checkout scroll internally; avoid stacking max-heights
+ * that exceed the viewport (and break when dvh/min() are unsupported).
+ */
 @media (max-width: 1023px) {
   .pos-cart-drawer--modern.pos-cart-drawer.is-open {
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .pos-cart-drawer--modern #pos-cart-lines-section {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pos-cart-drawer--modern #pos-cart-lines {
+    flex: 1 1 auto !important;
+    min-height: 4.5rem;
+    max-height: none !important;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  .pos-cart-drawer--modern #pos-cart-lines-section {
+  .pos-cart-drawer--modern #pos-cart-summary-bar,
+  .pos-cart-drawer--modern .pos-cart-summary-bar--modern {
     flex: 0 0 auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
+    flex-shrink: 0 !important;
+    position: relative;
+    z-index: 3;
   }
 
-  .pos-cart-drawer--modern #pos-cart-lines {
-    max-height: min(52dvh, 26rem) !important;
-    flex: 0 0 auto !important;
-    min-height: 5rem;
-    overflow-y: auto;
-  }
-
+  /* vh first for older WebViews; dvh preferred when supported */
   .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
     flex: 0 0 auto;
-    max-height: min(46dvh, 22rem);
+    min-height: 0;
+    max-height: 38vh;
+    max-height: min(38vh, 18rem);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .pos-cart-drawer--modern.pos-cart-drawer--withhold #pos-cart-lines {
-    max-height: min(44dvh, 24rem) !important;
+  @supports (height: 1dvh) {
+    .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
+      max-height: 38dvh;
+      max-height: min(38dvh, 18rem);
+    }
+  }
+
+  /* Short / landscape phones: leave room for header + summary */
+  @media (max-height: 520px) {
+    .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
+      max-height: 32vh;
+      max-height: min(32vh, 12rem);
+    }
+
+    @supports (height: 1dvh) {
+      .pos-cart-drawer--modern .pos-cart-checkout-shell--modern {
+        max-height: 32dvh;
+        max-height: min(32dvh, 12rem);
+      }
+    }
   }
 }
 

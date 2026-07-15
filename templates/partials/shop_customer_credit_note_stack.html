@@ -1,0 +1,12 @@
+{# Credit note stack — statement filter, live note, M-Pesa pay link #}
+{% with shop_id=shop_id if shop_id is defined else (shop.id if shop is defined else none) %}
+  {% include "partials/credit_note_statement_filter.html" %}
+{% endwith %}
+
+<div id="credit-note-live-content" data-portal-live-content class="shop-cust-credit-live">
+  {% with compact_only=true %}
+    {% include "partials/shop_customer_credit_note.html" %}
+  {% endwith %}
+</div>
+
+{% include "partials/credit_mpesa_pay_link_card.html" %}
