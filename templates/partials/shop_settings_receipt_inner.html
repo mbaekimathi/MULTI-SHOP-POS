@@ -266,6 +266,38 @@
         </div>
       </div>
 
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Built &amp; maintained by</h3>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Optional attribution line printed at the bottom of receipts (below Thank you).</p>
+      <div class="mt-4 space-y-4">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show built &amp; maintained by</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When off, this section is not printed on receipts</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_show_attribution"
+            value="1"
+            id="receipt_show_attribution"
+            class="rc-receipt-switch"
+            {% if rs.show_attribution %}checked{% endif %}
+          />
+        </div>
+        <div id="receipt-attribution-wrap" class="{% if not rs.show_attribution %}hidden{% endif %}">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Attribution name</label>
+          <input
+            type="text"
+            name="receipt_attribution_name"
+            id="receipt_attribution_name"
+            maxlength="200"
+            class="w-full max-w-xl rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.attribution_name or '' }}"
+            placeholder="e.g. FINAGRITECH SOLUTIONS"
+          />
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Printed under the line &ldquo;BUILT &amp; MAINTAINED BY&rdquo;.</p>
+        </div>
+      </div>
+
       <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Receipt header &amp; footer</h3>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Optional text printed at the top and bottom of each receipt.</p>
       <div class="mt-4 grid gap-4 md:grid-cols-2">

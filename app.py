@@ -2749,6 +2749,8 @@ def _default_receipt_settings() -> dict:
         "show_contact": True,
         "show_server": True,
         "show_datetime": True,
+        "show_attribution": True,
+        "attribution_name": "FINAGRITECH SOLUTIONS",
         "receipt_header": "",
         "receipt_footer": "",
         "receipt_qr_enabled": False,
@@ -2778,9 +2780,11 @@ def _load_receipt_settings() -> dict:
         "show_contact",
         "show_server",
         "show_datetime",
+        "show_attribution",
         "receipt_qr_enabled",
     ):
         merged[k] = merged.get(k) in (True, "true", "1", 1, "True")
+    merged["attribution_name"] = str(merged.get("attribution_name") or "").strip()[:200]
     qm = str(merged.get("receipt_qr_mode") or "receipt_details").strip()
     if qm not in ("website", "receipt_details"):
         qm = "receipt_details"
@@ -5845,9 +5849,11 @@ def _effective_receipt_settings_for_shop(shop: dict) -> dict:
         "show_contact",
         "show_server",
         "show_datetime",
+        "show_attribution",
         "receipt_qr_enabled",
     ):
         merged[k] = merged.get(k) in (True, "true", "1", 1, "True")
+    merged["attribution_name"] = str(merged.get("attribution_name") or "").strip()[:200]
     qm = str(merged.get("receipt_qr_mode") or "receipt_details").strip()
     if qm not in ("website", "receipt_details"):
         qm = "receipt_details"
@@ -6953,6 +6959,8 @@ def _receipt_settings_from_form() -> dict:
         "show_contact": _b("receipt_show_contact"),
         "show_server": _b("receipt_show_server"),
         "show_datetime": _b("receipt_show_datetime"),
+        "show_attribution": _b("receipt_show_attribution"),
+        "attribution_name": _s("receipt_attribution_name", "", 200),
         "receipt_header": _s("receipt_header", "", 4000),
         "receipt_footer": _s("receipt_footer", "", 4000),
         "receipt_qr_enabled": _b("receipt_qr_enabled"),

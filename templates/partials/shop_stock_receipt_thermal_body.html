@@ -114,7 +114,7 @@ QTY       {{ qty_str }}</pre>
     <footer class="receipt-thermal-footer">{{ S.receipt_footer }}</footer>
   {% endif %}
 
-  <pre class="receipt receipt--tail">{% if is_stock_transfer %}Thank you{% elif is_expense %}Keep for company records{% else %}Pay supplier per company policy{% endif %}
+  <pre class="receipt receipt--tail">{% if is_stock_transfer %}Thank you{% elif is_expense %}Keep for company records{% else %}Pay supplier per company policy{% endif %}{% if S.show_attribution and S.attribution_name %}
 BUILT & MAINTAINED BY
-FINAGRITECH SOLUTIONS</pre>
+{{ S.attribution_name }}{% endif %}</pre>
 </div>

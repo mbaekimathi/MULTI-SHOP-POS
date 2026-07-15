@@ -738,6 +738,38 @@
         </div>
       </div>
 
+      <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Built &amp; maintained by</h3>
+      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Optional attribution line printed at the bottom of receipts (below Thank you).</p>
+      <div class="mt-4 space-y-4">
+        <div class="flex items-center justify-between gap-4 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+          <div>
+            <p class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Show built &amp; maintained by</p>
+            <p class="text-xs text-[rgb(var(--rc-muted))]">When off, this section is not printed on receipts</p>
+          </div>
+          <input
+            type="checkbox"
+            name="receipt_show_attribution"
+            value="1"
+            id="receipt_show_attribution"
+            class="rc-receipt-switch"
+            {% if rs.show_attribution %}checked{% endif %}
+          />
+        </div>
+        <div id="receipt-attribution-wrap" class="{% if not rs.show_attribution %}hidden{% endif %}">
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Attribution name</label>
+          <input
+            type="text"
+            name="receipt_attribution_name"
+            id="receipt_attribution_name"
+            maxlength="200"
+            class="w-full max-w-xl rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none"
+            value="{{ rs.attribution_name or '' }}"
+            placeholder="e.g. FINAGRITECH SOLUTIONS"
+          />
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Printed under the line &ldquo;BUILT &amp; MAINTAINED BY&rdquo;.</p>
+        </div>
+      </div>
+
       <h3 class="mt-10 border-b border-[rgb(var(--rc-border))] pb-3 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Receipt header &amp; footer</h3>
       <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">Optional text printed at the top and bottom of each receipt (e.g. tagline, return policy, thank-you message).</p>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
@@ -807,7 +839,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=24"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=25"></script>
   <script>
     (function () {
       var DEFAULT_TAB = "system";
@@ -936,6 +968,8 @@
         var qrEn = document.getElementById("receipt_qr_enabled");
         var qrOpt = document.getElementById("receipt-qr-options");
         var qrUrlWrap = document.getElementById("receipt-qr-url-wrap");
+        var attrEn = document.getElementById("receipt_show_attribution");
+        var attrW = document.getElementById("receipt-attribution-wrap");
         function syncQrUrl() {
           var website = document.querySelector('input[name="receipt_qr_mode"][value="website"]');
           if (qrUrlWrap) qrUrlWrap.classList.toggle("hidden", !website || !website.checked);
@@ -955,12 +989,14 @@
         function sync() {
           if (payW) payW.classList.toggle("hidden", !pay || !pay.checked);
           if (taxW) taxW.classList.toggle("hidden", !tax || !tax.checked);
+          if (attrW) attrW.classList.toggle("hidden", !attrEn || !attrEn.checked);
           syncPaymentType();
           syncQr();
           if (window.updateReceiptPreview) window.updateReceiptPreview();
         }
         if (pay) pay.addEventListener("change", sync);
         if (tax) tax.addEventListener("change", sync);
+        if (attrEn) attrEn.addEventListener("change", sync);
         var payTypeSel = document.getElementById("receipt_payment_type") || document.querySelector('[name="receipt_payment_type"]');
         if (payTypeSel) payTypeSel.addEventListener("change", sync);
         if (qrEn) {
@@ -1017,6 +1053,8 @@
             fieldVal("receipt_payment_type") === "paybill" ? "" : fieldVal("receipt_payment_detail_text") || "",
           payment_paybill_business: fieldVal("receipt_payment_paybill_business") || "",
           payment_paybill_account: fieldVal("receipt_payment_paybill_account") || "",
+          show_attribution: !!fieldVal("receipt_show_attribution"),
+          attribution_name: fieldVal("receipt_attribution_name") || "",
           receipt_header: fieldVal("receipt_header") || "",
           receipt_footer: fieldVal("receipt_footer") || "",
           receipt_qr_enabled: !!fieldVal("receipt_qr_enabled"),

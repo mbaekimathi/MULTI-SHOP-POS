@@ -9,7 +9,24 @@
     return pp.pos_include_tax !== false && pp.pos_include_tax !== "false" && pp.pos_include_tax !== 0;
   }
   var RECEIPT_ATTRIBUTION_BY = "BUILT & MAINTAINED BY";
-  var RECEIPT_ATTRIBUTION_NAME = "FINAGRITECH SOLUTIONS";
+  var RECEIPT_ATTRIBUTION_NAME_DEFAULT = "FINAGRITECH SOLUTIONS";
+  function receiptShowAttribution() {
+          var S = receiptSettings();
+          if (S.show_attribution === false || S.show_attribution === "false" || S.show_attribution === 0 || S.show_attribution === "0") {
+            return false;
+          }
+          if (S.show_attribution === true || S.show_attribution === "true" || S.show_attribution === 1 || S.show_attribution === "1") {
+            return true;
+          }
+          return true;
+        }
+  function receiptAttributionName() {
+          var S = receiptSettings();
+          var n = String(S.attribution_name != null ? S.attribution_name : "").trim();
+          if (n) return n;
+          if (S.attribution_name === "" || S.attribution_name === null) return "";
+          return RECEIPT_ATTRIBUTION_NAME_DEFAULT;
+        }
   function syncReceiptThermalEngineBoot() {}
   function fmt(n) {
           var x = parseFloat(n);
@@ -449,12 +466,15 @@
           if (!isCompany) {
             parts.push('<p class="receipt-tail__thanks">Thank you</p>');
           }
-          parts.push('<p class="receipt-tail__line">' + receiptEsc(RECEIPT_ATTRIBUTION_BY) + "</p>");
-          parts.push(
-            '<p class="receipt-tail__line receipt-tail__line--brand">' +
-              receiptEsc(RECEIPT_ATTRIBUTION_NAME) +
-              "</p>"
-          );
+          var name = receiptAttributionName();
+          if (receiptShowAttribution() && name) {
+            parts.push('<p class="receipt-tail__line">' + receiptEsc(RECEIPT_ATTRIBUTION_BY) + "</p>");
+            parts.push(
+              '<p class="receipt-tail__line receipt-tail__line--brand">' +
+                receiptEsc(name) +
+                "</p>"
+            );
+          }
           return '<footer class="receipt-tail receipt-body">' + parts.join("") + "</footer>";
         }
   function thermalPlainSep(w) {
@@ -474,20 +494,22 @@
           return new Array(pad + 1).join(" ") + s;
         }
   function receiptAttributionTailPlain(isCompany, W) {
+          var name = receiptAttributionName();
+          var showAttr = receiptShowAttribution() && !!name;
           if (isCompany) {
-            return (
-              thermalPlainCenter("Company records", W) +
-              "\n" +
-              thermalPlainCenter(RECEIPT_ATTRIBUTION_NAME, W)
-            );
+            var co = thermalPlainCenter("Company records", W);
+            if (showAttr) co += "\n" + thermalPlainCenter(name, W);
+            return co;
           }
-          return (
-            thermalPlainCenter("Thank you", W) +
-            "\n" +
-            thermalPlainCenter(RECEIPT_ATTRIBUTION_BY, W) +
-            "\n" +
-            thermalPlainCenter(RECEIPT_ATTRIBUTION_NAME, W)
-          );
+          var out = thermalPlainCenter("Thank you", W);
+          if (showAttr) {
+            out +=
+              "\n" +
+              thermalPlainCenter(RECEIPT_ATTRIBUTION_BY, W) +
+              "\n" +
+              thermalPlainCenter(name, W);
+          }
+          return out;
         }
   function isReceiptTransactionPaymentLabel(label) {
           return /^Payment:/i.test(String(label || "").trim());

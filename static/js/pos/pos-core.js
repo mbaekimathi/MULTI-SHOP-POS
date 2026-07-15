@@ -7531,12 +7531,15 @@ var saleType = "sale";
         if (!isCompany) {
           parts.push('<p class="receipt-tail__thanks">Thank you</p>');
         }
-        parts.push('<p class="receipt-tail__line">' + receiptEsc(RECEIPT_ATTRIBUTION_BY) + "</p>");
-        parts.push(
-          '<p class="receipt-tail__line receipt-tail__line--brand">' +
-            receiptEsc(RECEIPT_ATTRIBUTION_NAME) +
-            "</p>"
-        );
+        var name = receiptAttributionName();
+        if (receiptShowAttribution() && name) {
+          parts.push('<p class="receipt-tail__line">' + receiptEsc(RECEIPT_ATTRIBUTION_BY) + "</p>");
+          parts.push(
+            '<p class="receipt-tail__line receipt-tail__line--brand">' +
+              receiptEsc(name) +
+              "</p>"
+          );
+        }
         return '<footer class="receipt-tail receipt-body">' + parts.join("") + "</footer>";
       }
 
@@ -7596,42 +7599,60 @@ var saleType = "sale";
       }
 
       var RECEIPT_ATTRIBUTION_BY = "BUILT & MAINTAINED BY";
-      var RECEIPT_ATTRIBUTION_NAME = "FINAGRITECH SOLUTIONS";
+      var RECEIPT_ATTRIBUTION_NAME_DEFAULT = "FINAGRITECH SOLUTIONS";
+
+      function receiptShowAttribution() {
+        var S = receiptSettings();
+        if (S.show_attribution === false || S.show_attribution === "false" || S.show_attribution === 0 || S.show_attribution === "0") {
+          return false;
+        }
+        if (S.show_attribution === true || S.show_attribution === "true" || S.show_attribution === 1 || S.show_attribution === "1") {
+          return true;
+        }
+        return true;
+      }
+
+      function receiptAttributionName() {
+        var S = receiptSettings();
+        var n = String(S.attribution_name != null ? S.attribution_name : "").trim();
+        if (n) return n;
+        if (S.attribution_name === "" || S.attribution_name === null) return "";
+        return RECEIPT_ATTRIBUTION_NAME_DEFAULT;
+      }
 
       function receiptAttributionTailPlain(isCompany, W) {
+        var name = receiptAttributionName();
+        var showAttr = receiptShowAttribution() && !!name;
         if (isCompany) {
-          return (
-            thermalPlainCenter("Company records", W) +
-            "\n" +
-            thermalPlainCenter(RECEIPT_ATTRIBUTION_NAME, W)
-          );
+          var co = thermalPlainCenter("Company records", W);
+          if (showAttr) co += "\n" + thermalPlainCenter(name, W);
+          return co;
         }
-        return (
-          thermalPlainCenter("Thank you", W) +
-          "\n" +
-          thermalPlainCenter(RECEIPT_ATTRIBUTION_BY, W) +
-          "\n" +
-          thermalPlainCenter(RECEIPT_ATTRIBUTION_NAME, W)
-        );
+        var out = thermalPlainCenter("Thank you", W);
+        if (showAttr) {
+          out += "\n" + thermalPlainCenter(RECEIPT_ATTRIBUTION_BY, W) + "\n" + thermalPlainCenter(name, W);
+        }
+        return out;
       }
 
       function receiptAttributionClosingHtml(isCompany) {
+        var name = receiptAttributionName();
+        var showAttr = receiptShowAttribution() && !!name;
         if (isCompany) {
           return (
             "<div class='sep'></div><div class='c mut'>Company records</div>" +
-            "<div class='c mut'>" +
-            receiptEsc(RECEIPT_ATTRIBUTION_NAME) +
-            "</div>"
+            (showAttr ? "<div class='c mut'>" + receiptEsc(name) + "</div>" : "")
           );
         }
         return (
           "<div class='sep'></div><div class='c mut'>Thank you</div>" +
-          "<div class='c mut'>" +
-          receiptEsc(RECEIPT_ATTRIBUTION_BY) +
-          "</div>" +
-          "<div class='c mut'>" +
-          receiptEsc(RECEIPT_ATTRIBUTION_NAME) +
-          "</div>"
+          (showAttr
+            ? "<div class='c mut'>" +
+              receiptEsc(RECEIPT_ATTRIBUTION_BY) +
+              "</div><div class='c mut'>" +
+              receiptEsc(name) +
+              "</div>"
+            : "")
         );
       }
 
@@ -8645,10 +8666,13 @@ var saleType = "sale";
         sep();
         pushBytes([ESC, 0x61, 0x01]);
         pushLn(isCompany ? "Company records" : "Thank you");
-        if (!isCompany) {
-          pushLn(RECEIPT_ATTRIBUTION_BY);
+        var attrName = receiptAttributionName();
+        if (receiptShowAttribution() && attrName) {
+          if (!isCompany) {
+            pushLn(RECEIPT_ATTRIBUTION_BY);
+          }
+          pushLn(attrName);
         }
-        pushLn(RECEIPT_ATTRIBUTION_NAME);
         pushBytes([ESC, 0x61, 0x00]);
         pushBytes([0x0a]);
         pushBytes([GS, 0x56, 0x00]);

@@ -99,7 +99,28 @@ out.append(
 )
 out.append("  }")
 out.append('  var RECEIPT_ATTRIBUTION_BY = "BUILT & MAINTAINED BY";')
-out.append('  var RECEIPT_ATTRIBUTION_NAME = "FINAGRITECH SOLUTIONS";')
+out.append('  var RECEIPT_ATTRIBUTION_NAME_DEFAULT = "FINAGRITECH SOLUTIONS";')
+out.append("  function receiptShowAttribution() {")
+out.append("          var S = receiptSettings();")
+out.append(
+    '          if (S.show_attribution === false || S.show_attribution === "false" || S.show_attribution === 0 || S.show_attribution === "0") {'
+)
+out.append("            return false;")
+out.append("          }")
+out.append(
+    '          if (S.show_attribution === true || S.show_attribution === "true" || S.show_attribution === 1 || S.show_attribution === "1") {'
+)
+out.append("            return true;")
+out.append("          }")
+out.append("          return true;")
+out.append("        }")
+out.append("  function receiptAttributionName() {")
+out.append("          var S = receiptSettings();")
+out.append('          var n = String(S.attribution_name != null ? S.attribution_name : "").trim();')
+out.append("          if (n) return n;")
+out.append('          if (S.attribution_name === "" || S.attribution_name === null) return "";')
+out.append("          return RECEIPT_ATTRIBUTION_NAME_DEFAULT;")
+out.append("        }")
 out.append("  function syncReceiptThermalEngineBoot() {}")
 
 for fn in funcs:
