@@ -119,6 +119,17 @@
     }
 
     document.querySelectorAll(".sa-stock-live-filter").forEach(wireStockLiveFilter);
+    document.querySelectorAll(".sa-stock-date-filter").forEach(wireStockDateFilter);
+    document.querySelectorAll("form[data-stock-apply-filter]").forEach(function (form) {
+      form.addEventListener("submit", function () {
+        var spin = form.querySelector("[data-stock-apply-spin]");
+        var btn = form.querySelector("[data-stock-apply-btn]");
+        if (spin) spin.classList.remove("hidden");
+        if (btn) btn.disabled = true;
+        var overlay = document.querySelector("[data-stock-load-overlay]");
+        if (overlay) overlay.classList.remove("hidden");
+      });
+    });
     wireStockTabs(
       document.getElementById("shop-stock-report-root"),
       document.getElementById("shop-stock-tab-raw"),

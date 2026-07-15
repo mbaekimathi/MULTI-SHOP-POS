@@ -1,5 +1,6 @@
-{# expects: stock_shell_title, stock_shell_desc, stock_shell_badge, f, stock_shell_show_tabs (optional), stock_filter_extra_hidden (optional), stock_filter_mode_all (optional bool) #}
+{# expects: stock_shell_title, stock_shell_desc, stock_shell_badge, f, stock_shell_show_tabs (optional), stock_filter_extra_hidden (optional), stock_filter_mode_all (optional bool), stock_filter_apply_only (optional bool) #}
 {% set _fm = f.mode or ('all' if stock_filter_mode_all else 'single_day') %}
+{% set _apply_only = stock_filter_apply_only|default(false) %}
 <section class="sa-stock-hero rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
   <div class="sa-stock-hero-top overflow-hidden rounded-t-2xl border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -48,14 +49,17 @@
   <form
     method="get"
     action="{{ request.path }}"
-    class="sa-stock-filter sa-stock-live-filter portal-filter-toolbar--legacy border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6"
+    class="sa-stock-filter {% if _apply_only %}sa-stock-date-filter{% else %}sa-stock-live-filter portal-filter-toolbar--legacy{% endif %} border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6"
+    {% if not _apply_only %}
     data-portal-live-filter
     data-portal-live-content="#portal-live-content"
+    {% endif %}
+    {% if _apply_only %}data-stock-apply-filter="1"{% endif %}
   >
     {% if stock_filter_extra_hidden %}{{ stock_filter_extra_hidden|safe }}{% endif %}
     <div class="sa-stock-filter-intro mb-3">
       <p class="sa-stock-filter-eyebrow text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Filters</p>
-      <p class="sa-stock-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Changes apply automatically</p>
+      <p class="sa-stock-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{% if _apply_only %}Set filters, then apply{% else %}Changes apply automatically{% endif %}</p>
     </div>
     <div class="flex flex-wrap items-end gap-2.5">
       <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
@@ -64,8 +68,8 @@
           {% if stock_filter_mode_all %}
           <option value="all" {% if (f.mode or 'all') == 'all' %}selected{% endif %}>All dates</option>
           {% endif %}
-          <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Date range</option>
+          <option value="single_day" {% if (f.mode or ('all' if stock_filter_mode_all else 'single_day')) == 'single_day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
           <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
           <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
         </select>
@@ -74,13 +78,13 @@
         <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
         <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
       </div>
-      <div data-stock-filter="period" class="contents {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+      <div data-stock-filter="period" class="flex min-w-[19rem] flex-[2] flex-wrap items-end gap-2.5 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
         <div class="min-w-[9.5rem] flex-1">
-          <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Start</label>
+          <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">From</label>
           <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
         </div>
         <div class="min-w-[9.5rem] flex-1">
-          <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">End</label>
+          <label for="analytics-end-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">To</label>
           <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
         </div>
       </div>
@@ -93,6 +97,16 @@
         <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
       </div>
       {% if stock_filter_extra_fields %}{{ stock_filter_extra_fields|safe }}{% endif %}
+      {% if _apply_only %}
+      <div class="flex flex-wrap items-center gap-2 pb-0.5">
+        <button type="submit" class="btn-rc btn-rc-primary min-h-[2.5rem] rounded-xl px-4 py-2 text-sm font-semibold" data-stock-apply-btn>
+          <span class="inline-flex items-center gap-2">
+            <svg class="hidden h-4 w-4 animate-spin" data-stock-apply-spin fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            Apply filters
+          </span>
+        </button>
+      </div>
+      {% endif %}
     </div>
     {% if stock_filter_extra_row %}{{ stock_filter_extra_row|safe }}{% endif %}
   </form>

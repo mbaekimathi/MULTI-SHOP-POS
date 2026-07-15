@@ -9342,10 +9342,56 @@ def it_support_stock_analytics_legacy():
 @login_required
 def it_support_stock_movement_analysis():
     _it_support_or_super_admin_only()
-    analytics_filter = _build_analytics_filter()
+    page_size = 80
+    offset = request.args.get("offset", type=int) or 0
+    offset = max(0, min(offset, 100000))
+    want_partial = (request.args.get("partial") or "").strip().lower() in ("1", "rows", "json")
+    filters_applied = any(
+        (request.args.get(k) or "").strip()
+        for k in (
+            "mode",
+            "single_day",
+            "start_date",
+            "end_date",
+            "month",
+            "year",
+            "shop_id",
+            "employee_id",
+            "item_q",
+            "seller_q",
+            "moved_by",
+        )
+    )
+    mode_arg = (request.args.get("mode") or "").strip().lower()
+    if mode_arg == "all":
+        analytics_filter = {"mode": "all", "range_label": "All dates"}
+    elif mode_arg in ("single_day", "period", "month", "year"):
+        analytics_filter = _build_analytics_filter()
+    elif filters_applied:
+        analytics_filter = _build_analytics_filter()
+    else:
+        # Form defaults before Apply: prefer All dates (still seed calendars for period/day).
+        today = date.today().isoformat()
+        analytics_filter = {
+            "mode": "all",
+            "range_label": "All dates",
+            "single_day": today,
+            "start_date": today,
+            "end_date": today,
+            "month": date.today().strftime("%Y-%m"),
+            "year": str(date.today().year),
+        }
     inv_mode = _global_pos_inventory_mode()
     selected_shop_id = request.args.get("shop_id", type=int)
     selected_employee_id = request.args.get("employee_id", type=int)
+    item_q = (request.args.get("item_q") or "").strip()
+    seller_q = (request.args.get("seller_q") or "").strip()
+    moved_by_q = (request.args.get("moved_by") or "").strip()
+    shops = []
+    employees = []
+    movement = {}
+    movement_rows = []
+    has_more = False
     try:
         from database import (
             get_company_stock_status,
@@ -9357,52 +9403,76 @@ def it_support_stock_movement_analysis():
 
         shops = list_shops(limit=500)
         employees = list_employees(limit=2000)
-        movement = get_company_stock_movement_analytics(
-            analytics_filter=analytics_filter,
-            shop_id=selected_shop_id,
-        )
-        movement_rows = list_company_stock_movements(
-            analytics_filter=analytics_filter,
-            shop_id=selected_shop_id,
-            employee_id=selected_employee_id,
-            limit=1500,
-        )
-        _, allowed_rows = get_company_stock_status(limit_items=5000, inventory_mode=inv_mode)
-        allowed_ids = {int(r.get("id") or 0) for r in (allowed_rows or []) if int(r.get("id") or 0) > 0}
-        if inv_mode in ("both", "kitchen"):
-            movement_rows = [r for r in (movement_rows or []) if int(r.get("item_id") or 0) in allowed_ids]
-            tx_count = len(movement_rows)
-            qty_in = sum(int(r.get("qty") or 0) for r in movement_rows if str(r.get("direction") or "").lower() == "in")
-            qty_out = sum(int(r.get("qty") or 0) for r in movement_rows if str(r.get("direction") or "").lower() == "out")
-            distinct_shops = len(
-                {
-                    int(r.get("shop_id") or 0)
-                    for r in movement_rows
-                    if int(r.get("shop_id") or 0) > 0
-                }
+        if filters_applied:
+            movement = get_company_stock_movement_analytics(
+                analytics_filter=analytics_filter,
+                shop_id=selected_shop_id,
             )
-            movement = {
-                **(movement or {}),
-                "tx_count": tx_count,
-                "qty_in": qty_in,
-                "qty_out": qty_out,
-                "net_qty": qty_in - qty_out,
-                "distinct_shops": distinct_shops,
-            }
+            # Fetch one extra row to detect whether more pages exist.
+            fetched = list_company_stock_movements(
+                analytics_filter=analytics_filter,
+                shop_id=selected_shop_id,
+                employee_id=selected_employee_id,
+                supplier_search=seller_q or None,
+                moved_by_contains=moved_by_q or None,
+                item_search=item_q or None,
+                limit=page_size + 1,
+                offset=offset,
+            ) or []
+            if inv_mode in ("both", "kitchen"):
+                _, allowed_rows = get_company_stock_status(
+                    limit_items=5000, inventory_mode=inv_mode
+                )
+                allowed_ids = {
+                    int(r.get("id") or 0)
+                    for r in (allowed_rows or [])
+                    if int(r.get("id") or 0) > 0
+                }
+                fetched = [
+                    r for r in fetched if int(r.get("item_id") or 0) in allowed_ids
+                ]
+            has_more = len(fetched) > page_size
+            movement_rows = fetched[:page_size]
     except Exception:
         shops = []
         employees = []
         movement = {}
         movement_rows = []
+        has_more = False
+
+    if want_partial:
+        html = render_template(
+            "partials/stock_movement_rows.html",
+            movement_rows=movement_rows,
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "html": html,
+                "has_more": has_more,
+                "next_offset": offset + len(movement_rows),
+                "loaded_count": len(movement_rows),
+                "filters_applied": filters_applied,
+                "movement_data": movement if offset == 0 else None,
+            }
+        )
+
     return render_template(
         "it_support_stock_movement_analysis.html",
         analytics_filter=analytics_filter,
+        filters_applied=filters_applied,
         movement_data=movement,
         movement_rows=movement_rows,
         shops=shops,
         employees=employees or [],
         selected_shop_id=selected_shop_id,
         selected_employee_id=selected_employee_id,
+        item_q=item_q,
+        seller_q=seller_q,
+        moved_by_q=moved_by_q,
+        page_size=page_size,
+        has_more=has_more,
+        next_offset=offset + len(movement_rows),
     )
 
 
@@ -9813,6 +9883,11 @@ def it_support_stock_profitability_analysis():
 @login_required
 def it_support_stock_reports():
     _it_support_or_super_admin_only()
+    # Only load report rows after the user applies filters (date and/or shop).
+    filters_applied = any(
+        (request.args.get(k) or "").strip()
+        for k in ("mode", "single_day", "start_date", "end_date", "month", "year", "shop_id")
+    )
     analytics_filter = _build_analytics_filter()
     inv_mode = _global_pos_inventory_mode()
     shop_filter_id = _company_report_shop_filter_from_request()
@@ -9862,198 +9937,200 @@ def it_support_stock_reports():
                 except Exception:
                     continue
 
-        items = list_active_catalog_items_for_it_analytics(
-            limit=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
-            inventory_mode=inv_mode,
-        ) or []
+        if filters_applied:
+            items = list_active_catalog_items_for_it_analytics(
+                limit=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+                inventory_mode=inv_mode,
+            ) or []
 
-        _, stock_rows = get_company_stock_status(
-            limit_items=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
-            inventory_mode=inv_mode,
-            only_active=True,
-        )
-        stock_map = {}
-        per_shop_stock_map: Dict[int, Dict[int, int]] = {}
-        for r in stock_rows or []:
-            try:
-                iid = int(r.get("id") or 0)
-            except Exception:
-                continue
-            if iid > 0:
-                stock_map[iid] = int(r.get("total_stock_qty") or 0)
-                per_shop = r.get("per_shop") or {}
-                for sid_s, qty in per_shop.items():
+            _, stock_rows = get_company_stock_status(
+                limit_items=IT_SUPPORT_ANALYTICS_ITEMS_MAX,
+                inventory_mode=inv_mode,
+                only_active=True,
+            )
+            stock_map = {}
+            per_shop_stock_map: Dict[int, Dict[int, int]] = {}
+            for r in stock_rows or []:
+                try:
+                    iid = int(r.get("id") or 0)
+                except Exception:
+                    continue
+                if iid > 0:
+                    stock_map[iid] = int(r.get("total_stock_qty") or 0)
+                    per_shop = r.get("per_shop") or {}
+                    for sid_s, qty in per_shop.items():
+                        try:
+                            sid_i = int(sid_s)
+                            per_shop_stock_map.setdefault(sid_i, {})[iid] = int(qty or 0)
+                        except Exception:
+                            continue
+
+            period_balances = get_it_stock_period_item_balances(
+                analytics_filter, shop_id=shop_filter_id
+            ) or {}
+
+            shop_low_thresh_map: Dict[int, int] = {}
+            if shop_filter_id and column_exists("shop_items", "low_stock_threshold"):
+                with get_cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT item_id, COALESCE(low_stock_threshold, 0) AS low_stock_threshold
+                        FROM shop_items
+                        WHERE shop_id=%s
+                        """,
+                        (int(shop_filter_id),),
+                    )
+                    for rr in cur.fetchall() or []:
+                        try:
+                            shop_low_thresh_map[int(rr.get("item_id") or 0)] = int(
+                                rr.get("low_stock_threshold") or 0
+                            )
+                        except Exception:
+                            continue
+
+            mv_where_st, mv_params_st = _analytics_where_clause(analytics_filter, "st")
+            mv_where_sst, mv_params_sst = _analytics_where_clause(analytics_filter, "sst")
+            tx_count_map = {}
+            with get_cursor() as cur:
+                if shop_filter_id:
+                    cur.execute(
+                        f"""
+                        SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
+                        FROM shop_stock_transactions sst
+                        WHERE sst.shop_id=%s AND {mv_where_sst}
+                        GROUP BY sst.item_id
+                        """,
+                        tuple([int(shop_filter_id)] + list(mv_params_sst)),
+                    )
+                else:
+                    cur.execute(
+                        f"""
+                        SELECT item_id, SUM(tx_count) AS tx_count
+                        FROM (
+                          SELECT st.item_id AS item_id, COUNT(*) AS tx_count
+                          FROM stock_transactions st
+                          WHERE {mv_where_st}
+                          GROUP BY st.item_id
+                          UNION ALL
+                          SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
+                          FROM shop_stock_transactions sst
+                          WHERE {mv_where_sst}
+                          GROUP BY sst.item_id
+                        ) u
+                        GROUP BY item_id
+                        """,
+                        tuple(list(mv_params_st) + list(mv_params_sst)),
+                    )
+                for rr in (cur.fetchall() or []):
                     try:
-                        sid_i = int(sid_s)
-                        per_shop_stock_map.setdefault(sid_i, {})[iid] = int(qty or 0)
+                        tx_count_map[int(rr.get("item_id") or 0)] = int(rr.get("tx_count") or 0)
                     except Exception:
                         continue
 
-        period_balances = get_it_stock_period_item_balances(
-            analytics_filter, shop_id=shop_filter_id
-        ) or {}
-
-        shop_low_thresh_map: Dict[int, int] = {}
-        if shop_filter_id and column_exists("shop_items", "low_stock_threshold"):
+            avg_buy_map = {}
             with get_cursor() as cur:
                 cur.execute(
                     """
-                    SELECT item_id, COALESCE(low_stock_threshold, 0) AS low_stock_threshold
-                    FROM shop_items
-                    WHERE shop_id=%s
-                    """,
-                    (int(shop_filter_id),),
+                    SELECT
+                        item_id,
+                        SUM(COALESCE(buying_price,0) * qty) AS buy_value,
+                        SUM(qty) AS buy_qty
+                    FROM stock_transactions
+                    WHERE direction='in' AND buying_price IS NOT NULL
+                    GROUP BY item_id
+                    """
                 )
-                for rr in cur.fetchall() or []:
+                for rr in (cur.fetchall() or []):
                     try:
-                        shop_low_thresh_map[int(rr.get("item_id") or 0)] = int(
-                            rr.get("low_stock_threshold") or 0
-                        )
+                        iid = int(rr.get("item_id") or 0)
+                        bq = int(rr.get("buy_qty") or 0)
+                        bv = float(rr.get("buy_value") or 0)
                     except Exception:
                         continue
+                    if iid > 0 and bq > 0:
+                        avg_buy_map[iid] = bv / bq
 
-        mv_where_st, mv_params_st = _analytics_where_clause(analytics_filter, "st")
-        mv_where_sst, mv_params_sst = _analytics_where_clause(analytics_filter, "sst")
-        tx_count_map = {}
-        with get_cursor() as cur:
-            if shop_filter_id:
-                cur.execute(
-                    f"""
-                    SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
-                    FROM shop_stock_transactions sst
-                    WHERE sst.shop_id=%s AND {mv_where_sst}
-                    GROUP BY sst.item_id
-                    """,
-                    tuple([int(shop_filter_id)] + list(mv_params_sst)),
-                )
-            else:
-                cur.execute(
-                    f"""
-                    SELECT item_id, SUM(tx_count) AS tx_count
-                    FROM (
-                      SELECT st.item_id AS item_id, COUNT(*) AS tx_count
-                      FROM stock_transactions st
-                      WHERE {mv_where_st}
-                      GROUP BY st.item_id
-                      UNION ALL
-                      SELECT sst.item_id AS item_id, COUNT(*) AS tx_count
-                      FROM shop_stock_transactions sst
-                      WHERE {mv_where_sst}
-                      GROUP BY sst.item_id
-                    ) u
-                    GROUP BY item_id
-                    """,
-                    tuple(list(mv_params_st) + list(mv_params_sst)),
-                )
-            for rr in (cur.fetchall() or []):
+            for it in items:
                 try:
-                    tx_count_map[int(rr.get("item_id") or 0)] = int(rr.get("tx_count") or 0)
+                    iid = int(it.get("id") or 0)
                 except Exception:
                     continue
-
-        avg_buy_map = {}
-        with get_cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    item_id,
-                    SUM(COALESCE(buying_price,0) * qty) AS buy_value,
-                    SUM(qty) AS buy_qty
-                FROM stock_transactions
-                WHERE direction='in' AND buying_price IS NOT NULL
-                GROUP BY item_id
-                """
-            )
-            for rr in (cur.fetchall() or []):
-                try:
-                    iid = int(rr.get("item_id") or 0)
-                    bq = int(rr.get("buy_qty") or 0)
-                    bv = float(rr.get("buy_value") or 0)
-                except Exception:
+                if iid <= 0:
                     continue
-                if iid > 0 and bq > 0:
-                    avg_buy_map[iid] = bv / bq
+                if shop_filter_id:
+                    stock_qty = int(
+                        per_shop_stock_map.get(int(shop_filter_id), {}).get(iid, 0)
+                    )
+                else:
+                    stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
+                tx_count = int(tx_count_map.get(iid, 0))
+                avg_buy = float(avg_buy_map.get(iid) or 0.0)
+                stock_value = max(stock_qty, 0) * avg_buy
+                total_valuation += stock_value
 
-        for it in items:
-            try:
-                iid = int(it.get("id") or 0)
-            except Exception:
-                continue
-            if iid <= 0:
-                continue
-            if shop_filter_id:
-                stock_qty = int(
-                    per_shop_stock_map.get(int(shop_filter_id), {}).get(iid, 0)
-                )
-            else:
-                stock_qty = int(stock_map.get(iid, int(it.get("stock_qty") or 0)))
-            tx_count = int(tx_count_map.get(iid, 0))
-            avg_buy = float(avg_buy_map.get(iid) or 0.0)
-            stock_value = max(stock_qty, 0) * avg_buy
-            total_valuation += stock_value
+                bal = period_balances.get(iid) or {}
+                opening_stock = int(bal.get("opening_stock", stock_qty))
+                stock_in = int(bal.get("stock_in", 0))
+                stock_out = int(bal.get("stock_out", 0))
+                stock_sold = int(bal.get("stock_sold", 0))
+                closing_stock = int(bal.get("closing_stock", stock_qty))
 
-            bal = period_balances.get(iid) or {}
-            opening_stock = int(bal.get("opening_stock", stock_qty))
-            stock_in = int(bal.get("stock_in", 0))
-            stock_out = int(bal.get("stock_out", 0))
-            stock_sold = int(bal.get("stock_sold", 0))
-            closing_stock = int(bal.get("closing_stock", stock_qty))
+                company_low = max(0, int(it.get("low_stock_threshold") or 0))
+                shop_low = max(0, int(shop_low_thresh_map.get(iid, 0)))
+                row_low = shop_low if shop_filter_id and shop_low > 0 else company_low
+                row_reorder = max(0, int(it.get("reorder_level") or 0))
+                row = {
+                    "item_id": iid,
+                    "name": (it.get("name") or "").strip() or f"Item #{iid}",
+                    "category": (it.get("category") or "").strip(),
+                    "stock_qty": stock_qty,
+                    "opening_stock": opening_stock,
+                    "stock_in": stock_in,
+                    "stock_out": stock_out,
+                    "stock_sold": stock_sold,
+                    "closing_stock": closing_stock,
+                    "tx_count": tx_count,
+                    "updated_at": it.get("updated_at"),
+                    "avg_buying_price": avg_buy,
+                    "stock_value": stock_value,
+                    "low_stock_threshold": row_low,
+                    "reorder_level": row_reorder,
+                }
+                valuation_rows.append(row)
+                if row_low > 0 and closing_stock <= row_low:
+                    low_stock_rows.append(row)
+                if stock_qty > 0 and tx_count == 0:
+                    stagnant_rows.append(row)
 
-            company_low = max(0, int(it.get("low_stock_threshold") or 0))
-            shop_low = max(0, int(shop_low_thresh_map.get(iid, 0)))
-            row_low = shop_low if shop_filter_id and shop_low > 0 else company_low
-            row_reorder = max(0, int(it.get("reorder_level") or 0))
-            row = {
-                "item_id": iid,
-                "name": (it.get("name") or "").strip() or f"Item #{iid}",
-                "category": (it.get("category") or "").strip(),
-                "stock_qty": stock_qty,
-                "opening_stock": opening_stock,
-                "stock_in": stock_in,
-                "stock_out": stock_out,
-                "stock_sold": stock_sold,
-                "closing_stock": closing_stock,
-                "tx_count": tx_count,
-                "updated_at": it.get("updated_at"),
-                "avg_buying_price": avg_buy,
-                "stock_value": stock_value,
-                "low_stock_threshold": row_low,
-                "reorder_level": row_reorder,
-            }
-            valuation_rows.append(row)
-            if row_low > 0 and closing_stock <= row_low:
-                low_stock_rows.append(row)
-            if stock_qty > 0 and tx_count == 0:
-                stagnant_rows.append(row)
+            val_snap = list(valuation_rows)
+            period_balance_rows = _sort_stock_report_rows(val_snap, "name", False)
+            fast_moving_rows = [r for r in val_snap if (r.get("tx_count") or 0) > 0]
 
-        val_snap = list(valuation_rows)
-        period_balance_rows = _sort_stock_report_rows(val_snap, "name", False)
-        fast_moving_rows = [r for r in val_snap if (r.get("tx_count") or 0) > 0]
+            low_stock_rows = _sort_stock_report_rows(low_stock_rows, "closing_stock", True)
+            fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, "tx_count", False)
+            valuation_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
+            highest_value_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
+            stagnant_rows = _sort_stock_report_rows(stagnant_rows, "stock_value", False)
 
-        low_stock_rows = _sort_stock_report_rows(low_stock_rows, "closing_stock", True)
-        fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, "tx_count", False)
-        valuation_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
-        highest_value_rows = _sort_stock_report_rows(val_snap, "stock_value", False)
-        stagnant_rows = _sort_stock_report_rows(stagnant_rows, "stock_value", False)
-
-        if selected_view == "period_balance":
-            period_balance_rows = _sort_stock_report_rows(period_balance_rows, rep_col, rep_asc)
-        elif selected_view == "low_stock":
-            low_stock_rows = _sort_stock_report_rows(low_stock_rows, rep_col, rep_asc)
-        elif selected_view == "fast_moving":
-            fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, rep_col, rep_asc)
-        elif selected_view == "valuation":
-            valuation_rows = _sort_stock_report_rows(valuation_rows, rep_col, rep_asc)
-        elif selected_view == "highest_value":
-            highest_value_rows = _sort_stock_report_rows(highest_value_rows, rep_col, rep_asc)
-        elif selected_view == "stagnant":
-            stagnant_rows = _sort_stock_report_rows(stagnant_rows, rep_col, rep_asc)
+            if selected_view == "period_balance":
+                period_balance_rows = _sort_stock_report_rows(period_balance_rows, rep_col, rep_asc)
+            elif selected_view == "low_stock":
+                low_stock_rows = _sort_stock_report_rows(low_stock_rows, rep_col, rep_asc)
+            elif selected_view == "fast_moving":
+                fast_moving_rows = _sort_stock_report_rows(fast_moving_rows, rep_col, rep_asc)
+            elif selected_view == "valuation":
+                valuation_rows = _sort_stock_report_rows(valuation_rows, rep_col, rep_asc)
+            elif selected_view == "highest_value":
+                highest_value_rows = _sort_stock_report_rows(highest_value_rows, rep_col, rep_asc)
+            elif selected_view == "stagnant":
+                stagnant_rows = _sort_stock_report_rows(stagnant_rows, rep_col, rep_asc)
     except Exception:
         pass
 
     return render_template(
         "it_support_stock_reports.html",
         analytics_filter=analytics_filter,
+        filters_applied=filters_applied,
         selected_view=selected_view,
         total_valuation=total_valuation,
         shops=shops_list,
@@ -20896,23 +20973,32 @@ def shop_stock_audits(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
+    page_size = 80
+    offset = request.args.get("offset", type=int) or 0
+    offset = max(0, min(offset, 100000))
+    want_partial = (request.args.get("partial") or "").strip().lower() in ("1", "rows", "json")
+    # Optional page size override (capped) — default stays small for fast first paint.
     row_limit = request.args.get("limit", type=int)
     if row_limit is None or row_limit < 1:
-        # Keep default snappy for live filtering; raise via ?limit= up to 50k.
-        row_limit = 2000
-    row_limit = min(row_limit, 50000)
+        row_limit = page_size
+    row_limit = min(max(row_limit, 1), 500)
 
     _audit_all = {
         "mode": "all",
-        "range_label": f"All dates (newest first, up to {row_limit:,} rows)",
+        "range_label": "All dates (newest first)",
+        "single_day": date.today().isoformat(),
+        "start_date": date.today().isoformat(),
+        "end_date": date.today().isoformat(),
+        "month": date.today().strftime("%Y-%m"),
+        "year": str(date.today().year),
     }
     mode_arg = (request.args.get("mode") or "").strip().lower()
     if not request.args or mode_arg == "all":
-        analytics_filter = _audit_all
+        analytics_filter = dict(_audit_all)
     elif mode_arg in ("single_day", "period", "month", "year"):
         analytics_filter = _build_analytics_filter()
     else:
-        analytics_filter = _audit_all
+        analytics_filter = dict(_audit_all)
     direction = (request.args.get("direction") or "").strip().lower()
     if direction not in ("", "in", "out"):
         direction = ""
@@ -20930,31 +21016,54 @@ def shop_stock_audits(shop_id: int):
 
     txs = []
     filter_items = []
+    has_more = False
     try:
         from database import list_shop_items, list_shop_stock_audit_rows
 
-        raw_items = list_shop_items(shop_id=shop_id, limit=3000) or []
-        # Slim payload for the combobox (avoids shipping full item rows in HTML).
-        filter_items = [
-            {
-                "id": int(it.get("id") or 0),
-                "name": (it.get("name") or "").strip(),
-                "category": (it.get("category") or "").strip(),
-            }
-            for it in raw_items
-            if int(it.get("id") or 0) > 0
-        ]
-        txs = list_shop_stock_audit_rows(
+        if not want_partial:
+            raw_items = list_shop_items(shop_id=shop_id, limit=3000) or []
+            # Slim payload for the combobox (avoids shipping full item rows in HTML).
+            filter_items = [
+                {
+                    "id": int(it.get("id") or 0),
+                    "name": (it.get("name") or "").strip(),
+                    "category": (it.get("category") or "").strip(),
+                }
+                for it in raw_items
+                if int(it.get("id") or 0) > 0
+            ]
+        fetched = list_shop_stock_audit_rows(
             shop_id=shop_id,
-            limit=row_limit,
+            limit=row_limit + 1,
+            offset=offset,
             analytics_filter=analytics_filter,
             direction=direction or None,
             source=source_f or None,
             item_id=item_id if item_id and item_id > 0 else None,
             search=q or None,
-        )
+        ) or []
+        has_more = len(fetched) > row_limit
+        txs = fetched[:row_limit]
     except Exception:
         txs = []
+        has_more = False
+
+    if want_partial:
+        html = render_template(
+            "partials/shop_stock_audit_rows.html",
+            transactions=txs,
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "html": html,
+                "has_more": has_more,
+                "next_offset": offset + len(txs),
+                "loaded_count": len(txs),
+                "range_label": (analytics_filter or {}).get("range_label") or "All dates",
+            }
+        )
+
     return render_template(
         "shop_stock_audits.html",
         shop=shop,
@@ -20966,6 +21075,8 @@ def shop_stock_audits(shop_id: int):
         audit_q=q,
         audit_row_limit=row_limit,
         filter_items=filter_items,
+        has_more=has_more,
+        next_offset=offset + len(txs),
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
         font_family=shop.get("font_family") or "Plus Jakarta Sans",

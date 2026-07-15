@@ -1,0 +1,34 @@
+{% for r in movement_rows or [] %}
+  {% set ext = r.is_external_stock_in %}
+  <tr>
+    <td class="sticky left-0 z-10 whitespace-nowrap bg-[rgb(var(--rc-surface))] px-2 py-2 text-[rgb(var(--rc-muted))] shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3">{{ r.created_at }}</td>
+    <td class="max-w-[9rem] truncate px-2 py-2 font-medium text-[rgb(var(--rc-page-fg))] sm:max-w-[12rem] sm:px-3 md:max-w-none">{{ r.item_name }}</td>
+    <td class="max-w-[5rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{% if ext %}From outside{% else %}{{ r.from_where }}{% endif %}</td>
+    <td class="max-w-[5rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.to_where }}</td>
+    <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">
+      {% if ext %}
+        <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ r.place_brought_from if r.place_brought_from != '-' else '—' }}</div>
+        {% if r.seller_phone %}<div class="text-xs text-[rgb(var(--rc-muted))]">{{ r.seller_phone }}</div>{% endif %}
+      {% else %}
+        <span class="text-[rgb(var(--rc-muted))]">—</span>
+      {% endif %}
+    </td>
+    <td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.qty }}</td>
+    <td class="max-w-[4.5rem] truncate px-2 py-2 text-[10px] text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3 sm:text-xs">
+      {% if ext %}
+        {% if r.payment_status == 'partially_paid' %}
+          Partially paid
+        {% elif r.payment_status == 'paid' %}
+          Paid
+        {% elif r.payment_status == 'pending_payment' %}
+          Pending payment
+        {% else %}
+          —
+        {% endif %}
+      {% else %}
+        N/A
+      {% endif %}
+    </td>
+    <td class="max-w-[4rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.moved_by }}</td>
+  </tr>
+{% endfor %}

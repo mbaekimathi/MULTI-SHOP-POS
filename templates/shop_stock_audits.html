@@ -8,13 +8,14 @@
 {% block shop_content %}
   {% set f = analytics_filter or {} %}
   {% include "partials/shop_stock_workspace_assets.html" %}
-  <div class="sa-stock-analytics">
+  <div class="sa-stock-analytics" data-audit-page>
   <div class="sa-stock-workspace mt-4 flex flex-col gap-2 sm:gap-4">
     {% set stock_shell_title = 'Stock movement analysis' %}
-    {% set stock_shell_desc = 'Full ledger for this shop. Newest first — up to ' ~ '{:,}'.format(audit_row_limit|default(2000)) ~ ' lines (URL limit max 50,000).' %}
+    {% set stock_shell_desc = 'Shop ledger loads in pages of ' ~ (audit_row_limit|default(80)) ~ ' rows. Apply filters to refresh.' %}
     {% set stock_shell_badge = 'Movement' %}
     {% set stock_filter_mode_all = true %}
-    {% set stock_filter_extra_hidden = '<input type="hidden" name="limit" value="' ~ (audit_row_limit|default(2000)|string) ~ '" />' %}
+    {% set stock_filter_apply_only = true %}
+    {% set stock_filter_extra_hidden = '<input type="hidden" name="limit" value="' ~ (audit_row_limit|default(80)|string) ~ '" />' %}
     {% set stock_filter_extra_row %}
     {% set ns = namespace(item_label='') %}
     {% if audit_item_id %}
@@ -49,7 +50,6 @@
             id="audit-item-combo"
             type="search"
             autocomplete="off"
-            data-portal-live-ignore="1"
             role="combobox"
             aria-autocomplete="list"
             aria-expanded="false"
@@ -76,8 +76,8 @@
             data-audit-item-list
           ></div>
         </div>
-        <input type="hidden" name="item_id" value="{{ audit_item_id or '' }}" data-audit-item-id data-portal-live-watch />
-        <input type="hidden" name="q" value="{{ '' if audit_item_id else (audit_q or '') }}" data-audit-item-q data-portal-live-watch />
+        <input type="hidden" name="item_id" value="{{ audit_item_id or '' }}" data-audit-item-id />
+        <input type="hidden" name="q" value="{{ '' if audit_item_id else (audit_q or '') }}" data-audit-item-q />
         <script type="application/json" data-audit-item-data>{{ filter_items|default([])|tojson }}</script>
       </div>
       <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
@@ -85,12 +85,18 @@
     {% endset %}
     {% include "partials/shop_stock_hero_filter.html" %}
 
-    <div id="portal-live-content" data-portal-live-content class="space-y-4">
+    <div id="portal-live-content" class="relative space-y-4">
+    <div class="pointer-events-none absolute inset-0 z-20 hidden items-start justify-center pt-16" data-stock-load-overlay data-audit-overlay>
+      <div class="flex items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm">
+        <svg class="h-5 w-5 animate-spin text-[rgb(var(--rc-primary))]" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        Loading…
+      </div>
+    </div>
     <div class="sa-stock-kpis grid gap-3 lg:grid-cols-3">
       <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm lg:col-span-3">
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Rows loaded</p>
-        <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ (transactions or [])|length }}</p>
-        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ f.range_label or 'All dates' }}</p>
+        <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]" data-audit-loaded-count>{{ (transactions or [])|length }}</p>
+        <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ f.range_label or 'All dates' }} · page size {{ audit_row_limit|default(80) }}</p>
       </div>
     </div>
 
@@ -117,30 +123,25 @@
               <th class="hidden text-left lg:table-cell">Reason</th>
             </tr>
           </thead>
-          <tbody>
-            {% for tx in transactions %}
-            <tr>
-              <td class="whitespace-nowrap text-[rgb(var(--rc-muted))]">{{ tx.created_at }}</td>
-              <td class="hidden max-w-[8rem] truncate lg:table-cell text-[rgb(var(--rc-muted))]">{{ tx.moved_by or '—' }}</td>
-              <td>
-                <div class="text-[10px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">{{ tx.category }}</div>
-                <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.name }}</div>
-              </td>
-              <td class="whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
-              <td class="whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
-              <td class="text-right font-semibold tabular-nums">{{ tx.qty }}</td>
-              <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_before }}</td>
-              <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_after }}</td>
-              <td class="hidden text-right tabular-nums xl:table-cell text-[rgb(var(--rc-muted))]">{{ tx.company_stock_before if tx.company_stock_before is not none else '—' }}</td>
-              <td class="hidden text-right tabular-nums xl:table-cell text-[rgb(var(--rc-muted))]">{{ tx.company_stock_after if tx.company_stock_after is not none else '—' }}</td>
-              <td class="hidden text-right tabular-nums lg:table-cell">{% if tx.buying_price is not none %}{{ "%.2f"|format(tx.buying_price) }}{% else %}—{% endif %}</td>
-              <td class="hidden max-w-[10rem] truncate lg:table-cell text-[rgb(var(--rc-muted))]">{{ tx.place_brought_from or '' }}</td>
-              <td class="hidden whitespace-nowrap lg:table-cell">{{ (tx.reason or '').upper() }}</td>
-            </tr>
-            {% endfor %}
+          <tbody data-audit-tbody>
+            {% include "partials/shop_stock_audit_rows.html" %}
           </tbody>
         </table>
       </div>
+    </div>
+    <div class="flex justify-center">
+      <button
+        type="button"
+        class="btn-rc btn-rc-ghost min-h-[44px] rounded-xl px-5 py-2.5 text-sm font-semibold {% if not has_more %}hidden{% endif %}"
+        data-audit-load-more
+        data-next-offset="{{ next_offset|default(0) }}"
+        data-label-default="Load more"
+      >
+        <span class="inline-flex items-center gap-2">
+          <svg class="hidden h-4 w-4 animate-spin" data-audit-more-spin fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          Load more
+        </span>
+      </button>
     </div>
     {% endif %}
     </div>
@@ -152,7 +153,6 @@
     if (!root || root.getAttribute("data-audit-item-wired") === "1") return;
     root.setAttribute("data-audit-item-wired", "1");
 
-    var form = root.closest("form");
     var combo = root.querySelector("[data-audit-item-combo]");
     var list = root.querySelector("[data-audit-item-list]");
     var toggle = root.querySelector("[data-audit-item-toggle]");
@@ -168,9 +168,6 @@
       items = [];
     }
 
-    var textTimer = null;
-    var applying = false;
-
     function labelFor(it) {
       var cat = String((it && it.category) || "").trim();
       var name = String((it && it.name) || "").trim();
@@ -181,23 +178,10 @@
       return (String((it && it.category) || "") + " " + String((it && it.name) || "")).toLowerCase();
     }
 
-    function requestLive(delay) {
-      if (!form || !window.PortalLiveFilters || typeof window.PortalLiveFilters.scheduleFetch !== "function") {
-        if (form && typeof form.requestSubmit === "function") form.requestSubmit();
-        else if (form) form.submit();
-        return;
-      }
-      window.PortalLiveFilters.scheduleFetch(form, delay == null ? 120 : delay);
-    }
-
-    function setValues(itemId, q, display, opts) {
-      opts = opts || {};
-      applying = true;
+    function setValues(itemId, q, display) {
       hiddenId.value = itemId ? String(itemId) : "";
       hiddenQ.value = itemId ? "" : String(q || "").trim();
       if (typeof display === "string") combo.value = display;
-      applying = false;
-      if (opts.fetch) requestLive(opts.delay == null ? 80 : opts.delay);
     }
 
     function hideList() {
@@ -218,11 +202,7 @@
       var width = Math.max(rect.width, Math.min(360, window.innerWidth - 24));
       var left = Math.min(rect.left, window.innerWidth - width - 12);
       left = Math.max(12, left);
-
-      if (list.parentElement !== document.body) {
-        document.body.appendChild(list);
-      }
-
+      if (list.parentElement !== document.body) document.body.appendChild(list);
       list.style.position = "fixed";
       list.style.zIndex = "9999";
       list.style.left = left + "px";
@@ -230,7 +210,6 @@
       list.style.maxHeight = height + "px";
       list.style.right = "auto";
       list.style.boxSizing = "border-box";
-
       if (openUp) {
         list.style.top = "auto";
         list.style.bottom = window.innerHeight - rect.top + gap + "px";
@@ -250,18 +229,14 @@
     function renderList(query) {
       var q = String(query || "").trim().toLowerCase();
       var matches = [];
-      var i;
-      for (i = 0; i < items.length; i++) {
+      for (var i = 0; i < items.length; i++) {
         if (!q || searchHay(items[i]).indexOf(q) !== -1) {
           matches.push(items[i]);
           if (matches.length >= 60) break;
         }
       }
-
       var html = [];
-      html.push(
-        '<button type="button" class="block w-full px-3 py-2 text-left text-sm text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" data-all-items>All items</button>'
-      );
+      html.push('<button type="button" class="block w-full px-3 py-2 text-left text-sm text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" data-all-items>All items</button>');
       if (!matches.length) {
         html.push('<p class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">No matching items</p>');
       } else {
@@ -272,10 +247,8 @@
           html.push(
             '<button type="button" role="option" class="block w-full px-3 py-2 text-left text-sm hover:bg-[rgb(var(--rc-surface-2))] ' +
               (selected ? "bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]" : "text-[rgb(var(--rc-page-fg))]") +
-              '" data-item-id="' +
-              id.replace(/"/g, "&quot;") +
-              '" data-item-label="' +
-              label.replace(/"/g, "&quot;") +
+              '" data-item-id="' + id.replace(/"/g, "&quot;") +
+              '" data-item-label="' + label.replace(/"/g, "&quot;") +
               '"><span class="block text-[10px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">' +
               String(it.category || "").replace(/</g, "&lt;") +
               '</span><span class="font-medium">' +
@@ -288,37 +261,20 @@
       showList();
     }
 
-    combo.addEventListener("focus", function () {
-      renderList(combo.value);
-    });
-
+    combo.addEventListener("focus", function () { renderList(combo.value); });
     combo.addEventListener("input", function () {
-      if (applying) return;
-      // Local dropdown filter only — do not hit the server on every keystroke.
+      // Local dropdown only — Apply filters submits to the server.
       hiddenId.value = "";
       hiddenQ.value = String(combo.value || "").trim();
       renderList(combo.value);
-      if (textTimer) clearTimeout(textTimer);
-      textTimer = setTimeout(function () {
-        var q = String(combo.value || "").trim();
-        // Empty clears; 2+ chars searches text. Single char waits.
-        if (!q || q.length >= 2) {
-          setValues("", q, combo.value, { fetch: true, delay: 100 });
-        }
-      }, 650);
     });
-
     combo.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        hideList();
-        return;
-      }
+      if (e.key === "Escape") { hideList(); return; }
       if (e.key === "Enter") {
         e.preventDefault();
-        if (textTimer) clearTimeout(textTimer);
         var q = String(combo.value || "").trim();
         hideList();
-        setValues("", q.length >= 2 ? q : "", combo.value, { fetch: true, delay: 0 });
+        setValues("", q.length >= 2 ? q : "", combo.value);
         return;
       }
       if (e.key === "ArrowDown") {
@@ -328,54 +284,87 @@
         if (first) first.focus();
       }
     });
-
     if (toggle) {
       toggle.addEventListener("click", function (e) {
         e.preventDefault();
-        if (list.hidden) {
-          combo.focus();
-          renderList(combo.value || "");
-        } else {
-          hideList();
-        }
+        if (list.hidden) { combo.focus(); renderList(combo.value || ""); }
+        else hideList();
       });
     }
-
-    list.addEventListener("mousedown", function (e) {
-      e.preventDefault();
-    });
-
+    list.addEventListener("mousedown", function (e) { e.preventDefault(); });
     list.addEventListener("click", function (e) {
       var allBtn = e.target && e.target.closest ? e.target.closest("[data-all-items]") : null;
-      if (allBtn) {
-        if (textTimer) clearTimeout(textTimer);
-        setValues("", "", "", { fetch: true, delay: 0 });
-        hideList();
-        return;
-      }
+      if (allBtn) { setValues("", "", ""); hideList(); return; }
       var btn = e.target && e.target.closest ? e.target.closest("[data-item-id]") : null;
       if (!btn) return;
-      if (textTimer) clearTimeout(textTimer);
-      var id = btn.getAttribute("data-item-id") || "";
-      var label = btn.getAttribute("data-item-label") || "";
-      setValues(id, "", label, { fetch: true, delay: 0 });
+      setValues(btn.getAttribute("data-item-id") || "", "", btn.getAttribute("data-item-label") || "");
       hideList();
     });
-
     document.addEventListener("click", function (e) {
       if (root.contains(e.target) || list.contains(e.target)) return;
       hideList();
     });
+    window.addEventListener("scroll", function () { if (!list.hidden) placeList(); }, true);
+    window.addEventListener("resize", function () { if (!list.hidden) placeList(); });
+  })();
+  </script>
+  <script>
+  (function () {
+    var page = document.querySelector("[data-audit-page]");
+    if (!page) return;
+    var tbody = page.querySelector("[data-audit-tbody]");
+    var moreBtn = page.querySelector("[data-audit-load-more]");
+    var loadedEl = page.querySelector("[data-audit-loaded-count]");
+    var overlay = page.querySelector("[data-audit-overlay]");
+    var loading = false;
 
-    window.addEventListener(
-      "scroll",
-      function () {
-        if (!list.hidden) placeList();
-      },
-      true
-    );
-    window.addEventListener("resize", function () {
-      if (!list.hidden) placeList();
+    function showOverlay(on) {
+      if (!overlay) return;
+      overlay.classList.toggle("hidden", !on);
+      overlay.classList.toggle("flex", !!on);
+    }
+
+    if (!moreBtn || !tbody) return;
+
+    function setMoreLoading(on) {
+      var spin = moreBtn.querySelector("[data-audit-more-spin]");
+      if (spin) spin.classList.toggle("hidden", !on);
+      moreBtn.disabled = !!on;
+    }
+
+    moreBtn.addEventListener("click", function () {
+      if (loading || moreBtn.classList.contains("hidden")) return;
+      var next = parseInt(moreBtn.getAttribute("data-next-offset") || "0", 10) || 0;
+      var params = new URLSearchParams(window.location.search);
+      params.set("partial", "1");
+      params.set("offset", String(next));
+      loading = true;
+      setMoreLoading(true);
+      showOverlay(true);
+      fetch(window.location.pathname + "?" + params.toString(), {
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+        credentials: "same-origin",
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error("load failed");
+          if (data.html) tbody.insertAdjacentHTML("beforeend", data.html);
+          var added = parseInt(data.loaded_count || 0, 10) || 0;
+          if (loadedEl) {
+            var cur = parseInt(loadedEl.textContent || "0", 10) || 0;
+            loadedEl.textContent = String(cur + added);
+          }
+          moreBtn.setAttribute("data-next-offset", String(data.next_offset || next + added));
+          if (!data.has_more) moreBtn.classList.add("hidden");
+        })
+        .catch(function () {
+          alert("Could not load more rows. Try again.");
+        })
+        .finally(function () {
+          loading = false;
+          setMoreLoading(false);
+          showOverlay(false);
+        });
     });
   })();
   </script>

@@ -16654,6 +16654,7 @@ def list_shop_stock_audit_rows(
     source: Optional[str] = None,
     item_id: Optional[int] = None,
     search: Optional[str] = None,
+    offset: int = 0,
 ):
     """Shop stock transaction audit lines with optional date range and facet filters."""
     af = analytics_filter or {}
@@ -16686,6 +16687,14 @@ def list_shop_stock_audit_rows(
         params.extend([like, like])
 
     where_sql = " AND ".join(where_parts)
+    try:
+        off = max(0, int(offset or 0))
+    except Exception:
+        off = 0
+    try:
+        lim = max(1, min(int(limit or 1000), 50000))
+    except Exception:
+        lim = 1000
     sql = f"""
     SELECT
         sst.id,
@@ -16712,9 +16721,9 @@ def list_shop_stock_audit_rows(
     LEFT JOIN employees e ON e.id = sst.created_by_employee_id
     WHERE {where_sql}
     ORDER BY sst.created_at DESC
-    LIMIT %s
+    LIMIT %s OFFSET %s
     """
-    params.append(int(limit))
+    params.extend([lim, off])
     try:
         with get_cursor() as cur:
             cur.execute(sql, tuple(params))
@@ -18743,8 +18752,10 @@ def list_company_stock_movements(
     employee_id: Optional[int] = None,
     supplier_search: Optional[str] = None,
     moved_by_contains: Optional[str] = None,
+    item_search: Optional[str] = None,
     sort_payment_status_groups: bool = False,
     limit: int = 1000,
+    offset: int = 0,
 ):
     """Detailed stock movement log across company + shops."""
     st_where, st_params = _analytics_where_clause(analytics_filter, "st")
@@ -18770,6 +18781,14 @@ def list_company_stock_movements(
         st_params = list(st_params) + [like_mb]
         sst_where = f"({sst_where}) AND COALESCE(e.full_name,'') LIKE %s"
         sst_params = list(sst_params) + [like_mb]
+
+    itq = (item_search or "").strip()
+    if itq:
+        like_it = f"%{itq}%"
+        st_where = f"({st_where}) AND COALESCE(i.name,'') LIKE %s"
+        st_params = list(st_params) + [like_it]
+        sst_where = f"({sst_where}) AND COALESCE(i.name,'') LIKE %s"
+        sst_params = list(sst_params) + [like_it]
 
     if shop_id is not None:
         st_where = f"({st_where}) AND 1=0"
@@ -18863,6 +18882,15 @@ def list_company_stock_movements(
     else:
         order_sql = "ORDER BY mv.created_at DESC"
 
+    try:
+        off = max(0, int(offset or 0))
+    except Exception:
+        off = 0
+    try:
+        lim = max(1, min(int(limit or 1000), 50000))
+    except Exception:
+        lim = 1000
+
     sql = f"""
     SELECT * FROM (
       {company_sql}
@@ -18870,9 +18898,9 @@ def list_company_stock_movements(
       {shop_sql}
     ) mv
     {order_sql}
-    LIMIT %s
+    LIMIT %s OFFSET %s
     """
-    params.append(int(limit))
+    params.extend([lim, off])
     try:
         with get_cursor() as cur:
             cur.execute(sql, tuple(params))
