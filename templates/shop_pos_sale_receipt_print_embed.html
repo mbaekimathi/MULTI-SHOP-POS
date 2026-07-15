@@ -6,7 +6,7 @@
 </head>
 <body>
   <script type="application/json" id="receipt-reprint-embed-data">{{ embed_data|tojson }}</script>
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=29"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=34"></script>
   {% if request.args.get('auto_print') in ('1', 'true', 'yes') %}
   <script>
     window.addEventListener("load", function () {

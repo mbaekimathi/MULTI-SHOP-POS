@@ -10,8 +10,11 @@ html, body {
     width: var(--receipt-roll-mm);
     max-width: var(--receipt-roll-mm);
     margin: 0 auto;
-    padding: 2mm calc(1.5mm * var(--receipt-density, 1));
+    padding-top: calc(2mm * var(--receipt-density, 1));
     padding-bottom: calc(2mm * var(--receipt-density, 1));
+    padding-left: 2.5mm;
+    padding-right: 2.5mm;
+    border: 1.5px solid #111;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: var(--receipt-font-size);
     line-height: var(--receipt-line-height, 1.22);
@@ -36,7 +39,7 @@ html, body {
     display: block;
     margin: 0 auto;
     max-height: calc(10mm * var(--receipt-density, 1));
-    max-width: 68mm;
+    max-width: 100%;
     height: auto;
     width: auto;
     object-fit: contain;

@@ -4,7 +4,7 @@
 {% block head %}
   {{ super() }}
   {% include "partials/shop_settings_switch_styles.html" %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-settings-preview.css') }}?v=4" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-settings-preview.css') }}?v=5" />
 {% endblock %}
 {% block shop_sidebar_links %}
   {% set shop_settings_nav_active = 'receipt' %}
@@ -26,7 +26,7 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=29"></script>
+  <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=34"></script>
   <script>
     (function () {
       function initReceiptSettingsToggles() {
@@ -39,11 +39,14 @@
         var qrEn = document.getElementById("receipt_qr_enabled");
         var qrOpt = document.getElementById("receipt-qr-options");
         var qrUrlWrap = document.getElementById("receipt-qr-url-wrap");
+        var qrPayHint = document.getElementById("receipt-qr-payment-hint");
         var attrEn = document.getElementById("receipt_show_attribution");
         var attrW = document.getElementById("receipt-attribution-wrap");
         function syncQrUrl() {
           var website = root.querySelector('input[name="receipt_qr_mode"][value="website"]');
+          var payment = root.querySelector('input[name="receipt_qr_mode"][value="payment"]');
           if (qrUrlWrap) qrUrlWrap.classList.toggle("hidden", !website || !website.checked);
+          if (qrPayHint) qrPayHint.classList.toggle("hidden", !payment || !payment.checked);
         }
         function syncQr() {
           if (qrOpt) qrOpt.classList.toggle("hidden", !qrEn || !qrEn.checked);

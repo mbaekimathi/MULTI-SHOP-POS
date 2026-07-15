@@ -2786,7 +2786,7 @@ def _load_receipt_settings() -> dict:
         merged[k] = merged.get(k) in (True, "true", "1", 1, "True")
     merged["attribution_name"] = str(merged.get("attribution_name") or "").strip()[:200]
     qm = str(merged.get("receipt_qr_mode") or "receipt_details").strip()
-    if qm not in ("website", "receipt_details"):
+    if qm not in ("website", "receipt_details", "payment"):
         qm = "receipt_details"
     merged["receipt_qr_mode"] = qm
     merged["receipt_width"] = _normalize_receipt_width_value(merged.get("receipt_width"))
@@ -5855,7 +5855,7 @@ def _effective_receipt_settings_for_shop(shop: dict) -> dict:
         merged[k] = merged.get(k) in (True, "true", "1", 1, "True")
     merged["attribution_name"] = str(merged.get("attribution_name") or "").strip()[:200]
     qm = str(merged.get("receipt_qr_mode") or "receipt_details").strip()
-    if qm not in ("website", "receipt_details"):
+    if qm not in ("website", "receipt_details", "payment"):
         qm = "receipt_details"
     merged["receipt_qr_mode"] = qm
     merged["receipt_width"] = _normalize_receipt_width_value(merged.get("receipt_width"))
@@ -6930,7 +6930,7 @@ def _receipt_settings_from_form() -> dict:
     if fsize not in ("8pt", "10pt", "12pt"):
         fsize = "12pt"
     qr_mode = _s("receipt_qr_mode", "receipt_details")
-    if qr_mode not in ("website", "receipt_details"):
+    if qr_mode not in ("website", "receipt_details", "payment"):
         qr_mode = "receipt_details"
     paybill_business = _s("receipt_payment_paybill_business", "", 256)
     paybill_account = _s("receipt_payment_paybill_account", "", 64)

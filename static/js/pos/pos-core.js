@@ -7239,13 +7239,58 @@ var saleType = "sale";
         }
       }
 
-      /** Payload string for QR (website URL or compact JSON for receipt_details). */
+      /** Human-readable pay prompt from receipt payment settings + sale amount. */
+      function buildReceiptQrPaymentPayload(payload, S) {
+        S = S || receiptSettings();
+        var lines = [];
+        var pt = receiptNormalizePaymentDetailType(S);
+        var label = receiptPaymentInstructionLabel(S);
+        lines.push("PAY WITH QR");
+        lines.push("Method: " + label);
+        if (pt === "paybill") {
+          var fields = receiptPaybillInstructionFields(S);
+          if (fields.business) lines.push("Business number: " + fields.business);
+          if (fields.account) lines.push("Account: " + fields.account);
+        } else {
+          var detailLines = receiptPaymentInstructionLines(S);
+          if (detailLines.length) {
+            detailLines.forEach(function (ln) {
+              lines.push(ln);
+            });
+          } else {
+            lines.push("Use " + label + " to complete payment.");
+          }
+        }
+        var amt = fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0);
+        if (parseFloat(String(amt).replace(",", ".")) > 0.000001) {
+          lines.push("Amount: " + amt);
+        }
+        var rn = String(payload.receiptNo || "").trim();
+        if (rn) lines.push("Receipt: " + rn);
+        var shop = String(payload.shopName || "").trim();
+        if (shop) lines.push("Shop: " + shop);
+        return lines.join("\n");
+      }
+
+      function receiptQrCaptionText(S) {
+        S = S || receiptSettings();
+        var qm = String(S.receipt_qr_mode || "receipt_details").trim();
+        if (qm === "website") return "Scan for link";
+        if (qm === "payment") return "Scan to pay";
+        return "Scan for receipt details";
+      }
+
+      /** Payload string for QR (website URL, payment prompt, or receipt details JSON). */
       function buildReceiptQrPayloadString(payload, S) {
         S = S || receiptSettings();
         var qm = String(S.receipt_qr_mode || "receipt_details").trim();
         if (qm === "website") {
           var u = (S.receipt_qr_website_url || "").trim();
           if (u) return u;
+        }
+        if (qm === "payment") {
+          var payTxt = buildReceiptQrPaymentPayload(payload, S);
+          if (payTxt) return payTxt;
         }
         return buildReceiptQrPayloadDetailsJson(payload);
       }
@@ -7723,6 +7768,21 @@ var saleType = "sale";
         return (m ? m[1] : s).trim() || "Payment";
       }
 
+      /** Shop pay-via: show selected instruction type whenever enabled in receipt settings. */
+      function receiptShouldShowPayInstructions(payload) {
+        return true;
+      }
+
+      function receiptCompactPayLineHtml(label, value) {
+        return (
+          '<div class="receipt-pay-line"><span class="receipt-pay-line__label">' +
+          receiptEsc(label) +
+          '</span><span class="receipt-pay-line__value">' +
+          receiptEsc(value) +
+          "</span></div>"
+        );
+      }
+
       function receiptExpandPaymentDetailLines(raw) {
         var out = [];
         String(raw || "")
@@ -7788,38 +7848,23 @@ var saleType = "sale";
 
       function receiptPaymentInstructionHasContent(rs) {
         if (!(rs && rs.show_payment_details)) return false;
-        var pt = receiptNormalizePaymentDetailType(rs);
-        if (pt === "paybill") {
-          var fields = receiptPaybillInstructionFields(rs);
-          return !!(fields.business || fields.account);
-        }
-        return receiptPaymentInstructionLines(rs).length > 0;
+        /* Type is selected in settings — always printable when the toggle is on. */
+        return true;
       }
 
       function receiptPaybillInstructionHtml(rs) {
         var fields = receiptPaybillInstructionFields(rs);
-        if (!fields.business && !fields.account) return "";
         var label = receiptPaymentInstructionLabel(rs);
+        var parts = [];
+        parts.push('<div class="receipt-pay-lines receipt-body">');
+        parts.push(receiptCompactPayLineHtml("Pay via", label));
+        if (fields.business) parts.push(receiptCompactPayLineHtml("Business", fields.business));
+        if (fields.account) parts.push(receiptCompactPayLineHtml("Account", fields.account));
+        parts.push("</div>");
         return (
-          '<div class="receipt-payment receipt-payment--instructions receipt-payment--paybill">' +
-          '<p class="receipt-payment__heading">PAY VIA</p>' +
-          '<p class="receipt-payment__method">' +
-          receiptEsc(label) +
-          "</p>" +
-          '<div class="receipt-paybill-stack receipt-body">' +
-          '<div class="receipt-paybill-row">' +
-          '<span class="receipt-paybill-label">Business</span>' +
-          '<span class="receipt-paybill-value">' +
-          receiptEsc(fields.business || "—") +
-          "</span>" +
-          "</div>" +
-          '<div class="receipt-paybill-row">' +
-          '<span class="receipt-paybill-label">Account</span>' +
-          '<span class="receipt-paybill-value">' +
-          receiptEsc(fields.account || "—") +
-          "</span>" +
-          "</div>" +
-          "</div></div>"
+          '<div class="receipt-payment receipt-payment--instructions receipt-payment--compact receipt-payment--paybill">' +
+          parts.join("") +
+          "</div>"
         );
       }
 
@@ -7879,13 +7924,15 @@ var saleType = "sale";
             "*{box-sizing:border-box}" +
             "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
             "html,body{margin:0!important;padding:0!important;background:#fff;color:#111;width:100%;max-width:100%}" +
-            ".receipt-thermal{padding:0 1mm " +
+            ".receipt-thermal{padding:" +
             mm(2) +
-            ";width:100%;max-width:100%;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
+            " 2.5mm " +
+            mm(2) +
+            ";width:100%;max-width:100%;box-sizing:border-box;border:1.5px solid #111;outline:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
             fontCss +
             ";line-height:" +
             lh +
-            "}" +
+            ";overflow-wrap:anywhere;word-break:break-word;background:#fff;color:#111}" +
             ".receipt-thermal-accent{height:" +
             mm(2) +
             ";margin:0 0 " +
@@ -7893,10 +7940,10 @@ var saleType = "sale";
             ";background:linear-gradient(90deg,#1d4ed8,#2563eb,#1d4ed8)}" +
             ".receipt-logo-row{text-align:center;margin:0 auto " +
             mm(1) +
-            ";padding:0 1mm}" +
+            ";padding:0}" +
             ".receipt-logo-row img{display:block;margin:0 auto;max-height:" +
             mm(10) +
-            ";max-width:68mm;height:auto;width:auto;object-fit:contain}" +
+            ";max-width:100%;height:auto;width:auto;object-fit:contain}" +
             ".receipt-thermal-brand{text-align:center;padding:0 0 " +
             mm(0.5) +
             "}" +
@@ -7955,7 +8002,7 @@ var saleType = "sale";
             ".receipt-kv__label{font-size:0.94em;font-weight:" +
             (boldHeaders ? "800" : "700") +
             ";letter-spacing:0.03em;text-transform:uppercase;color:#111;overflow-wrap:break-word}" +
-            ".receipt-kv__value{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:break-word;word-break:break-word}" +
+            ".receipt-kv__value{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:break-word;word-break:break-word;padding-right:0.4mm}" +
             ".receipt-items-wrap{border-top:1.5px solid #000;padding:" +
             mm(0.8) +
             " 0 0;margin:0;width:100%}" +
@@ -7974,7 +8021,7 @@ var saleType = "sale";
               ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;padding:0}" +
               ".receipt-items__amt{width:20%;text-align:right;white-space:nowrap;font-weight:" +
               (boldHeaders ? "800" : "700") +
-              ";font-size:0.88em;padding:0}" +
+              ";font-size:0.88em;padding:0 0.4mm 0 0}" +
               ".receipt-items thead th.receipt-items__qty,.receipt-items thead th.receipt-items__amt{font-size:0.82em;letter-spacing:0.01em;padding:0}" +
             ".receipt-items--transfer .receipt-items__name{width:72%}" +
             ".receipt-items--transfer .receipt-items__qty{width:28%}" +
@@ -7994,64 +8041,59 @@ var saleType = "sale";
             ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value{font-size:1.04em;font-weight:" +
             (boldHeaders ? "900" : "800") +
             "}" +
-            ".receipt-payment{border-top:1px dashed #666;padding:" +
-            mm(1.2) +
+            ".receipt-payment{border-top:1px solid #000;padding:" +
+            mm(0.55) +
             " 0 " +
-            mm(0.8) +
-            ";margin:0;text-align:center}" +
+            mm(0.45) +
+            ";margin:0;text-align:left}" +
             ".receipt-payment--txn{border-top-style:solid;border-top-color:#000}" +
-            ".receipt-payment--instructions{border-top-style:dashed;border-top-color:#666;margin-top:" +
-            mm(0.4) +
-            "}" +
+            ".receipt-payment--instructions{border-top-style:dashed;border-top-color:#666;margin-top:0}" +
+            ".receipt-payment--compact .receipt-pay-lines{margin:0}" +
             ".receipt-payment__heading{margin:0 0 " +
-            mm(0.4) +
-            ";font-size:0.72em;font-weight:" +
+            mm(0.25) +
+            ";font-size:0.68em;font-weight:" +
             (boldHeaders ? "800" : "700") +
-            ";letter-spacing:0.08em;text-transform:uppercase;color:#444}" +
+            ";letter-spacing:0.06em;text-transform:uppercase;color:#444;text-align:left}" +
             ".receipt-payment__method{margin:0;font-weight:" +
             (boldHeaders ? "900" : "800") +
-            ";font-size:1em;letter-spacing:0.02em}" +
+            ";font-size:0.95em;letter-spacing:0.01em;text-align:left}" +
             ".receipt-payment__type{margin:0;font-weight:" +
             (boldHeaders ? "800" : "700") +
-            ";font-size:0.95em}" +
+            ";font-size:0.92em}" +
             ".receipt-payment__detail{margin:" +
-            mm(0.4) +
-            " 0 0;font-variant-numeric:tabular-nums;font-size:0.92em}" +
-            ".receipt-pay-lines{margin:" +
-            mm(0.8) +
-            " 0 0;width:100%;text-align:left}" +
-            ".receipt-pay-line{display:grid;grid-template-columns:minmax(0,42%) minmax(0,58%);column-gap:1.5mm;align-items:baseline;padding:" +
-            mm(0.25) +
-            " 0;font-variant-numeric:tabular-nums;font-size:0.9em}" +
+            mm(0.2) +
+            " 0 0;font-variant-numeric:tabular-nums;font-size:0.88em;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}" +
+            ".receipt-pay-lines{margin:0;width:100%;text-align:left}" +
+            ".receipt-pay-line{display:grid;grid-template-columns:minmax(0,38%) minmax(0,62%);column-gap:1.5mm;align-items:baseline;padding:" +
+            mm(0.15) +
+            " 0;font-variant-numeric:tabular-nums;font-size:0.9em;line-height:1.2}" +
             ".receipt-pay-line__label{font-weight:" +
             (boldHeaders ? "700" : "600") +
-            ";text-transform:uppercase;letter-spacing:0.02em;font-size:0.88em}" +
-            ".receipt-pay-line__value{text-align:right;overflow-wrap:break-word;word-break:break-word}" +
+            ";text-transform:uppercase;letter-spacing:0.02em;font-size:0.82em}" +
+            ".receipt-pay-line__value{text-align:right;overflow-wrap:break-word;word-break:break-word;padding-right:0.4mm}" +
             ".receipt-paybill-stack{display:flex;flex-direction:column;gap:" +
-            mm(1.2) +
+            mm(0.35) +
             ";margin-top:" +
-            mm(0.8) +
+            mm(0.25) +
             ";width:100%}" +
-            ".receipt-paybill-row{min-width:0;text-align:center}" +
-            ".receipt-paybill-label{display:block;font-size:0.82em;font-weight:" +
+            ".receipt-paybill-row{min-width:0;text-align:left}" +
+            ".receipt-paybill-label{display:inline;font-size:0.82em;font-weight:" +
             (boldHeaders ? "800" : "700") +
-            ";letter-spacing:0.03em;text-transform:uppercase}" +
-            ".receipt-paybill-value{display:block;margin-top:" +
-            mm(0.3) +
-            ";font-variant-numeric:tabular-nums;word-break:break-word}" +
+            ";letter-spacing:0.03em;text-transform:uppercase;margin-right:1mm}" +
+            ".receipt-paybill-value{display:inline;font-variant-numeric:tabular-nums;word-break:break-word}" +
             ".receipt-tail{margin:" +
-            mm(1.2) +
+            mm(0.7) +
             " 0 0;padding:" +
-            mm(1) +
-            " 0 0;border-top:1px dashed #888;text-align:center;line-height:1.38}" +
+            mm(0.55) +
+            " 0 0;border-top:1px dashed #888;text-align:center;line-height:1.25}" +
             ".receipt-tail__thanks{margin:0 0 " +
-            mm(0.6) +
-            ";font-size:1em;font-weight:" +
+            mm(0.25) +
+            ";font-size:0.95em;font-weight:" +
             (boldHeaders ? "800" : "700") +
             "}" +
-            ".receipt-tail__line{margin:0;font-size:0.82em;letter-spacing:0.03em;text-transform:uppercase;color:#333}" +
+            ".receipt-tail__line{margin:0;font-size:0.75em;letter-spacing:0.03em;text-transform:uppercase;color:#333}" +
             ".receipt-tail__line--brand{margin-top:" +
-            mm(0.3) +
+            mm(0.15) +
             ";font-weight:" +
             (boldHeaders ? "800" : "700") +
             ";color:#111}" +
@@ -8285,28 +8327,32 @@ var saleType = "sale";
           if (!isReceiptTransactionPaymentLabel(payType)) return "";
           var method = receiptTxnPaymentMethodTitle(payType);
           var parsed = receiptPaymentDetailKvRows(payload.paymentDetailText || "");
-          var parts = [];
-          parts.push('<p class="receipt-payment__heading">PAID BY</p>');
-          parts.push('<p class="receipt-payment__method">' + receiptEsc(method) + "</p>");
+          var parts = ['<div class="receipt-pay-lines receipt-body">'];
           if (parsed.rows.length) {
-            parts.push('<div class="receipt-pay-lines receipt-body">');
             parsed.rows.forEach(function (row) {
+              parts.push(receiptCompactPayLineHtml(row[0], row[1]));
+            });
+          } else {
+            parts.push(receiptCompactPayLineHtml("Paid", method));
+            parsed.plain.forEach(function (ln) {
               parts.push(
-                '<div class="receipt-pay-line"><span class="receipt-pay-line__label">' +
-                  receiptEsc(row[0]) +
-                  '</span><span class="receipt-pay-line__value">' +
-                  receiptEsc(row[1]) +
-                  "</span></div>"
+                '<p class="receipt-payment__detail receipt-body">' + receiptEsc(ln) + "</p>"
               );
             });
-            parts.push("</div>");
           }
-          parsed.plain.forEach(function (ln) {
-            parts.push(
-              '<p class="receipt-payment__detail receipt-body">' + receiptEsc(ln) + "</p>"
-            );
-          });
-          return '<div class="receipt-payment receipt-payment--txn">' + parts.join("") + "</div>";
+          if (parsed.rows.length && parsed.plain.length) {
+            parsed.plain.forEach(function (ln) {
+              parts.push(
+                '<p class="receipt-payment__detail receipt-body">' + receiptEsc(ln) + "</p>"
+              );
+            });
+          }
+          parts.push("</div>");
+          return (
+            '<div class="receipt-payment receipt-payment--txn receipt-payment--compact">' +
+            parts.join("") +
+            "</div>"
+          );
         }
 
         function paymentInstructionBlockHtml() {
@@ -8317,17 +8363,21 @@ var saleType = "sale";
           }
           var label = receiptPaymentInstructionLabel(S);
           var lines = receiptPaymentInstructionLines(S);
-          if (!label || !lines.length) return "";
-          var parts = [];
-          parts.push('<p class="receipt-payment__heading">PAY VIA</p>');
-          parts.push('<p class="receipt-payment__method">' + receiptEsc(label) + "</p>");
+          var parts = ['<div class="receipt-pay-lines receipt-body">'];
+          parts.push(receiptCompactPayLineHtml("Pay via", label || "Payment"));
           lines.forEach(function (ln) {
-            parts.push(
-              '<p class="receipt-payment__detail receipt-body">' + receiptEsc(ln) + "</p>"
-            );
+            var m = String(ln).match(/^([^:]+):\s*(.+)$/);
+            if (m) parts.push(receiptCompactPayLineHtml(m[1].trim(), m[2].trim()));
+            else
+              parts.push(
+                '<p class="receipt-payment__detail receipt-body">' + receiptEsc(ln) + "</p>"
+              );
           });
+          parts.push("</div>");
           return (
-            '<div class="receipt-payment receipt-payment--instructions">' + parts.join("") + "</div>"
+            '<div class="receipt-payment receipt-payment--instructions receipt-payment--compact">' +
+            parts.join("") +
+            "</div>"
           );
         }
 
@@ -8359,7 +8409,7 @@ var saleType = "sale";
               '<div class="receipt-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=' +
               enc +
               '" alt="" width="140" height="140" /></div>' +
-              '<p class="receipt-qr-caption">Scan for receipt details</p>';
+              '<p class="receipt-qr-caption">' + receiptEsc(receiptQrCaptionText(S)) + "</p>";
           }
         }
 
@@ -8761,43 +8811,51 @@ var saleType = "sale";
           var payTypeEsc = String(payload.paymentTypeLabel || "").trim();
           if (isReceiptTransactionPaymentLabel(payTypeEsc)) {
             sep();
-            pushBytes([ESC, 0x61, 0x01]);
-            boldOn();
-            pushLn("PAID BY");
-            boldOff();
-            pushLn(receiptTxnPaymentMethodTitle(payTypeEsc).slice(0, W + 8));
             pushBytes([ESC, 0x61, 0x00]);
             var parsedEsc = receiptPaymentDetailKvRows(payload.paymentDetailText || "");
-            parsedEsc.rows.forEach(function (row) {
-              pushLn(thermalMetaLabelLine(row[0], row[1], W));
-            });
-            parsedEsc.plain.forEach(function (ln) {
-              pushLn(String(ln).slice(0, W + 8));
-            });
+            if (parsedEsc.rows.length) {
+              parsedEsc.rows.forEach(function (row) {
+                pushLn(thermalMetaLabelLine(row[0], row[1], W));
+              });
+            } else {
+              boldOn();
+              pushLn(thermalMetaLabelLine("Paid", receiptTxnPaymentMethodTitle(payTypeEsc), W));
+              boldOff();
+              parsedEsc.plain.forEach(function (ln) {
+                pushLn(String(ln).slice(0, W + 8));
+              });
+            }
+            if (parsedEsc.rows.length && parsedEsc.plain.length) {
+              parsedEsc.plain.forEach(function (ln) {
+                pushLn(String(ln).slice(0, W + 8));
+              });
+            }
           }
         }
 
-        if (showPrices && !isCompany && receiptPaymentInstructionHasContent(S)) {
+        if (
+          showPrices &&
+          !isCompany &&
+          receiptPaymentInstructionHasContent(S)
+        ) {
           var instrPt = receiptNormalizePaymentDetailType(S);
           sep();
-          pushBytes([ESC, 0x61, 0x01]);
-          boldOn();
-          pushLn("PAY VIA");
-          boldOff();
+          pushBytes([ESC, 0x61, 0x00]);
           if (instrPt === "paybill") {
             var pb = receiptPaybillInstructionFields(S);
-            pushLn("Pay bill");
+            pushLn(thermalMetaLabelLine("Pay via", "Pay bill", W));
             if (pb.business) pushLn(thermalMetaLabelLine("Business", pb.business, W));
             if (pb.account) pushLn(thermalMetaLabelLine("Account", pb.account, W));
           } else {
             var instrLabel = receiptPaymentInstructionLabel(S);
             var instrLines = receiptPaymentInstructionLines(S);
-            if (instrLabel) pushLn(instrLabel.slice(0, W + 8));
+            pushLn(thermalMetaLabelLine("Pay via", instrLabel, W));
             instrLines.forEach(function (ln) {
-              pushLn(String(ln).slice(0, W + 8));
+              var m = String(ln).match(/^([^:]+):\s*(.+)$/);
+              if (m) pushLn(thermalMetaLabelLine(m[1].trim(), m[2].trim(), W));
+              else pushLn(String(ln).slice(0, W + 8));
             });
           }
-          pushBytes([ESC, 0x61, 0x00]);
         }
 
         var foot = (payload.receiptFooter || "").trim();
@@ -8816,7 +8874,7 @@ var saleType = "sale";
             sep();
             pushBytes([ESC, 0x61, 0x01]);
             charSizeSubtitle();
-            pushLn("Scan QR for details");
+            pushLn(String(receiptQrCaptionText(S)).slice(0, W + 8));
             charSizeNormal();
             pushBytes([0x0a]);
             if (qrRasterEscPos && qrRasterEscPos.length) {
@@ -9939,31 +9997,34 @@ var saleType = "sale";
           if (isReceiptTransactionPaymentLabel(payType)) {
             var methodTitle = receiptTxnPaymentMethodTitle(payType);
             var parsedPay = receiptPaymentDetailKvRows(payload.paymentDetailText || "");
-            payBlock = "<div class='sep'></div><div class='c mut' style='font-size:9pt;letter-spacing:0.08em'>PAID BY</div>";
-            payBlock += "<div class='c b' style='margin-top:2px'>" + receiptEsc(methodTitle) + "</div>";
-            parsedPay.rows.forEach(function (row) {
+            payBlock = "<div class='sep'></div>";
+            if (parsedPay.rows.length) {
+              parsedPay.rows.forEach(function (row) {
+                payBlock +=
+                  "<div class='row'><span>" +
+                  receiptEsc(row[0]) +
+                  "</span><span>" +
+                  receiptEsc(row[1]) +
+                  "</span></div>";
+              });
+            } else {
               payBlock +=
-                "<div class='row'><span>" +
-                receiptEsc(row[0]) +
-                "</span><span>" +
-                receiptEsc(row[1]) +
-                "</span></div>";
-            });
+                "<div class='row'><span>Paid</span><span>" + receiptEsc(methodTitle) + "</span></div>";
+            }
             parsedPay.plain.forEach(function (ln) {
               payBlock +=
-                "<div class='c' style='white-space:pre-wrap;font-size:11px;margin-top:4px'>" +
+                "<div class='c' style='white-space:pre-wrap;font-size:11px;margin-top:2px;text-align:left'>" +
                 receiptEsc(ln) +
                 "</div>";
             });
           }
           if (!isCompany && receiptPaymentInstructionHasContent(S)) {
             var instrPtA4 = receiptNormalizePaymentDetailType(S);
+            payBlock += "<div class='sep'></div>";
             payBlock +=
-              "<div class='sep'></div><div class='c mut' style='font-size:9pt;letter-spacing:0.08em'>PAY VIA</div>";
-            payBlock +=
-              "<div class='c b' style='margin-top:2px'>" +
+              "<div class='row'><span>Pay via</span><span>" +
               receiptEsc(receiptPaymentInstructionLabel(S)) +
-              "</div>";
+              "</span></div>";
             if (instrPtA4 === "paybill") {
               var pbA4 = receiptPaybillInstructionFields(S);
               if (pbA4.business) {
@@ -9980,10 +10041,20 @@ var saleType = "sale";
               }
             } else {
               receiptPaymentInstructionLines(S).forEach(function (ln) {
-                payBlock +=
-                  "<div class='c' style='white-space:pre-wrap;font-size:11px;margin-top:4px'>" +
-                  receiptEsc(ln) +
-                  "</div>";
+                var m = String(ln).match(/^([^:]+):\s*(.+)$/);
+                if (m) {
+                  payBlock +=
+                    "<div class='row'><span>" +
+                    receiptEsc(m[1].trim()) +
+                    "</span><span>" +
+                    receiptEsc(m[2].trim()) +
+                    "</span></div>";
+                } else {
+                  payBlock +=
+                    "<div class='c' style='white-space:pre-wrap;font-size:11px;margin-top:2px;text-align:left'>" +
+                    receiptEsc(ln) +
+                    "</div>";
+                }
               });
             }
           }
@@ -10007,7 +10078,9 @@ var saleType = "sale";
               "<div class='sep'></div><div class='c' style='margin:8px 0;display:flex;flex-direction:column;align-items:center;width:100%'><img src=\"https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=" +
               encN +
               "\" alt=\"\" width=\"140\" height=\"140\" style=\"display:block;width:140px;height:140px;object-fit:contain;margin:0 auto\" /></div>" +
-              "<div class='c mut' style='font-size:10px;text-align:center;width:100%'>Scan for receipt details</div>";
+              "<div class='c mut' style='font-size:10px;text-align:center;width:100%'>" +
+              receiptEsc(receiptQrCaptionText(S)) +
+              "</div>";
           }
         }
 

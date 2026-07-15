@@ -245,11 +245,24 @@
                 name="receipt_qr_mode"
                 value="receipt_details"
                 class="mt-1 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]"
-                {% if rs.receipt_qr_mode != 'website' %}checked{% endif %}
+                {% if rs.receipt_qr_mode == 'receipt_details' or not rs.receipt_qr_mode %}checked{% endif %}
               />
               <span>
                 <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Receipt number &amp; details</span>
                 <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">Encode receipt ID, date/time, and amount in the QR (e.g. for verification or returns).</span>
+              </span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent p-2 hover:bg-[rgb(var(--rc-surface))]/80">
+              <input
+                type="radio"
+                name="receipt_qr_mode"
+                value="payment"
+                class="mt-1 h-4 w-4 shrink-0 border-[rgb(var(--rc-border))] text-[rgb(var(--rc-primary))]"
+                {% if rs.receipt_qr_mode == 'payment' %}checked{% endif %}
+              />
+              <span>
+                <span class="block text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Pay with QR code</span>
+                <span class="mt-0.5 block text-xs text-[rgb(var(--rc-muted))]">When scanned, prompts the customer to pay using the payment instructions set on this receipt (Buy goods, Pay bill, or Send money) plus the amount due.</span>
               </span>
             </label>
           </fieldset>
@@ -264,6 +277,9 @@
               autocomplete="url"
             />
           </div>
+          <p id="receipt-qr-payment-hint" class="text-xs text-[rgb(var(--rc-muted))] {% if rs.receipt_qr_mode != 'payment' %}hidden{% endif %}">
+            Uses the <strong class="font-semibold text-[rgb(var(--rc-page-fg))]">Payment details on receipt</strong> section above. Turn that on and fill Buy goods / Pay bill / Send money so the QR has pay instructions.
+          </p>
         </div>
       </div>
 
@@ -330,7 +346,7 @@
         <div class="receipt-preview-stage mt-6 px-2">
           <div
             id="receipt-print-preview"
-            class="receipt-preview-paper rounded-sm border border-neutral-300 bg-white text-black shadow-md ring-1 ring-black/5 dark:border-neutral-600 dark:ring-white/10"
+            class="receipt-preview-paper bg-white text-black"
             data-roll="80"
             role="region"
             aria-label="Receipt print preview"

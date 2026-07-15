@@ -21,6 +21,9 @@
   background: #fff;
   color: #111;
   overflow: hidden;
+  border: 2px solid #111;
+  border-radius: 2px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   transition: width 0.22s ease, height 0.22s ease, max-width 0.22s ease, box-shadow 0.22s ease;
 }
 
