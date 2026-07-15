@@ -1,8 +1,10 @@
 <script>
   (function () {
     function wireStockDateFilter(form) {
+      if (!form || form.getAttribute("data-stock-date-wired") === "1") return;
       var mode = form.querySelector('[name="mode"]');
       if (!mode) return;
+      form.setAttribute("data-stock-date-wired", "1");
       var day = form.querySelector('[data-stock-filter="single_day"]');
       var period = form.querySelector('[data-stock-filter="period"]');
       var month = form.querySelector('[data-stock-filter="month"]');
@@ -28,6 +30,8 @@
     function wireStockLiveFilter(form) {
       if (window.PortalLiveFilters) return;
       if (!form || !form.classList.contains("sa-stock-live-filter")) return;
+      if (form.getAttribute("data-stock-live-wired") === "1") return;
+      form.setAttribute("data-stock-live-wired", "1");
       wireStockDateFilter(form);
       var submitTimer = null;
       var searchTimer = null;
@@ -118,23 +122,36 @@
       }
     }
 
-    document.querySelectorAll(".sa-stock-live-filter").forEach(wireStockLiveFilter);
-    document.querySelectorAll(".sa-stock-date-filter").forEach(wireStockDateFilter);
-    document.querySelectorAll("form[data-stock-apply-filter]").forEach(function (form) {
-      form.addEventListener("submit", function () {
-        var spin = form.querySelector("[data-stock-apply-spin]");
-        var btn = form.querySelector("[data-stock-apply-btn]");
-        if (spin) spin.classList.remove("hidden");
-        if (btn) btn.disabled = true;
-        var overlay = document.querySelector("[data-stock-load-overlay]");
-        if (overlay) overlay.classList.remove("hidden");
+    function bootStockFilters() {
+      document.querySelectorAll(".sa-stock-live-filter").forEach(wireStockLiveFilter);
+      document.querySelectorAll(".sa-stock-date-filter").forEach(wireStockDateFilter);
+      document.querySelectorAll("form[data-stock-apply-filter]").forEach(function (form) {
+        if (form.getAttribute("data-stock-apply-wired") === "1") return;
+        form.setAttribute("data-stock-apply-wired", "1");
+        form.addEventListener("submit", function () {
+          var spin = form.querySelector("[data-stock-apply-spin]");
+          var btn = form.querySelector("[data-stock-apply-btn]");
+          if (spin) spin.classList.remove("hidden");
+          if (btn) btn.disabled = true;
+          var overlay = document.querySelector("[data-stock-load-overlay]");
+          if (overlay) {
+            overlay.classList.remove("hidden");
+            overlay.classList.add("flex");
+          }
+        });
       });
-    });
-    wireStockTabs(
-      document.getElementById("shop-stock-report-root"),
-      document.getElementById("shop-stock-tab-raw"),
-      document.getElementById("shop-stock-tab-visual"),
-      "shop-stock-analytics-report-view"
-    );
+      wireStockTabs(
+        document.getElementById("shop-stock-report-root"),
+        document.getElementById("shop-stock-tab-raw"),
+        document.getElementById("shop-stock-tab-visual"),
+        "shop-stock-analytics-report-view"
+      );
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bootStockFilters);
+    } else {
+      bootStockFilters();
+    }
   })();
 </script>

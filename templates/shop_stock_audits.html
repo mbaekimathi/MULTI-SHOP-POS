@@ -25,8 +25,7 @@
         {% endif %}
       {% endfor %}
     {% endif %}
-    <div class="mt-3 flex flex-wrap items-end gap-2.5 border-t border-[rgb(var(--rc-border))]/60 pt-3">
-      <div class="min-w-[7rem] flex-1 sm:max-w-[9rem]">
+      <div class="w-full max-w-[8rem] shrink-0">
         <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
         <select id="audit-direction" name="direction" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
           <option value="" {% if not audit_direction %}selected{% endif %}>All</option>
@@ -34,7 +33,7 @@
           <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
         </select>
       </div>
-      <div class="min-w-[7rem] flex-1 sm:max-w-[9rem]">
+      <div class="w-full max-w-[9rem] shrink-0">
         <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
         <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
           <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
@@ -43,7 +42,7 @@
           <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
         </select>
       </div>
-      <div class="min-w-[14rem] flex-[2] sm:min-w-[18rem]" data-audit-item-filter>
+      <div class="w-full max-w-[14rem] shrink-0" data-audit-item-filter>
         <label for="audit-item-combo" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
         <div class="audit-item-combo relative">
           <input
@@ -80,8 +79,7 @@
         <input type="hidden" name="q" value="{{ '' if audit_item_id else (audit_q or '') }}" data-audit-item-q />
         <script type="application/json" data-audit-item-data>{{ filter_items|default([])|tojson }}</script>
       </div>
-      <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
-    </div>
+      <a href="{{ url_for('shop_stock_audits', shop_id=shop.id) }}" class="btn-rc btn-rc-ghost mb-0.5 shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
     {% endset %}
     {% include "partials/shop_stock_hero_filter.html" %}
 

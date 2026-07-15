@@ -62,7 +62,7 @@
       <p class="sa-stock-filter-hint text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{% if _apply_only %}Set filters, then apply{% else %}Changes apply automatically{% endif %}</p>
     </div>
     <div class="flex flex-wrap items-end gap-2.5">
-      <div class="min-w-[8.5rem] flex-1 sm:max-w-[10rem]">
+      <div class="w-full max-w-[9.5rem] shrink-0">
         <label for="analytics-filter-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period</label>
         <select id="analytics-filter-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
           {% if stock_filter_mode_all %}
@@ -74,11 +74,11 @@
           <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
         </select>
       </div>
-      <div data-stock-filter="single_day" class="min-w-[10rem] flex-1 {% if (f.mode or ('all' if stock_filter_mode_all else 'single_day')) not in ('single_day',) %}hidden{% endif %}">
+      <div data-stock-filter="single_day" class="w-full max-w-[11.5rem] shrink-0 {% if (f.mode or ('all' if stock_filter_mode_all else 'single_day')) not in ('single_day',) %}hidden{% endif %}">
         <label for="analytics-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
         <input id="analytics-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
       </div>
-      <div data-stock-filter="period" class="flex min-w-[19rem] flex-[2] flex-wrap items-end gap-2.5 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
+      <div data-stock-filter="period" class="flex w-full max-w-[22rem] shrink-0 flex-wrap items-end gap-2.5 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
         <div class="min-w-[9.5rem] flex-1">
           <label for="analytics-start-date" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">From</label>
           <input id="analytics-start-date" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
@@ -88,17 +88,18 @@
           <input id="analytics-end-date" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
         </div>
       </div>
-      <div data-stock-filter="month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
+      <div data-stock-filter="month" class="w-full max-w-[11.5rem] shrink-0 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
         <label for="analytics-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
         <input id="analytics-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
       </div>
-      <div data-stock-filter="year" class="min-w-[8rem] max-w-[10rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
+      <div data-stock-filter="year" class="w-full max-w-[8rem] shrink-0 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
         <label for="analytics-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
         <input id="analytics-year" type="number" min="2000" max="2100" step="1" name="year" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
       </div>
       {% if stock_filter_extra_fields %}{{ stock_filter_extra_fields|safe }}{% endif %}
+      {% if stock_filter_extra_row %}{{ stock_filter_extra_row|safe }}{% endif %}
       {% if _apply_only %}
-      <div class="flex flex-wrap items-center gap-2 pb-0.5">
+      <div class="shrink-0 pb-0.5">
         <button type="submit" class="btn-rc btn-rc-primary min-h-[2.5rem] rounded-xl px-4 py-2 text-sm font-semibold" data-stock-apply-btn>
           <span class="inline-flex items-center gap-2">
             <svg class="hidden h-4 w-4 animate-spin" data-stock-apply-spin fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -108,6 +109,39 @@
       </div>
       {% endif %}
     </div>
-    {% if stock_filter_extra_row %}{{ stock_filter_extra_row|safe }}{% endif %}
   </form>
+  {% if _apply_only %}
+  <script>
+    (function () {
+      var form = document.currentScript && document.currentScript.previousElementSibling;
+      if (!form || !form.querySelector) {
+        form = document.querySelector("form[data-stock-apply-filter].sa-stock-date-filter");
+      }
+      if (!form || form.getAttribute("data-stock-date-wired") === "1") return;
+      var mode = form.querySelector('[name="mode"]');
+      if (!mode) return;
+      form.setAttribute("data-stock-date-wired", "1");
+      var day = form.querySelector('[data-stock-filter="single_day"]');
+      var period = form.querySelector('[data-stock-filter="period"]');
+      var month = form.querySelector('[data-stock-filter="month"]');
+      var year = form.querySelector('[data-stock-filter="year"]');
+      function sync() {
+        var m = mode.value || "all";
+        if (m === "all") {
+          if (day) day.classList.add("hidden");
+          if (period) period.classList.add("hidden");
+          if (month) month.classList.add("hidden");
+          if (year) year.classList.add("hidden");
+          return;
+        }
+        if (day) day.classList.toggle("hidden", m !== "single_day");
+        if (period) period.classList.toggle("hidden", m !== "period");
+        if (month) month.classList.toggle("hidden", m !== "month");
+        if (year) year.classList.toggle("hidden", m !== "year");
+      }
+      mode.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+  {% endif %}
 </section>
