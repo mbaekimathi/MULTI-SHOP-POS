@@ -117,28 +117,26 @@ QTY       {{ qty_str }}</pre>
     {% elif qm == 'payment' %}
       {% set qr_caption = 'Scan to pay' %}
       {% set qr_payload -%}
-PAY WITH QR
-Method: {{ pay_label }}
+PAY
+{{ pay_label }}
 {%- if pay_type == 'paybill' %}
 {%- if (S.payment_paybill_business or '')|trim %}
-Business number: {{ (S.payment_paybill_business or '')|trim }}
+Biz {{ (S.payment_paybill_business or '')|trim }}
 {%- endif %}
 {%- if (S.payment_paybill_account or '')|trim %}
-Account: {{ (S.payment_paybill_account or '')|trim }}
+Acc {{ (S.payment_paybill_account or '')|trim }}
 {%- endif %}
 {%- elif (S.payment_detail_text or '')|trim %}
 {{ (S.payment_detail_text or '')|trim }}
-{%- else %}
-Use {{ pay_label }} to complete payment.
 {%- endif %}
-Amount: {{ total_str }}
+Amt {{ total_str }}
 {%- endset %}
     {% else %}
       {% set qr_payload = request.url %}
       {% set qr_caption = 'Scan for receipt details' %}
     {% endif %}
     <div class="receipt-qr">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&amp;data={{ qr_payload|urlencode }}" alt="" width="96" height="96" />
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=320x320&amp;ecc=M&amp;margin=2&amp;qzone=2&amp;color=000000&amp;bgcolor=FFFFFF&amp;data={{ qr_payload|urlencode }}" alt="QR" width="320" height="320" decoding="sync" />
       <p class="receipt-qr-caption">{{ qr_caption }}</p>
     </div>
   {% endif %}

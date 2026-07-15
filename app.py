@@ -16812,7 +16812,8 @@ def shop_pos_printer_qr_escpos(shop_id: int):
         return jsonify({"ok": False, "error": "QR rendering unavailable (install python-escpos, qrcode, pillow)"}), 503
     try:
         d = Dummy()
-        d.qr(text, ec=QR_ECLEVEL_M, size=3, native=False, center=True)
+        # Larger modules (size=6) + ECC M for reliable phone scans on faded thermal paper.
+        d.qr(text, ec=QR_ECLEVEL_M, size=6, native=False, center=True)
         raw: bytes = d.output
     except Exception:
         logger.exception("shop_pos_printer_qr_escpos failed")

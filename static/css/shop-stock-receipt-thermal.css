@@ -12,23 +12,28 @@ html, body {
     margin: 0 auto;
     padding-top: calc(2mm * var(--receipt-density, 1));
     padding-bottom: calc(2mm * var(--receipt-density, 1));
-    padding-left: 2.5mm;
-    padding-right: 2.5mm;
-    border: 1.5px solid #111;
+    padding-left: 1.4mm;
+    padding-right: 4.2mm;
+    border: 1.5px solid #000;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: var(--receipt-font-size);
+    font-weight: 800;
     line-height: var(--receipt-line-height, 1.22);
     background: #fff;
     color: #000;
+    overflow: visible;
     overflow-wrap: anywhere;
     word-break: break-word;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  .receipt-thermal *:not(img) {
+    font-weight: 800;
+  }
   .receipt-thermal-accent {
     height: calc(2mm * var(--receipt-density, 1));
     margin: 0 0 calc(1.5mm * var(--receipt-density, 1));
-    background: #000;
+    background: linear-gradient(90deg, #0b1d4a, #1d4ed8, #0b1d4a);
   }
   .receipt-logo-row {
     text-align: center;
@@ -52,15 +57,15 @@ html, body {
     font-weight: 900;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #000;
+    color: #0b1d4a;
   }
   .receipt-thermal-invoice__sub {
     margin: 0 0 calc(1mm * var(--receipt-density, 1));
     font-size: 0.72em;
-    font-weight: 700;
+    font-weight: 800;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #000;
+    color: #0b1d4a;
   }
   .receipt-thermal-shopname {
     margin: 0;
@@ -68,9 +73,9 @@ html, body {
     font-weight: 900;
     letter-spacing: -0.02em;
     line-height: 1.12;
-    color: #000;
+    color: #0b1d4a;
   }
-  .receipt-thermal-company { margin: 1px 0 0; font-size: 0.75em; font-weight: 700; color: #000; }
+  .receipt-thermal-company { margin: 1px 0 0; font-size: 0.75em; font-weight: 800; color: #0b1d4a; }
   .receipt-thermal-rule {
     height: 0;
     border: none;
@@ -83,35 +88,39 @@ html, body {
     font-size: 0.71em;
     line-height: 1.25;
     color: #000;
-    font-weight: 600;
+    font-weight: 800;
     white-space: pre-wrap;
     text-align: center;
   }
-  .receipt-thermal-mut { margin: 0; font-size: 0.67em; line-height: 1.2; color: #000; font-weight: 600; }
+  .receipt-thermal-mut { margin: 0; font-size: 0.67em; line-height: 1.2; color: #000; font-weight: 800; }
   pre.receipt {
     margin: 0;
     width: 100%;
     max-width: 100%;
     font-family: "Courier New", Consolas, monospace;
     font-size: 1em;
-    font-weight: 700;
+    font-weight: 800;
     line-height: var(--receipt-line-height, 1.22);
     white-space: pre-wrap;
     word-wrap: break-word;
+    overflow-wrap: anywhere;
     overflow: visible;
+    box-sizing: border-box;
+    padding-right: 0.8mm;
+    letter-spacing: -0.02em;
     color: #000;
   }
   pre.receipt--meta,
   pre.receipt--payment,
   pre.receipt--totals {
     margin: 0;
-    padding: calc(0.8mm * var(--receipt-density, 1)) 0;
+    padding: calc(0.8mm * var(--receipt-density, 1)) 0.8mm;
     border-top: 1px solid #000;
     border-bottom: 1px solid #000;
   }
   pre.receipt--items {
     margin: 0;
-    padding: calc(0.8mm * var(--receipt-density, 1)) 0 0;
+    padding: calc(0.8mm * var(--receipt-density, 1)) 0.8mm 0 0;
     border-top: 1px solid #000;
   }
   pre.receipt--note {
@@ -129,27 +138,35 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     width: 100%;
-    margin: calc(0.5mm * var(--receipt-density, 1)) 0 0;
-    padding: calc(1mm * var(--receipt-density, 1)) 1mm 0;
-    min-height: calc(22mm * var(--receipt-density, 1));
+    margin: calc(0.8mm * var(--receipt-density, 1)) 0 0;
+    padding: 2.5mm 2mm;
+    min-height: 28mm;
+    background: #fff;
+    box-sizing: border-box;
   }
   .receipt-qr img {
     display: block;
-    width: calc(22mm * var(--receipt-density, 1));
-    height: calc(22mm * var(--receipt-density, 1));
-    max-width: 72%;
+    width: 30mm;
+    height: 30mm;
+    max-width: 92%;
+    padding: 1.8mm;
+    box-sizing: border-box;
+    background: #fff;
     object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
   }
   .receipt-qr-caption {
-    margin: calc(0.5mm * var(--receipt-density, 1)) 0 0;
+    margin: calc(0.6mm * var(--receipt-density, 1)) 0 0;
     padding: 0;
     width: 100%;
     text-align: center;
-    font-size: 0.625em;
+    font-size: 0.68em;
     line-height: 1.25;
-    color: #000;
-    font-weight: 600;
+    color: #0b1d4a;
+    font-weight: 800;
   }
   .receipt-thermal-footer {
     margin: 0 0 calc(1mm * var(--receipt-density, 1));
@@ -158,8 +175,8 @@ html, body {
     font-size: 0.67em;
     line-height: 1.25;
     color: #000;
-    font-weight: 600;
-    border-top: 1px dashed #000;
+    font-weight: 800;
+    border-top: 1.5px solid #000;
     white-space: pre-wrap;
   }
   @media print {
@@ -176,6 +193,14 @@ html, body {
       width: var(--receipt-roll-mm) !important;
       min-width: var(--receipt-roll-mm) !important;
       max-width: var(--receipt-roll-mm) !important;
+      padding-left: 1.4mm !important;
+      padding-right: 4.5mm !important;
+      overflow: visible !important;
+    }
+    pre.receipt {
+      overflow: visible !important;
+      max-width: 100% !important;
+      padding-right: 1mm !important;
     }
     pre.receipt,
     pre.receipt--meta,
@@ -184,13 +209,37 @@ html, body {
     pre.receipt--payment,
     pre.receipt--tail {
       font-size: var(--receipt-mono-pt) !important;
-      font-weight: 700 !important;
+      font-weight: 800 !important;
       color: #000 !important;
     }
+    .receipt-thermal,
+    .receipt-thermal *:not(img) {
+      font-weight: 800 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .receipt-thermal-shopname,
+    .receipt-thermal-invoice__title,
+    .receipt-thermal-stock-transfer__title,
+    .receipt-thermal-company,
+    .receipt-qr-caption {
+      color: #0b1d4a !important;
+      font-weight: 900 !important;
+    }
+    pre.receipt--totals {
+      color: #7f1d1d !important;
+    }
     .receipt-logo-row img { max-height: calc(9mm * var(--receipt-density, 1)); }
+    .receipt-qr {
+      background: #fff !important;
+      padding: 2.5mm 2mm !important;
+    }
     .receipt-qr img {
-      width: calc(20mm * var(--receipt-density, 1)) !important;
-      height: calc(20mm * var(--receipt-density, 1)) !important;
+      width: 30mm !important;
+      height: 30mm !important;
+      max-width: 92% !important;
+      padding: 1.8mm !important;
+      background: #fff !important;
     }
   }
 

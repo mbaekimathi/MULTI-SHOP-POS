@@ -67,7 +67,18 @@
           return "80mm";
         }
   function receiptLineWidthChars() {
-          return normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm" ? 32 : 48;
+          /* Fit printable width: bold Large type on 80mm cannot hold 48 monospace cols
+             without clipping the right edge of every row. */
+          var narrow = normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm";
+          var rollMm = narrow ? 58 : 80;
+          var gutterMm = narrow ? 11 : 13;
+          var printableMm = Math.max(28, rollMm - gutterMm);
+          var fontPt = parseFloat(String(receiptThermalFontCss() || ""), 10);
+          if (isNaN(fontPt) || fontPt <= 0) fontPt = narrow ? 8.5 : 10;
+          var charMm = fontPt * 0.62 * 0.352778;
+          var n = Math.floor(printableMm / charMm);
+          if (narrow) return Math.max(22, Math.min(30, n));
+          return Math.max(28, Math.min(42, n));
         }
   function receiptRollWidthMm() {
           return normalizeReceiptWidthKey(receiptSettings().receipt_width) === "58mm" ? 58 : 80;
@@ -240,30 +251,27 @@
           var lines = [];
           var pt = receiptNormalizePaymentDetailType(S);
           var label = receiptPaymentInstructionLabel(S);
-          lines.push("PAY WITH QR");
-          lines.push("Method: " + label);
+          /* Keep payload short so QR modules stay large and easy to scan. */
+          lines.push("PAY");
+          lines.push(label);
           if (pt === "paybill") {
             var fields = receiptPaybillInstructionFields(S);
-            if (fields.business) lines.push("Business number: " + fields.business);
-            if (fields.account) lines.push("Account: " + fields.account);
+            if (fields.business) lines.push("Biz " + fields.business);
+            if (fields.account) lines.push("Acc " + fields.account);
           } else {
             var detailLines = receiptPaymentInstructionLines(S);
             if (detailLines.length) {
               detailLines.forEach(function (ln) {
-                lines.push(ln);
+                if (ln) lines.push(ln);
               });
-            } else {
-              lines.push("Use " + label + " to complete payment.");
             }
           }
           var amt = fmt(payload.grandTotal != null ? payload.grandTotal : payload.subtotal || 0);
           if (parseFloat(String(amt).replace(",", ".")) > 0.000001) {
-            lines.push("Amount: " + amt);
+            lines.push("Amt " + amt);
           }
           var rn = String(payload.receiptNo || "").trim();
-          if (rn) lines.push("Receipt: " + rn);
-          var shop = String(payload.shopName || "").trim();
-          if (shop) lines.push("Shop: " + shop);
+          if (rn) lines.push("#" + rn);
           return lines.join("\n");
         }
   function receiptQrCaptionText(S) {
@@ -272,6 +280,18 @@
           if (qm === "website") return "Scan for link";
           if (qm === "payment") return "Scan to pay";
           return "Scan for receipt details";
+        }
+  function receiptQrImageUrl(data, sizePx) {
+          sizePx = sizePx || 280;
+          var px = Math.max(160, Math.min(480, parseInt(sizePx, 10) || 280));
+          return (
+            "https://api.qrserver.com/v1/create-qr-code/?size=" +
+            px +
+            "x" +
+            px +
+            "&ecc=M&margin=2&qzone=2&color=000000&bgcolor=FFFFFF&data=" +
+            encodeURIComponent(String(data || ""))
+          );
         }
   function buildReceiptQrPayloadString(payload, S) {
           S = S || receiptSettings();
@@ -285,6 +305,26 @@
             if (payTxt) return payTxt;
           }
           return buildReceiptQrPayloadDetailsJson(payload);
+        }
+  function buildEscPosQrCodeBytes(text) {
+          var enc = new TextEncoder();
+          var data = enc.encode(String(text || ""));
+          var maxLen = 1000;
+          if (data.length > maxLen) {
+            data = enc.encode(String(text).slice(0, maxLen));
+          }
+          var parts = [];
+          parts.push(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
+          /* GS ( k fn 167: module size 1–16 — larger modules scan more reliably on faded thermal paper. */
+          parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x0a);
+          /* Error correction M (0x31) — more recoverable than L if print is light. */
+          parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31);
+          var n = data.length + 3;
+          parts.push(0x1d, 0x28, 0x6b, n & 0xff, (n >> 8) & 0xff, 0x31, 0x50, 0x30);
+          var i;
+          for (i = 0; i < data.length; i++) parts.push(data[i]);
+          parts.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30);
+          return new Uint8Array(parts);
         }
   function receiptQrEnabled(S) {
           S = S || receiptSettings();
@@ -360,10 +400,10 @@
           return out;
         }
   function thermalItemLayout(W) {
-          if (W <= 32) {
-            return { nameMin: 8, qtyW: 3, amtW: 8 };
+          if (W <= 36) {
+            return { nameMin: 7, qtyW: 3, amtW: 7 };
           }
-          return { nameMin: 12, qtyW: 4, amtW: 10 };
+          return { nameMin: 10, qtyW: 4, amtW: 9 };
         }
   function thermalItemRightWidth(W) {
           var L = thermalItemLayout(W);
@@ -694,9 +734,9 @@
           var heavy = thermalPlainSepHeavy(W);
           var baseFont = receiptThermalFontCss();
           var monoFont = receiptThermalMonoFontCss();
-          var boldHeaders = !!S.bold_headers;
-          var receiptWeight = boldHeaders ? "700" : "600";
-          var titleWeight = boldHeaders ? "900" : "700";
+          var boldHeaders = true; /* always bold — thermal ink reads faint otherwise */
+          var receiptWeight = "800";
+          var titleWeight = "900";
           var lines = [];
           function L(t) {
             lines.push(String(t == null ? "" : t));
@@ -711,22 +751,24 @@
             var mm = function (v) {
               return (v * dens).toFixed(2) + "mm";
             };
+            /* QR size must stay large enough to scan — do not shrink with Small font density. */
+            var qrBoxMm = String(rollCss).indexOf("58") >= 0 ? 28 : 32;
             return (
               "@page{margin:0;size:" +
               rollCss +
               " auto}" +
               "*{box-sizing:border-box}" +
               "html{-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
-              "html,body{margin:0!important;padding:0!important;background:#fff;color:#111;width:100%;max-width:100%}" +
+              "html,body{margin:0!important;padding:0!important;background:#fff;color:#000;width:100%;max-width:100%}" +
               ".receipt-thermal{padding:" +
               mm(2) +
-              " 2.5mm " +
+              " 4.2mm " +
               mm(2) +
-              ";width:100%;max-width:100%;box-sizing:border-box;border:1.5px solid #111;outline:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
+              " 1.4mm;width:100%;max-width:100%;box-sizing:border-box;border:1.5px solid #000;outline:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:" +
               fontCss +
               ";line-height:" +
               lh +
-              ";overflow-wrap:anywhere;word-break:break-word;background:#fff;color:#111}" +
+              ";overflow:visible;overflow-wrap:anywhere;word-break:break-word;background:#fff;color:#000;font-weight:800}" +
               ".receipt-thermal-accent{height:" +
               mm(2) +
               ";margin:0 0 " +
@@ -744,13 +786,13 @@
               ".receipt-thermal-badge{margin:0 0 " +
               mm(1) +
               ";padding:1px 6px;display:inline-block;border-radius:999px;font-size:0.625em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}" +
-              ".receipt-thermal-badge--company{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}" +
-              ".receipt-thermal-badge--cashier{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}" +
+              ".receipt-thermal-badge--company{background:#dbeafe;color:#1e3a8a;border:1.5px solid #1e3a8a;font-weight:800}" +
+              ".receipt-thermal-badge--cashier{background:#dbeafe;color:#1e3a8a;border:1.5px solid #1e3a8a;font-weight:800}" +
               ".receipt-thermal-shopname{margin:0;font-size:1.05em;font-weight:" +
               headingWeight +
-              ";letter-spacing:-0.02em;line-height:1.12;color:#1e3a8a}" +
-              ".receipt-thermal-company{margin:1px 0 0;font-size:0.75em;font-weight:600;color:#4b5563}" +
-              ".receipt-thermal-rule{height:0;border:none;border-top:1px solid #d1d5db;margin:0 0 " +
+              ";letter-spacing:-0.02em;line-height:1.12;color:#0b1d4a}" +
+              ".receipt-thermal-company{margin:1px 0 0;font-size:0.75em;font-weight:800;color:#0b1d4a}" +
+              ".receipt-thermal-rule{height:0;border:none;border-top:1.5px solid #000;margin:0 0 " +
               mm(1.5) +
               "}" +
               ".receipt-thermal-contact{margin:0 0 " +
@@ -758,8 +800,8 @@
               ";text-align:center}" +
               ".receipt-thermal-customhdr{margin:0 0 " +
               mm(1) +
-              ";font-size:0.71em;line-height:1.25;color:#000;font-weight:600;white-space:pre-wrap}" +
-              ".receipt-thermal-mut{margin:0;font-size:0.67em;line-height:1.2;color:#000;font-weight:600}" +
+              ";font-size:0.71em;line-height:1.25;color:#000;font-weight:800;white-space:pre-wrap}" +
+              ".receipt-thermal-mut{margin:0;font-size:0.67em;line-height:1.2;color:#000;font-weight:800}" +
               ".receipt-thermal-placeholder{font-style:italic}" +
               ".receipt-thermal-quote{margin:0 0 " +
               mm(2.5) +
@@ -767,66 +809,68 @@
               mm(2.5) +
               " 2mm;border-radius:6px;border:1px dashed #94a3b8;background:#f8fafc;text-align:center}" +
               ".receipt-thermal-quote__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#0f172a}" +
-              ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:0.79em;color:#64748b}" +
+              ".receipt-thermal-quote__sub{display:block;margin-top:2px;font-size:0.79em;color:#0b1d4a;font-weight:800}" +
               ".receipt-thermal-reprint{margin:0 0 " +
               mm(2.5) +
               ";padding:" +
               mm(2.5) +
               " 2mm;border-radius:6px;border:1px dashed #f59e0b;background:#fffbeb;text-align:center}" +
-              ".receipt-thermal-reprint__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#92400e}" +
-              ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:0.79em;color:#b45309}" +
-              ".receipt-thermal-stock-transfer__title{margin:0 0 2px;font-size:0.92em;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:#0f172a}" +
-              ".receipt-thermal-stock-transfer__sub{margin:0;font-size:0.79em;font-weight:700;line-height:1.25;color:#1e3a8a;text-transform:none}" +
+              ".receipt-thermal-reprint__title{display:block;font-size:0.83em;font-weight:900;letter-spacing:0.14em;text-transform:uppercase;color:#7c2d12}" +
+              ".receipt-thermal-reprint__sub{display:block;margin-top:2px;font-size:0.79em;color:#9a3412;font-weight:800}" +
+              ".receipt-thermal-stock-transfer__title{margin:0 0 2px;font-size:0.92em;font-weight:900;letter-spacing:0.1em;text-transform:uppercase;color:#000}" +
+              ".receipt-thermal-stock-transfer__sub{margin:0;font-size:0.79em;font-weight:800;line-height:1.25;color:#0b1d4a;text-transform:none}" +
               "pre.receipt{margin:0;width:100%;max-width:100%;display:block;font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:1em;font-weight:" +
               preWeight +
               ";line-height:" +
               lh +
-              ";white-space:pre-wrap;word-wrap:break-word;color:#000;letter-spacing:0}" +
+              ";white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;overflow:visible;box-sizing:border-box;padding-right:0.8mm;color:#000;letter-spacing:-0.02em}" +
               ".receipt-body{font-family:'Courier New',Consolas,'Liberation Mono',monospace;font-size:0.94em;font-weight:" +
               preWeight +
-              ";color:#000;width:100%;max-width:100%}" +
+              ";color:#000;width:100%;max-width:100%;overflow:visible;box-sizing:border-box}" +
               ".receipt-kv{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:" +
               mm(1) +
-              " 0;margin:0;width:100%}" +
-              ".receipt-kv__row{display:grid;grid-template-columns:minmax(0,36%) minmax(0,64%);column-gap:1.5mm;align-items:baseline;padding:" +
+              " 0.8mm " +
+              mm(1) +
+              " 0;margin:0;width:100%;max-width:100%;box-sizing:border-box;overflow:visible}" +
+              ".receipt-kv__row{display:grid;grid-template-columns:minmax(0,34%) minmax(0,66%);column-gap:1mm;align-items:baseline;padding:" +
               mm(0.3) +
               " 0;line-height:" +
               lh +
-              ";width:100%}" +
+              ";width:100%;max-width:100%;box-sizing:border-box}" +
               ".receipt-kv__label{font-size:0.94em;font-weight:" +
               (boldHeaders ? "800" : "700") +
-              ";letter-spacing:0.03em;text-transform:uppercase;color:#111;overflow-wrap:break-word}" +
-              ".receipt-kv__value{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:break-word;word-break:break-word;padding-right:0.4mm}" +
+              ";letter-spacing:0.02em;text-transform:uppercase;color:#0b1d4a;overflow-wrap:break-word}" +
+              ".receipt-kv__value{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:break-word;word-break:break-word;padding-right:1.2mm;box-sizing:border-box}" +
               ".receipt-items-wrap{border-top:1.5px solid #000;padding:" +
               mm(0.8) +
-              " 0 0;margin:0;width:100%}" +
+              " 0.8mm 0 0;margin:0;width:100%;max-width:100%;box-sizing:border-box;overflow:visible}" +
               ".receipt-items{width:100%;border-collapse:collapse;table-layout:fixed}" +
               ".receipt-items thead th{font-size:0.9em;font-weight:" +
               (boldHeaders ? "900" : "800") +
               ";letter-spacing:0.02em;text-transform:uppercase;padding:0 0 " +
               mm(0.6) +
-              ";border-bottom:1px dashed #444;color:#111}" +
+              ";border-bottom:1.5px solid #000;color:#000}" +
               ".receipt-items th,.receipt-items td{padding:" +
               mm(0.4) +
               " 0;vertical-align:top;line-height:" +
               lh +
               ";font-variant-numeric:tabular-nums}" +
-                ".receipt-items__name{text-align:left;width:68%;padding-right:0.6mm;white-space:normal;word-break:break-word;overflow-wrap:break-word;font-size:0.94em}" +
+                ".receipt-items__name{text-align:left;width:66%;padding-right:0.5mm;white-space:normal;word-break:break-word;overflow-wrap:break-word;font-size:0.94em}" +
                 ".receipt-items__qty{width:12%;text-align:center;white-space:nowrap;font-size:0.88em;padding:0}" +
-                ".receipt-items__amt{width:20%;text-align:right;white-space:nowrap;font-weight:" +
+                ".receipt-items__amt{width:22%;text-align:right;white-space:nowrap;font-weight:" +
                 (boldHeaders ? "800" : "700") +
-                ";font-size:0.88em;padding:0 0.4mm 0 0}" +
+                ";font-size:0.88em;padding:0 1.2mm 0 0;box-sizing:border-box}" +
                 ".receipt-items thead th.receipt-items__qty,.receipt-items thead th.receipt-items__amt{font-size:0.82em;letter-spacing:0.01em;padding:0}" +
               ".receipt-items--transfer .receipt-items__name{width:72%}" +
               ".receipt-items--transfer .receipt-items__qty{width:28%}" +
-              ".receipt-items tbody tr+tr td{border-top:1px dotted #ccc}" +
+              ".receipt-items tbody tr+tr td{border-top:1px solid #000}" +
               ".receipt-items__disc-row td{border-top:none!important;padding-top:0}" +
-              ".receipt-items__disc{font-size:0.86em;font-style:italic;color:#333;padding:0 0 " +
+              ".receipt-items__disc{font-size:0.86em;font-style:normal;font-weight:800;color:#7f1d1d;padding:0 0 " +
               mm(0.5) +
               "!important}" +
               ".receipt-totals{border-top:1.5px solid #000;border-bottom:1.5px solid #000;padding:" +
               mm(0.8) +
-              " 0;margin:0}" +
+              " 0.8mm;margin:0;width:100%;max-width:100%;box-sizing:border-box;overflow:visible}" +
               ".receipt-totals .receipt-kv__row--grand{margin-top:" +
               mm(0.6) +
               ";padding-top:" +
@@ -837,17 +881,17 @@
               "}" +
               ".receipt-payment{border-top:1px solid #000;padding:" +
               mm(0.55) +
-              " 0 " +
+              " 0.8mm " +
               mm(0.45) +
-              ";margin:0;text-align:left}" +
+              ";margin:0;text-align:left;width:100%;max-width:100%;box-sizing:border-box;overflow:visible}" +
               ".receipt-payment--txn{border-top-style:solid;border-top-color:#000}" +
-              ".receipt-payment--instructions{border-top-style:dashed;border-top-color:#666;margin-top:0}" +
+              ".receipt-payment--instructions{border-top-style:dashed;border-top-color:#000;margin-top:0}" +
               ".receipt-payment--compact .receipt-pay-lines{margin:0}" +
               ".receipt-payment__heading{margin:0 0 " +
               mm(0.25) +
               ";font-size:0.68em;font-weight:" +
               (boldHeaders ? "800" : "700") +
-              ";letter-spacing:0.06em;text-transform:uppercase;color:#444;text-align:left}" +
+              ";letter-spacing:0.06em;text-transform:uppercase;color:#0b1d4a;text-align:left}" +
               ".receipt-payment__method{margin:0;font-weight:" +
               (boldHeaders ? "900" : "800") +
               ";font-size:0.95em;letter-spacing:0.01em;text-align:left}" +
@@ -858,13 +902,13 @@
               mm(0.2) +
               " 0 0;font-variant-numeric:tabular-nums;font-size:0.88em;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}" +
               ".receipt-pay-lines{margin:0;width:100%;text-align:left}" +
-              ".receipt-pay-line{display:grid;grid-template-columns:minmax(0,38%) minmax(0,62%);column-gap:1.5mm;align-items:baseline;padding:" +
+              ".receipt-pay-line{display:grid;grid-template-columns:minmax(0,36%) minmax(0,64%);column-gap:1mm;align-items:baseline;padding:" +
               mm(0.15) +
-              " 0;font-variant-numeric:tabular-nums;font-size:0.9em;line-height:1.2}" +
+              " 0;font-variant-numeric:tabular-nums;font-size:0.9em;line-height:1.2;width:100%;max-width:100%;box-sizing:border-box}" +
               ".receipt-pay-line__label{font-weight:" +
               (boldHeaders ? "700" : "600") +
               ";text-transform:uppercase;letter-spacing:0.02em;font-size:0.82em}" +
-              ".receipt-pay-line__value{text-align:right;overflow-wrap:break-word;word-break:break-word;padding-right:0.4mm}" +
+              ".receipt-pay-line__value{text-align:right;overflow-wrap:break-word;word-break:break-word;padding-right:1.2mm;box-sizing:border-box}" +
               ".receipt-paybill-stack{display:flex;flex-direction:column;gap:" +
               mm(0.35) +
               ";margin-top:" +
@@ -879,18 +923,18 @@
               mm(0.7) +
               " 0 0;padding:" +
               mm(0.55) +
-              " 0 0;border-top:1px dashed #888;text-align:center;line-height:1.25}" +
+              " 0 0;border-top:1.5px solid #000;text-align:center;line-height:1.25}" +
               ".receipt-tail__thanks{margin:0 0 " +
               mm(0.25) +
               ";font-size:0.95em;font-weight:" +
               (boldHeaders ? "800" : "700") +
               "}" +
-              ".receipt-tail__line{margin:0;font-size:0.75em;letter-spacing:0.03em;text-transform:uppercase;color:#333}" +
+              ".receipt-tail__line{margin:0;font-size:0.75em;letter-spacing:0.03em;text-transform:uppercase;color:#000;font-weight:800}" +
               ".receipt-tail__line--brand{margin-top:" +
               mm(0.15) +
               ";font-weight:" +
               (boldHeaders ? "800" : "700") +
-              ";color:#111}" +
+              ";color:#0b1d4a}" +
               "pre.receipt--meta,pre.receipt--payment,pre.receipt--totals{margin:0;padding:" +
               mm(0.8) +
               " 0;border-top:1px solid #000;border-bottom:1px solid #000;color:#000;font-weight:" +
@@ -903,32 +947,30 @@
               mm(1) +
               " 0 0;padding:" +
               mm(1) +
-              " 0 0;border-top:1px dashed #d1d5db}" +
+              " 0 0;border-top:1.5px solid #000}" +
               "pre.receipt--tail{margin:" +
               mm(1) +
               " 0 0;padding:" +
               mm(1) +
-              " 0 0;border-top:1px solid #e5e7eb}" +
+              " 0 0;border-top:1.5px solid #000}" +
               ".receipt-thermal-footer{margin:0 0 " +
               mm(1) +
               ";padding:" +
               mm(1) +
-              " 0 0;text-align:center;font-size:0.67em;line-height:1.25;color:#000;font-weight:600;border-top:1px dashed #000}" +
-              ".receipt-qr{display:flex;flex-direction:column;align-items:center;width:100%;margin:" +
-              mm(0.5) +
-              " 0 0;padding:" +
-              mm(1) +
-              " 1mm 0;min-height:" +
-              mm(22) +
-              "}" +
+              " 0 0;text-align:center;font-size:0.67em;line-height:1.25;color:#000;font-weight:800;border-top:1.5px solid #000}" +
+              ".receipt-qr{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;margin:" +
+              mm(0.8) +
+              " 0 0;padding:2.5mm 2mm;min-height:" +
+              qrBoxMm +
+              "mm;background:#fff;box-sizing:border-box}" +
               ".receipt-qr img{display:block;width:" +
-              mm(22) +
-              ";height:" +
-              mm(22) +
-              ";max-width:72%;object-fit:contain}" +
+              qrBoxMm +
+              "mm;height:" +
+              qrBoxMm +
+              "mm;max-width:92%;padding:1.8mm;box-sizing:border-box;background:#fff;object-fit:contain;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges}" +
               ".receipt-qr-caption{margin:" +
-              mm(0.5) +
-              " 0 0;padding:0;width:100%;text-align:center;font-size:0.625em;line-height:1.25;color:#6b7280}" +
+              mm(0.6) +
+              " 0 0;padding:0;width:100%;text-align:center;font-size:0.68em;line-height:1.25;color:#0b1d4a;font-weight:800}" +
               ".receipt-browser-print-tip{margin:0 0 " +
               mm(1.5) +
               ";padding:" +
@@ -953,14 +995,22 @@
               ".receipt-thermal-mut,.receipt-thermal-customhdr,.receipt-thermal-footer,.receipt-thermal-company{color:#000!important;font-weight:" +
               preWeight +
               "!important}" +
+              ".receipt-thermal,.receipt-thermal *:not(img){font-weight:800!important}" +
+              ".receipt-thermal-shopname,.receipt-kv__label,.receipt-payment__heading,.receipt-qr-caption{color:#0b1d4a!important}" +
+              ".receipt-totals .receipt-kv__row--grand .receipt-kv__label,.receipt-totals .receipt-kv__row--grand .receipt-kv__value,.receipt-items__amt{color:#7f1d1d!important}" +
+              ".receipt-thermal-rule,pre.receipt--meta,pre.receipt--totals,pre.receipt--payment,.receipt-kv,.receipt-totals{border-color:#000!important}" +
+              ".receipt-thermal{padding-left:1.4mm!important;padding-right:4.5mm!important;overflow:visible!important}" +
+              "pre.receipt,.receipt-body,.receipt-kv,.receipt-items-wrap,.receipt-totals,.receipt-payment{overflow:visible!important;max-width:100%!important}" +
+              ".receipt-kv__value,.receipt-pay-line__value,.receipt-items__amt{padding-right:1.4mm!important}" +
               ".receipt-logo-row img{max-height:" +
               mm(9) +
               "}" +
+              ".receipt-qr{background:#fff!important;padding:2.5mm 2mm!important}" +
               ".receipt-qr img{width:" +
-              mm(20) +
-              "!important;height:" +
-              mm(20) +
-              "!important}" +
+              qrBoxMm +
+              "mm!important;height:" +
+              qrBoxMm +
+              "mm!important;max-width:92%!important;padding:1.8mm!important;background:#fff!important}" +
               "}"
             );
           }
@@ -1198,12 +1248,13 @@
           if (!isCompany && receiptQrEnabled(S)) {
             var qrData = buildReceiptQrPayloadString(payload, S);
             if (qrData) {
-              var enc = encodeURIComponent(qrData);
               qrHtml =
-                '<div class="receipt-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data=' +
-                enc +
-                '" alt="" width="140" height="140" /></div>' +
-                '<p class="receipt-qr-caption">' + receiptEsc(receiptQrCaptionText(S)) + "</p>";
+                '<div class="receipt-qr"><img src="' +
+                receiptQrImageUrl(qrData, 320).replace(/&/g, "&amp;") +
+                '" alt="QR" width="320" height="320" decoding="sync" />' +
+                '<p class="receipt-qr-caption">' +
+                receiptEsc(receiptQrCaptionText(S)) +
+                "</p></div>";
             }
           }
 
@@ -1450,7 +1501,7 @@
   var RECEIPT_PREVIEW_PRINT_CSS = (
     ".receipt-browser-print-tip{display:none!important}" +
     "html,body{margin:0!important;padding:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important}" +
-    ".receipt-thermal{width:100%!important;max-width:100%!important;box-sizing:border-box!important;border:1.5px solid #111!important;padding:2mm 2.5mm!important;background:#fff!important}" +
+    ".receipt-thermal{width:100%!important;max-width:100%!important;box-sizing:border-box!important;border:1.5px solid #111!important;padding:2mm 4.2mm 2mm 1.4mm!important;background:#fff!important}" +
     ".receipt-items,.receipt-kv,.receipt-totals,.receipt-payment,.receipt-tail,.receipt-items-wrap{width:100%!important;max-width:100%!important}"
   );
 
@@ -1488,7 +1539,7 @@
       w +
       "mm!important;max-width:" +
       w +
-      "mm!important;height:auto!important;min-height:0!important;border:1.5px solid #111!important;padding:2mm 2.5mm!important;background:#fff!important;font-size:" +
+      "mm!important;height:auto!important;min-height:0!important;border:1.5px solid #111!important;padding:2mm 4.2mm 2mm 1.4mm!important;background:#fff!important;font-size:" +
       fontPx +
       "!important;line-height:" +
       lh +
