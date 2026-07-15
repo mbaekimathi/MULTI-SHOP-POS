@@ -11931,8 +11931,8 @@ def it_support_credit_payments():
     customer_q = (request.args.get("customer_q") or "").strip()
     should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
 
-    # Default behavior: show all credit sales until the user intentionally applies filters.
-    has_explicit_filter = bool(
+    # Default on load: today's credit sales (Day filter). Use ?all_time=1 for every-period.
+    has_explicit_period = bool(
         all_time
         or mode
         or single_day
@@ -11940,11 +11940,9 @@ def it_support_credit_payments():
         or end_date
         or month
         or year
-        or filter_shop_id
-        or customer_q
     )
-    if not has_explicit_filter:
-        all_time = True
+    if not has_explicit_period:
+        all_time = False
 
     canonical_q = _build_credit_payments_query_dict(
         all_time=all_time,
@@ -11952,7 +11950,7 @@ def it_support_credit_payments():
         filter_shop_id=filter_shop_id,
         customer_q=customer_q,
     )
-    if request.args and not should_print and not _credit_payments_args_match(canonical_q):
+    if not should_print and not _credit_payments_args_match(canonical_q):
         return redirect(url_for("it_support_credit_payments", **canonical_q))
 
     credit_customers = []
@@ -11988,7 +11986,6 @@ def it_support_credit_payments():
         customer_q=customer_q,
     )
     print_q = dict(analytics_nav)
-    print_q["all_time"] = "1"
     print_q["print"] = "1"
     return render_template(
         "it_support_credit_payments.html",
@@ -12200,7 +12197,6 @@ def it_support_credit_payments_customer():
         shop_id=None,
         customer_name=customer_name,
         customer_phone=customer_phone,
-        company_credit_scope=True,
         embed_record_payment=True,
         credit_payment_return_to="customer",
         credit_note_statement_full=is_full,
@@ -12316,7 +12312,6 @@ def company_credit_payments_customer():
         embed_record_payment=True,
         company_should_print=should_print,
         credit_note_statement_full=is_full,
-        company_credit_scope=True,
         credit_note_pdf_url=url_for(
             "company_credit_payments_customer_pdf",
             **statement_q,
