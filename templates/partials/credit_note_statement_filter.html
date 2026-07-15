@@ -1,0 +1,171 @@
+{# Full vs partial credit statement filter — live calendar period selection #}
+{% set _is_full = credit_note_statement_full if credit_note_statement_full is defined else credit_note_all_time|default(true) %}
+{% set _f = f if f is defined else {} %}
+{% set _mode = (_f.mode if not _is_full else 'single_day') or 'single_day' %}
+{% set _lbl = 'mb-1 block text-[0.625rem] font-extrabold uppercase tracking-wider text-[rgb(var(--rc-muted))]' %}
+{% set _inp = 'w-full min-h-[2.5rem] rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))] focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20' %}
+
+<form
+  method="get"
+  action="{{ request.path }}"
+  class="credit-note-statement-filter portal-filter-toolbar--legacy portal-live-toolbar no-print"
+  id="credit-note-statement-filter"
+  data-credit-statement-filter
+  data-live-filter="credit-note-statement"
+  data-portal-live-filter
+  data-portal-live-content="#credit-note-live-content"
+>
+  <input type="hidden" name="customer_name" value="{{ customer_name }}" />
+  <input type="hidden" name="customer_phone" value="{{ customer_phone }}" />
+  {% if shop_id %}
+  <input type="hidden" name="shop_id" value="{{ shop_id }}" />
+  {% endif %}
+  {% if back_shop_id is defined and back_shop_id %}
+  <input type="hidden" name="back_shop_id" value="{{ back_shop_id }}" />
+  {% endif %}
+
+  <div class="portal-filter-actions" aria-live="polite">
+    <span class="portal-live-chip" title="Filters apply automatically">
+      <span class="portal-live-chip__text">Live</span>
+      <span class="portal-live-chip__dot" aria-hidden="true"></span>
+    </span>
+    {% if _is_full %}
+      <span class="portal-filter-scope-chip">Full account</span>
+    {% elif _f.range_label %}
+      <span class="portal-filter-scope-chip">{{ _f.range_label }}</span>
+    {% else %}
+      <span class="portal-filter-scope-chip">Partial account</span>
+    {% endif %}
+  </div>
+
+  <div class="credit-note-statement-filter__row">
+    <div class="credit-note-statement-filter__field credit-note-statement-filter__field--statement">
+      <label for="cn-statement-scope" class="{{ _lbl }}">Statement</label>
+      <select id="cn-statement-scope" name="statement" class="{{ _inp }}" data-cn-statement-scope>
+        <option value="full" {% if _is_full %}selected{% endif %}>Full account</option>
+        <option value="partial" {% if not _is_full %}selected{% endif %}>Partial account</option>
+      </select>
+    </div>
+
+    <div
+      class="credit-note-statement-filter__period {% if _is_full %}hidden{% endif %}"
+      data-cn-period-fields
+      {% if _is_full %}hidden{% endif %}
+    >
+      <div class="credit-note-statement-filter__field">
+        <label for="cn-filter-mode" class="{{ _lbl }}">Filter by</label>
+        <select
+          id="cn-filter-mode"
+          name="mode"
+          class="{{ _inp }}"
+          data-cn-filter-mode
+          data-portal-filter-mode
+          {% if _is_full %}disabled{% endif %}
+        >
+          <option value="single_day" {% if _mode == 'single_day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if _mode == 'period' %}selected{% endif %}>Period</option>
+          <option value="month" {% if _mode == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if _mode == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+
+      <div
+        class="credit-note-statement-filter__field {% if _mode != 'single_day' %}hidden{% endif %}"
+        data-cn-panel="single_day"
+        data-portal-filter-panel="single_day"
+      >
+        <label for="cn-single-day" class="{{ _lbl }}">Date</label>
+        <input
+          id="cn-single-day"
+          type="date"
+          name="single_day"
+          value="{{ _f.single_day or '' }}"
+          class="{{ _inp }}"
+          {% if _is_full or _mode != 'single_day' %}disabled{% endif %}
+        />
+      </div>
+
+      <div
+        class="credit-note-statement-filter__field credit-note-statement-filter__field--range {% if _mode != 'period' %}hidden{% endif %}"
+        data-cn-panel="period"
+        data-portal-filter-panel="period"
+      >
+        <div class="credit-note-statement-filter__range">
+          <div>
+            <label for="cn-start-date" class="{{ _lbl }}">From</label>
+            <input
+              id="cn-start-date"
+              type="date"
+              name="start_date"
+              value="{{ _f.start_date or '' }}"
+              class="{{ _inp }}"
+              {% if _is_full or _mode != 'period' %}disabled{% endif %}
+            />
+          </div>
+          <div>
+            <label for="cn-end-date" class="{{ _lbl }}">To</label>
+            <input
+              id="cn-end-date"
+              type="date"
+              name="end_date"
+              value="{{ _f.end_date or '' }}"
+              class="{{ _inp }}"
+              {% if _is_full or _mode != 'period' %}disabled{% endif %}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="credit-note-statement-filter__field {% if _mode != 'month' %}hidden{% endif %}"
+        data-cn-panel="month"
+        data-portal-filter-panel="month"
+      >
+        <label for="cn-month" class="{{ _lbl }}">Month</label>
+        <input
+          id="cn-month"
+          type="month"
+          name="month"
+          value="{{ _f.month or '' }}"
+          class="{{ _inp }}"
+          {% if _is_full or _mode != 'month' %}disabled{% endif %}
+        />
+      </div>
+
+      <div
+        class="credit-note-statement-filter__field {% if _mode != 'year' %}hidden{% endif %}"
+        data-cn-panel="year"
+        data-portal-filter-panel="year"
+      >
+        <label for="cn-year" class="{{ _lbl }}">Year</label>
+        <input
+          id="cn-year"
+          type="number"
+          name="year"
+          min="2000"
+          max="2100"
+          step="1"
+          value="{{ _f.year or '' }}"
+          placeholder="YYYY"
+          class="{{ _inp }}"
+          {% if _is_full or _mode != 'year' %}disabled{% endif %}
+        />
+      </div>
+    </div>
+
+    <div class="credit-note-statement-filter__actions">
+      <button type="submit" class="rev-btn rev-btn--ghost credit-note-statement-filter__apply portal-live-hide-submit">Apply</button>
+    </div>
+  </div>
+
+  <p class="credit-note-statement-filter__hint" data-cn-statement-hint>
+    {% if _is_full %}
+      Showing the full outstanding account — updates live as you change filters.
+    {% else %}
+      Partial statement for <strong>{{ _f.range_label or 'selected period' }}</strong> — pick dates from the calendar.
+    {% endif %}
+  </p>
+</form>
+{% if not credit_note_live_fragment|default(false) %}
+<script src="{{ url_for('static', filename='js/credit-note-statement-filter.js') }}?v=2" defer></script>
+{% endif %}

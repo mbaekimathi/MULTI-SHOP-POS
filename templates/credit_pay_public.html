@@ -2,79 +2,121 @@
 {% block title %}Pay credit — {{ shop.shop_name if shop is defined else "Shop" }}{% endblock %}
 {% block head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/credit-pay-public.css') }}?v=3" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=19" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/credit-pay-public.css') }}?v=4" />
 {% endblock %}
 {% block body %}
+  {% set _co = site_settings.company_name if site_settings and site_settings.company_name else (company_name or 'Point of Sale') %}
+  {% if shop is defined and shop.shop_logo %}
+    {% set _logo = url_for('static', filename=shop.shop_logo) %}
+  {% elif site_settings and site_settings.app_icon %}
+    {% set _logo = url_for('static', filename=site_settings.app_icon) %}
+  {% else %}
+    {% set _logo = url_for('static', filename='app-icon.svg') %}
+  {% endif %}
+
   <section class="credit-pay-page">
     {% if error %}
-    <div class="credit-pay-card">
-      <h1 class="credit-pay-card__title">Payment unavailable</h1>
-      <p class="credit-pay-card__error">{{ error }}</p>
+    <div class="credit-pay-shell">
+      <div class="credit-pay-card credit-pay-card--solo">
+        <div class="credit-pay-brand">
+          <img class="credit-pay-brand__logo" src="{{ _logo }}" alt="" width="48" height="48" />
+          <div>
+            <p class="credit-pay-brand__name">{{ _co }}</p>
+            <p class="credit-pay-brand__tag">Secure credit payment</p>
+          </div>
+        </div>
+        <h1 class="credit-pay-card__title">Payment unavailable</h1>
+        <p class="credit-pay-card__error">{{ error }}</p>
+      </div>
     </div>
     {% else %}
-    <div class="credit-pay-layout">
-      <aside class="credit-pay-card" aria-label="M-Pesa payment">
-        <p class="credit-pay-card__eyebrow">{{ company_name }}</p>
-        <h1 class="credit-pay-card__title">Pay your credit</h1>
-        <p class="credit-pay-card__shop">{{ shop.shop_name }}</p>
-        <p class="credit-pay-card__customer">Hello {{ customer_name }}</p>
-
-        <div class="credit-pay-card__summary">
-          <span class="credit-pay-card__summary-label">Balance due</span>
-          <span class="credit-pay-card__summary-value">KES {{ "%.2f"|format(account_balance_due or 0) }}</span>
-        </div>
-        {% if suggested_amount|float < (account_balance_due or 0)|float %}
-        <p class="credit-pay-card__cap">You can pay up to KES {{ "%.2f"|format(suggested_amount) }} on this link.</p>
-        {% endif %}
-
-        <form id="credit-pay-form" class="credit-pay-form" novalidate>
-          <div class="credit-pay-field">
-            <label for="credit-pay-phone">M-Pesa phone</label>
-            <input
-              id="credit-pay-phone"
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
-              placeholder="e.g. 0712345678"
-              value="{{ default_phone }}"
-              required
-            />
+    <div class="credit-pay-shell">
+      <header class="credit-pay-topbar">
+        <div class="credit-pay-brand">
+          <img class="credit-pay-brand__logo" src="{{ _logo }}" alt="{{ _co }}" width="48" height="48" loading="eager" decoding="async" />
+          <div>
+            <p class="credit-pay-brand__name">{{ _co }}</p>
+            <p class="credit-pay-brand__tag">{{ shop.shop_name }}{% if company_credit_scope|default(false) %} · All branches{% endif %}</p>
           </div>
-          <div class="credit-pay-field">
-            <label for="credit-pay-amount">Amount (KES)</label>
-            <input
-              id="credit-pay-amount"
-              type="number"
-              inputmode="decimal"
-              step="0.01"
-              min="1"
-              max="{{ suggested_amount }}"
-              value="{{ "%.2f"|format(default_amount) }}"
-              required
-            />
-            <p class="credit-pay-field__hint">Pay any amount up to KES {{ "%.2f"|format(suggested_amount) }}.</p>
-          </div>
-          <button type="submit" id="credit-pay-submit" class="credit-pay-submit">
-            Pay with M-Pesa
-          </button>
-        </form>
-
-        <p id="credit-pay-status" class="credit-pay-status" role="status"></p>
-        <div id="credit-pay-success" class="credit-pay-success hidden">
-          <p class="credit-pay-success__title">Payment received</p>
-          <p id="credit-pay-success-msg" class="credit-pay-success__msg"></p>
-          <p id="credit-pay-success-ref" class="credit-pay-success__ref hidden"></p>
         </div>
-      </aside>
+        <p class="credit-pay-topbar__secure">
+          <span class="credit-pay-topbar__secure-dot" aria-hidden="true"></span>
+          Secure M-Pesa payment
+        </p>
+      </header>
 
-      <div class="credit-pay-account">
-        {% set site_settings = {'company_name': company_name} %}
-        {% with compact_only=true, public_credit_pay=true %}
-          {% include "partials/shop_customer_credit_note.html" %}
-        {% endwith %}
-        {% include "partials/shop_customer_credit_sales.html" %}
-        {% include "partials/shop_customer_credit_transactions.html" %}
+      <div class="credit-pay-layout">
+        <aside class="credit-pay-card" aria-label="M-Pesa payment">
+          <div class="credit-pay-card__accent" aria-hidden="true"></div>
+          <p class="credit-pay-card__eyebrow">Customer payment</p>
+          <h1 class="credit-pay-card__title">Pay your credit</h1>
+          <p class="credit-pay-card__customer">Hello <strong>{{ customer_name }}</strong></p>
+
+          <div class="credit-pay-card__summary" role="group" aria-label="Balance due">
+            <span class="credit-pay-card__summary-label">Balance due</span>
+            <span class="credit-pay-card__summary-value">KES {{ "%.2f"|format(account_balance_due or 0) }}</span>
+          </div>
+          {% if suggested_amount|float < (account_balance_due or 0)|float %}
+          <p class="credit-pay-card__cap">This link allows up to KES {{ "%.2f"|format(suggested_amount) }}.</p>
+          {% endif %}
+
+          <form id="credit-pay-form" class="credit-pay-form" novalidate>
+            <div class="credit-pay-field">
+              <label for="credit-pay-phone">M-Pesa phone</label>
+              <input
+                id="credit-pay-phone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="e.g. 0712345678"
+                value="{{ default_phone }}"
+                required
+              />
+            </div>
+            <div class="credit-pay-field">
+              <label for="credit-pay-amount">Amount (KES)</label>
+              <input
+                id="credit-pay-amount"
+                type="number"
+                inputmode="decimal"
+                step="0.01"
+                min="1"
+                max="{{ suggested_amount }}"
+                value="{{ "%.2f"|format(default_amount) }}"
+                required
+              />
+              <p class="credit-pay-field__hint">You can pay any amount up to KES {{ "%.2f"|format(suggested_amount) }}.</p>
+            </div>
+            <button type="submit" id="credit-pay-submit" class="credit-pay-submit">
+              <span class="credit-pay-submit__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </span>
+              Pay with M-Pesa
+            </button>
+          </form>
+
+          <p id="credit-pay-status" class="credit-pay-status" role="status"></p>
+          <div id="credit-pay-success" class="credit-pay-success hidden">
+            <p class="credit-pay-success__title">Payment received</p>
+            <p id="credit-pay-success-msg" class="credit-pay-success__msg"></p>
+            <p id="credit-pay-success-ref" class="credit-pay-success__ref hidden"></p>
+          </div>
+
+          <ul class="credit-pay-trust">
+            <li>STK prompt on your phone</li>
+            <li>Instant account update</li>
+            <li>No login required</li>
+          </ul>
+        </aside>
+
+        <div class="credit-pay-account">
+          {% with compact_only=true, public_credit_pay=true %}
+            {% include "partials/shop_customer_credit_note.html" %}
+          {% endwith %}
+          {% include "partials/shop_customer_credit_sales.html" %}
+          {% include "partials/shop_customer_credit_transactions.html" %}
+        </div>
       </div>
     </div>
     {% endif %}
@@ -93,6 +135,6 @@
     }
   }|tojson }}
   </script>
-  <script src="{{ url_for('static', filename='js/credit-pay-public.js') }}?v=2" defer></script>
+  <script src="{{ url_for('static', filename='js/credit-pay-public.js') }}?v=3" defer></script>
   {% endif %}
 {% endblock %}

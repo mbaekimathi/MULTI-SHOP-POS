@@ -11,7 +11,7 @@
   {% set company = site_settings.company_name if site_settings else 'Point of Sale' %}
   {% set sale_balance = (sale.remaining_amount or 0)|float %}
   {% set acct_due = (account_balance_due or 0)|float %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=18" />
 
   <div class="shop-cust-credit-page shop-cust-credit-page--sale mx-auto w-full max-w-6xl">
     <header class="cr-sale-hero no-print" aria-labelledby="cr-sale-hero-title">

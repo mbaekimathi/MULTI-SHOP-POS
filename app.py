@@ -11829,11 +11829,35 @@ def it_support_credit_payments_customer():
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = _customer_phone_from_request()
     shop_id = request.args.get("shop_id", type=int)
+    is_full, analytics_filter = _credit_note_statement_from_request()
+    live = _is_credit_note_live_request()
+    af = None if is_full else analytics_filter
+    statement_q = _credit_note_statement_query_args(
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        shop_id=shop_id,
+        is_full_account=is_full,
+        analytics_filter=analytics_filter,
+    )
     if shop_id:
         shop = _get_shop_or_404(shop_id)
         note_ctx = _shop_customer_credit_note_context(
-            shop_id, customer_name, customer_phone, analytics_filter=None
+            shop_id,
+            customer_name,
+            customer_phone,
+            analytics_filter=af,
+            lightweight=live,
         )
+        if live:
+            return _render_credit_note_live_fragment(
+                shop=shop,
+                shop_id=shop_id,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                is_full=is_full,
+                note_ctx=note_ctx,
+                company_credit_scope=False,
+            )
         return render_template(
             "it_support_credit_payments_customer.html",
             shop=shop,
@@ -11843,16 +11867,30 @@ def it_support_credit_payments_customer():
             company_credit_scope=False,
             embed_record_payment=True,
             credit_payment_return_to="customer",
+            credit_note_statement_full=is_full,
             credit_note_pdf_url=url_for(
                 "it_support_credit_payments_customer_pdf",
-                shop_id=shop_id,
-                customer_name=customer_name,
-                customer_phone=customer_phone,
+                **statement_q,
             ),
             **note_ctx,
         )
-    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    note_ctx = _company_customer_credit_note_context(
+        customer_name,
+        customer_phone,
+        analytics_filter=af,
+        lightweight=live,
+    )
     shop_stub = {"shop_name": "All shops", "shop_code": "", "id": 0}
+    if live:
+        return _render_credit_note_live_fragment(
+            shop=shop_stub,
+            shop_id=None,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            is_full=is_full,
+            note_ctx=note_ctx,
+            company_credit_scope=True,
+        )
     return render_template(
         "it_support_credit_payments_customer.html",
         shop=shop_stub,
@@ -11861,10 +11899,10 @@ def it_support_credit_payments_customer():
         customer_phone=customer_phone,
         embed_record_payment=True,
         credit_payment_return_to="customer",
+        credit_note_statement_full=is_full,
         credit_note_pdf_url=url_for(
             "it_support_credit_payments_customer_pdf",
-            customer_name=customer_name,
-            customer_phone=customer_phone,
+            **statement_q,
         ),
         **note_ctx,
     )
@@ -11877,6 +11915,7 @@ def it_support_credit_payments_customer_pdf():
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = _customer_phone_from_request()
     shop_id = request.args.get("shop_id", type=int)
+    is_full, analytics_filter = _credit_note_statement_from_request()
     company_name = ""
     primary_color = ""
     try:
@@ -11890,10 +11929,11 @@ def it_support_credit_payments_customer_pdf():
     slug = secure_filename(
         f"credit-note-{(customer_name or 'customer').replace(' ', '-').lower()}"
     )
+    af = None if is_full else analytics_filter
     if shop_id:
         shop = _get_shop_or_404(shop_id)
         note_ctx = _shop_customer_credit_note_context(
-            shop_id, customer_name, customer_phone, analytics_filter=None
+            shop_id, customer_name, customer_phone, analytics_filter=af
         )
         return _credit_note_pdf_response(
             shop_name=shop.get("shop_name") or f"Shop {shop_id}",
@@ -11903,8 +11943,11 @@ def it_support_credit_payments_customer_pdf():
             note_ctx=note_ctx,
             primary_color=primary_color or None,
             filename_slug=slug or "credit-note",
+            shop=shop,
         )
-    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    note_ctx = _company_customer_credit_note_context(
+        customer_name, customer_phone, analytics_filter=af
+    )
     return _credit_note_pdf_response(
         shop_name="All shops",
         company_name=company_name or "Company",
@@ -11931,8 +11974,26 @@ def company_credit_payments_customer():
         if not _shop_pos_allow_credit_sale(bshop):
             return redirect(url_for("shop_dashboard", shop_id=back_shop_id))
     should_print = (request.args.get("print") or "").strip().lower() in ("1", "true", "yes", "on")
-    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    is_full, analytics_filter = _credit_note_statement_from_request()
+    live = _is_credit_note_live_request()
+    note_ctx = _company_customer_credit_note_context(
+        customer_name,
+        customer_phone,
+        analytics_filter=None if is_full else analytics_filter,
+        lightweight=live,
+    )
     shop_stub = {"shop_name": "All shops", "shop_code": ""}
+    if live:
+        return _render_credit_note_live_fragment(
+            shop=shop_stub,
+            shop_id=None,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            is_full=is_full,
+            note_ctx=note_ctx,
+            back_shop_id=back_shop_id,
+            company_credit_scope=True,
+        )
     return render_template(
         "company_credit_payments_customer.html",
         shop=shop_stub,
@@ -11941,6 +12002,7 @@ def company_credit_payments_customer():
         back_shop_id=back_shop_id,
         embed_record_payment=True,
         company_should_print=should_print,
+        credit_note_statement_full=is_full,
         **note_ctx,
     )
 
@@ -11953,7 +12015,12 @@ def company_credit_payments_customer_pdf():
         abort(403)
     customer_name = (request.args.get("customer_name") or "").strip() or "WALK IN"
     customer_phone = _customer_phone_from_request()
-    note_ctx = _company_customer_credit_note_context(customer_name, customer_phone)
+    is_full, analytics_filter = _credit_note_statement_from_request()
+    note_ctx = _company_customer_credit_note_context(
+        customer_name,
+        customer_phone,
+        analytics_filter=None if is_full else analytics_filter,
+    )
     company_name = ""
     primary_color = ""
     try:
@@ -12187,6 +12254,7 @@ def it_support_credit_sale_detail_pdf():
         primary_color=primary_color or None,
         focus_sale=d,
         filename_slug=secure_filename(f"credit-sale-{sale_id}") or "credit-sale",
+        shop=shop,
     )
 
 
@@ -14446,7 +14514,7 @@ def credit_pay_public(token: str):
         return render_template("credit_pay_public.html", error=str(exc)), 400
     company_pay = int(ctx["shop_id"] or 0) == 0
     if company_pay:
-        shop = {"id": 0, "shop_name": "All shops", "shop_code": ""}
+        shop = {"id": 0, "shop_name": "All shops", "shop_code": "", "shop_logo": ""}
     else:
         shop = _get_shop_or_404(ctx["shop_id"])
         if not _shop_pos_allow_credit_sale(shop):
@@ -14479,7 +14547,7 @@ def credit_pay_public(token: str):
 
         company_name = (
             get_site_settings(["company_name"]).get("company_name") or company_name
-        )
+        ).strip() or company_name
     except Exception:
         pass
     credit_ctx = (
@@ -14561,6 +14629,7 @@ def credit_note_public_share_pdf(token: str):
         note_ctx=note_ctx,
         primary_color=primary_color or (shop.get("primary_color") or "").strip() or None,
         filename_slug=slug or "credit-note",
+        shop=shop,
     )
 
 
@@ -17798,6 +17867,98 @@ def _all_time_analytics_filter() -> dict:
     }
 
 
+def _credit_note_statement_from_request() -> Tuple[bool, dict]:
+    """Resolve full vs partial account statement from query params.
+
+    Returns (is_full_account, analytics_filter).
+    Defaults to full account when no statement / date mode is requested.
+    """
+    statement = (request.args.get("statement") or "").strip().lower()
+    all_time_arg = (request.args.get("all_time") or "").strip().lower()
+    mode = (request.args.get("mode") or "").strip().lower()
+    wants_full = (
+        statement in ("full", "full_account", "all")
+        or all_time_arg in ("1", "true", "yes", "on")
+    )
+    wants_partial = (
+        statement in ("partial", "partial_account")
+        or mode in ("single_day", "period", "month", "year")
+    )
+    if wants_full and not (statement in ("partial", "partial_account")):
+        return True, _all_time_analytics_filter()
+    if wants_partial:
+        return False, _build_analytics_filter()
+    return True, _all_time_analytics_filter()
+
+
+def _credit_note_statement_query_args(
+    *,
+    customer_name: str,
+    customer_phone: str,
+    shop_id: Optional[int] = None,
+    is_full_account: bool = True,
+    analytics_filter: Optional[dict] = None,
+) -> dict:
+    """Query args for credit-note customer/PDF links, preserving statement scope."""
+    q: dict = {
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+    }
+    if shop_id:
+        q["shop_id"] = shop_id
+    if is_full_account:
+        q["statement"] = "full"
+        return q
+    f = analytics_filter or _build_analytics_filter()
+    q["statement"] = "partial"
+    q["mode"] = f.get("mode") or "single_day"
+    mode = q["mode"]
+    if mode == "period":
+        q["start_date"] = f.get("start_date") or ""
+        q["end_date"] = f.get("end_date") or ""
+    elif mode == "month":
+        q["month"] = f.get("month") or ""
+    elif mode == "year":
+        q["year"] = f.get("year") or ""
+    else:
+        q["single_day"] = f.get("single_day") or ""
+    return q
+
+
+def _is_credit_note_live_request() -> bool:
+    hdr = (request.headers.get("X-Portal-Live-Filter") or "").strip()
+    if hdr == "1":
+        return True
+    return (request.args.get("live") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _render_credit_note_live_fragment(
+    *,
+    shop,
+    shop_id: Optional[int],
+    customer_name: str,
+    customer_phone: str,
+    is_full: bool,
+    note_ctx: dict,
+    back_shop_id: Optional[int] = None,
+    company_credit_scope: bool = False,
+):
+    """Minimal HTML for live statement filter swaps (skip full layout)."""
+    return render_template(
+        "partials/credit_note_live_fragment.html",
+        shop=shop,
+        shop_id=shop_id,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        back_shop_id=back_shop_id,
+        company_credit_scope=company_credit_scope,
+        credit_note_statement_full=is_full,
+        compact_only=True,
+        public_credit_pay=False,
+        **note_ctx,
+    )
+
+
 def _credit_sale_is_unpaid(sale_id: int, credit_acct_by_id: dict) -> bool:
     acct = credit_acct_by_id.get(int(sale_id) or 0)
     if not acct:
@@ -17855,6 +18016,7 @@ def _shop_customer_credit_note_context(
     *,
     analytics_filter: Optional[dict] = None,
     analytics_scope: str = "general",
+    lightweight: bool = False,
 ) -> dict:
     """Shared template context for shop customer credit note (period or full account)."""
     f = analytics_filter if analytics_filter is not None else _all_time_analytics_filter()
@@ -17864,10 +18026,11 @@ def _shop_customer_credit_note_context(
     credit_payments_all: list = []
     credit_sales_period: list = []
     credit_payments_period: list = []
+    credit_acct_by_id: Dict[int, dict] = {}
+    tx_limit = 800 if lightweight else 5000
     try:
         from database import (
-            get_it_support_customer_transaction_items,
-            get_it_support_customer_transactions,
+            get_pos_sale_items_for_sale_ids,
             get_shop_customer_credit_payments,
             get_shop_customer_credit_transactions,
         )
@@ -17876,70 +18039,58 @@ def _shop_customer_credit_note_context(
             shop_id=shop_id,
             customer_name=customer_name,
             customer_phone=customer_phone,
-            limit=5000,
+            limit=tx_limit,
         )
-        credit_payments_all = get_shop_customer_credit_payments(
-            shop_id=shop_id,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=5000,
-        )
-        if all_time:
-            credit_sales_period = [
-                {
-                    "id": int(t.get("id") or 0),
-                    "total_amount": float(t.get("total_amount") or 0),
-                    "created_at": t.get("created_at"),
-                    "employee_name": t.get("employee_name") or "Unknown",
-                    "employee_code": t.get("employee_code") or "",
-                    "sale_type": "credit",
-                }
-                for t in credit_account_txs
-            ]
-            credit_payments_period = list(credit_payments_all)
-        else:
-            transactions = get_it_support_customer_transactions(
+        if not lightweight:
+            credit_payments_all = get_shop_customer_credit_payments(
+                shop_id=shop_id,
                 customer_name=customer_name,
                 customer_phone=customer_phone,
-                analytics_filter=f,
-                shop_id=shop_id,
-                limit=3000,
-                analytics_scope=analytics_scope,
+                limit=5000,
             )
-            credit_sales_period = [
-                t
-                for t in transactions
-                if (t.get("sale_type") or "").strip().lower() == "credit"
-                and _row_in_analytics_filter(t, f)
-            ]
+        credit_acct_by_id = {
+            int(t.get("id") or 0): t for t in credit_account_txs if int(t.get("id") or 0) > 0
+        }
+        credit_sales_period = [
+            {
+                "id": int(t.get("id") or 0),
+                "total_amount": float(t.get("total_amount") or 0),
+                "created_at": t.get("created_at"),
+                "employee_name": t.get("employee_name") or "Unknown",
+                "employee_code": t.get("employee_code") or "",
+                "sale_type": "credit",
+            }
+            for t in credit_account_txs
+            if all_time or _row_in_analytics_filter(t, f)
+        ]
+        if all_time:
+            credit_payments_period = list(credit_payments_all)
+        else:
             credit_payments_period = [
                 p for p in credit_payments_all if _row_in_analytics_filter(p, f)
             ]
-        tx_item_rows = get_it_support_customer_transaction_items(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=8000,
-            analytics_filter=f,
-            shop_id=shop_id,
-            analytics_scope=analytics_scope,
-        )
-        for row in tx_item_rows or []:
-            if (row.get("sale_type") or "").strip().lower() != "credit":
-                continue
-            try:
+
+        unpaid_ids = [
+            int(tx.get("id") or 0)
+            for tx in credit_sales_period
+            if int(tx.get("id") or 0) > 0
+            and _credit_sale_is_unpaid(int(tx.get("id") or 0), credit_acct_by_id)
+        ]
+        if unpaid_ids:
+            for row in get_pos_sale_items_for_sale_ids(
+                unpaid_ids, shop_id=shop_id, limit=min(4000, max(200, len(unpaid_ids) * 40))
+            ):
                 sale_id = int(row.get("sale_id") or 0)
-            except Exception:
-                sale_id = 0
-            if sale_id <= 0:
-                continue
-            items_by_sale_id.setdefault(sale_id, []).append(
-                {
-                    "item_name": row.get("item_name") or "Item",
-                    "qty": int(row.get("qty") or 0),
-                    "amount": float(row.get("amount") or 0),
-                    "picked_at": _credit_item_pick_date(row.get("created_at")),
-                }
-            )
+                if sale_id <= 0:
+                    continue
+                items_by_sale_id.setdefault(sale_id, []).append(
+                    {
+                        "item_name": row.get("item_name") or "Item",
+                        "qty": int(row.get("qty") or 0),
+                        "amount": float(row.get("amount") or 0),
+                        "picked_at": row.get("picked_at") or "",
+                    }
+                )
     except Exception:
         pass
     account_credit_total = sum(float(t.get("total_amount") or 0) for t in credit_account_txs)
@@ -17947,13 +18098,10 @@ def _shop_customer_credit_note_context(
     account_balance_due = max(account_credit_total - account_paid_total, 0.0)
     period_credit_total = sum(float(t.get("total_amount") or 0) for t in credit_sales_period)
     period_payments_total = sum(float(p.get("amount") or 0) for p in credit_payments_period)
-    credit_acct_by_id = {
-        int(t.get("id") or 0): t for t in credit_account_txs if int(t.get("id") or 0) > 0
-    }
     credit_sales_unpaid, credit_note_items_by_sale_id, unpaid_balance_total, unpaid_sales_count = (
         _credit_note_unpaid_lists(credit_sales_period, credit_acct_by_id, items_by_sale_id)
     )
-    return {
+    out = {
         "f": f,
         "analytics_scope": analytics_scope,
         "transaction_items_by_sale_id": items_by_sale_id,
@@ -17973,17 +18121,24 @@ def _shop_customer_credit_note_context(
         "unpaid_sales_count": unpaid_sales_count,
         "credit_note_ref": f"CN-{shop_id}-{datetime.utcnow().strftime('%Y%m%d')}",
         "credit_note_all_time": all_time,
-        "daraja_pos_boot": _daraja_pos_boot_payload(),
-        "credit_pay_link": _credit_pay_public_link(
-            shop_id, customer_name, customer_phone, account_balance_due
-        ),
-        "credit_pay_link_full": _credit_pay_public_link_full(
-            shop_id, customer_name, customer_phone, account_balance_due
-        ),
-        "credit_note_public_url": _credit_note_public_share_url(
-            shop_id, customer_name, customer_phone, company_scope=False
-        ),
     }
+    if lightweight:
+        out["daraja_pos_boot"] = {}
+        out["credit_pay_link"] = ""
+        out["credit_pay_link_full"] = ""
+        out["credit_note_public_url"] = ""
+        return out
+    out["daraja_pos_boot"] = _daraja_pos_boot_payload()
+    out["credit_pay_link"] = _credit_pay_public_link(
+        shop_id, customer_name, customer_phone, account_balance_due
+    )
+    out["credit_pay_link_full"] = _credit_pay_public_link_full(
+        shop_id, customer_name, customer_phone, account_balance_due
+    )
+    out["credit_note_public_url"] = _credit_note_public_share_url(
+        shop_id, customer_name, customer_phone, company_scope=False
+    )
+    return out
 
 
 def _credit_note_unpaid_item_rows(note_ctx: dict, *, company_scope: bool = False) -> list:
@@ -18025,6 +18180,102 @@ def _credit_note_unpaid_item_rows(note_ctx: dict, *, company_scope: bool = False
     return [{k: v for k, v in r.items() if k != "shop_name"} for r in rows]
 
 
+def _credit_note_pdf_branding(*, shop: Optional[dict] = None) -> dict:
+    """Logo path, contact details, and website URL for modern credit-note PDFs."""
+    company_name = ""
+    company_phone = ""
+    company_email = ""
+    company_location = ""
+    primary_color = ""
+    logo_rel = ""
+    try:
+        from database import get_site_settings
+
+        stored = get_site_settings(
+            [
+                "company_name",
+                "company_phone",
+                "company_email",
+                "company_location_name",
+                "primary_color",
+                "app_icon",
+            ]
+        ) or {}
+        company_name = (stored.get("company_name") or "").strip()
+        company_phone = (stored.get("company_phone") or "").strip()
+        company_email = (stored.get("company_email") or "").strip()
+        company_location = (stored.get("company_location_name") or "").strip()
+        primary_color = (stored.get("primary_color") or "").strip()
+        logo_rel = (stored.get("app_icon") or "").strip()
+    except Exception:
+        pass
+
+    if shop and (shop.get("shop_logo") or "").strip():
+        logo_rel = str(shop.get("shop_logo") or "").strip()
+
+    logo_path = ""
+    for candidate in (
+        logo_rel,
+        "app-icon.svg",
+        "app-icon.png",
+        "app-icon.jpg",
+        "app-icon.jpeg",
+        "app-icon.webp",
+    ):
+        rel = (candidate or "").strip().replace("\\", "/").lstrip("/")
+        if not rel:
+            continue
+        fs = os.path.join(app.root_path, "static", *rel.split("/"))
+        if os.path.isfile(fs):
+            logo_path = fs
+            break
+
+    website_url = ""
+    try:
+        rs = _load_receipt_settings() or {}
+        website_url = str(rs.get("receipt_qr_website_url") or "").strip()
+    except Exception:
+        pass
+    if not website_url:
+        try:
+            website_url = str(_public_storefront_url() or "").strip()
+        except Exception:
+            website_url = ""
+    if not website_url:
+        try:
+            domain = _normalize_website_domain((_load_website_settings() or {}).get("domain") or "")
+            website_url = domain
+        except Exception:
+            website_url = ""
+    if not website_url:
+        try:
+            website_url = (_public_absolute_url("/") or "").strip()
+        except Exception:
+            website_url = ""
+    if website_url and not website_url.lower().startswith(("http://", "https://")):
+        website_url = "https://" + website_url.lstrip("/")
+    # Avoid encoding relative preview paths into a non-scannable QR
+    if website_url.startswith("/") or "127.0.0.1" in website_url or "localhost" in website_url.lower():
+        try:
+            hosted = (_effective_public_app_url() or "").strip()
+            if hosted:
+                website_url = hosted.rstrip("/") + "/"
+        except Exception:
+            pass
+    if website_url and not website_url.lower().startswith(("http://", "https://")):
+        website_url = "https://" + website_url.lstrip("/")
+
+    return {
+        "company_name": company_name,
+        "company_phone": company_phone,
+        "company_email": company_email,
+        "company_location": company_location,
+        "primary_color": primary_color,
+        "logo_path": logo_path,
+        "website_url": website_url,
+    }
+
+
 def _credit_note_pdf_response(
     *,
     shop_name: str,
@@ -18036,6 +18287,7 @@ def _credit_note_pdf_response(
     primary_color: str | None = None,
     focus_sale: Optional[dict] = None,
     filename_slug: str = "credit-note",
+    shop: Optional[dict] = None,
 ) -> Response:
     from credit_note_pdf import build_credit_note_pdf
 
@@ -18046,9 +18298,10 @@ def _credit_note_pdf_response(
         if (note_ctx.get("analytics_scope") or "general") == "actual"
         else "All receipt marks"
     )
+    brand = _credit_note_pdf_branding(shop=shop)
     try:
         pdf_bytes = build_credit_note_pdf(
-            company_name=company_name,
+            company_name=company_name or brand.get("company_name") or "Company",
             shop_name=shop_name,
             credit_note_ref=str(note_ctx.get("credit_note_ref") or "CN"),
             period_label=f.get("range_label") or "Full account",
@@ -18071,7 +18324,12 @@ def _credit_note_pdf_response(
             ),
             focus_sale=focus_sale,
             generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
-            primary_color=primary_color,
+            primary_color=primary_color or brand.get("primary_color") or None,
+            company_phone=str(brand.get("company_phone") or ""),
+            company_email=str(brand.get("company_email") or ""),
+            company_location=str(brand.get("company_location") or ""),
+            logo_path=str(brand.get("logo_path") or ""),
+            website_url=str(brand.get("website_url") or ""),
         )
     except Exception:
         logger.exception("credit_note_pdf build failed")
@@ -18084,71 +18342,64 @@ def _credit_note_pdf_response(
     )
 
 
-def _company_customer_credit_note_context(customer_name: str, customer_phone: str) -> dict:
+def _company_customer_credit_note_context(
+    customer_name: str,
+    customer_phone: str,
+    *,
+    analytics_filter: Optional[dict] = None,
+    lightweight: bool = False,
+) -> dict:
     """Credit note + payments context for company-wide customer credit page."""
-    f = _all_time_analytics_filter()
+    f = analytics_filter if analytics_filter is not None else _all_time_analytics_filter()
+    all_time = f.get("range_label") == "Full account"
     credit_account_txs: list = []
     credit_payments_all: list = []
     items_by_sale_id: Dict[int, list] = {}
+    tx_limit = 800 if lightweight else 5000
     try:
         from database import (
-            get_company_customer_credit_items,
             get_company_customer_credit_payments,
             get_company_customer_credit_transactions,
+            get_pos_sale_items_for_sale_ids,
         )
 
         credit_account_txs = get_company_customer_credit_transactions(
             customer_name=customer_name,
             customer_phone=customer_phone,
-            limit=5000,
+            limit=tx_limit,
         )
-        payments_raw = get_company_customer_credit_payments(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=5000,
-        )
-        item_rows = get_company_customer_credit_items(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            limit=20000,
-        )
-        for p in payments_raw or []:
-            parts = [p.get("shop_name") or ""]
-            method = (p.get("payment_method") or "").strip().upper()
-            if method:
-                parts.append(method)
-            raw_note = (p.get("note") or "").strip()
-            if raw_note and raw_note.lower() not in ("method=cash", "method=mpesa", "method=bank", "method=other"):
-                parts.append(raw_note)
-            credit_payments_all.append(
-                {
-                    "amount": float(p.get("amount") or 0),
-                    "created_at": p.get("created_at"),
-                    "note": " · ".join(x for x in parts if x),
-                }
+        if not lightweight:
+            payments_raw = get_company_customer_credit_payments(
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                limit=5000,
             )
-        for row in item_rows or []:
-            try:
-                sale_id = int(row.get("sale_id") or 0)
-            except Exception:
-                sale_id = 0
-            if sale_id <= 0:
-                continue
-            items_by_sale_id.setdefault(sale_id, []).append(
-                {
-                    "item_name": row.get("item_name") or "Item",
-                    "qty": int(row.get("qty") or 0),
-                    "amount": float(row.get("line_total") or 0),
-                    "shop_name": row.get("shop_name") or "",
-                    "picked_at": _credit_item_pick_date(row.get("created_at")),
-                }
-            )
+            for p in payments_raw or []:
+                parts = [p.get("shop_name") or ""]
+                method = (p.get("payment_method") or "").strip().upper()
+                if method:
+                    parts.append(method)
+                raw_note = (p.get("note") or "").strip()
+                if raw_note and raw_note.lower() not in (
+                    "method=cash",
+                    "method=mpesa",
+                    "method=bank",
+                    "method=other",
+                ):
+                    parts.append(raw_note)
+                credit_payments_all.append(
+                    {
+                        "amount": float(p.get("amount") or 0),
+                        "created_at": p.get("created_at"),
+                        "note": " · ".join(x for x in parts if x),
+                    }
+                )
     except Exception:
         pass
     account_credit_total = sum(float(t.get("total_amount") or 0) for t in credit_account_txs)
     account_paid_total = sum(float(t.get("paid_amount") or 0) for t in credit_account_txs)
     account_balance_due = max(account_credit_total - account_paid_total, 0.0)
-    credit_sales_period = [
+    all_sales = [
         {
             "id": int(t.get("id") or 0),
             "total_amount": float(t.get("total_amount") or 0),
@@ -18160,14 +18411,48 @@ def _company_customer_credit_note_context(customer_name: str, customer_phone: st
         }
         for t in credit_account_txs
     ]
-    credit_payments_period = list(credit_payments_all)
+    if all_time:
+        credit_sales_period = all_sales
+        credit_payments_period = list(credit_payments_all)
+    else:
+        credit_sales_period = [t for t in all_sales if _row_in_analytics_filter(t, f)]
+        credit_payments_period = [
+            p for p in credit_payments_all if _row_in_analytics_filter(p, f)
+        ]
     credit_acct_by_id = {
         int(t.get("id") or 0): t for t in credit_account_txs if int(t.get("id") or 0) > 0
     }
+    unpaid_ids = [
+        int(tx.get("id") or 0)
+        for tx in credit_sales_period
+        if int(tx.get("id") or 0) > 0
+        and _credit_sale_is_unpaid(int(tx.get("id") or 0), credit_acct_by_id)
+    ]
+    if unpaid_ids:
+        try:
+            from database import get_pos_sale_items_for_sale_ids
+
+            for row in get_pos_sale_items_for_sale_ids(
+                unpaid_ids, limit=min(4000, max(200, len(unpaid_ids) * 40))
+            ):
+                sale_id = int(row.get("sale_id") or 0)
+                if sale_id <= 0:
+                    continue
+                items_by_sale_id.setdefault(sale_id, []).append(
+                    {
+                        "item_name": row.get("item_name") or "Item",
+                        "qty": int(row.get("qty") or 0),
+                        "amount": float(row.get("amount") or 0),
+                        "shop_name": row.get("shop_name") or "",
+                        "picked_at": row.get("picked_at") or "",
+                    }
+                )
+        except Exception:
+            pass
     credit_sales_unpaid, credit_note_items_by_sale_id, unpaid_balance_total, unpaid_sales_count = (
         _credit_note_unpaid_lists(credit_sales_period, credit_acct_by_id, items_by_sale_id)
     )
-    return {
+    out = {
         "f": f,
         "analytics_scope": "general",
         "company_credit_scope": True,
@@ -18182,22 +18467,28 @@ def _company_customer_credit_note_context(customer_name: str, customer_phone: st
         "account_credit_total": account_credit_total,
         "account_paid_total": account_paid_total,
         "account_balance_due": account_balance_due,
-        "period_credit_total": account_credit_total,
+        "period_credit_total": sum(float(t.get("total_amount") or 0) for t in credit_sales_period),
         "period_payments_total": sum(float(p.get("amount") or 0) for p in credit_payments_period),
         "unpaid_balance_total": unpaid_balance_total,
         "unpaid_sales_count": unpaid_sales_count,
         "credit_note_ref": f"CN-CO-{datetime.utcnow().strftime('%Y%m%d')}",
-        "credit_note_all_time": True,
-        "credit_pay_link": _credit_pay_public_link(
-            0, customer_name, customer_phone, account_balance_due
-        ),
-        "credit_pay_link_full": _credit_pay_public_link_full(
-            0, customer_name, customer_phone, account_balance_due
-        ),
-        "credit_note_public_url": _credit_note_public_share_url(
-            0, customer_name, customer_phone, company_scope=True
-        ),
+        "credit_note_all_time": all_time,
     }
+    if lightweight:
+        out["credit_pay_link"] = ""
+        out["credit_pay_link_full"] = ""
+        out["credit_note_public_url"] = ""
+        return out
+    out["credit_pay_link"] = _credit_pay_public_link(
+        0, customer_name, customer_phone, account_balance_due
+    )
+    out["credit_pay_link_full"] = _credit_pay_public_link_full(
+        0, customer_name, customer_phone, account_balance_due
+    )
+    out["credit_note_public_url"] = _credit_note_public_share_url(
+        0, customer_name, customer_phone, company_scope=True
+    )
+    return out
 
 
 @app.route("/shops/<int:shop_id>/shop-credit-payments/customer")
@@ -18220,9 +18511,25 @@ def shop_credit_payments_customer(shop_id: int):
     )
     if canon_redirect is not None:
         return canon_redirect
+    is_full, analytics_filter = _credit_note_statement_from_request()
+    live = _is_credit_note_live_request()
     note_ctx = _shop_customer_credit_note_context(
-        shop_id, customer_name, customer_phone, analytics_filter=None
+        shop_id,
+        customer_name,
+        customer_phone,
+        analytics_filter=None if is_full else analytics_filter,
+        lightweight=live,
     )
+    if live:
+        return _render_credit_note_live_fragment(
+            shop=shop,
+            shop_id=shop_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            is_full=is_full,
+            note_ctx=note_ctx,
+            company_credit_scope=False,
+        )
     return render_template(
         "shop_credit_payments_customer.html",
         shop=shop,
@@ -18231,6 +18538,7 @@ def shop_credit_payments_customer(shop_id: int):
         embed_record_payment=True,
         payment_return_to="customer",
         pos_allow_credit_sale=True,
+        credit_note_statement_full=is_full,
         **note_ctx,
         theme_key=f"richcom-theme-shop-{shop['id']}",
         theme_default=shop.get("default_theme") or "dark",
@@ -18260,8 +18568,12 @@ def shop_credit_payments_customer_pdf(shop_id: int):
     )
     if canon_redirect is not None:
         return canon_redirect
+    is_full, analytics_filter = _credit_note_statement_from_request()
     note_ctx = _shop_customer_credit_note_context(
-        shop_id, customer_name, customer_phone, analytics_filter=None
+        shop_id,
+        customer_name,
+        customer_phone,
+        analytics_filter=None if is_full else analytics_filter,
     )
     company_name = ""
     try:
@@ -18281,6 +18593,7 @@ def shop_credit_payments_customer_pdf(shop_id: int):
         note_ctx=note_ctx,
         primary_color=(shop.get("primary_color") or "").strip() or None,
         filename_slug=slug or "credit-note",
+        shop=shop,
     )
 
 
@@ -18421,6 +18734,7 @@ def shop_credit_sale_detail_pdf(shop_id: int, sale_id: int):
         primary_color=(shop.get("primary_color") or "").strip() or None,
         focus_sale=d,
         filename_slug=secure_filename(f"credit-sale-{sale_id}") or "credit-sale",
+        shop=shop,
     )
 
 

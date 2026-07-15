@@ -7646,6 +7646,82 @@ def get_shop_customer_credit_payments(
         return []
 
 
+def get_pos_sale_items_for_sale_ids(
+    sale_ids: list,
+    *,
+    shop_id: Optional[int] = None,
+    limit: int = 5000,
+) -> list:
+    """Fast line-item lookup for specific POS sale IDs (credit note unpaid rows)."""
+    uniq: list[int] = []
+    seen: set[int] = set()
+    for raw in sale_ids or []:
+        try:
+            sid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if sid <= 0 or sid in seen:
+            continue
+        seen.add(sid)
+        uniq.append(sid)
+        if len(uniq) >= 1500:
+            break
+    if not uniq:
+        return []
+    placeholders = ", ".join(["%s"] * len(uniq))
+    shop_sql = " AND si.shop_id=%s" if shop_id else ""
+    sql = f"""
+    SELECT
+        si.sale_id,
+        COALESCE(NULLIF(si.item_name, ''), 'Item') AS item_name,
+        COALESCE(si.qty, 0) AS qty,
+        COALESCE(si.line_total, 0) AS amount,
+        sps.created_at,
+        sh.shop_name
+    FROM shop_pos_sale_items si
+    JOIN shop_pos_sales sps ON sps.id = si.sale_id
+    LEFT JOIN shops sh ON sh.id = sps.shop_id
+    WHERE si.sale_id IN ({placeholders})
+      {shop_sql}
+    ORDER BY sps.created_at ASC, si.sale_id ASC, si.id ASC
+    LIMIT %s
+    """
+    try:
+        with get_cursor() as cur:
+            args: list = list(uniq)
+            if shop_id:
+                args.append(int(shop_id))
+            args.append(int(limit))
+            cur.execute(sql, tuple(args))
+            rows = cur.fetchall() or []
+        out = []
+        for r in rows:
+            try:
+                sale_id = int(r.get("sale_id") or 0)
+            except (TypeError, ValueError):
+                sale_id = 0
+            if sale_id <= 0:
+                continue
+            created = r.get("created_at")
+            if hasattr(created, "strftime"):
+                picked = created.strftime("%d %b %Y")
+            else:
+                picked = (str(created or "")[:10] or "")
+            out.append(
+                {
+                    "sale_id": sale_id,
+                    "item_name": r.get("item_name") or "Item",
+                    "qty": int(r.get("qty") or 0),
+                    "amount": float(r.get("amount") or 0),
+                    "shop_name": (r.get("shop_name") or "").strip(),
+                    "picked_at": picked,
+                }
+            )
+        return out
+    except pymysql.Error:
+        return []
+
+
 def apply_shop_credit_payment_fifo(
     shop_id: int,
     customer_name: str,

@@ -6,7 +6,7 @@
 {% endblock %}
 {% block head %}
   {{ super() }}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=16" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=19" />
 {% endblock %}
 {% block shop_content %}
   <div class="rc-page space-y-6">
@@ -26,9 +26,15 @@
       </div>
     </div>
 
-    {% with compact_only=true %}
-      {% include "partials/shop_customer_credit_note.html" %}
+    {% with shop_id=shop.id %}
+      {% include "partials/credit_note_statement_filter.html" %}
     {% endwith %}
+
+    <div id="credit-note-live-content" data-portal-live-content class="shop-cust-credit-live">
+      {% with compact_only=true %}
+        {% include "partials/shop_customer_credit_note.html" %}
+      {% endwith %}
+    </div>
 
     {% include "partials/credit_mpesa_pay_link_card.html" %}
 

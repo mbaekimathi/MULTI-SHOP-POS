@@ -1,0 +1,18 @@
+{# Slim live-filter response — form meta + credit note only (no layout shell) #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Credit note</title>
+</head>
+<body>
+  {% with credit_note_live_fragment=true %}
+    {% include "partials/credit_note_statement_filter.html" %}
+  {% endwith %}
+  <div id="credit-note-live-content" data-portal-live-content class="shop-cust-credit-live">
+    {% with compact_only=true, public_credit_pay=true %}
+      {% include "partials/shop_customer_credit_note.html" %}
+    {% endwith %}
+  </div>
+</body>
+</html>

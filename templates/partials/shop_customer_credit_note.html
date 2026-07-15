@@ -1,25 +1,82 @@
 {# Customer credit note — outstanding (unpaid) credit only #}
 {% set company = site_settings.company_name if site_settings else 'Point of Sale' %}
+{% set company_phone = (site_settings.company_phone if site_settings else '') or '' %}
+{% set company_email = (site_settings.company_email if site_settings else '') or '' %}
+{% set company_location = (site_settings.company_location_name if site_settings else '') or '' %}
 {% set compact_only = compact_only|default(false) %}
 {% set note_items_map = credit_note_items_by_sale_id if credit_note_items_by_sale_id is defined else (transaction_items_by_sale_id or {}) %}
 {% set unpaid_sales = credit_sales_unpaid if credit_sales_unpaid is defined else [] %}
+{% if shop is defined and shop.shop_logo %}
+  {% set credit_note_logo = url_for('static', filename=shop.shop_logo) %}
+{% elif site_settings and site_settings.app_icon %}
+  {% set credit_note_logo = url_for('static', filename=site_settings.app_icon) %}
+{% else %}
+  {% set credit_note_logo = url_for('static', filename='app-icon.svg') %}
+{% endif %}
+{% set _qr_raw = (public_storefront_url or public_storefront_share_url or '')|trim %}
+{% if _qr_raw and (_qr_raw.startswith('http://') or _qr_raw.startswith('https://')) %}
+  {% set qr_website = _qr_raw %}
+{% elif _qr_raw %}
+  {% set qr_website = (request.url_root|trim('/') ~ '/' ~ (_qr_raw|trim('/'))) %}
+{% else %}
+  {% set qr_website = (request.url_root|trim) %}
+{% endif %}
 
 <div class="shop-credit-note" id="shop-customer-credit-note-print">
   <article class="shop-credit-note__doc">
+    <div class="shop-credit-note__accent" aria-hidden="true"></div>
     <header class="shop-credit-note__head">
-      <div>
-        <p class="shop-credit-note__brand">{{ company }}</p>
-        <p class="shop-credit-note__shop">{{ shop.shop_name }}</p>
-        {% if company_credit_scope|default(false) %}
-        <p class="text-xs text-[rgb(var(--rc-muted))] mt-0.5">All branches combined</p>
-        {% elif shop.shop_code %}
-        <p class="text-xs text-[rgb(var(--rc-muted))] mt-0.5">Code {{ shop.shop_code }}</p>
-        {% endif %}
+      <div class="shop-credit-note__brand-block">
+        <img
+          class="shop-credit-note__logo"
+          src="{{ credit_note_logo }}"
+          alt="{{ company }}"
+          width="64"
+          height="64"
+          loading="eager"
+          decoding="async"
+        />
+        <div class="shop-credit-note__brand-copy">
+          <p class="shop-credit-note__brand">{{ company }}</p>
+          <p class="shop-credit-note__shop">{{ shop.shop_name }}</p>
+          <ul class="shop-credit-note__company-details">
+            {% if company_location %}
+            <li>{{ company_location }}</li>
+            {% endif %}
+            {% if company_phone %}
+            <li>{{ company_phone }}</li>
+            {% endif %}
+            {% if company_email %}
+            <li>{{ company_email }}</li>
+            {% endif %}
+            {% if company_credit_scope|default(false) %}
+            <li>All branches combined</li>
+            {% elif shop.shop_code %}
+            <li>Code {{ shop.shop_code }}</li>
+            {% endif %}
+          </ul>
+        </div>
       </div>
-      <div class="shop-credit-note__type">
-        <h2>Credit note</h2>
-        <p class="shop-credit-note__ref">Ref {{ credit_note_ref }}</p>
-        <p class="shop-credit-note__ref">{% if credit_note_all_time|default(false) %}Outstanding balance — full account{% else %}Outstanding — {{ f.range_label or 'period' }}{% endif %}</p>
+      <div class="shop-credit-note__head-right">
+        <div class="shop-credit-note__type">
+          <p class="shop-credit-note__type-eyebrow">Statement</p>
+          <h2>Credit note</h2>
+          <p class="shop-credit-note__ref">Ref {{ credit_note_ref }}</p>
+          <p class="shop-credit-note__ref">{% if credit_note_all_time|default(false) %}Outstanding balance — full account{% else %}Partial account — {{ f.range_label or 'selected period' }}{% endif %}</p>
+        </div>
+        {% if qr_website %}
+        <div class="shop-credit-note__qr">
+          <img
+            src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&amp;data={{ qr_website|urlencode }}"
+            alt="Scan to visit {{ company }} website"
+            width="96"
+            height="96"
+            loading="eager"
+            decoding="async"
+          />
+          <p class="shop-credit-note__qr-caption">Scan for website</p>
+        </div>
+        {% endif %}
       </div>
     </header>
 
@@ -34,7 +91,7 @@
       </div>
       <div>
         <dt>{% if credit_note_all_time|default(false) %}Statement{% else %}Period{% endif %}</dt>
-        <dd>{{ f.range_label or 'Selected period' }}</dd>
+        <dd>{% if credit_note_all_time|default(false) %}Full account{% else %}{{ f.range_label or 'Selected period' }}{% endif %}</dd>
       </div>
       {% if not credit_note_all_time|default(false) %}
       <div>

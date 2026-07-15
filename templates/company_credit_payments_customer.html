@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block employee_content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=15" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/shop-customer-credit-note.css') }}?v=19" />
 
   <div class="shop-cust-credit-page mx-auto w-full max-w-6xl">
     <div class="shop-cust-credit-page__toolbar no-print">
@@ -25,9 +25,13 @@
       <a href="{{ url_for('company_credit_payments_customer', customer_name=customer_name, customer_phone=customer_phone, back_shop_id=back_shop_id, print=1) }}" class="rev-btn rev-btn--ghost">Print full statement</a>
     </div>
 
-    {% with compact_only=true %}
-      {% include "partials/shop_customer_credit_note.html" %}
-    {% endwith %}
+    {% include "partials/credit_note_statement_filter.html" %}
+
+    <div id="credit-note-live-content" data-portal-live-content class="shop-cust-credit-live">
+      {% with compact_only=true %}
+        {% include "partials/shop_customer_credit_note.html" %}
+      {% endwith %}
+    </div>
 
     {% include "partials/credit_mpesa_pay_link_card.html" %}
 
