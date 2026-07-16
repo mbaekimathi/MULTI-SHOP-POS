@@ -622,8 +622,8 @@
       var text = String(label || "Source").trim() || "Source";
       if (heading) heading.textContent = text;
       if (hint) {
-        hint.textContent = "Requests are limited by available stock at " + text + " (first stock column; pending requests reduce availability). "
-          + sessionShopLabel + " shows this shop's current shelf stock.";
+        hint.textContent = sessionShopLabel + " shows this shop's current shelf stock. "
+          + "Requests are limited by available stock at " + text + " (source column; pending requests reduce availability).";
       }
       sourceCells.forEach(function (cell) {
         cell.setAttribute("title", text + " stock");

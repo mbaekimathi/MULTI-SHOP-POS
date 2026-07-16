@@ -65,9 +65,9 @@
 
           <th class="text-left">Item</th>
 
-          <th id="js-source-stock-heading" class="text-right">Company warehouse</th>
-
           <th id="js-session-shop-stock-heading" class="text-right">{{ shop.shop_name }}</th>
+
+          <th id="js-source-stock-heading" class="text-right">Company warehouse</th>
 
           <th class="text-left">Qty</th>
 
@@ -97,9 +97,9 @@
 
             <td class="font-semibold">{{ it.name }}</td>
 
-            <td class="js-source-stock-cell text-right tabular-nums" data-item-id="{{ it.id }}">{{ it.company_stock_qty }}</td>
-
             <td class="js-session-shop-stock-cell text-right tabular-nums">{{ it.shop_stock_qty }}</td>
+
+            <td class="js-source-stock-cell text-right tabular-nums" data-item-id="{{ it.id }}">{{ it.company_stock_qty }}</td>
 
             <td><input name="qty_{{ it.id }}" type="text" inputmode="decimal" autocomplete="off" value="" class="js-stock-qty-input js-request-stock-qty w-full min-w-[4rem] rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1.5 text-sm" placeholder="Qty" /></td>
 

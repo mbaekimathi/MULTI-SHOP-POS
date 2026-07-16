@@ -15805,10 +15805,12 @@ def get_request_source_stock_snapshot(
                     f"SELECT id, stock_qty FROM items WHERE id IN ({placeholders})",
                     tuple(item_ids),
                 )
+                # Fetch stock rows before the pending query — same cursor would overwrite results.
+                stock_rows = cur.fetchall() or []
                 pending_map = _pending_outbound_qty_map_for_source(
                     cur, item_ids=item_ids, source_type="company", source_shop_id=None
                 )
-                for r in cur.fetchall() or []:
+                for r in stock_rows:
                     iid = int(r["id"])
                     physical = round(float(r.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
                     out[iid] = _available_qty_after_pending(physical, pending_map.get(iid, 0.0))
@@ -15842,13 +15844,15 @@ def get_request_source_stock_snapshot(
                 """,
                 tuple([int(source_shop_id)] + item_ids),
             )
+            # Fetch stock rows before the pending query — same cursor would overwrite results.
+            stock_rows = cur.fetchall() or []
             pending_map = _pending_outbound_qty_map_for_source(
                 cur,
                 item_ids=item_ids,
                 source_type="shop",
                 source_shop_id=int(source_shop_id),
             )
-            for r in cur.fetchall() or []:
+            for r in stock_rows:
                 iid = int(r["item_id"])
                 physical = round(float(r.get("q") or 0), STOCK_QTY_DECIMAL_PLACES)
                 out[iid] = _available_qty_after_pending(physical, pending_map.get(iid, 0.0))
