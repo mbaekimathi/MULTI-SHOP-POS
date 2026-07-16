@@ -46,11 +46,12 @@
           <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
         </select>
       </div>
-      <div class="w-full max-w-[9rem] shrink-0">
+      <div class="w-full max-w-[12rem] shrink-0">
         <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
         <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
           <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
           <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
+          <option value="purchase" {% if audit_source == 'purchase' %}selected{% endif %}>Buy and stock in</option>
           <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual / POS</option>
           <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
         </select>

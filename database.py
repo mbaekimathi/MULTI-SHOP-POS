@@ -18881,6 +18881,14 @@ def list_company_stock_movements(
     elif s == "company":
         # Company warehouse moves + shop moves sourced from company.
         sst_where = f"({sst_where}) AND LOWER(COALESCE(sst.source, ''))='company'"
+    elif s in ("purchase", "buy", "buy_stock_in", "stock_in"):
+        # POS / shop "Buy and stock in" + company warehouse purchases from outside.
+        st_where = f"({st_where}) AND st.direction='in'"
+        sst_where = (
+            f"({sst_where}) AND sst.direction='in' "
+            f"AND LOWER(COALESCE(sst.source, ''))='manual' "
+            f"AND UPPER(COALESCE(sst.reason, '')) NOT IN ('TRANSFER', 'POS', 'POS_HOLD')"
+        )
     elif s == "manual":
         st_where = f"({st_where}) AND 1=0"
         sst_where = (
@@ -19125,7 +19133,7 @@ def _enrich_company_stock_movement_row(row: dict) -> None:
 
     if scope == "company":
         if direction == "in":
-            row["source_display"] = "Company stock in" + (f" · {place}" if place else "")
+            row["source_display"] = "Buy and stock in" + (f" · {place}" if place else "")
             row["from_where"] = place or "Outside"
             row["to_where"] = "Company"
         else:
@@ -19161,7 +19169,7 @@ def _enrich_company_stock_movement_row(row: dict) -> None:
         return
 
     if source == "manual" and direction == "in":
-        row["source_display"] = f"Manual stock in · {place}" if place else "Manual stock in"
+        row["source_display"] = f"Buy and stock in · {place}" if place else "Buy and stock in"
         row["from_where"] = place or "Outside"
         row["to_where"] = shop_name
         return

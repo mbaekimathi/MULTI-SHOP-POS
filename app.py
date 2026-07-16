@@ -9372,8 +9372,10 @@ def it_support_stock_movement_analysis():
     if direction not in ("", "in", "out"):
         direction = ""
     source_f = (request.args.get("source") or "").strip().lower()
-    if source_f not in ("", "company", "manual", "transfer"):
+    if source_f not in ("", "company", "manual", "transfer", "purchase", "buy", "buy_stock_in", "stock_in"):
         source_f = ""
+    if source_f in ("buy", "buy_stock_in", "stock_in"):
+        source_f = "purchase"
     item_id = request.args.get("item_id", type=int)
     q = (request.args.get("q") or "").strip()
     if item_id and item_id > 0:
