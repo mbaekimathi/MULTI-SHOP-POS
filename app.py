@@ -9346,49 +9346,44 @@ def it_support_stock_movement_analysis():
     offset = request.args.get("offset", type=int) or 0
     offset = max(0, min(offset, 100000))
     want_partial = (request.args.get("partial") or "").strip().lower() in ("1", "rows", "json")
-    filters_applied = any(
-        (request.args.get(k) or "").strip()
-        for k in (
-            "mode",
-            "single_day",
-            "start_date",
-            "end_date",
-            "month",
-            "year",
-            "shop_id",
-            "employee_id",
-            "item_q",
-            "seller_q",
-            "moved_by",
-        )
-    )
+    today = date.today().isoformat()
+    # Same period controls as shop stock audits; default open on today.
+    _mv_all = {
+        "mode": "all",
+        "range_label": "All dates",
+        "single_day": today,
+        "start_date": today,
+        "end_date": today,
+        "month": date.today().strftime("%Y-%m"),
+        "year": str(date.today().year),
+    }
     mode_arg = (request.args.get("mode") or "").strip().lower()
-    if mode_arg == "all":
-        analytics_filter = {"mode": "all", "range_label": "All dates"}
+    if not request.args.get("mode"):
+        analytics_filter = _build_analytics_filter()  # single_day = today
+    elif mode_arg == "all":
+        analytics_filter = dict(_mv_all)
     elif mode_arg in ("single_day", "period", "month", "year"):
         analytics_filter = _build_analytics_filter()
-    elif filters_applied:
-        analytics_filter = _build_analytics_filter()
     else:
-        # Form defaults before Apply: prefer All dates (still seed calendars for period/day).
-        today = date.today().isoformat()
-        analytics_filter = {
-            "mode": "all",
-            "range_label": "All dates",
-            "single_day": today,
-            "start_date": today,
-            "end_date": today,
-            "month": date.today().strftime("%Y-%m"),
-            "year": str(date.today().year),
-        }
-    inv_mode = _global_pos_inventory_mode()
+        analytics_filter = _build_analytics_filter()
+
     selected_shop_id = request.args.get("shop_id", type=int)
-    selected_employee_id = request.args.get("employee_id", type=int)
-    item_q = (request.args.get("item_q") or "").strip()
-    seller_q = (request.args.get("seller_q") or "").strip()
-    moved_by_q = (request.args.get("moved_by") or "").strip()
+    direction = (request.args.get("direction") or "").strip().lower()
+    if direction not in ("", "in", "out"):
+        direction = ""
+    source_f = (request.args.get("source") or "").strip().lower()
+    if source_f not in ("", "company", "manual", "transfer"):
+        source_f = ""
+    item_id = request.args.get("item_id", type=int)
+    q = (request.args.get("q") or "").strip()
+    if item_id and item_id > 0:
+        q = ""
+    if q and len(q) < 2:
+        q = ""
+
+    inv_mode = _global_pos_inventory_mode()
     shops = []
-    employees = []
+    filter_items = []
     movement = {}
     movement_rows = []
     has_more = False
@@ -9397,45 +9392,53 @@ def it_support_stock_movement_analysis():
             get_company_stock_status,
             get_company_stock_movement_analytics,
             list_company_stock_movements,
-            list_employees,
+            list_items,
             list_shops,
         )
 
         shops = list_shops(limit=500)
-        employees = list_employees(limit=2000)
-        if filters_applied:
-            movement = get_company_stock_movement_analytics(
-                analytics_filter=analytics_filter,
-                shop_id=selected_shop_id,
-            )
-            # Fetch one extra row to detect whether more pages exist.
-            fetched = list_company_stock_movements(
-                analytics_filter=analytics_filter,
-                shop_id=selected_shop_id,
-                employee_id=selected_employee_id,
-                supplier_search=seller_q or None,
-                moved_by_contains=moved_by_q or None,
-                item_search=item_q or None,
-                limit=page_size + 1,
-                offset=offset,
-            ) or []
-            if inv_mode in ("both", "kitchen"):
-                _, allowed_rows = get_company_stock_status(
-                    limit_items=5000, inventory_mode=inv_mode
-                )
-                allowed_ids = {
-                    int(r.get("id") or 0)
-                    for r in (allowed_rows or [])
-                    if int(r.get("id") or 0) > 0
+        if not want_partial:
+            raw_items = list_items(limit=5000) or []
+            filter_items = [
+                {
+                    "id": int(it.get("id") or 0),
+                    "name": (it.get("name") or "").strip(),
+                    "category": (it.get("category") or "").strip(),
                 }
-                fetched = [
-                    r for r in fetched if int(r.get("item_id") or 0) in allowed_ids
-                ]
-            has_more = len(fetched) > page_size
-            movement_rows = fetched[:page_size]
+                for it in raw_items
+                if int(it.get("id") or 0) > 0
+            ]
+        movement = get_company_stock_movement_analytics(
+            analytics_filter=analytics_filter,
+            shop_id=selected_shop_id,
+        )
+        fetched = list_company_stock_movements(
+            analytics_filter=analytics_filter,
+            shop_id=selected_shop_id,
+            direction=direction or None,
+            source=source_f or None,
+            item_id=item_id if item_id and item_id > 0 else None,
+            item_search=q or None,
+            limit=page_size + 1,
+            offset=offset,
+        ) or []
+        if inv_mode in ("both", "kitchen"):
+            _, allowed_rows = get_company_stock_status(
+                limit_items=5000, inventory_mode=inv_mode
+            )
+            allowed_ids = {
+                int(r.get("id") or 0)
+                for r in (allowed_rows or [])
+                if int(r.get("id") or 0) > 0
+            }
+            fetched = [
+                r for r in fetched if int(r.get("item_id") or 0) in allowed_ids
+            ]
+        has_more = len(fetched) > page_size
+        movement_rows = fetched[:page_size]
     except Exception:
         shops = []
-        employees = []
+        filter_items = []
         movement = {}
         movement_rows = []
         has_more = False
@@ -9452,7 +9455,7 @@ def it_support_stock_movement_analysis():
                 "has_more": has_more,
                 "next_offset": offset + len(movement_rows),
                 "loaded_count": len(movement_rows),
-                "filters_applied": filters_applied,
+                "filters_applied": True,
                 "movement_data": movement if offset == 0 else None,
             }
         )
@@ -9460,16 +9463,16 @@ def it_support_stock_movement_analysis():
     return render_template(
         "it_support_stock_movement_analysis.html",
         analytics_filter=analytics_filter,
-        filters_applied=filters_applied,
+        filters_applied=True,
         movement_data=movement,
         movement_rows=movement_rows,
         shops=shops,
-        employees=employees or [],
+        filter_items=filter_items,
         selected_shop_id=selected_shop_id,
-        selected_employee_id=selected_employee_id,
-        item_q=item_q,
-        seller_q=seller_q,
-        moved_by_q=moved_by_q,
+        audit_direction=direction,
+        audit_source=source_f,
+        audit_item_id=item_id if item_id and item_id > 0 else None,
+        audit_q=q,
         page_size=page_size,
         has_more=has_more,
         next_offset=offset + len(movement_rows),

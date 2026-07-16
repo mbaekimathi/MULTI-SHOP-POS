@@ -3,8 +3,9 @@
   <tr>
     <td class="sticky left-0 z-10 whitespace-nowrap bg-[rgb(var(--rc-surface))] px-2 py-2 text-[rgb(var(--rc-muted))] shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3">{{ r.created_at }}</td>
     <td class="max-w-[9rem] truncate px-2 py-2 font-medium text-[rgb(var(--rc-page-fg))] sm:max-w-[12rem] sm:px-3 md:max-w-none">{{ r.item_name }}</td>
-    <td class="max-w-[5rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{% if ext %}From outside{% else %}{{ r.from_where }}{% endif %}</td>
-    <td class="max-w-[5rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.to_where }}</td>
+    <td class="max-w-[10rem] truncate px-2 py-2 text-[rgb(var(--rc-page-fg))] sm:max-w-[14rem] sm:px-3" title="{{ r.source_display or r.source or '' }}">{{ r.source_display or (r.source or '')|title }}</td>
+    <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3" title="{{ r.from_where }}">{{ r.from_where }}</td>
+    <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3" title="{{ r.to_where }}">{{ r.to_where }}</td>
     <td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">
       {% if ext %}
         <div class="font-medium text-[rgb(var(--rc-page-fg))]">{{ r.place_brought_from if r.place_brought_from != '-' else '—' }}</div>

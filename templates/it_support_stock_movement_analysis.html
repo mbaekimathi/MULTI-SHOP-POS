@@ -13,145 +13,150 @@
   {% set f = analytics_filter or {} %}
   {% set d = movement_data or {} %}
   {% set rows = movement_rows or [] %}
-  {% set emps = employees or [] %}
-  {% set filters_applied = filters_applied|default(false) %}
-  <div class="mx-auto min-w-0 max-w-6xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4" data-mv-page>
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-6 md:shadow-sm">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">General stock movement (company + shops)</h2>
-      <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">Choose filters and apply to load movement rows in pages of {{ page_size|default(80) }}.</p>
-      {% if filters_applied %}
-      <div class="mt-4 grid grid-cols-1 gap-0 divide-y divide-[rgb(var(--rc-border))] md:grid-cols-2 md:gap-3 md:divide-y-0 xl:grid-cols-5" data-mv-kpis>
-        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] md:block">Transactions</div><div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))] md:mt-2" data-mv-kpi="tx_count">{{ d.tx_count or 0 }}</div></div>
-        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] md:block">Qty in</div><div class="text-2xl font-extrabold tabular-nums text-emerald-400 md:mt-2" data-mv-kpi="qty_in">{{ d.qty_in or 0 }}</div></div>
-        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] md:block">Qty out</div><div class="text-2xl font-extrabold tabular-nums text-rose-400 md:mt-2" data-mv-kpi="qty_out">{{ d.qty_out or 0 }}</div></div>
-        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] md:block">Net</div><div class="text-2xl font-extrabold tabular-nums md:mt-2 {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}" data-mv-kpi="net_qty">{% if (d.net_qty or 0) > 0 %}+{% endif %}{{ d.net_qty or 0 }}</div></div>
-        <div class="flex items-center justify-between gap-3 py-3 md:block md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:p-4"><div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))] md:block">Distinct shops</div><div class="text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))] md:mt-2" data-mv-kpi="distinct_shops">{{ d.distinct_shops or 0 }}</div></div>
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <div class="sa-stock-analytics mx-auto min-w-0 max-w-6xl space-y-4" data-mv-page>
+    {% set stock_shell_title = 'Stock movement analysis' %}
+    {% set stock_shell_desc = 'Company + shops ledger loads in pages of ' ~ (page_size|default(80)) ~ ' rows. Same period filters as shop stock audits.' %}
+    {% set stock_shell_badge = 'Movement' %}
+    {% set stock_filter_mode_all = true %}
+    {% set stock_filter_apply_only = true %}
+    {% set stock_filter_extra_row %}
+    {% set ns = namespace(item_label='') %}
+    {% if audit_item_id %}
+      {% for it in filter_items or [] %}
+        {% if it.id == audit_item_id %}
+          {% set ns.item_label = ((it.category ~ ' — ') if it.category else '') ~ (it.name or '') %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+      <div class="w-full max-w-[11rem] shrink-0">
+        <label for="mv-shop" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
+        <select id="mv-shop" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+          <option value="" {% if not selected_shop_id %}selected{% endif %}>All shops + company</option>
+          {% for s in shops or [] %}
+            <option value="{{ s.id }}" {% if selected_shop_id and selected_shop_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
+          {% endfor %}
+        </select>
       </div>
-      {% endif %}
-    </div>
-
-    <form method="get" action="{{ url_for('it_support_stock_movement_analysis') }}" class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-4 md:shadow-sm" data-mv-filter-form>
-      <div class="flex flex-wrap items-end gap-3">
-        <div class="min-w-[10rem] flex-1">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop</label>
-          <select name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
-            <option value="">All shops + company</option>
-            {% for s in shops %}
-              <option value="{{ s.id }}" {% if selected_shop_id and selected_shop_id == s.id %}selected{% endif %}>{{ s.shop_name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="min-w-[10rem] flex-1">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Employee</label>
-          <select name="employee_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
-            <option value="">All employees</option>
-            {% for e in emps %}
-              <option value="{{ e.id }}" {% if selected_employee_id and selected_employee_id == e.id %}selected{% endif %}>{{ e.full_name or '—' }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="min-w-[9rem] flex-1">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date mode</label>
-          <select id="mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
-            <option value="all" {% if (f.mode or 'all') == 'all' %}selected{% endif %}>All dates</option>
-            <option value="single_day" {% if (f.mode or '') == 'single_day' %}selected{% endif %}>Single day</option>
-            <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-            <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-            <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
-          </select>
-        </div>
-        <div id="f-day" class="min-w-[9rem] flex-1 {% if (f.mode or 'all') != 'single_day' %}hidden{% endif %}">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Day</label>
-          <input type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" />
-        </div>
-        <div id="f-start" class="min-w-[9rem] flex-1 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">From</label>
-          <input type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" />
-        </div>
-        <div id="f-end" class="min-w-[9rem] flex-1 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">To</label>
-          <input type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" />
-        </div>
-        <div id="f-month" class="min-w-[9rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Month</label>
-          <input type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" />
-        </div>
-        <div id="f-year" class="min-w-[7rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Year</label>
-          <input type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" />
-        </div>
-        <div class="min-w-[9rem] flex-1">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Item</label>
-          <input type="search" name="item_q" value="{{ item_q or '' }}" placeholder="Item name…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" autocomplete="off" />
-        </div>
-        <div class="min-w-[9rem] flex-1">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Seller</label>
-          <input type="search" name="seller_q" value="{{ seller_q or '' }}" placeholder="Name or phone…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" autocomplete="off" />
-        </div>
-        <div class="min-w-[9rem] flex-1">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Moved by</label>
-          <input type="search" name="moved_by" value="{{ moved_by_q or '' }}" placeholder="Name contains…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base md:rounded-xl md:text-sm" autocomplete="off" />
-        </div>
-        <div class="flex flex-wrap items-center gap-2 pb-0.5">
-          <button type="submit" class="btn-rc btn-rc-primary min-h-[44px] px-4 py-2 text-sm font-semibold sm:min-h-0" data-mv-apply-btn>
-            <span class="inline-flex items-center gap-2">
-              <svg class="hidden h-4 w-4 animate-spin" data-mv-apply-spin fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              Apply filters
-            </span>
+      <div class="w-full max-w-[8rem] shrink-0">
+        <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
+        <select id="audit-direction" name="direction" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+          <option value="" {% if not audit_direction %}selected{% endif %}>All</option>
+          <option value="in" {% if audit_direction == 'in' %}selected{% endif %}>In</option>
+          <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
+        </select>
+      </div>
+      <div class="w-full max-w-[9rem] shrink-0">
+        <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
+        <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
+          <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
+          <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
+          <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual / POS</option>
+          <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
+        </select>
+      </div>
+      <div class="w-full max-w-[14rem] shrink-0" data-audit-item-filter>
+        <label for="audit-item-combo" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
+        <div class="audit-item-combo relative">
+          <input
+            id="audit-item-combo"
+            type="search"
+            autocomplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="false"
+            aria-controls="audit-item-suggestions"
+            placeholder="Search or select item…"
+            value="{{ ns.item_label or audit_q or '' }}"
+            class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 pr-8 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+            data-audit-item-combo
+          />
+          <button
+            type="button"
+            class="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]"
+            aria-label="Show items"
+            data-audit-item-toggle
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
           </button>
-          {% if filters_applied %}
-          <a href="{{ url_for('it_support_stock_movement_analysis') }}" class="btn-rc btn-rc-ghost min-h-[44px] rounded-xl px-4 py-2 text-sm font-semibold sm:min-h-0">Clear</a>
-          {% endif %}
+          <div
+            id="audit-item-suggestions"
+            class="audit-item-suggestions hidden max-h-64 overflow-y-auto rounded-lg border-2 border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-2xl"
+            role="listbox"
+            aria-label="Items"
+            hidden
+            data-audit-item-list
+          ></div>
         </div>
+        <input type="hidden" name="item_id" value="{{ audit_item_id or '' }}" data-audit-item-id />
+        <input type="hidden" name="q" value="{{ '' if audit_item_id else (audit_q or '') }}" data-audit-item-q />
+        <script type="application/json" data-audit-item-data>{{ filter_items|default([])|tojson }}</script>
       </div>
-    </form>
+      <a href="{{ url_for('it_support_stock_movement_analysis') }}" class="btn-rc btn-rc-ghost mb-0.5 shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wider">Reset</a>
+    {% endset %}
+    {% include "partials/shop_stock_hero_filter.html" %}
 
-    <div class="relative border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <div class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-2xl bg-[rgb(var(--rc-surface))]/70" data-stock-load-overlay data-mv-overlay>
+    <div id="portal-live-content" class="relative space-y-4">
+      <div class="pointer-events-none absolute inset-0 z-20 hidden items-start justify-center pt-16" data-stock-load-overlay data-mv-overlay>
         <div class="flex items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3 text-sm font-semibold text-[rgb(var(--rc-page-fg))] shadow-sm">
           <svg class="h-5 w-5 animate-spin text-[rgb(var(--rc-primary))]" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           Loading…
         </div>
       </div>
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Movement log</h3>
-      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-        {% if filters_applied %}
-          Showing <span class="font-semibold text-[rgb(var(--rc-page-fg))]" data-mv-loaded-count>{{ rows|length }}</span> rows for {{ f.range_label or 'selected period' }}.
-        {% else %}
-          Apply filters to load stock movements.
-        {% endif %}
-      </p>
-      {% if not filters_applied %}
-      <div class="mt-6 rounded-xl border border-dashed border-[rgb(var(--rc-border))] px-4 py-10 text-center text-sm text-[rgb(var(--rc-muted))]">
-        Set shop, date, and optional search fields above, then click <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Apply filters</span>.
+
+      <div class="sa-stock-kpis grid gap-3 sm:grid-cols-2 xl:grid-cols-5" data-mv-kpis>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Transactions</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]" data-mv-kpi="tx_count">{{ d.tx_count or 0 }}</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Qty in</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-emerald-400" data-mv-kpi="qty_in">{{ d.qty_in or 0 }}</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Qty out</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-rose-400" data-mv-kpi="qty_out">{{ d.qty_out or 0 }}</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Net</p>
+          <p class="mt-1 text-2xl font-black tabular-nums {% if (d.net_qty or 0) >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %}" data-mv-kpi="net_qty">{% if (d.net_qty or 0) > 0 %}+{% endif %}{{ d.net_qty or 0 }}</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:col-span-2 xl:col-span-1">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Rows loaded</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]" data-mv-loaded-count>{{ rows|length }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ f.range_label or 'Today' }} · page {{ page_size|default(80) }}</p>
+        </div>
       </div>
-      {% else %}
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[48rem] w-full text-xs sm:min-w-[56rem] md:min-w-[920px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Time</th>
-              <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Item</th>
-              <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">From</th>
-              <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">To</th>
-              <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Seller</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Qty</th>
-              <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Pay</th>
-              <th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">By</th>
-            </tr>
-          </thead>
-          <tbody id="mv-tbody" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% if rows %}
-              {% include "partials/stock_movement_rows.html" %}
-            {% else %}
-              <tr data-mv-empty>
-                <td colspan="8" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No movement rows for this filter.</td>
+
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="overflow-x-auto">
+          <table class="sa-stock-data-table min-w-[48rem] w-full text-sm">
+            <thead>
+              <tr>
+                <th class="text-left whitespace-nowrap">Time</th>
+                <th class="text-left">Item</th>
+                <th class="text-left">Source</th>
+                <th class="text-left">From</th>
+                <th class="text-left">To</th>
+                <th class="hidden text-left lg:table-cell">Seller</th>
+                <th class="text-right">Qty</th>
+                <th class="hidden text-left lg:table-cell">Pay</th>
+                <th class="hidden text-left lg:table-cell">By</th>
               </tr>
-            {% endif %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody id="mv-tbody" data-mv-tbody>
+              {% if rows %}
+                {% include "partials/stock_movement_rows.html" %}
+              {% else %}
+                <tr data-mv-empty>
+                  <td colspan="9" class="px-3 py-6 text-center text-sm text-[rgb(var(--rc-muted))]">No movement rows for this filter.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="mt-4 flex justify-center">
+      <div class="flex justify-center">
         <button
           type="button"
           class="btn-rc btn-rc-ghost min-h-[44px] rounded-xl px-5 py-2.5 text-sm font-semibold {% if not has_more %}hidden{% endif %}"
@@ -165,7 +170,6 @@
           </span>
         </button>
       </div>
-      {% endif %}
     </div>
   </div>
 {% endblock %}
@@ -173,96 +177,235 @@
 {% block scripts %}
   {{ super() }}
   <script>
-    (function () {
-      var m = document.getElementById("mode");
-      var day = document.getElementById("f-day");
-      var start = document.getElementById("f-start");
-      var end = document.getElementById("f-end");
-      var month = document.getElementById("f-month");
-      var year = document.getElementById("f-year");
-      function sync() {
-        var v = (m && m.value) || "all";
-        if (day) day.classList.toggle("hidden", v !== "single_day");
-        if (start) start.classList.toggle("hidden", v !== "period");
-        if (end) end.classList.toggle("hidden", v !== "period");
-        if (month) month.classList.toggle("hidden", v !== "month");
-        if (year) year.classList.toggle("hidden", v !== "year");
-      }
-      if (m) m.addEventListener("change", sync);
-      sync();
-    })();
-  </script>
-  <script>
-    (function () {
-      var page = document.querySelector("[data-mv-page]");
-      if (!page) return;
-      var form = page.querySelector("[data-mv-filter-form]");
-      var overlay = page.querySelector("[data-mv-overlay]");
-      var tbody = document.getElementById("mv-tbody");
-      var moreBtn = page.querySelector("[data-mv-load-more]");
-      var loadedEl = page.querySelector("[data-mv-loaded-count]");
-      var loading = false;
+  (function () {
+    var root = document.querySelector("[data-audit-item-filter]");
+    if (!root || root.getAttribute("data-audit-item-wired") === "1") return;
+    root.setAttribute("data-audit-item-wired", "1");
 
-      function showOverlay(on) {
-        if (!overlay) return;
-        overlay.classList.toggle("hidden", !on);
-        overlay.classList.toggle("flex", !!on);
-      }
+    var combo = root.querySelector("[data-audit-item-combo]");
+    var list = root.querySelector("[data-audit-item-list]");
+    var toggle = root.querySelector("[data-audit-item-toggle]");
+    var hiddenId = root.querySelector("[data-audit-item-id]");
+    var hiddenQ = root.querySelector("[data-audit-item-q]");
+    var dataNode = root.querySelector("[data-audit-item-data]");
+    if (!combo || !list || !hiddenId || !hiddenQ) return;
 
-      if (form) {
-        form.addEventListener("submit", function () {
-          var spin = form.querySelector("[data-mv-apply-spin]");
-          var btn = form.querySelector("[data-mv-apply-btn]");
-          if (spin) spin.classList.remove("hidden");
-          if (btn) btn.disabled = true;
-          showOverlay(true);
+    var items = [];
+    try {
+      items = JSON.parse(dataNode && dataNode.textContent ? dataNode.textContent : "[]") || [];
+    } catch (e) {
+      items = [];
+    }
+
+    function labelFor(it) {
+      var cat = String((it && it.category) || "").trim();
+      var name = String((it && it.name) || "").trim();
+      return cat ? cat + " — " + name : name;
+    }
+
+    function searchHay(it) {
+      return (String((it && it.category) || "") + " " + String((it && it.name) || "")).toLowerCase();
+    }
+
+    function setValues(itemId, q, display) {
+      hiddenId.value = itemId ? String(itemId) : "";
+      hiddenQ.value = itemId ? "" : String(q || "").trim();
+      if (typeof display === "string") combo.value = display;
+    }
+
+    function hideList() {
+      list.classList.add("hidden");
+      list.hidden = true;
+      combo.setAttribute("aria-expanded", "false");
+    }
+
+    function placeList() {
+      var rect = combo.getBoundingClientRect();
+      var gap = 4;
+      var maxH = Math.min(256, Math.floor(window.innerHeight * 0.45));
+      var spaceBelow = window.innerHeight - rect.bottom - gap - 8;
+      var spaceAbove = rect.top - gap - 8;
+      var openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+      var height = Math.max(120, Math.min(maxH, openUp ? spaceAbove : spaceBelow));
+      var width = Math.max(rect.width, Math.min(360, window.innerWidth - 24));
+      var left = Math.min(rect.left, window.innerWidth - width - 12);
+      left = Math.max(12, left);
+      if (list.parentElement !== document.body) document.body.appendChild(list);
+      list.style.position = "fixed";
+      list.style.zIndex = "9999";
+      list.style.left = left + "px";
+      list.style.width = width + "px";
+      list.style.maxHeight = height + "px";
+      list.style.right = "auto";
+      list.style.boxSizing = "border-box";
+      if (openUp) {
+        list.style.top = "auto";
+        list.style.bottom = window.innerHeight - rect.top + gap + "px";
+      } else {
+        list.style.bottom = "auto";
+        list.style.top = rect.bottom + gap + "px";
+      }
+    }
+
+    function showList() {
+      placeList();
+      list.classList.remove("hidden");
+      list.hidden = false;
+      combo.setAttribute("aria-expanded", "true");
+    }
+
+    function renderList(query) {
+      var q = String(query || "").trim().toLowerCase();
+      var matches = [];
+      for (var i = 0; i < items.length; i++) {
+        if (!q || searchHay(items[i]).indexOf(q) !== -1) {
+          matches.push(items[i]);
+          if (matches.length >= 60) break;
+        }
+      }
+      var html = [];
+      html.push('<button type="button" class="block w-full px-3 py-2 text-left text-sm text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))]" data-all-items>All items</button>');
+      if (!matches.length) {
+        html.push('<p class="px-3 py-2 text-xs text-[rgb(var(--rc-muted))]">No matching items</p>');
+      } else {
+        matches.forEach(function (it) {
+          var id = String(it.id || "");
+          var label = labelFor(it);
+          var selected = hiddenId.value && hiddenId.value === id;
+          html.push(
+            '<button type="button" role="option" class="block w-full px-3 py-2 text-left text-sm hover:bg-[rgb(var(--rc-surface-2))] ' +
+              (selected ? "bg-[rgb(var(--rc-surface-2))] font-semibold text-[rgb(var(--rc-page-fg))]" : "text-[rgb(var(--rc-page-fg))]") +
+              '" data-item-id="' + id.replace(/"/g, "&quot;") +
+              '" data-item-label="' + label.replace(/"/g, "&quot;") +
+              '"><span class="block text-[10px] font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">' +
+              String(it.category || "").replace(/</g, "&lt;") +
+              '</span><span class="font-medium">' +
+              String(it.name || "").replace(/</g, "&lt;") +
+              "</span></button>"
+          );
         });
       }
+      list.innerHTML = html.join("");
+      showList();
+    }
 
-      if (!moreBtn || !tbody) return;
-
-      function setMoreLoading(on) {
-        var spin = moreBtn.querySelector("[data-mv-more-spin]");
-        if (spin) spin.classList.toggle("hidden", !on);
-        moreBtn.disabled = !!on;
+    combo.addEventListener("focus", function () { renderList(combo.value); });
+    combo.addEventListener("input", function () {
+      hiddenId.value = "";
+      hiddenQ.value = String(combo.value || "").trim();
+      renderList(combo.value);
+    });
+    combo.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { hideList(); return; }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var q = String(combo.value || "").trim();
+        hideList();
+        setValues("", q.length >= 2 ? q : "", combo.value);
+        return;
       }
-
-      moreBtn.addEventListener("click", function () {
-        if (loading || moreBtn.classList.contains("hidden")) return;
-        var next = parseInt(moreBtn.getAttribute("data-next-offset") || "0", 10) || 0;
-        var params = new URLSearchParams(window.location.search);
-        params.set("partial", "1");
-        params.set("offset", String(next));
-        loading = true;
-        setMoreLoading(true);
-        showOverlay(true);
-        fetch(window.location.pathname + "?" + params.toString(), {
-          headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
-          credentials: "same-origin",
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (!data || !data.ok) throw new Error("load failed");
-            var empty = tbody.querySelector("[data-mv-empty]");
-            if (empty) empty.remove();
-            if (data.html) tbody.insertAdjacentHTML("beforeend", data.html);
-            var added = parseInt(data.loaded_count || 0, 10) || 0;
-            if (loadedEl) {
-              var cur = parseInt(loadedEl.textContent || "0", 10) || 0;
-              loadedEl.textContent = String(cur + added);
-            }
-            moreBtn.setAttribute("data-next-offset", String(data.next_offset || next + added));
-            if (!data.has_more) moreBtn.classList.add("hidden");
-          })
-          .catch(function () {
-            alert("Could not load more rows. Try again.");
-          })
-          .finally(function () {
-            loading = false;
-            setMoreLoading(false);
-            showOverlay(false);
-          });
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        renderList(combo.value);
+        var first = list.querySelector("[data-item-id], [data-all-items]");
+        if (first) first.focus();
+      }
+    });
+    if (toggle) {
+      toggle.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (list.hidden) { combo.focus(); renderList(combo.value || ""); }
+        else hideList();
       });
-    })();
+    }
+    list.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    list.addEventListener("click", function (e) {
+      var allBtn = e.target && e.target.closest ? e.target.closest("[data-all-items]") : null;
+      if (allBtn) { setValues("", "", ""); hideList(); return; }
+      var btn = e.target && e.target.closest ? e.target.closest("[data-item-id]") : null;
+      if (!btn) return;
+      setValues(btn.getAttribute("data-item-id") || "", "", btn.getAttribute("data-item-label") || "");
+      hideList();
+    });
+    document.addEventListener("click", function (e) {
+      if (root.contains(e.target) || list.contains(e.target)) return;
+      hideList();
+    });
+    window.addEventListener("scroll", function () { if (!list.hidden) placeList(); }, true);
+    window.addEventListener("resize", function () { if (!list.hidden) placeList(); });
+  })();
+  </script>
+  <script>
+  (function () {
+    var page = document.querySelector("[data-mv-page]");
+    if (!page) return;
+    var form = page.querySelector("form[data-stock-apply-filter]");
+    var overlay = page.querySelector("[data-mv-overlay]");
+    var tbody = document.getElementById("mv-tbody");
+    var moreBtn = page.querySelector("[data-mv-load-more]");
+    var loadedEl = page.querySelector("[data-mv-loaded-count]");
+    var loading = false;
+
+    function showOverlay(on) {
+      if (!overlay) return;
+      overlay.classList.toggle("hidden", !on);
+      overlay.classList.toggle("flex", !!on);
+    }
+
+    if (form) {
+      form.addEventListener("submit", function () {
+        var spin = form.querySelector("[data-stock-apply-spin]");
+        var btn = form.querySelector("[data-stock-apply-btn]");
+        if (spin) spin.classList.remove("hidden");
+        if (btn) btn.disabled = true;
+        showOverlay(true);
+      });
+    }
+
+    if (!moreBtn || !tbody) return;
+
+    function setMoreLoading(on) {
+      var spin = moreBtn.querySelector("[data-mv-more-spin]");
+      if (spin) spin.classList.toggle("hidden", !on);
+      moreBtn.disabled = !!on;
+    }
+
+    moreBtn.addEventListener("click", function () {
+      if (loading || moreBtn.classList.contains("hidden")) return;
+      var next = parseInt(moreBtn.getAttribute("data-next-offset") || "0", 10) || 0;
+      var params = new URLSearchParams(window.location.search);
+      params.set("partial", "1");
+      params.set("offset", String(next));
+      loading = true;
+      setMoreLoading(true);
+      showOverlay(true);
+      fetch(window.location.pathname + "?" + params.toString(), {
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+        credentials: "same-origin",
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error("load failed");
+          var empty = tbody.querySelector("[data-mv-empty]");
+          if (empty) empty.remove();
+          if (data.html) tbody.insertAdjacentHTML("beforeend", data.html);
+          var added = parseInt(data.loaded_count || 0, 10) || 0;
+          if (loadedEl) {
+            var cur = parseInt(loadedEl.textContent || "0", 10) || 0;
+            loadedEl.textContent = String(cur + added);
+          }
+          moreBtn.setAttribute("data-next-offset", String(data.next_offset || next + added));
+          if (!data.has_more) moreBtn.classList.add("hidden");
+        })
+        .catch(function () {
+          alert("Could not load more rows. Try again.");
+        })
+        .finally(function () {
+          loading = false;
+          setMoreLoading(false);
+          showOverlay(false);
+        });
+    });
+  })();
   </script>
 {% endblock %}

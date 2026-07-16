@@ -16670,7 +16670,11 @@ def list_shop_stock_audit_rows(
         where_parts.append("sst.direction=%s")
         params.append(d)
     s = (source or "").strip().lower()
-    if s in ("company", "manual", "transfer"):
+    if s == "transfer":
+        where_parts.append(
+            "(LOWER(COALESCE(sst.source, ''))='transfer' OR UPPER(COALESCE(sst.reason, ''))='TRANSFER')"
+        )
+    elif s in ("company", "manual"):
         where_parts.append("sst.source=%s")
         params.append(s)
     try:
@@ -16695,6 +16699,30 @@ def list_shop_stock_audit_rows(
         lim = max(1, min(int(limit or 1000), 50000))
     except Exception:
         lim = 1000
+    has_sr_col = column_exists("shop_stock_transactions", "stock_request_id")
+    transfer_select = ""
+    transfer_joins = ""
+    if has_sr_col and table_exists("shop_stock_requests"):
+        transfer_select = """
+        ,
+        COALESCE(NULLIF(TRIM(from_shop.shop_name), ''), '') AS transfer_from_shop_name,
+        COALESCE(NULLIF(TRIM(to_shop.shop_name), ''), '') AS transfer_to_shop_name
+        """
+        transfer_joins = """
+        LEFT JOIN shop_stock_requests sr ON sr.id = sst.stock_request_id
+        LEFT JOIN shops from_shop ON from_shop.id = sr.source_shop_id
+        LEFT JOIN shops to_shop ON to_shop.id = sr.requesting_shop_id
+        """
+    else:
+        transfer_select = """
+        ,
+        '' AS transfer_from_shop_name,
+        '' AS transfer_to_shop_name
+        """
+    # Sale id is embedded in note as "POS sale #123 · …" / "POS credit #123 · …".
+    pos_sale_id_expr = (
+        "CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(COALESCE(sst.note, ''), '#', -1), ' ', 1) AS UNSIGNED)"
+    )
     sql = f"""
     SELECT
         sst.id,
@@ -16715,10 +16743,19 @@ def list_shop_stock_audit_rows(
         sst.refund_amount,
         sst.note,
         sst.created_at,
-        COALESCE(NULLIF(TRIM(e.full_name), ''), '') AS moved_by
+        COALESCE(NULLIF(TRIM(e.full_name), ''), '') AS moved_by,
+        COALESCE(NULLIF(TRIM(sps.customer_name), ''), '') AS customer_name,
+        COALESCE(NULLIF(TRIM(sps.sale_type), ''), '') AS pos_sale_type
+        {transfer_select}
     FROM shop_stock_transactions sst
     LEFT JOIN items i ON i.id = sst.item_id
     LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    LEFT JOIN shop_pos_sales sps
+      ON LOWER(COALESCE(sst.reason, '')) = 'pos'
+     AND sps.shop_id = sst.shop_id
+     AND sps.id = {pos_sale_id_expr}
+     AND {pos_sale_id_expr} > 0
+    {transfer_joins}
     WHERE {where_sql}
     ORDER BY sst.created_at DESC
     LIMIT %s OFFSET %s
@@ -16727,9 +16764,52 @@ def list_shop_stock_audit_rows(
     try:
         with get_cursor() as cur:
             cur.execute(sql, tuple(params))
-            return cur.fetchall() or []
+            rows = cur.fetchall() or []
     except pymysql.Error:
         return []
+    for row in rows:
+        try:
+            row["source_display"] = _shop_stock_audit_source_display(row)
+        except Exception:
+            row["source_display"] = (row.get("source") or "").upper() or "—"
+    return rows
+
+
+def _shop_stock_audit_source_display(row: dict) -> str:
+    """Human-readable Source label for shop stock audit rows."""
+    source = (row.get("source") or "").strip().lower()
+    direction = (row.get("direction") or "").strip().lower()
+    reason = (row.get("reason") or "").strip()
+    reason_l = reason.lower()
+    note = (row.get("note") or "").strip()
+    note_l = note.lower()
+
+    if source == "transfer" or reason_l == "transfer":
+        if direction == "in":
+            from_name = (row.get("transfer_from_shop_name") or "").strip()
+            return f"Transfer from {from_name}" if from_name else "Transfer"
+        to_name = (row.get("transfer_to_shop_name") or "").strip()
+        return f"Transfer to {to_name}" if to_name else "Transfer"
+
+    is_pos = reason_l == "pos" or note_l.startswith("pos sale") or note_l.startswith("pos credit")
+    if is_pos:
+        customer = (row.get("customer_name") or "").strip() or "Walk-in"
+        sale_type = (row.get("pos_sale_type") or "").strip().lower()
+        is_credit = sale_type == "credit" or note_l.startswith("pos credit")
+        return f"Credit · {customer}" if is_credit else f"Sale · {customer}"
+
+    if source == "manual" and direction == "in":
+        place = (row.get("place_brought_from") or "").strip()
+        return f"Manual stock in · {place}" if place else "Manual stock in"
+
+    if source == "company":
+        return "Company"
+
+    if source == "manual" and direction == "out":
+        label = _format_shop_stock_out_reason_label(reason)
+        return label or "Manual stock out"
+
+    return (source or "—").upper()
 
 
 def _format_shop_stock_out_reason_label(raw: Optional[str]) -> Optional[str]:
@@ -17755,8 +17835,13 @@ def get_company_stock_movement_analytics(analytics_filter: dict, shop_id: Option
     - Company movements come from stock_transactions.
     - Shop movements come from shop_stock_transactions.
     """
-    st_where, st_params = _analytics_where_clause(analytics_filter, "st")
-    sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
+    af = analytics_filter or {}
+    if (af.get("mode") or "").strip().lower() == "all":
+        st_where, st_params = "1=1", []
+        sst_where, sst_params = "1=1", []
+    else:
+        st_where, st_params = _analytics_where_clause(af, "st")
+        sst_where, sst_params = _analytics_where_clause(af, "sst")
     union_sql = f"""
     (
       SELECT NULL AS shop_id, 'company' AS scope, st.item_id, st.direction, st.qty, st.created_at
@@ -18753,18 +18838,61 @@ def list_company_stock_movements(
     supplier_search: Optional[str] = None,
     moved_by_contains: Optional[str] = None,
     item_search: Optional[str] = None,
+    direction: Optional[str] = None,
+    source: Optional[str] = None,
+    item_id: Optional[int] = None,
     sort_payment_status_groups: bool = False,
     limit: int = 1000,
     offset: int = 0,
 ):
     """Detailed stock movement log across company + shops."""
-    st_where, st_params = _analytics_where_clause(analytics_filter, "st")
-    sst_where, sst_params = _analytics_where_clause(analytics_filter, "sst")
+    af = analytics_filter or {}
+    if (af.get("mode") or "").strip().lower() == "all":
+        st_where, st_params = "1=1", []
+        sst_where, sst_params = "1=1", []
+    else:
+        st_where, st_params = _analytics_where_clause(af, "st")
+        sst_where, sst_params = _analytics_where_clause(af, "sst")
     if employee_id is not None:
         st_where = f"({st_where}) AND st.created_by_employee_id=%s"
         st_params = list(st_params) + [int(employee_id)]
         sst_where = f"({sst_where}) AND sst.created_by_employee_id=%s"
         sst_params = list(sst_params) + [int(employee_id)]
+
+    d = (direction or "").strip().lower()
+    if d in ("in", "out"):
+        st_where = f"({st_where}) AND st.direction=%s"
+        st_params = list(st_params) + [d]
+        sst_where = f"({sst_where}) AND sst.direction=%s"
+        sst_params = list(sst_params) + [d]
+
+    s = (source or "").strip().lower()
+    if s == "transfer":
+        # Company ledger has no transfers; shop rows may use empty source + reason=TRANSFER.
+        st_where = f"({st_where}) AND 1=0"
+        sst_where = (
+            f"({sst_where}) AND (LOWER(COALESCE(sst.source, ''))='transfer' "
+            f"OR UPPER(COALESCE(sst.reason, ''))='TRANSFER')"
+        )
+    elif s == "company":
+        # Company warehouse moves + shop moves sourced from company.
+        sst_where = f"({sst_where}) AND LOWER(COALESCE(sst.source, ''))='company'"
+    elif s == "manual":
+        st_where = f"({st_where}) AND 1=0"
+        sst_where = (
+            f"({sst_where}) AND LOWER(COALESCE(sst.source, ''))='manual' "
+            f"AND UPPER(COALESCE(sst.reason, ''))<>'TRANSFER'"
+        )
+
+    try:
+        iid = int(item_id) if item_id is not None else 0
+    except Exception:
+        iid = 0
+    if iid > 0:
+        st_where = f"({st_where}) AND st.item_id=%s"
+        st_params = list(st_params) + [iid]
+        sst_where = f"({sst_where}) AND sst.item_id=%s"
+        sst_params = list(sst_params) + [iid]
 
     sup = (supplier_search or "").strip()
     if sup:
@@ -18783,12 +18911,12 @@ def list_company_stock_movements(
         sst_params = list(sst_params) + [like_mb]
 
     itq = (item_search or "").strip()
-    if itq:
+    if itq and iid <= 0:
         like_it = f"%{itq}%"
-        st_where = f"({st_where}) AND COALESCE(i.name,'') LIKE %s"
-        st_params = list(st_params) + [like_it]
-        sst_where = f"({sst_where}) AND COALESCE(i.name,'') LIKE %s"
-        sst_params = list(sst_params) + [like_it]
+        st_where = f"({st_where}) AND (COALESCE(i.name,'') LIKE %s OR COALESCE(i.category,'') LIKE %s)"
+        st_params = list(st_params) + [like_it, like_it]
+        sst_where = f"({sst_where}) AND (COALESCE(i.name,'') LIKE %s OR COALESCE(i.category,'') LIKE %s)"
+        sst_params = list(sst_params) + [like_it, like_it]
 
     if shop_id is not None:
         st_where = f"({st_where}) AND 1=0"
@@ -18806,8 +18934,8 @@ def list_company_stock_movements(
       st.direction,
       'company' AS source,
       st.qty,
-      CASE WHEN st.direction='in' THEN 'OUTSIDE' ELSE 'COMPANY' END AS from_where,
-      CASE WHEN st.direction='in' THEN 'COMPANY' ELSE 'OUTSIDE' END AS to_where,
+      CASE WHEN st.direction='in' THEN 'Outside' ELSE 'Company' END AS from_where,
+      CASE WHEN st.direction='in' THEN 'Company' ELSE 'Outside' END AS to_where,
       st.buying_price AS buying_price,
       st.place_brought_from AS place_brought_from,
       st.seller_phone AS seller_phone,
@@ -18816,14 +18944,44 @@ def list_company_stock_movements(
       COALESCE(e.full_name, 'UNKNOWN') AS moved_by,
       NULL AS shop_id,
       'Company' AS shop_name,
-      st.created_by_employee_id AS created_by_employee_id
+      st.created_by_employee_id AS created_by_employee_id,
+      NULL AS reason,
+      NULL AS note,
+      '' AS customer_name,
+      '' AS pos_sale_type,
+      '' AS transfer_from_shop_name,
+      '' AS transfer_to_shop_name
     FROM stock_transactions st
     JOIN items i ON i.id = st.item_id
     LEFT JOIN employees e ON e.id = st.created_by_employee_id
     WHERE {st_where}
     """
 
-    # Shop stock movements with explicit from/to labels.
+    has_sr_col = column_exists("shop_stock_transactions", "stock_request_id")
+    transfer_select = ""
+    transfer_joins = ""
+    if has_sr_col and table_exists("shop_stock_requests"):
+        transfer_select = """
+      ,
+      COALESCE(NULLIF(TRIM(from_shop.shop_name), ''), '') AS transfer_from_shop_name,
+      COALESCE(NULLIF(TRIM(to_shop.shop_name), ''), '') AS transfer_to_shop_name
+        """
+        transfer_joins = """
+    LEFT JOIN shop_stock_requests sr ON sr.id = sst.stock_request_id
+    LEFT JOIN shops from_shop ON from_shop.id = sr.source_shop_id
+    LEFT JOIN shops to_shop ON to_shop.id = sr.requesting_shop_id
+        """
+    else:
+        transfer_select = """
+      ,
+      '' AS transfer_from_shop_name,
+      '' AS transfer_to_shop_name
+        """
+    pos_sale_id_expr = (
+        "CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(COALESCE(sst.note, ''), '#', -1), ' ', 1) AS UNSIGNED)"
+    )
+
+    # Shop stock movements — enrich with POS client + transfer counterpart shops.
     shop_sql = f"""
     SELECT
       sst.id AS tx_id,
@@ -18834,23 +18992,8 @@ def list_company_stock_movements(
       sst.direction,
       sst.source AS source,
       sst.qty,
-      CASE
-        WHEN sst.source='manual' AND sst.direction='in' THEN 'OUTSIDE'
-        WHEN sst.source='company' AND sst.direction='in' THEN 'COMPANY'
-        WHEN sst.source='company' AND sst.direction='out' THEN sh.shop_name
-        WHEN sst.source='transfer' AND sst.direction='out' THEN sh.shop_name
-        WHEN sst.source='transfer' AND sst.direction='in' THEN 'TRANSFER IN'
-        ELSE sh.shop_name
-      END AS from_where,
-      CASE
-        WHEN sst.source='company' AND sst.direction='in' THEN sh.shop_name
-        WHEN sst.source='company' AND sst.direction='out' THEN 'COMPANY'
-        WHEN sst.source='transfer' AND sst.direction='out' THEN 'TRANSFER OUT'
-        WHEN sst.source='transfer' AND sst.direction='in' THEN sh.shop_name
-        WHEN sst.direction='out' AND UPPER(COALESCE(sst.reason,''))='POS' THEN 'CLIENT'
-        WHEN sst.direction='out' THEN 'OUTSIDE'
-        ELSE sh.shop_name
-      END AS to_where,
+      sh.shop_name AS from_where,
+      sh.shop_name AS to_where,
       sst.buying_price AS buying_price,
       sst.place_brought_from AS place_brought_from,
       sst.seller_phone AS seller_phone,
@@ -18859,11 +19002,22 @@ def list_company_stock_movements(
       COALESCE(e.full_name, 'UNKNOWN') AS moved_by,
       sst.shop_id AS shop_id,
       sh.shop_name AS shop_name,
-      sst.created_by_employee_id AS created_by_employee_id
+      sst.created_by_employee_id AS created_by_employee_id,
+      sst.reason AS reason,
+      sst.note AS note,
+      COALESCE(NULLIF(TRIM(sps.customer_name), ''), '') AS customer_name,
+      COALESCE(NULLIF(TRIM(sps.sale_type), ''), '') AS pos_sale_type
+      {transfer_select}
     FROM shop_stock_transactions sst
     JOIN items i ON i.id = sst.item_id
     JOIN shops sh ON sh.id = sst.shop_id
     LEFT JOIN employees e ON e.id = sst.created_by_employee_id
+    LEFT JOIN shop_pos_sales sps
+      ON LOWER(COALESCE(sst.reason, '')) = 'pos'
+     AND sps.shop_id = sst.shop_id
+     AND sps.id = {pos_sale_id_expr}
+     AND {pos_sale_id_expr} > 0
+    {transfer_joins}
     WHERE {sst_where}
     """
 
@@ -18911,15 +19065,17 @@ def list_company_stock_movements(
     for r in rows:
         rr = dict(r)
         rr["tx_id"] = int(rr.get("tx_id") or 0)
-        rr["qty"] = int(rr.get("qty") or 0)
+        try:
+            rr["qty"] = round(float(rr.get("qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+        except Exception:
+            rr["qty"] = float(rr.get("qty") or 0)
         rr["item_name"] = rr.get("item_name") or "Item"
         rr["movement_scope"] = (rr.get("movement_scope") or "").strip().lower()
         rr["source"] = (rr.get("source") or "").strip().lower()
-        rr["from_where"] = rr.get("from_where") or "UNKNOWN"
-        rr["to_where"] = rr.get("to_where") or "UNKNOWN"
         rr["buying_price"] = float(rr.get("buying_price") or 0.0)
         rr["direction"] = (rr.get("direction") or "").strip().lower()
-        rr["place_brought_from"] = rr.get("place_brought_from") or "-"
+        place = (rr.get("place_brought_from") or "").strip()
+        rr["place_brought_from"] = place if place else "-"
         rr["seller_phone"] = (rr.get("seller_phone") or "").strip()
         rr["payment_status"] = (rr.get("payment_status") or "").strip().lower()
         rr["amount_paid"] = float(rr.get("amount_paid") or 0.0)
@@ -18930,15 +19086,108 @@ def list_company_stock_movements(
         rr["shop_name"] = (rr.get("shop_name") or "Company").strip() or "Company"
         eid = rr.get("created_by_employee_id")
         rr["created_by_employee_id"] = int(eid) if eid is not None else None
+        rr["reason"] = rr.get("reason") or ""
+        rr["note"] = rr.get("note") or ""
+        rr["customer_name"] = (rr.get("customer_name") or "").strip()
+        rr["pos_sale_type"] = (rr.get("pos_sale_type") or "").strip()
+        rr["transfer_from_shop_name"] = (rr.get("transfer_from_shop_name") or "").strip()
+        rr["transfer_to_shop_name"] = (rr.get("transfer_to_shop_name") or "").strip()
         rr["is_external_stock_in"] = (
             rr.get("movement_scope") == "company" and rr.get("direction") == "in"
         ) or (
             rr.get("movement_scope") == "shop"
             and rr.get("direction") == "in"
             and rr.get("source") == "manual"
+            and (rr.get("reason") or "").strip().upper() not in ("TRANSFER", "POS")
         )
+        _enrich_company_stock_movement_row(rr)
         out.append(rr)
     return out
+
+
+def _enrich_company_stock_movement_row(row: dict) -> None:
+    """Set source_display / from_where / to_where for movement analysis rows."""
+    scope = (row.get("movement_scope") or "").strip().lower()
+    source = (row.get("source") or "").strip().lower()
+    direction = (row.get("direction") or "").strip().lower()
+    reason = (row.get("reason") or "").strip()
+    reason_l = reason.lower()
+    note = (row.get("note") or "").strip()
+    note_l = note.lower()
+    shop_name = (row.get("shop_name") or "Shop").strip() or "Shop"
+    place = (row.get("place_brought_from") or "").strip()
+    if place in ("-", ""):
+        place = ""
+
+    if scope == "company":
+        if direction == "in":
+            row["source_display"] = "Company stock in" + (f" · {place}" if place else "")
+            row["from_where"] = place or "Outside"
+            row["to_where"] = "Company"
+        else:
+            row["source_display"] = "Company stock out"
+            row["from_where"] = "Company"
+            row["to_where"] = "Outside"
+        return
+
+    # Shop scope
+    is_transfer = source == "transfer" or reason_l == "transfer"
+    is_pos = reason_l == "pos" or note_l.startswith("pos sale") or note_l.startswith("pos credit")
+    customer = (row.get("customer_name") or "").strip() or "Walk-in"
+    sale_type = (row.get("pos_sale_type") or "").strip().lower()
+    is_credit = sale_type == "credit" or note_l.startswith("pos credit")
+    xfer_from = (row.get("transfer_from_shop_name") or "").strip()
+    xfer_to = (row.get("transfer_to_shop_name") or "").strip()
+
+    if is_transfer:
+        if direction == "in":
+            row["source_display"] = f"Transfer from {xfer_from}" if xfer_from else "Transfer"
+            row["from_where"] = xfer_from or "Transfer"
+            row["to_where"] = shop_name
+        else:
+            row["source_display"] = f"Transfer to {xfer_to}" if xfer_to else "Transfer"
+            row["from_where"] = shop_name
+            row["to_where"] = xfer_to or "Transfer"
+        return
+
+    if is_pos:
+        row["source_display"] = f"Credit · {customer}" if is_credit else f"Sale · {customer}"
+        row["from_where"] = shop_name
+        row["to_where"] = customer
+        return
+
+    if source == "manual" and direction == "in":
+        row["source_display"] = f"Manual stock in · {place}" if place else "Manual stock in"
+        row["from_where"] = place or "Outside"
+        row["to_where"] = shop_name
+        return
+
+    if source == "company" and direction == "in":
+        row["source_display"] = "From company"
+        row["from_where"] = "Company"
+        row["to_where"] = shop_name
+        return
+
+    if source == "company" and direction == "out":
+        row["source_display"] = "Return to company"
+        row["from_where"] = shop_name
+        row["to_where"] = "Company"
+        return
+
+    if source == "manual" and direction == "out":
+        label = _format_shop_stock_out_reason_label(reason) or "Manual stock out"
+        row["source_display"] = label
+        row["from_where"] = shop_name
+        row["to_where"] = label
+        return
+
+    row["source_display"] = (source or "Shop").title()
+    if direction == "in":
+        row["from_where"] = place or "Outside"
+        row["to_where"] = shop_name
+    else:
+        row["from_where"] = shop_name
+        row["to_where"] = "Outside"
 
 
 def _supplier_stock_in_payment_snapshot(

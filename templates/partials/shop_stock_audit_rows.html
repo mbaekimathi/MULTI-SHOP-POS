@@ -7,12 +7,10 @@
     <div class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ tx.name }}</div>
   </td>
   <td class="whitespace-nowrap">{{ (tx.direction or '').upper() }}</td>
-  <td class="whitespace-nowrap">{{ (tx.source or '').upper() }}</td>
+  <td class="max-w-[14rem] truncate" title="{{ tx.source_display or (tx.source or '')|upper }}">{{ tx.source_display or (tx.source or '')|upper }}</td>
   <td class="text-right font-semibold tabular-nums">{{ tx.qty }}</td>
   <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_before }}</td>
   <td class="text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ tx.shop_stock_after }}</td>
-  <td class="hidden text-right tabular-nums xl:table-cell text-[rgb(var(--rc-muted))]">{{ tx.company_stock_before if tx.company_stock_before is not none else '—' }}</td>
-  <td class="hidden text-right tabular-nums xl:table-cell text-[rgb(var(--rc-muted))]">{{ tx.company_stock_after if tx.company_stock_after is not none else '—' }}</td>
   <td class="hidden text-right tabular-nums lg:table-cell">{% if tx.buying_price is not none %}{{ "%.2f"|format(tx.buying_price) }}{% else %}—{% endif %}</td>
   <td class="hidden max-w-[10rem] truncate lg:table-cell text-[rgb(var(--rc-muted))]">{{ tx.place_brought_from or '' }}</td>
   <td class="hidden whitespace-nowrap lg:table-cell">{{ (tx.reason or '').upper() }}</td>
