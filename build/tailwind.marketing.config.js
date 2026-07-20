@@ -2,7 +2,7 @@
  * Reference theme (CLI builds). Runtime config lives in templates/marketing/base_marketing.html
  */
 module.exports = {
-  content: ["./templates/marketing/**/*.html"],
+  content: ["../templates/marketing/**/*.html"],
   darkMode: ["selector", '[data-marketing-theme="dark"]'],
   theme: {
     extend: {

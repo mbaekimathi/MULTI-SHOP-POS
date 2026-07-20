@@ -1,7 +1,7 @@
 """Auto-detect cPanel / Passenger hosting and apply safe MySQL / URL defaults.
 
-Explicit environment variables always win. This module only fills gaps so a
-hosted ``.env`` can stay minimal (usually just ``MYSQL_PASSWORD`` + secret).
+Explicit keys in the server ``.env`` always win. This module only fills gaps so
+``.env`` can stay minimal (usually ``FLASK_SECRET_KEY`` + ``MYSQL_PASSWORD``).
 """
 
 from __future__ import annotations
@@ -20,15 +20,17 @@ def _falsy(raw: Optional[str]) -> bool:
 
 
 def cpanel_username() -> str:
-    """Best-effort cPanel account name (e.g. ``kwetufar``)."""
+    """Best-effort cPanel account name (e.g. ``merupork``)."""
     for key in ("CPANEL_USER", "CPANEL_USERNAME", "USER", "LOGNAME"):
         v = (os.getenv(key) or "").strip()
         if v and v not in {"root", "nobody", "www-data", "apache", "nginx", "http"}:
             return v
     home = (os.getenv("HOME") or "").strip()
-    if home.startswith("/home/"):
+    # /home/user or /home1/user (some hosts)
+    if home.startswith("/home"):
         parts = Path(home).parts
-        if len(parts) >= 3 and parts[1] == "home" and parts[2]:
+        # ('/', 'home', 'user') or ('/', 'home1', 'user')
+        if len(parts) >= 3 and parts[1].startswith("home") and parts[2]:
             return parts[2]
     return ""
 
@@ -57,7 +59,7 @@ def _has_cpanel_markers() -> bool:
         if (os.getenv(key) or "").strip():
             return True
     home = (os.getenv("HOME") or "").strip()
-    if home.startswith("/home/") and (
+    if home.startswith("/home") and (
         Path(home, "public_html").exists() or Path(home, "etc").exists()
     ):
         return True
@@ -101,16 +103,12 @@ def suggested_mysql_user(cpanel_user: str = "") -> str:
 
 
 def apply_hosted_env_defaults(*, env_file_keys: Optional[set] = None) -> dict:
-    """Set missing env keys for hosted deployments. Returns what was applied.
+    """Set missing env keys for local or hosted. Returns what was applied.
 
     ``env_file_keys`` = keys explicitly set in the server ``.env`` (never overwritten).
-    Placeholder values that only came from ``.env.example`` (e.g. root / multi_pos)
-    are replaced with cPanel-derived identities.
+    Values that only came from ``.env.example`` placeholders can be replaced on host.
     """
     applied: dict[str, str] = {}
-    if not detect_hosted_deployment():
-        return applied
-
     explicit = env_file_keys if env_file_keys is not None else set()
 
     def _set(key: str, value: str, *, replace_placeholders: tuple = ()) -> None:
@@ -123,6 +121,18 @@ def apply_hosted_env_defaults(*, env_file_keys: Optional[set] = None) -> dict:
             return
         os.environ[key] = value
         applied[key] = value
+
+    if not detect_hosted_deployment():
+        # Local development defaults (no .env clutter required).
+        _set("MYSQL_HOST", "127.0.0.1", replace_placeholders=("localhost",))
+        _set("MYSQL_PORT", "3306")
+        _set("MYSQL_USER", "root", replace_placeholders=("mysql", "admin"))
+        _set(
+            "MYSQL_DATABASE",
+            "richcom",
+            replace_placeholders=("multi_pos", "test", "mysql"),
+        )
+        return applied
 
     _set("RICHCOM_HOSTED", "1")
     _set("MYSQL_HOST", "127.0.0.1", replace_placeholders=("localhost",))

@@ -1,4 +1,7 @@
-"""Extract inline POS CSS/JS from shop_pos.html into static files (one-time maintainer script)."""
+"""Extract inline POS CSS/JS from shop_pos.html into static files (one-time maintainer script).
+
+Run from repo root:  python scripts/extract_pos_assets.py
+"""
 from __future__ import annotations
 
 import re

@@ -3,6 +3,7 @@
 All MySQL access uses PyMySQL (`pymysql`). Credentials come from the environment:
 ``project_env`` loads tracked ``.env.example`` first, then optional ``.env`` (overrides),
 from the project root so ``MYSQL_*`` work even if this module is imported before ``app.py`` runs.
+``.env`` only needs ``FLASK_SECRET_KEY`` + ``MYSQL_PASSWORD``; host/user/database auto-fill.
 """
 
 import json
