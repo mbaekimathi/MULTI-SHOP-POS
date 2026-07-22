@@ -10523,12 +10523,10 @@ var saleType = "sale";
         });
       }
 
-      /** True when IT allows any POS printer path — browser thermal dialog is allowed as fallback (not only “USB printer”). */
+      /** Browser thermal dialog is the USB path (OS print popup). Not used for Bluetooth direct print. */
       function posPrintingAllowsBrowserThermalFallback() {
         return (
-          (typeof window.posPrinterTypeAllowed === "function" && window.posPrinterTypeAllowed(null, "usb")) ||
-          window.posPrinterTypeAllowed(null, "network") ||
-          window.posPrinterTypeAllowed(null, "bluetooth")
+          typeof window.posPrinterTypeAllowed === "function" && window.posPrinterTypeAllowed(null, "usb")
         );
       }
 
@@ -10548,14 +10546,84 @@ var saleType = "sale";
       }
 
       /**
-       * After checkout: print via the same HTML thermal layout as IT Support receipt preview
-       * (logo, address, contact, server, datetime, payment blocks, QR, header/footer, tax, etc.).
+       * After checkout: route to the saved printer type.
+       * Bluetooth → silent ESC/POS over BLE (no browser print dialog).
+       * USB → silent WebUSB when possible, otherwise browser thermal print dialog.
+       * Network → server ESC/POS, browser dialog only when USB is allowed as fallback.
        * @param {object} [printOpts] — optional ``{ receiptVariants: [...] }`` (direct/credit checkout passes ``receiptVariantsForCheckout()``; held save uses ``["company"]`` only).
        */
       function runConfiguredPrinterAction(payload, printOpts) {
         printOpts = printOpts || {};
         syncReceiptThermalEngineBoot();
-        return printBrowserThermalDialog(payload, printOpts);
+        var pp = window.POS_PRINTING || {};
+        return loadSavedPrinterProfile().then(function (saved) {
+          var pt = saved ? String(saved.printer_type || "").toLowerCase() : "";
+          if (!printingCompulsoryOnSaleEnabled() && (!saved || !pt)) {
+            return printBrowserThermalDialog(payload, printOpts);
+          }
+          var cfg = saved ? normalizePrinterConfig(saved.config) : null;
+          var host = cfg && String(cfg.host || "").trim();
+
+          if (
+            saved &&
+            pt === "network" &&
+            host &&
+            typeof window.posPrinterTypeAllowed === "function" &&
+            window.posPrinterTypeAllowed(null, "network")
+          ) {
+            return printNetworkEscPosReceipt(payload, printOpts).catch(function () {
+              return printBrowserThermalDialog(payload, printOpts);
+            });
+          }
+
+          var usbVid = cfg != null ? parseInt(cfg.vendorId, 10) : NaN;
+          var usbPid = cfg != null ? parseInt(cfg.productId, 10) : NaN;
+          var isUsb =
+            saved &&
+            pt === "usb" &&
+            cfg != null &&
+            !isNaN(usbVid) &&
+            !isNaN(usbPid) &&
+            typeof window.posPrinterTypeAllowed === "function" &&
+            window.posPrinterTypeAllowed(null, "usb");
+          if (isUsb) {
+            if (navigator.usb) {
+              return printUsbEscPosReceipt(cfg, payload, printOpts).catch(function (usbErr) {
+                try {
+                  if (typeof showToast === "function") {
+                    var denied =
+                      typeof window.posIsUsbAccessDeniedError === "function" &&
+                      window.posIsUsbAccessDeniedError(usbErr);
+                    if (!denied) {
+                      var usbMsg = (usbErr && usbErr.message) || "USB print failed";
+                      showToast(usbMsg + " — opening browser print…");
+                    }
+                  }
+                } catch (eToastUsb) {}
+                if (printOpts && Array.isArray(printOpts.receiptVariants) && printOpts.receiptVariants.length) {
+                  return printUsbEscPosReceipt(cfg, payload).catch(function () {
+                    return printBrowserThermalDialog(payload, printOpts);
+                  });
+                }
+                return printBrowserThermalDialog(payload, printOpts);
+              });
+            }
+            return printBrowserThermalDialog(payload, printOpts);
+          }
+
+          if (
+            saved &&
+            pt === "bluetooth" &&
+            cfg &&
+            cfg.bluetoothId &&
+            typeof window.posPrinterTypeAllowed === "function" &&
+            window.posPrinterTypeAllowed(null, "bluetooth")
+          ) {
+            return tryBluetoothEscPosSilent(payload, pp, saved, printOpts);
+          }
+
+          return printBrowserThermalDialog(payload, printOpts);
+        });
       }
 
       /** Same print path as POS checkout (HTML thermal, IT receipt copy count). */
