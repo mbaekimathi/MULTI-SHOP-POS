@@ -4576,6 +4576,46 @@ def _render_public_storefront(*, catalog_mode: bool = False):
     )
 
 
+def _website_related_products(product: dict, *, limit: int = 4) -> list[dict]:
+    """Same-category catalogue items for the product detail page (excludes current)."""
+    pid = int(product.get("id") or 0)
+    cat = (product.get("category") or "").strip().lower()
+    related: list[dict] = []
+    try:
+        from database import list_website_catalog_items
+
+        rows = list_website_catalog_items(limit=120) or []
+    except Exception:
+        rows = []
+    for r in rows:
+        try:
+            iid = int(r.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if iid <= 0 or iid == pid:
+            continue
+        row_cat = (r.get("category") or "").strip().lower()
+        if cat and row_cat != cat:
+            continue
+        related.append(_serialize_website_product_row(r))
+        if len(related) >= limit:
+            break
+    if len(related) < limit:
+        for r in rows:
+            try:
+                iid = int(r.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            if iid <= 0 or iid == pid:
+                continue
+            if any(int(p.get("id") or 0) == iid for p in related):
+                continue
+            related.append(_serialize_website_product_row(r))
+            if len(related) >= limit:
+                break
+    return related
+
+
 def _render_public_product_page(item_id: int, *, slug: str | None = None):
     product = _website_catalog_product(item_id)
     if not product:
@@ -4589,12 +4629,15 @@ def _render_public_product_page(item_id: int, *, slug: str | None = None):
     ws = _load_website_settings()
     design = ws.get("design") or _default_website_design()
     g.storefront_seo = _storefront_product_seo_context(product, canonical_path)
-    cart_row = _serialize_website_product_cart_row(product)
+    related = _website_related_products(product, limit=4)
+    cart_rows = [_serialize_website_product_cart_row(product)]
+    cart_rows.extend(_serialize_website_product_cart_row(p) for p in related)
     return render_template(
         "marketing/product.html",
         website_design=design,
         website_product=product,
-        website_cart_products=[cart_row],
+        website_related_products=related,
+        website_cart_products=cart_rows,
         website_public_shops=_public_storefront_shops(),
         is_live_public_website=_is_public_website_host_request(),
     )
@@ -4649,7 +4692,7 @@ def _normalize_featured_item_ids(raw) -> list[int]:
 
 
 def _website_featured_product_rows(limit: int | None = None) -> list[dict]:
-    """Raw catalog rows for the public storefront (curated order or best-sellers)."""
+    """Raw catalog rows for homepage featured: curated IDs, else most-bought-by-clients."""
     lim = max(1, min(int(limit or WEBSITE_HOMEPAGE_FEATURED_MAX), 500))
     try:
         ws = _load_website_settings()
@@ -4686,6 +4729,10 @@ def _serialize_website_product_row(r: dict) -> dict:
     on_sale = was > lowest + 0.009
     discount_pct = int(round((1 - lowest / was) * 100)) if on_sale and was > 0 else 0
     pname = (r.get("name") or "").strip() or "Product"
+    try:
+        buyer_count = int(r.get("buyer_count") or 0)
+    except (TypeError, ValueError):
+        buyer_count = 0
     return {
         "id": iid,
         "category": (r.get("category") or "").strip() or "General",
@@ -4696,6 +4743,7 @@ def _serialize_website_product_row(r: dict) -> dict:
         "original_price": round(was, 2),
         "image_url": image_url,
         "qty_sold": float(r.get("qty_sold") or 0),
+        "buyer_count": max(0, buyer_count),
         "on_sale": on_sale,
         "discount_percent": discount_pct,
         "discount_amount": round(was - lowest, 2) if on_sale else 0,

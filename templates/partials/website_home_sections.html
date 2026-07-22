@@ -4,15 +4,21 @@
 {% include "partials/website_landing_categories.html" %}
 
 {% if _featured %}
-<section class="wsf-home-section wsf-home-section--featured wsf-reveal" aria-labelledby="wsf-home-featured-title">
+<section class="wsf-home-section wsf-home-section--featured wsf-home-section--electro-products wsf-reveal" aria-labelledby="wsf-home-featured-title">
   <div class="wsf-shell">
-    <div class="wsf-home-section__head">
-      <div>
-        <p class="wsf-home-kicker">Popular now</p>
-        <h2 id="wsf-home-featured-title" class="wsf-home-section__title">{{ _c.featured_section_title }}</h2>
-        <p class="wsf-home-section__sub">{{ _c.featured_subtitle }}</p>
-      </div>
+    <div class="wsf-home-section__head wsf-electro-products__head">
+      <h2 id="wsf-home-featured-title" class="wsf-electro-products__title">{{ _c.featured_section_title or 'New products' }}</h2>
+      {% if _cats %}
+      <nav class="wsf-electro-products__tabs" aria-label="Product categories">
+        {% for cat in _cats[:6] %}
+          {% set cat_name = cat.name if cat is mapping else cat %}
+          {% set cat_label = cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name %}
+          <a href="{{ _products_url }}?cat={{ cat_name|urlencode }}" class="wsf-electro-products__tab{% if loop.first %} is-active{% endif %}">{{ cat_label }}</a>
+        {% endfor %}
+      </nav>
+      {% else %}
       <a href="{{ _products_url }}" class="wsf-home-link">View all products →</a>
+      {% endif %}
     </div>
     <div class="wsf-home-products">
       {% for p in _featured %}

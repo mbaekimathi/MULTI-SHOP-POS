@@ -1,10 +1,9 @@
-{# Clean product card — view details or add to quote #}
+{# Electro product card #}
 <article
   id="wsf-product-{{ p.id }}"
-  class="wsf-card wsf-product-card wsf-product-card--tappable{% if p.on_sale %} wsf-card--sale{% endif %}"
+  class="wsf-product-card{% if p.on_sale %} wsf-card--sale{% endif %}"
   data-wsf-product-cat="{{ (p.category or 'General')|upper }}"
-  data-wsf-add-id="{{ p.id }}"
-  style="--wsf-delay: {{ ((delay|default(0)) * 0.08)|round(2) }}s"
+  style="--wsf-delay: {{ ((delay|default(0)) * 0.06)|round(2) }}s"
   itemscope
   itemtype="https://schema.org/Product"
 >
@@ -12,67 +11,55 @@
     <a href="{{ storefront_product_url(p) }}" class="wsf-card__view-link" tabindex="-1" aria-hidden="true">
       <span class="wsf-card__img-frame">
         {% if p.image_url %}
-          <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" sizes="(min-width: 1024px) 280px, (min-width: 640px) 33vw, 50vw" />
-          <span class="wsf-card__img-shimmer" aria-hidden="true"></span>
+          <img src="{{ p.image_url }}" alt="{{ p.name }}" class="wsf-card__img" itemprop="image" loading="lazy" decoding="async" />
         {% else %}
           <span class="wsf-card__placeholder" aria-hidden="true">{{ p.name[:1]|upper }}</span>
         {% endif %}
       </span>
     </a>
-
     {% if p.on_sale %}
-    <span class="wsf-card__badge wsf-card__offer-tag" aria-label="On offer, {{ p.discount_percent }} percent off">
-      <span class="wsf-card__offer-label">Offer</span>
-      <span class="wsf-card__offer-pct">−{{ p.discount_percent }}%</span>
-    </span>
+    <span class="wsf-card__badge wsf-card__badge--sale" aria-label="{{ p.discount_percent }} percent off">−{{ p.discount_percent }}%</span>
+    {% else %}
+    <span class="wsf-card__badge wsf-card__badge--new">NEW</span>
     {% endif %}
-
-    <div class="wsf-card__hover-panel" aria-hidden="true">
-      {% if p.description %}
-      <p class="wsf-card__desc-float">{{ p.description }}</p>
-      {% else %}
-      <p class="wsf-card__desc-float wsf-card__desc-float--empty">{{ p.name }}</p>
-      {% endif %}
-      <span class="wsf-card__quick">Add to quote</span>
-    </div>
-
-    <button type="button" class="wsf-card__add wsf-add-btn wsf-product-card__cart" aria-label="Add {{ p.name }} to quote">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-    </button>
   </div>
 
   <div class="wsf-card__body">
-    {% if p.category %}
-      <p class="wsf-card__cat" itemprop="category">{{ p.category }}</p>
-    {% endif %}
+    <p class="wsf-card__cat" itemprop="category">{{ p.category or 'General' }}</p>
     <h3 class="wsf-card__name">
       <a href="{{ storefront_product_url(p) }}" class="wsf-card__name-link" itemprop="url">
         <span itemprop="name">{{ p.name }}</span>
       </a>
     </h3>
-    {% if p.description %}
-      <p class="wsf-card__desc-cover">{{ p.description }}</p>
-    {% endif %}
-    <div
-      class="wsf-card__price-row{% if p.on_sale %} wsf-card__price-row--deal{% endif %}"
-      itemprop="offers"
-      itemscope
-      itemtype="https://schema.org/Offer"
-    >
+    <div class="wsf-card__price-row" itemprop="offers" itemscope itemtype="https://schema.org/Offer">
       <meta itemprop="priceCurrency" content="KES" />
+      <span class="wsf-card__price" itemprop="price" content="{{ '%.2f'|format(p.price) }}">KES {{ '%.0f'|format(p.price) }}</span>
       {% if p.on_sale %}
-        <span class="wsf-card__price-was">KES {{ '%.0f'|format(p.original_price) }}</span>
-        <span class="wsf-card__price-deal">
-          <span class="wsf-card__price-deal-label">Deal</span>
-          <span class="wsf-card__price" itemprop="price" content="{{ '%.2f'|format(p.price) }}">KES {{ '%.0f'|format(p.price) }}</span>
-        </span>
-        {% if p.discount_amount %}
-        <span class="wsf-card__save">Save KES {{ '%.0f'|format(p.discount_amount) }}</span>
-        {% endif %}
-      {% else %}
-        <span class="wsf-card__price" itemprop="price" content="{{ '%.2f'|format(p.price) }}">KES {{ '%.0f'|format(p.price) }}</span>
+      <del class="wsf-card__price-was">KES {{ '%.0f'|format(p.original_price) }}</del>
       {% endif %}
     </div>
-    <span class="wsf-card__cta-cover">Add to quote</span>
+    <div class="wsf-card__rating" aria-hidden="true">
+      <span class="wsf-card__rating-line"></span>
+      <span class="wsf-card__stars">
+        {% for i in range(5) %}<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 5.88 6.5.95-4.7 4.58 1.11 6.47L12 17.77l-5.81 3.06 1.11-6.47-4.7-4.58 6.5-.95L12 2.5z"/></svg>{% endfor %}
+      </span>
+    </div>
+    <div class="wsf-card__tools">
+      <button type="button" class="wsf-card__tool wsf-product-card__cart" data-wsf-add-id="{{ p.id }}" aria-label="Add {{ p.name }} to quote" title="Add to quote">
+        <svg fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+      </button>
+      <a href="{{ url_for('marketing_catalog_live') if is_live_public_website|default(false) else url_for('marketing_catalog') }}" class="wsf-card__tool" aria-label="Browse products" title="Browse">
+        <svg fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+      </a>
+      <a href="{{ storefront_product_url(p) }}" class="wsf-card__tool" aria-label="Quick view {{ p.name }}" title="Quick view">
+        <svg fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+      </a>
+    </div>
+  </div>
+
+  <div class="wsf-card__footer">
+    <button type="button" class="wsf-card__atc wsf-product-card__cart" data-wsf-add-id="{{ p.id }}" aria-label="Add {{ p.name }} to quote">
+      ADD TO QUOTE
+    </button>
   </div>
 </article>

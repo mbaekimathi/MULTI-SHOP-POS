@@ -1,18 +1,17 @@
-{# Fresh storefront — clean, minimal, responsive #}
+{# Electro storefront — fresh Home / Products / Locations / Product #}
 {% set _c = storefront_homepage_copy %}
 {% set _products = website_featured_products|default([]) %}
-{% set _sorted_products = _products|sort(attribute='qty_sold', reverse=true) %}
-{% set _orbit_with_img = _sorted_products|selectattr('image_url')|list %}
-{% set _orbit_products = (_orbit_with_img[:6] if _orbit_with_img|length >= 3 else _sorted_products[:6]) %}
+{# Preserve server order: curated IDs, or ranked by distinct clients who bought the item #}
+{% set _sorted_products = _products %}
 {% set _shops = website_public_shops|default([]) %}
 {% set _cats = website_product_categories|default([]) %}
 {% set _company = _c.company_name %}
 {% set _design_mode = storefront_design_mode|default(false) %}
 {% set _catalog_mode = storefront_catalog_mode|default(false) %}
 {% set _product_mode = storefront_product_mode|default(false) %}
-{% set _primary = site_settings.primary_color if site_settings else '#2563eb' %}
-{% set _accent = site_settings.accent_color if site_settings else '#3b82f6' %}
-{% set _font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
+{% set _primary = site_settings.primary_color if site_settings else '#d10024' %}
+{% set _accent = site_settings.accent_color if site_settings else '#d10024' %}
+{% set _font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Montserrat')|font_stack) %}
 {% set _products_url = url_for('marketing_catalog_live') if is_live_public_website|default(false) else url_for('marketing_catalog') %}
 {% set _home_url = url_for('index') if is_live_public_website|default(false) else url_for('marketing_home') %}
 {% set _shop_login_url = url_for('public_shop_login') %}
@@ -26,11 +25,14 @@
 {% set _tw = _c.twitter %}
 {% set _tt = _c.tiktok %}
 {% set _icon = _c.app_icon if _c.app_icon else (site_settings.app_icon if site_settings else '') %}
+{% set _related = website_related_products|default([]) %}
+{% set _home_featured = _sorted_products[:8] %}
+{% set _banner_cats = _cats[:3] %}
 
 <div
   id="wsf-root"
-  class="wsf-root wsf-root--fresh wsf-root--luxury{% if _catalog_mode %} wsf-root--catalog{% elif not _product_mode %} wsf-root--home{% endif %}"
-  style="--mk-primary: {{ _primary }}; --mk-accent: {{ _accent }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '37, 99, 235' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '59, 130, 246' }}; --rc-font-family: {{ _font }};"
+  class="wsf-root{% if _catalog_mode %} wsf-root--catalog{% elif not _product_mode %} wsf-root--home{% endif %}"
+  style="--mk-primary: {{ _primary }}; --mk-accent: {{ _accent }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '209, 0, 36' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '209, 0, 36' }}; --rc-font-family: {{ _font }};"
   data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
   data-marketing-theme-config="{{ (website_settings.theme_config_key if website_settings else none)|default(site_settings.theme_config_key if site_settings else '', true) }}"
   data-quote-url="{{ url_for('storefront_request_quotation') }}"
@@ -51,92 +53,76 @@
   <div class="wsf-preview-badge">Live preview</div>
   {% endif %}
 
-  {% set _include_chrome = storefront_include_chrome|default(true) %}
-  {% if _include_chrome %}
+  {% if storefront_include_chrome|default(true) %}
+  {# ── TOP BAR ── #}
+  <div class="el-topbar">
+    <div class="wsf-shell el-topbar__inner">
+      <a href="{{ _shop_login_url }}" class="el-topbar__brand" title="Shop staff login">
+        {% if _icon %}
+          <img class="el-topbar__logo" src="{{ url_for('static', filename=_icon) }}" alt="" width="28" height="28" />
+        {% else %}
+          <span class="el-topbar__logo-ph">{{ _company[:1]|upper }}</span>
+        {% endif %}
+        <span>{{ _company }}</span>
+      </a>
+      <div class="el-topbar__tools">
+        {% if _phone %}
+        <a class="el-topbar__link" href="tel:{{ _phone }}">{{ _phone }}</a>
+        {% endif %}
+        <button type="button" class="el-topbar__cart" data-wsf-open-cart>
+          Quote
+          <span class="el-topbar__cart-count hidden" data-wsf-cart-count>0</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
-  {% if _c.promo_banner_text and not _catalog_mode and not _product_mode %}
-  <div class="wsf-announce" role="status">{{ _c.promo_banner_text }}</div>
-  {% endif %}
+  {# ── MAIN NAV ── #}
+  <header class="el-header{% if _catalog_mode %} el-header--catalog{% endif %}" data-wsf-header>
+    <div class="wsf-shell el-header__inner">
+      <nav class="el-nav" aria-label="Primary">
+        <a href="{{ _home_url }}" class="el-nav__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
+        <a href="{{ _products_url }}" class="el-nav__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
+        {% for cat in _cats[:5] %}
+          {% set cat_name = cat.name if cat is mapping else cat %}
+          {% set cat_label = cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name %}
+          <a href="{{ _products_url }}?cat={{ cat_name|urlencode }}" class="el-nav__link">{{ cat_label }}</a>
+        {% endfor %}
+        {% if _shops %}
+        <a href="{{ _home_url }}#wsf-shops" class="el-nav__link">Locations</a>
+        {% endif %}
+        {% if _phone or _email %}
+        <button type="button" class="el-nav__link" data-wsf-open-contact>Contact</button>
+        {% endif %}
+      </nav>
 
-  <header class="wsf-header wsf-header--pro" data-wsf-header>
-    <div class="wsf-header__accent" aria-hidden="true"></div>
-    <div class="wsf-shell wsf-header__shell">
-      <div class="wsf-header__bar">
-        <a href="{{ _shop_login_url }}" class="wsf-header-brand" title="Shop staff login" aria-label="{{ _company }} — shop staff login">
-          <span class="wsf-header-brand__mark">
-            {% if _icon %}
-              <img src="{{ url_for('static', filename=_icon) }}" alt="" width="40" height="40" decoding="async" />
-            {% else %}
-              <span aria-hidden="true">{{ _company[:1]|upper }}</span>
-            {% endif %}
-          </span>
-          <span class="wsf-header-brand__copy">
-            <span class="wsf-header-brand__name">{{ _company }}</span>
-            {% if _c.header_tagline and not _catalog_mode and not _product_mode %}
-            <span class="wsf-header-brand__tag">{{ _c.header_tagline }}</span>
-            {% endif %}
-          </span>
-        </a>
-
-        <nav class="wsf-header-nav" aria-label="Primary">
-          <div class="wsf-header-nav__track">
-            <a href="{{ _home_url }}" class="wsf-header-nav__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
-            <a href="{{ _products_url }}" class="wsf-header-nav__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
-            {% if _shops %}
-            <a href="{{ _home_url }}#wsf-shops" class="wsf-header-nav__link">Locations</a>
-            {% endif %}
-            {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
-            <a href="{% if _catalog_mode or _product_mode %}{{ _home_url }}{% endif %}#wsf-policies" class="wsf-header-nav__link">Policies</a>
-            {% endif %}
-            {% if _phone or _email %}
-            <button type="button" class="wsf-header-nav__link wsf-header-nav__link--btn" data-wsf-open-contact>Contact</button>
-            {% endif %}
-          </div>
-        </nav>
-
-        <div class="wsf-header-actions">
-          {% if _catalog_mode %}
-          <div class="wsf-header-actions__search">
-            {% include "partials/website_storefront_search.html" %}
-          </div>
-          {% endif %}
-          <div class="wsf-header-actions__tools">
-            <button
-              type="button"
-              class="wsf-theme-toggle"
-              data-wsf-theme-toggle
-              aria-pressed="false"
-              aria-label="Switch to dark mode"
-              title="Toggle light / dark mode"
-            >
-              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-              </svg>
-              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-              </svg>
-            </button>
-            <button type="button" class="wsf-header-tool wsf-header-tool--cart" data-wsf-open-cart aria-label="Open quote cart">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-              <span class="wsf-header-cart__count hidden" data-wsf-cart-count>0</span>
-            </button>
-          </div>
-          <button type="button" class="wsf-header-cta" data-wsf-open-cart>
-            <span class="wsf-header-cta__label">Request quote</span>
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-          </button>
-          <button type="button" class="wsf-header-menu-btn wsf-menu-btn" data-wsf-open-menu aria-label="Open menu" aria-expanded="false" aria-controls="wsf-menu-drawer">
-            <svg class="wsf-header-menu-btn__open wsf-menu-btn__icon wsf-menu-btn__icon--open" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-            <svg class="wsf-header-menu-btn__close wsf-menu-btn__icon wsf-menu-btn__icon--close" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
+      <div class="el-header__actions">
+        {% if _catalog_mode %}
+        <div class="el-search wsf-search" role="search">
+          <svg class="el-search__icon wsf-search__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="search" class="el-search__input wsf-search__input" placeholder="{{ _c.search_placeholder or 'Search products…' }}" aria-label="Search products" />
         </div>
+        {% endif %}
+        <button type="button" class="el-icon-btn" data-wsf-theme-toggle aria-pressed="false" aria-label="Toggle dark mode">
+          <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
+        <button type="button" class="el-icon-btn" data-wsf-open-cart aria-label="Open quote">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        </button>
+        <button type="button" class="el-icon-btn el-menu-btn wsf-menu-btn" data-wsf-open-menu aria-label="Open menu" aria-expanded="false" aria-controls="wsf-menu-drawer">
+          <svg class="wsf-header-menu-btn__open wsf-menu-btn__icon wsf-menu-btn__icon--open" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <svg class="wsf-header-menu-btn__close wsf-menu-btn__icon wsf-menu-btn__icon--close" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
       </div>
     </div>
 
     <div id="wsf-menu-backdrop" class="wsf-menu-backdrop" aria-hidden="true"></div>
     <nav id="wsf-menu-drawer" class="wsf-menu-drawer" aria-label="Mobile navigation" aria-hidden="true">
       <div class="wsf-menu-drawer__head">
-        <a href="{{ _shop_login_url }}" class="wsf-menu-drawer__brand" title="Shop staff login">{{ _company }}</a>
+        <a href="{{ _shop_login_url }}" class="wsf-menu-drawer__brand">{{ _company }}</a>
         <button type="button" class="wsf-icon-btn" data-wsf-close-menu aria-label="Close menu">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -154,7 +140,7 @@
       </div>
       <p class="wsf-menu-drawer__section-label">Actions</p>
       <div class="wsf-menu-drawer__links">
-        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-theme-toggle aria-pressed="false" aria-label="Switch to dark mode">
+        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-theme-toggle aria-pressed="false">
           <span data-wsf-theme-toggle-label>Dark mode</span>
         </button>
         <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn wsf-menu-drawer__link--accent" data-wsf-open-cart data-wsf-close-menu-on-click>Request quote</button>
@@ -170,235 +156,245 @@
       {% endif %}
     </nav>
   </header>
+
+  {% if _catalog_mode %}
+  <div class="wsf-shell el-mobile-search">
+    <div class="el-search wsf-search" role="search">
+      <svg class="el-search__icon wsf-search__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input type="search" class="el-search__input wsf-search__input" placeholder="{{ _c.search_placeholder or 'Search products…' }}" aria-label="Search products" />
+    </div>
+  </div>
+  {% endif %}
   {% endif %}
 
-  {# ── HOMEPAGE ── #}
+  {# ═══════════ PRODUCT DETAIL ═══════════ #}
   {% if _product_mode %}
   {% set _p = website_product %}
-  <section class="wsf-section wsf-product-page wsf-reveal" aria-labelledby="wsf-product-title">
+  <section class="el-product-page el-reveal" aria-labelledby="wsf-product-title">
     <div class="wsf-shell">
-      <nav class="wsf-breadcrumb" aria-label="Breadcrumb">
-        <a href="{{ _home_url }}">Home</a>
-        <span aria-hidden="true">/</span>
+      <nav class="el-breadcrumb" aria-label="Breadcrumb">
+        <a href="{{ _home_url }}">Home</a><span>/</span>
         <a href="{{ _products_url }}">Products</a>
-        {% if _p.category %}
-        <span aria-hidden="true">/</span>
-        <a href="{{ _home_url }}#wsf-products">{{ _p.category }}</a>
-        {% endif %}
+        {% if _p.category %}<span>/</span><a href="{{ _products_url }}?cat={{ _p.category|urlencode }}">{{ _p.category }}</a>{% endif %}
+        <span>/</span><span aria-current="page">{{ _p.name }}</span>
       </nav>
 
-      <article
-        class="wsf-product-detail"
-        itemscope
-        itemtype="https://schema.org/Product"
-      >
-        <div class="wsf-product-detail__media">
-          {% if _p.image_url %}
-            <img
-              src="{{ _p.image_url }}"
-              alt="{{ _p.name }}"
-              class="wsf-product-detail__img"
-              itemprop="image"
-              width="640"
-              height="640"
-              decoding="async"
-            />
-          {% else %}
-            <div class="wsf-product-detail__img-ph" aria-hidden="true">{{ _p.name[:1]|upper }}</div>
-          {% endif %}
+      <article class="el-detail" itemscope itemtype="https://schema.org/Product">
+        <div class="el-detail__media">
           {% if _p.on_sale %}
-            <span class="wsf-product-detail__badge">−{{ _p.discount_percent }}%</span>
+          <span class="el-detail__badge">−{{ _p.discount_percent }}%</span>
+          {% else %}
+          <span class="el-detail__badge">NEW</span>
+          {% endif %}
+          {% if _p.image_url %}
+          <img class="el-detail__img" src="{{ _p.image_url }}" alt="{{ _p.name }}" itemprop="image" width="640" height="640" decoding="async" />
+          {% else %}
+          <div class="el-detail__ph" aria-hidden="true">{{ _p.name[:1]|upper }}</div>
           {% endif %}
         </div>
-
-        <div class="wsf-product-detail__body">
-          {% if _p.category %}
-            <p class="wsf-product-detail__cat" itemprop="category">{{ _p.category }}</p>
-          {% endif %}
-          <h1 id="wsf-product-title" class="wsf-product-detail__title" itemprop="name">{{ _p.name }}</h1>
+        <div class="el-detail__body">
+          {% if _p.category %}<p class="el-detail__cat" itemprop="category">{{ _p.category }}</p>{% endif %}
+          <h1 id="wsf-product-title" class="el-detail__title" itemprop="name">{{ _p.name }}</h1>
           <link itemprop="url" href="{{ storefront_product_url(_p, _external=true) }}" />
-
-          <p
-            class="wsf-product-detail__price"
-            itemprop="offers"
-            itemscope
-            itemtype="https://schema.org/Offer"
-          >
+          <div class="el-detail__stars" aria-hidden="true">
+            {% for i in range(5) %}<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 5.88 6.5.95-4.7 4.58 1.11 6.47L12 17.77l-5.81 3.06 1.11-6.47-4.7-4.58 6.5-.95L12 2.5z"/></svg>{% endfor %}
+          </div>
+          <p class="el-detail__price" itemprop="offers" itemscope itemtype="https://schema.org/Offer">
             <meta itemprop="priceCurrency" content="KES" />
             <span itemprop="price" content="{{ '%.2f'|format(_p.price) }}">KES {{ '%.0f'|format(_p.price) }}</span>
             <link itemprop="availability" href="https://schema.org/InStock" />
-            {% if _p.on_sale %}
-              <span class="wsf-product-detail__was">KES {{ '%.0f'|format(_p.original_price) }}</span>
-            {% endif %}
+            {% if _p.on_sale %}<del class="el-detail__was">KES {{ '%.0f'|format(_p.original_price) }}</del>{% endif %}
           </p>
-
           {% if _p.description %}
-            <div class="wsf-product-detail__desc" itemprop="description">{{ _p.description }}</div>
+          <div class="el-detail__desc" itemprop="description">{{ _p.description }}</div>
           {% else %}
-            <p class="wsf-product-detail__desc" itemprop="description">
-              {{ _p.category }} — available from {{ _company }}. Add to your quote and we will get back to you.
-            </p>
+          <p class="el-detail__desc" itemprop="description">{{ _p.category }} — available from {{ _company }}. Add to your quote and we will get back to you.</p>
           {% endif %}
-
-          <div class="wsf-product-detail__actions">
-            <button
-              type="button"
-              class="wsf-btn wsf-btn--primary"
-              data-wsf-add-id="{{ _p.id }}"
-            >Add to quote</button>
-            <a href="{{ _products_url }}" class="wsf-btn wsf-btn--ghost">← Back to products</a>
+          <div class="el-detail__actions">
+            <button type="button" class="el-btn" data-wsf-add-id="{{ _p.id }}">Add to quote</button>
+            <a href="{{ _products_url }}" class="el-btn el-btn--ghost">Back to products</a>
           </div>
         </div>
       </article>
-    </div>
-  </section>
 
-  {% elif _catalog_mode %}
-  <section class="wsf-pagehead wsf-pagehead--full wsf-pagehead--immersive wsf-pagehead--slideshow wsf-reveal" aria-label="Catalogue">
-    {% include "partials/website_storefront_bg_slideshow.html" %}
-    <div class="wsf-pagehead__scrim" aria-hidden="true"></div>
-    <div class="wsf-shell wsf-pagehead__inner">
-      <div class="wsf-pagehead__hero">
-        <div class="wsf-pagehead__float">
-          <p class="wsf-kicker wsf-pagehead__kicker">Catalogue</p>
-          <h1 class="wsf-pagehead__title">All products</h1>
-          <p class="wsf-pagehead__lead">Search, filter by category, and request a quote online.</p>
-          <div class="wsf-pagehead__meta">
-            {% if _products %}
-            <span class="wsf-pill wsf-pagehead__pill">
-              <span id="wsf-catalog-total-count">{{ _products|length }}</span>
-              {{ 'product' if _products|length == 1 else 'products' }}
-            </span>
-            {% endif %}
-            {% if _shops %}
-            <span class="wsf-pill wsf-pagehead__pill wsf-pagehead__pill--muted">
-              {{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}
-            </span>
-            {% endif %}
-            <a href="{{ _home_url }}" class="wsf-btn wsf-btn--ghost wsf-pagehead__cta">← Back home</a>
-          </div>
+      {% if _related %}
+      <div class="el-related">
+        <div class="el-section__head">
+          <h2 class="el-section__title">Related products</h2>
+          {% if _p.category %}
+          <a class="el-tabs__link is-active" href="{{ _products_url }}?cat={{ _p.category|urlencode }}">{{ _p.category }}</a>
+          {% endif %}
         </div>
-        {% include "partials/website_storefront_slide_ui.html" %}
-      </div>
-    </div>
-  </section>
-
-  {% include "partials/website_storefront_trust_strip.html" %}
-
-  <section id="wsf-products" class="wsf-section wsf-catalog wsf-reveal">
-    <div class="wsf-shell">
-      <div class="wsf-catalog__toolbar">
-        <div class="wsf-catalog__bar">
-          <div class="wsf-catalog__bar-meta">
-            <span class="wsf-pill wsf-catalog__count">
-              <span id="wsf-visible-count">{{ _products|length }}</span> shown
-            </span>
-            {% if _cats %}
-            <span class="wsf-pill wsf-catalog__count wsf-catalog__count--muted">{{ _cats|length }} {{ 'category' if _cats|length == 1 else 'categories' }}</span>
-            {% endif %}
-          </div>
-          <div class="wsf-toolbar wsf-toolbar--grow">
-            {% include "partials/website_storefront_search.html" %}
-          </div>
+        <div class="el-product-grid">
+          {% for p in _related[:4] %}
+            {% with delay=loop.index0 %}{% include "partials/website_ecommerce_product_card.html" %}{% endwith %}
+          {% endfor %}
         </div>
-
-        {% if _cats %}
-        <div class="wsf-catalog__filters">
-          {% with cats=_cats, category_nav_pills=true, category_nav_catalog_links=true %}
-            {% include "partials/website_category_nav.html" %}
-          {% endwith %}
-        </div>
-        {% endif %}
-      </div>
-
-      {% if _products %}
-      <div id="wsf-categories" class="wsf-catalog__groups">
-        {% with cats=_cats, products=_products, catalog_url=_products_url %}
-          {% include "partials/website_category_product_rows.html" %}
-        {% endwith %}
-      </div>
-      {% else %}
-      <div class="wsf-empty">
-        <p class="wsf-empty__title">No products yet</p>
-        <p class="wsf-empty__text">Products from your POS will appear here.</p>
       </div>
       {% endif %}
     </div>
   </section>
 
-  {% else %}
-  {% with hero_products=_sorted_products %}
-    {% include "partials/website_hero_pro.html" %}
-  {% endwith %}
-
-  {% with featured_products=_sorted_products %}
-    {% include "partials/website_home_sections.html" %}
-  {% endwith %}
-
-  {% if _shops %}
-  <section id="wsf-shops" class="wsf-home-section wsf-home-section--shops wsf-reveal" aria-labelledby="wsf-shops-heading">
+  {# ═══════════ PRODUCTS / CATALOG ═══════════ #}
+  {% elif _catalog_mode %}
+  <section class="el-pagehead el-reveal" aria-label="Catalogue">
     <div class="wsf-shell">
-      <div class="wsf-home-section__head">
-        <div>
-          <p class="wsf-home-kicker">Locations</p>
-          <h2 id="wsf-shops-heading" class="wsf-home-section__title">{{ _c.shops_section_title }}</h2>
-          <p class="wsf-home-section__sub">{{ _c.shops_section_subtitle }}</p>
-        </div>
-        <span class="wsf-home-pill">{{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}</span>
+      <h1 class="el-pagehead__title">Products</h1>
+      <p class="el-pagehead__lead">Browse the catalogue and request a quote online.</p>
+      <div class="el-pagehead__meta">
+        <span class="el-pill"><span id="wsf-catalog-total-count">{{ _products|length }}</span> {{ 'product' if _products|length == 1 else 'products' }}</span>
+        {% if _cats %}<span class="el-pill">{{ _cats|length }} {{ 'category' if _cats|length == 1 else 'categories' }}</span>{% endif %}
       </div>
-      <div class="wsf-shops-grid">
-        {% for shop in _shops %}
-        <article class="wsf-shop-card wsf-reveal-child" style="--wsf-i: {{ loop.index0 }}; --wsf-shop-delay: {{ loop.index0 * 90 }}ms;">
-          <div class="wsf-shop-card__border" aria-hidden="true"></div>
-          <div class="wsf-shop-card__inner">
-            <div class="wsf-shop-card__bg" aria-hidden="true">
-              {% if shop.shop_logo_url %}
-                <img src="{{ shop.shop_logo_url }}" alt="" class="wsf-shop-card__bg-img" loading="lazy" />
-              {% else %}
-                <div class="wsf-shop-card__bg-fallback">{{ shop.shop_name[:1]|upper }}</div>
-              {% endif %}
-              <div class="wsf-shop-card__overlay"></div>
-              <div class="wsf-shop-card__shine"></div>
+    </div>
+  </section>
+
+  <section id="wsf-products" class="el-section el-reveal">
+    <div class="wsf-shell">
+      <div class="el-catalog-toolbar">
+        <div class="el-catalog-toolbar__bar">
+          <span class="el-pill"><span id="wsf-visible-count">{{ _products|length }}</span> shown</span>
+          {% if _cats %}
+          <button
+            type="button"
+            class="el-filter-toggle"
+            data-wsf-toggle-filters
+            aria-expanded="false"
+            aria-controls="el-cat-filters"
+          >
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M6 12h12M10 20h4"/></svg>
+            <span data-wsf-filter-toggle-label>Filter</span>
+          </button>
+          {% endif %}
+        </div>
+        {% if _cats %}
+        <nav id="el-cat-filters" class="el-cat-pills" aria-label="Filter by category" hidden>
+          <a href="#wsf-products" class="el-cat-pill is-active" data-wsf-cat-nav="ALL">All</a>
+          {% for cat in _cats %}
+            {% set cat_name = cat.name if cat is mapping else cat %}
+            {% set cat_key = cat.key if cat is mapping else (cat_name|upper) %}
+            {% set cat_label = cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name %}
+            <a href="#wsf-cat-{{ loop.index0 }}" class="el-cat-pill" data-wsf-cat-nav="{{ cat_key }}" data-wsf-cat-label="{{ cat_name|urlencode }}">{{ cat_label }}</a>
+          {% endfor %}
+        </nav>
+        {% endif %}
+      </div>
+
+      {% if _products %}
+          {% for cat, items in _products|sort(attribute='category')|groupby('category') %}
+            {% set cat_label = (cat or 'General') %}
+            {% set cat_label = cat_label|title if cat_label.isupper() and cat_label|length > 3 else cat_label %}
+            {% set cat_key = (cat or 'General')|upper %}
+          <section id="wsf-cat-{{ loop.index0 }}" class="wsf-cat-row wsf-catalog__group" data-wsf-category-row="{{ cat_key }}">
+            <div class="wsf-cat-row__head wsf-catalog__group-head">
+              <h2 class="wsf-catalog__group-title">{{ cat_label }}</h2>
             </div>
-
-            <div class="wsf-shop-card__content">
-              <span class="wsf-shop-card__live">
-                <span class="wsf-shop-card__live-dot" aria-hidden="true"></span>
-                Active
-              </span>
-
-              <div class="wsf-shop-card__panel">
-                <div class="wsf-shop-card__head">
-                  <h3 class="wsf-shop-card__name">{{ shop.shop_name }}</h3>
-                  {% set _branch_phone = shop.shop_phone or (site_settings.company_phone if site_settings else '') %}
-                  {% if _branch_phone %}
-                  <a
-                    href="tel:{{ shop.shop_phone_tel or _branch_phone }}"
-                    class="wsf-shop-card__phone"
-                    title="Call {{ shop.shop_name }}"
-                  >{{ _branch_phone }}</a>
-                  {% endif %}
-                </div>
-                {% if shop.shop_location %}
-                <p class="wsf-shop-card__location">
-                  <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span>{{ shop.shop_location }}</span>
-                </p>
-                {% endif %}
-                {% if shop.shop_location_description %}
-                <p class="wsf-shop-card__desc">{{ shop.shop_location_description }}</p>
-                {% endif %}
-                <a href="{{ _products_url }}" class="wsf-shop-card__cta">
-                  <span class="wsf-shop-card__cta-label">View our products</span>
-                  <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </a>
+            <div class="wsf-cat-scroll-wrap">
+              <div class="wsf-cat-scroll">
+                {% for p in items %}
+                  {% with delay=loop.index0 %}{% include "partials/website_ecommerce_product_card.html" %}{% endwith %}
+                {% endfor %}
               </div>
             </div>
+          </section>
+          {% endfor %}
+      {% else %}
+        <div class="el-empty">
+          <p>No products published yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ═══════════ HOME ═══════════ #}
+  {% else %}
+
+  {% if _banner_cats %}
+  <section class="el-section el-reveal" aria-label="Collections">
+    <div class="wsf-shell">
+      <div class="el-collections">
+        {% for cat in _banner_cats %}
+          {% set cat_name = cat.name if cat is mapping else cat %}
+          {% set cat_img = cat.image_url if cat is mapping else '' %}
+          {% set cat_label = cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name %}
+          <a class="el-collection el-reveal" href="{{ _products_url }}?cat={{ cat_name|urlencode }}" style="--wsf-delay: {{ (loop.index0 * 0.08)|round(2) }}s">
+            <span class="el-collection__copy">
+              <span class="el-collection__title">{{ cat_label }} Collection</span>
+              <span class="el-collection__cta">
+                Shop now
+                <span class="el-collection__cta-icon" aria-hidden="true">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </span>
+              </span>
+            </span>
+            <span class="el-collection__media">
+              {% if cat_img %}
+              <img class="el-collection__img" src="{{ cat_img }}" alt="" loading="lazy" decoding="async" />
+              {% else %}
+              <span class="el-collection__ph">{{ cat_label[:1]|upper }}</span>
+              {% endif %}
+            </span>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section id="wsf-products" class="el-section el-section--alt el-reveal" aria-labelledby="el-new-products-title">
+    <div class="wsf-shell">
+      <div class="el-section__head">
+        <h2 id="el-new-products-title" class="el-section__title">{{ _c.featured_section_title or 'New products' }}</h2>
+        {% if _cats %}
+        <nav class="el-tabs" aria-label="Product categories">
+          {% for cat in _cats[:6] %}
+            {% set cat_name = cat.name if cat is mapping else cat %}
+            {% set cat_label = cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name %}
+            <a href="{{ _products_url }}?cat={{ cat_name|urlencode }}" class="el-tabs__link{% if loop.first %} is-active{% endif %}">{{ cat_label }}</a>
+          {% endfor %}
+        </nav>
+        {% else %}
+        <a href="{{ _products_url }}" class="el-tabs__link is-active">View all</a>
+        {% endif %}
+      </div>
+
+      {% if _home_featured %}
+      <div class="el-product-grid wsf-home-products">
+        {% for p in _home_featured %}
+          {% with delay=loop.index0 %}{% include "partials/website_ecommerce_product_card.html" %}{% endwith %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="el-empty"><p>Products will appear here once published.</p></div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if _shops %}
+  <section id="wsf-shops" class="el-section el-reveal" aria-labelledby="el-shops-title">
+    <div class="wsf-shell">
+      <div class="el-section__head">
+        <h2 id="el-shops-title" class="el-section__title">{{ _c.shops_section_title or 'Our locations' }}</h2>
+        <span class="el-pill">{{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}</span>
+      </div>
+      <div class="el-shops">
+        {% for shop in _shops %}
+        <article class="el-shop el-reveal" style="--wsf-delay: {{ (loop.index0 * 0.07)|round(2) }}s">
+          <div class="el-shop__media">
+            {% if shop.shop_logo_url %}
+            <img class="el-shop__img" src="{{ shop.shop_logo_url }}" alt="{{ shop.shop_name }}" loading="lazy" decoding="async" />
+            {% else %}
+            <span class="el-shop__logo-ph">{{ (shop.shop_name or 'S')[:1]|upper }}</span>
+            {% endif %}
+          </div>
+          <div class="el-shop__body">
+            <h3 class="el-shop__name">{{ shop.shop_name }}</h3>
+            {% if shop.shop_location %}<p class="el-shop__loc">{{ shop.shop_location }}</p>{% endif %}
+            {% if shop.shop_location_description %}<p class="el-shop__desc">{{ shop.shop_location_description }}</p>{% endif %}
+            {% if shop.shop_phone %}
+            <a class="el-shop__phone" href="tel:{{ shop.shop_phone_tel or shop.shop_phone }}">{{ shop.shop_phone }}</a>
+            {% endif %}
           </div>
         </article>
         {% endfor %}
@@ -406,29 +402,27 @@
     </div>
   </section>
   {% endif %}
-  {% endif %}
+
+  {% endif %}{# end modes #}
 
   {# ── POLICIES ── #}
   {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
-  <section id="wsf-policies" class="wsf-section wsf-section--alt wsf-reveal" aria-label="Policies">
+  <section id="wsf-policies" class="el-section el-section--alt el-reveal" aria-label="Policies">
     <div class="wsf-shell">
-      <div class="wsf-section__head">
-        <div>
-          <p class="wsf-kicker">Policies</p>
-          <h2 class="wsf-section__title">Trust & transparency</h2>
-        </div>
+      <div class="el-section__head">
+        <h2 class="el-section__title">Policies</h2>
       </div>
-      <div class="wsf-policies">
+      <div class="el-policies">
         {% if _c.return_refund_policy %}
-        <article class="wsf-policy">
-          <h3 class="wsf-policy__title">Returns & refunds</h3>
-          <div class="wsf-policy__body">{{ _c.return_refund_policy }}</div>
+        <article class="el-policy">
+          <h3 class="el-policy__title">Returns & refunds</h3>
+          <div class="el-policy__body">{{ _c.return_refund_policy }}</div>
         </article>
         {% endif %}
         {% if _c.shipping_delivery_guidelines %}
-        <article class="wsf-policy">
-          <h3 class="wsf-policy__title">Shipping & delivery</h3>
-          <div class="wsf-policy__body">{{ _c.shipping_delivery_guidelines }}</div>
+        <article class="el-policy">
+          <h3 class="el-policy__title">Shipping & delivery</h3>
+          <div class="el-policy__body">{{ _c.shipping_delivery_guidelines }}</div>
         </article>
         {% endif %}
       </div>
@@ -437,56 +431,43 @@
   {% endif %}
 
   {# ── FOOTER ── #}
-  <footer class="wsf-footer wsf-footer--enhanced">
-    <div class="wsf-footer__glow" aria-hidden="true"></div>
-    <div class="wsf-shell wsf-footer__grid">
-      <div class="wsf-footer__brand">
-        <a href="{{ _home_url }}" class="wsf-footer__brand-link">
-          <span class="wsf-footer__logo">
-            {% if _icon %}
-              <img src="{{ url_for('static', filename=_icon) }}" alt="" />
-            {% else %}
-              {{ _company[:1]|upper }}
-            {% endif %}
+  <footer class="el-footer">
+    <div class="wsf-shell el-footer__grid">
+      <div>
+        <a href="{{ _home_url }}" class="el-footer__brand-link">
+          <span class="el-footer__logo">
+            {% if _icon %}<img src="{{ url_for('static', filename=_icon) }}" alt="" />{% else %}{{ _company[:1]|upper }}{% endif %}
           </span>
-          <div>
-            <p class="wsf-footer__name">{{ _company }}</p>
-            {% if _c.header_tagline %}<p class="wsf-footer__tag">{{ _c.header_tagline[:80] }}</p>{% endif %}
-          </div>
+          <span>
+            <p class="el-footer__name">{{ _company }}</p>
+            {% if _c.header_tagline %}<p class="el-footer__tag">{{ _c.header_tagline[:80] }}</p>{% endif %}
+          </span>
         </a>
         {% if _fb or _ig or _tw or _tt %}
-        <div class="wsf-footer__social">
+        <div class="el-footer__social">
           {% if _fb %}{% set _fb_url = _fb if _fb.lower().startswith('http') else 'https://' ~ _fb %}
-          <a href="{{ _fb_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="Facebook">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-          </a>{% endif %}
+          <a href="{{ _fb_url }}" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>{% endif %}
           {% if _ig %}{% set _ig_url = _ig if _ig.lower().startswith('http') else 'https://' ~ _ig %}
-          <a href="{{ _ig_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="Instagram">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-          </a>{% endif %}
+          <a href="{{ _ig_url }}" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162z"/></svg></a>{% endif %}
           {% if _tw %}{% set _tw_url = _tw if _tw.lower().startswith('http') else 'https://' ~ _tw %}
-          <a href="{{ _tw_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="X">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          </a>{% endif %}
+          <a href="{{ _tw_url }}" target="_blank" rel="noopener noreferrer" aria-label="X"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>{% endif %}
           {% if _tt %}{% set _tt_url = _tt if _tt.lower().startswith('http') else 'https://' ~ _tt %}
-          <a href="{{ _tt_url }}" target="_blank" rel="noopener noreferrer" class="wsf-footer__social-btn" aria-label="TikTok">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.75a8.18 8.18 0 004.78 1.52V6.84a4.85 4.85 0 01-1.01-.15z"/></svg>
-          </a>{% endif %}
+          <a href="{{ _tt_url }}" target="_blank" rel="noopener noreferrer" aria-label="TikTok"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.75a8.18 8.18 0 004.78 1.52V6.84a4.85 4.85 0 01-1.01-.15z"/></svg></a>{% endif %}
         </div>
         {% endif %}
       </div>
-      <div class="wsf-footer__col">
-        <h3 class="wsf-footer__heading">Shop</h3>
-        <ul class="wsf-footer__links">
+      <div>
+        <h3 class="el-footer__heading">Shop</h3>
+        <ul class="el-footer__links">
           <li><a href="{{ _home_url }}">Home</a></li>
           <li><a href="{{ _products_url }}">Products</a></li>
-          {% if _shops %}<li><a href="{{ _home_url }}#wsf-shops">Our locations</a></li>{% endif %}
+          {% if _shops %}<li><a href="{{ _home_url }}#wsf-shops">Locations</a></li>{% endif %}
           <li><button type="button" data-wsf-open-cart>Request quote</button></li>
         </ul>
       </div>
-      <div class="wsf-footer__col">
-        <h3 class="wsf-footer__heading">Help</h3>
-        <ul class="wsf-footer__links">
+      <div>
+        <h3 class="el-footer__heading">Help</h3>
+        <ul class="el-footer__links">
           {% if _c.return_refund_policy or _c.shipping_delivery_guidelines %}
           <li><a href="{{ _home_url }}#wsf-policies">Policies</a></li>
           {% endif %}
@@ -497,9 +478,9 @@
         </ul>
       </div>
       {% if _email or _phone or _loc %}
-      <div class="wsf-footer__col">
-        <h3 class="wsf-footer__heading">Contact</h3>
-        <ul class="wsf-footer__links wsf-footer__links--contact">
+      <div>
+        <h3 class="el-footer__heading">Contact</h3>
+        <ul class="el-footer__links">
           {% if _phone %}<li><a href="tel:{{ _phone }}">{{ _phone }}</a></li>{% endif %}
           {% if _email %}<li><a href="mailto:{{ _email }}">{{ _email }}</a></li>{% endif %}
           {% if _loc %}
@@ -513,18 +494,13 @@
       </div>
       {% endif %}
     </div>
-    <div class="wsf-shell wsf-footer__bottom">
-      <p class="wsf-footer__copy">© <span data-wsf-year></span> {{ _company }}. All rights reserved.</p>
-      <nav class="wsf-footer__bar-nav" aria-label="Footer quick links">
-        <a href="{{ _home_url }}">Home</a>
-        <span aria-hidden="true">·</span>
-        <a href="{{ _products_url }}">Products</a>
-        <span aria-hidden="true">·</span>
+    <div class="wsf-shell el-footer__bottom">
+      <p class="el-footer__copy">© <span data-wsf-year></span> {{ _company }}. All rights reserved.</p>
+      <nav class="el-footer__bar-nav" aria-label="Footer quick links">
+        <a href="{{ _home_url }}">Home</a><span>·</span>
+        <a href="{{ _products_url }}">Products</a><span>·</span>
         <button type="button" data-wsf-open-cart>Quote</button>
-        {% if _phone or _email %}
-        <span aria-hidden="true">·</span>
-        <button type="button" data-wsf-open-contact>Contact</button>
-        {% endif %}
+        {% if _phone or _email %}<span>·</span><button type="button" data-wsf-open-contact>Contact</button>{% endif %}
       </nav>
     </div>
     <script>document.querySelectorAll("[data-wsf-year]").forEach(function(el){el.textContent=new Date().getFullYear()});</script>
@@ -536,12 +512,10 @@
   </button>
   {% endif %}
 
-  {% if _catalog_mode or _product_mode %}
-  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-fab--cart" data-wsf-open-cart aria-label="Open cart">
+  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-fab--cart" data-wsf-open-cart aria-label="Open quote cart">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
     <span class="wsf-fab__count hidden" data-wsf-cart-count>0</span>
   </button>
-  {% endif %}
 
   <div id="wsf-toast" class="wsf-toast" role="status" aria-live="polite"></div>
 
@@ -549,7 +523,7 @@
   <div id="wsf-contact-backdrop" class="wsf-contact-backdrop" aria-hidden="true"></div>
   <div id="wsf-contact-drawer" class="wsf-contact-modal" role="dialog" aria-modal="true" aria-label="Contact us" aria-hidden="true">
     <div class="wsf-contact-modal__head">
-      <div class="wsf-contact-modal__title-wrap">
+      <div>
         <p class="wsf-contact-modal__title">Contact us</p>
         <p class="wsf-contact-modal__subtitle">Reach {{ _company }}</p>
       </div>
@@ -567,7 +541,7 @@
   <aside id="wsf-cart-drawer" class="wsf-cart-drawer" aria-label="Quote request" aria-hidden="true">
     <div class="wsf-cart-drawer__handle" aria-hidden="true"></div>
     <div class="wsf-cart-drawer__head">
-      <div class="wsf-cart-drawer__title-wrap">
+      <div>
         <p class="wsf-cart-drawer__title">Your quote</p>
         <p class="wsf-cart-drawer__subtitle"><span id="wsf-cart-head-count">0</span> items</p>
       </div>
@@ -613,7 +587,7 @@
         <span class="wsf-cart-total-card__label">Estimated total</span>
         <span id="wsf-cart-total" class="wsf-cart-total-card__amount">KES 0.00</span>
       </div>
-      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-cart-checkout wsf-btn-primary">
+      <button type="submit" form="wsf-quote-form" id="wsf-quote-submit" class="wsf-cart-checkout">
         <span>Request quote</span>
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
       </button>

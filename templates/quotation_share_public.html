@@ -1,7 +1,7 @@
 {% extends "marketing/base_storefront.html" %}
 {% block title %}{% if error %}Quotation unavailable{% elif quote_id %}Quotation #{{ quote_id }} — {{ company_name }}{% else %}Quotation — {{ company_name }}{% endif %}{% endblock %}
 {% block extra_head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=5" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=6" />
 {% endblock %}
 {% block content %}
   <div class="qsp-page">
@@ -20,9 +20,9 @@
       </div>
     {% else %}
       <div class="qsp-toolbar no-print">
-        <button type="button" class="qsp-print-btn" onclick="window.print()">
+        <button type="button" class="qsp-print-btn" id="qsp-print-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
-          Print / Save PDF
+          Print quotation
         </button>
         {% if whatsapp_contact_url %}
           <a href="{{ whatsapp_contact_url }}" target="_blank" rel="noopener noreferrer" class="qsp-wa-btn qsp-wa-btn--toolbar">
@@ -216,4 +216,38 @@
       </article>
     {% endif %}
   </div>
+{% endblock %}
+{% block extra_scripts %}
+  {% if not error %}
+  <script>
+    (function () {
+      var prevTitle = document.title;
+      var company = {{ (company_name or "Quotation")|tojson }};
+      var qid = {{ (quote_id if quote_id is not none else none)|tojson }};
+      var printTitle = qid ? ("Quotation-" + qid + "-" + company) : ("Quotation-" + company);
+
+      function preparePrint() {
+        prevTitle = document.title;
+        document.title = printTitle;
+        document.body.classList.add("qsp-printing");
+      }
+
+      function restoreAfterPrint() {
+        document.body.classList.remove("qsp-printing");
+        document.title = prevTitle;
+      }
+
+      window.addEventListener("beforeprint", preparePrint);
+      window.addEventListener("afterprint", restoreAfterPrint);
+
+      var btn = document.getElementById("qsp-print-btn");
+      if (btn) {
+        btn.addEventListener("click", function () {
+          preparePrint();
+          window.print();
+        });
+      }
+    })();
+  </script>
+  {% endif %}
 {% endblock %}

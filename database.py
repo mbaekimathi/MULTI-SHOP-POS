@@ -4507,6 +4507,10 @@ def _website_item_row_from_db(r: dict) -> dict:
         qty_sold = float(r.get("qty_sold") or 0)
     except (TypeError, ValueError):
         qty_sold = 0.0
+    try:
+        buyer_count = int(r.get("buyer_count") or 0)
+    except (TypeError, ValueError):
+        buyer_count = 0
     ip = r.get("image_path")
     if isinstance(ip, bytes):
         ip = ip.decode("utf-8", errors="replace")
@@ -4524,6 +4528,7 @@ def _website_item_row_from_db(r: dict) -> dict:
         "original_price": round(orig, 2),
         "image_path": ip,
         "qty_sold": qty_sold,
+        "buyer_count": max(0, buyer_count),
     }
 
 
@@ -4561,19 +4566,44 @@ def _website_sales_join_sql() -> tuple[str, str]:
     return "", "0"
 
 
+def _website_featured_buyers_join_sql() -> tuple[str, str, str]:
+    """Join sales with qty + distinct buyer count (name+phone identity)."""
+    if table_exists("shop_pos_sale_items") and table_exists("shop_pos_sales"):
+        sales_join = """
+    LEFT JOIN (
+        SELECT
+            si.item_id,
+            COALESCE(SUM(si.qty), 0) AS qty_sold,
+            COUNT(DISTINCT CONCAT(
+                COALESCE(NULLIF(TRIM(s.customer_name), ''), 'WALK IN'),
+                '|||',
+                COALESCE(NULLIF(TRIM(s.customer_phone), ''), '-')
+            )) AS buyer_count
+        FROM shop_pos_sale_items si
+        JOIN shop_pos_sales s ON s.id = si.sale_id
+        WHERE si.item_id IS NOT NULL AND si.item_id > 0
+        GROUP BY si.item_id
+    ) sales ON sales.item_id = i.id"""
+        qty_col = "COALESCE(sales.qty_sold, 0)"
+        buyer_col = "COALESCE(sales.buyer_count, 0)"
+        return sales_join, qty_col, buyer_col
+    return "", "0", "0"
+
+
 def list_website_featured_products(limit: int = 12) -> list:
-    """Catalog items for the public storefront, ranked by all-time POS qty sold."""
+    """Catalog items ranked by how many distinct clients bought them (then qty)."""
     lim = max(1, min(int(limit), 48))
     if not table_exists("items"):
         return []
-    sales_join, qty_col = _website_sales_join_sql()
+    sales_join, qty_col, buyer_col = _website_featured_buyers_join_sql()
     cols = _website_catalog_item_select_cols(qty_col)
     sql = f"""
-    SELECT{cols}
+    SELECT{cols},
+        {buyer_col} AS buyer_count
     FROM items i
     {sales_join}
     WHERE i.status = 'active'{_website_catalog_published_where()}
-    ORDER BY {qty_col} DESC, i.name ASC
+    ORDER BY {buyer_col} DESC, {qty_col} DESC, i.name ASC
     LIMIT %s
     """
     try:

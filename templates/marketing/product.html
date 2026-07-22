@@ -4,6 +4,7 @@
 {% set _p = website_product %}
 {% set _d = website_settings.design if website_settings and website_settings.design else {} %}
 {% set _desc = _p.description if _p.description else (_p.category ~ ' — request a quote from ' ~ _c.company_name ~ '.') %}
+{% set _related = website_related_products|default([]) %}
 
 {% block title %}{{ _p.name }} — {{ _c.company_name }}{% endblock %}
 {% block meta_description %}{{ _desc }}{% endblock %}
@@ -15,7 +16,7 @@
 {% endblock %}
 
 {% block content %}
-  {% with website_design=_d, storefront_include_chrome=true, storefront_product_mode=true, website_featured_products=[_p] %}
+  {% with website_design=_d, storefront_include_chrome=true, storefront_product_mode=true, website_featured_products=[_p] + _related, website_related_products=_related %}
     {% include "partials/website_ecommerce_storefront.html" %}
   {% endwith %}
 {% endblock %}

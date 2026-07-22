@@ -799,39 +799,272 @@
   color: var(--qsp-muted);
 }
 
+/* Print as a real quotation document (not a webpage screenshot) */
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Hide site chrome / interactive controls */
   .no-print,
   .qsp-toolbar,
-  .qsp-wa-btn {
+  .qsp-print-btn,
+  .qsp-wa-btn,
+  .wsf-header,
+  .wsf-footer,
+  .wsf-fab,
+  .wsf-theme-toggle,
+  script,
+  noscript {
     display: none !important;
   }
 
-  .qsp-page {
+  .wsf-page-main,
+  main {
+    display: block !important;
+    margin: 0 !important;
     padding: 0 !important;
+    min-height: 0 !important;
     background: #fff !important;
   }
 
-  .qsp-doc {
-    box-shadow: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    max-width: none !important;
+  .qsp-page {
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
   }
 
-  .qsp-cards {
+  /* Isolate the quotation sheet so the printout is the document itself */
+  body.qsp-printing * {
+    visibility: hidden !important;
+  }
+
+  body.qsp-printing .qsp-doc,
+  body.qsp-printing .qsp-doc * {
+    visibility: visible !important;
+  }
+
+  body.qsp-printing .qsp-doc {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+  }
+
+  .qsp-doc {
+    position: relative !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    border: 1px solid #94a3b8 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .qsp-doc-accent {
+    height: 4px !important;
+    background: rgb(var(--rc-primary, 249 115 22)) !important;
+  }
+
+  .qsp-doc-header,
+  .qsp-parties,
+  .qsp-items,
+  .qsp-notes,
+  .qsp-signoff,
+  .qsp-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .qsp-doc-header {
+    padding: 10mm 8mm 6mm !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  .qsp-logo-wrap {
+    width: 18mm !important;
+    height: 18mm !important;
+    border-radius: 2mm !important;
+    box-shadow: none !important;
+  }
+
+  .qsp-company-name {
+    font-size: 16pt !important;
+    color: #0f172a !important;
+  }
+
+  .qsp-shop-name,
+  .qsp-company-meta,
+  .qsp-doc-date,
+  .qsp-party-detail,
+  .qsp-terms,
+  .qsp-footer-text,
+  .qsp-footnote {
+    color: #334155 !important;
+  }
+
+  .qsp-doc-type,
+  .qsp-party-total,
+  .qsp-tfoot-total {
+    color: rgb(var(--rc-primary, 249 115 22)) !important;
+  }
+
+  .qsp-doc-number {
+    font-size: 18pt !important;
+    color: #0f172a !important;
+  }
+
+  .qsp-parties {
+    grid-template-columns: 1.2fr 0.8fr !important;
+    padding: 6mm 8mm !important;
+    background: #fff !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  .qsp-party--right {
+    text-align: right !important;
+  }
+
+  .qsp-notes {
+    padding: 4mm 8mm !important;
+    background: #fff !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+  }
+
+  .qsp-items {
+    padding: 5mm 8mm 0 !important;
+  }
+
+  /* Always print the item table (never mobile cards) */
+  .qsp-cards,
+  .qsp-totals-mobile {
     display: none !important;
   }
 
   .qsp-table-wrap {
     display: block !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    border: 1px solid #94a3b8 !important;
   }
 
-  .qsp-totals-mobile {
-    display: none !important;
+  .qsp-table {
+    width: 100% !important;
+    font-size: 9.5pt !important;
+  }
+
+  .qsp-table thead {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+  }
+
+  .qsp-table th,
+  .qsp-table td {
+    padding: 2.5mm 2mm !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .qsp-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .qsp-table-thumb {
+    width: 10mm !important;
+    height: 10mm !important;
+    border-radius: 1.5mm !important;
+  }
+
+  .qsp-table-name,
+  .qsp-td-price,
+  .qsp-td-qty {
+    color: #0f172a !important;
+  }
+
+  .qsp-table tfoot {
+    background: #f8fafc !important;
+  }
+
+  .qsp-signoff {
+    grid-template-columns: 1.25fr 0.75fr !important;
+    margin: 6mm 8mm 0 !important;
+    padding-top: 5mm !important;
+    border-top: 1px dashed #94a3b8 !important;
+  }
+
+  .qsp-stamp-block {
+    align-items: flex-end !important;
   }
 
   .qsp-stamp {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    width: 28mm !important;
+    height: 28mm !important;
+    transform: rotate(-6deg) !important;
+    border-width: 1.5pt !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .qsp-stamp-inner {
+    width: 23mm !important;
+    height: 23mm !important;
+  }
+
+  .qsp-stamp-logo {
+    width: 6mm !important;
+    height: 6mm !important;
+  }
+
+  .qsp-stamp-brand {
+    font-size: 5.5pt !important;
+  }
+
+  .qsp-stamp-mark,
+  .qsp-stamp-date {
+    font-size: 5pt !important;
+  }
+
+  .qsp-footer {
+    margin: 5mm 8mm 6mm !important;
+    padding: 4mm !important;
+    border-radius: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #fff !important;
+  }
+
+  .qsp-footnote {
+    font-size: 8pt !important;
+  }
+
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  img {
+    max-width: 100% !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

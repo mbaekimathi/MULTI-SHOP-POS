@@ -1,4 +1,4 @@
-{% set _sf_font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
+{% set _sf_font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Montserrat')|font_stack) %}
 {% set _mk_theme_default = 'light' %}
 <!DOCTYPE html>
 <html
@@ -7,7 +7,7 @@
   data-marketing-theme="light"
   data-marketing-theme-config="{{ (website_settings.theme_config_key if website_settings else none)|default(site_settings.theme_config_key if site_settings else '', true) }}"
   data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
-  style="--mk-primary: {{ site_settings.primary_color if site_settings else '#f97316' }}; --mk-accent: {{ site_settings.accent_color if site_settings else '#fb923c' }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '249, 115, 22' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '251, 146, 60' }}; --rc-font-family: {{ _sf_font }};"
+  style="--mk-primary: {{ site_settings.primary_color if site_settings else '#d10024' }}; --mk-accent: {{ site_settings.accent_color if site_settings else '#d10024' }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '209, 0, 36' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '209, 0, 36' }}; --rc-font-family: {{ _sf_font }};"
 >
   <script>
     (function () {
@@ -31,28 +31,20 @@
     <title>{% block title %}{{ pub_brand_name }}{% endblock %}{% if not storefront_seo %} — {{ pub_title_suffix }}{% endif %}</title>
     <meta name="description" content="{% block meta_description %}{{ storefront_homepage_copy.meta_description if storefront_homepage_copy else 'Browse products and request a quote online.' }}{% endblock %}" />
     {% include "partials/storefront_seo_head.html" %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     {% if site_settings and site_settings.font_google_url %}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-      <link rel="preload" as="style" href="{{ site_settings.font_google_url }}" />
-      <link rel="stylesheet" href="{{ site_settings.font_google_url }}" media="print" onload="this.media='all'" />
-      <noscript><link rel="stylesheet" href="{{ site_settings.font_google_url }}" /></noscript>
+      <link rel="stylesheet" href="{{ site_settings.font_google_url }}" />
     {% else %}
-      {% include "partials/theme_font_link.html" %}
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     {% endif %}
-    <link rel="preload" href="{{ url_for('static', filename='css/website-storefront-layout.css') }}" as="style" />
-    <link rel="preload" href="{{ url_for('static', filename='css/website-storefront.css') }}" as="style" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-layout.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-fresh.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-luxury.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-modern.css') }}?v=3" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-home.css') }}?v=6" />
+    {# Fresh Electro storefront only — old stacked CSS removed #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-electro.css') }}?v=3" />
     {% block extra_head %}{% endblock %}
   </head>
-  <body class="overflow-x-hidden text-zinc-900">
+  <body>
     <main class="wsf-page-main">{% block content %}{% endblock %}</main>
-    <script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}?v=4" defer></script>
+    <script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}?v=7" defer></script>
     <script src="{{ url_for('static', filename='js/website-storefront-location.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/website-storefront-cart.js') }}" defer></script>
     {% block extra_scripts %}{% endblock %}
