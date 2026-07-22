@@ -1926,7 +1926,7 @@ def init_operational_expense_tables() -> bool:
         name VARCHAR(120) NOT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_expense_category_name (name)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     sql_catalog = """
     CREATE TABLE IF NOT EXISTS expense_catalog_items (
@@ -1939,7 +1939,7 @@ def init_operational_expense_tables() -> bool:
         CONSTRAINT fk_expense_catalog_category
             FOREIGN KEY (category_id) REFERENCES expense_categories(id)
             ON DELETE RESTRICT
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     sql_expenses = """
     CREATE TABLE IF NOT EXISTS shop_operational_expenses (
@@ -1965,12 +1965,73 @@ def init_operational_expense_tables() -> bool:
         CONSTRAINT fk_shop_op_exp_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE RESTRICT,
         CONSTRAINT fk_shop_op_exp_category FOREIGN KEY (category_id) REFERENCES expense_categories(id) ON DELETE RESTRICT,
         CONSTRAINT fk_shop_op_exp_catalog FOREIGN KEY (expense_catalog_id) REFERENCES expense_catalog_items(id) ON DELETE RESTRICT
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql_categories)
             cur.execute(sql_catalog)
+            # Match shops collation so FKs on this DB succeed (older installs used general_ci).
+            try:
+                cur.execute(
+                    "ALTER TABLE expense_categories "
+                    "CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                )
+            except pymysql.Error:
+                pass
+            try:
+                cur.execute(
+                    "ALTER TABLE expense_catalog_items "
+                    "CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                )
+            except pymysql.Error:
+                pass
+            # CONVERT can drop keys on some MariaDB builds — restore before creating FKs.
+            try:
+                cur.execute("SHOW KEYS FROM expense_categories WHERE Key_name = 'PRIMARY'")
+                if not cur.fetchone():
+                    cur.execute(
+                        "ALTER TABLE expense_categories "
+                        "MODIFY id INT NOT NULL AUTO_INCREMENT, ADD PRIMARY KEY (id)"
+                    )
+            except pymysql.Error:
+                pass
+            try:
+                cur.execute("SHOW KEYS FROM expense_categories WHERE Key_name = 'uq_expense_category_name'")
+                if not cur.fetchone():
+                    cur.execute(
+                        "ALTER TABLE expense_categories "
+                        "ADD UNIQUE KEY uq_expense_category_name (name)"
+                    )
+            except pymysql.Error:
+                pass
+            try:
+                cur.execute("SHOW KEYS FROM expense_catalog_items WHERE Key_name = 'PRIMARY'")
+                if not cur.fetchone():
+                    cur.execute(
+                        "ALTER TABLE expense_catalog_items "
+                        "MODIFY id INT NOT NULL AUTO_INCREMENT, ADD PRIMARY KEY (id)"
+                    )
+            except pymysql.Error:
+                pass
+            try:
+                cur.execute("SHOW KEYS FROM expense_catalog_items WHERE Key_name = 'uq_expense_catalog_cat_name'")
+                if not cur.fetchone():
+                    cur.execute(
+                        "ALTER TABLE expense_catalog_items "
+                        "ADD UNIQUE KEY uq_expense_catalog_cat_name (category_id, name)"
+                    )
+            except pymysql.Error:
+                pass
+            try:
+                cur.execute("SHOW KEYS FROM expense_catalog_items WHERE Key_name = 'idx_expense_catalog_cat'")
+                if not cur.fetchone():
+                    cur.execute(
+                        "ALTER TABLE expense_catalog_items "
+                        "ADD KEY idx_expense_catalog_cat (category_id)"
+                    )
+            except pymysql.Error:
+                pass
             cur.execute(sql_expenses)
             if not column_exists("shop_operational_expenses", "supplier_name"):
                 cur.execute(
@@ -1981,6 +2042,11 @@ def init_operational_expense_tables() -> bool:
                 cur.execute(
                     "ALTER TABLE shop_operational_expenses "
                     "ADD COLUMN seller_phone VARCHAR(40) NULL AFTER supplier_name"
+                )
+            if not column_exists("shop_operational_expenses", "created_by_employee_id"):
+                cur.execute(
+                    "ALTER TABLE shop_operational_expenses "
+                    "ADD COLUMN created_by_employee_id INT NULL AFTER seller_phone"
                 )
         return True
     except pymysql.Error as e:
@@ -5613,6 +5679,11 @@ def init_store_stock_transactions_table() -> bool:
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(sql)
+            if not column_exists("store_stock_transactions", "created_by_employee_id"):
+                cur.execute(
+                    "ALTER TABLE store_stock_transactions "
+                    "ADD COLUMN created_by_employee_id INT NULL AFTER note"
+                )
         logger.info("Table store_stock_transactions is ready.")
         return True
     except pymysql.Error as e:
@@ -14782,6 +14853,11 @@ def init_shop_stock_transactions_table():
             if not column_exists("shop_stock_transactions", "amount_paid"):
                 cur.execute(
                     "ALTER TABLE shop_stock_transactions ADD COLUMN amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER payment_status"
+                )
+            if not column_exists("shop_stock_transactions", "created_by_employee_id"):
+                cur.execute(
+                    "ALTER TABLE shop_stock_transactions "
+                    "ADD COLUMN created_by_employee_id INT NULL AFTER note"
                 )
         logger.info("Table shop_stock_transactions is ready.")
         return True

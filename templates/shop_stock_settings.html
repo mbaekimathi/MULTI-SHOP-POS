@@ -43,7 +43,7 @@
             <div class="shop-stock-settings-group-body">
               <label class="shop-stock-settings-row">
                 <span class="shop-stock-settings-row-title">Notes</span>
-                <span class="shop-stock-settings-row-desc">Shared note and per-line notes.</span>
+                <span class="shop-stock-settings-row-desc">When on, notes are shown and required.</span>
                 <input type="checkbox" name="require_request_stock_notes" value="1" class="rc-receipt-switch" {% if sws.require_request_stock_notes %}checked{% endif %} />
               </label>
             </div>
@@ -54,12 +54,12 @@
             <div class="shop-stock-settings-group-body">
               <label class="shop-stock-settings-row">
                 <span class="shop-stock-settings-row-title">Supplier details</span>
-                <span class="shop-stock-settings-row-desc">Phone and seller columns.</span>
+                <span class="shop-stock-settings-row-desc">When on, phone and seller are required. When off, they are hidden.</span>
                 <input type="checkbox" name="require_manual_in_supplier" value="1" class="rc-receipt-switch" {% if sws.require_manual_in_supplier %}checked{% endif %} />
               </label>
               <label class="shop-stock-settings-row">
                 <span class="shop-stock-settings-row-title">Notes</span>
-                <span class="shop-stock-settings-row-desc">Per-line and bulk notes.</span>
+                <span class="shop-stock-settings-row-desc">When on, notes are shown and required.</span>
                 <input type="checkbox" name="require_manual_in_notes" value="1" class="rc-receipt-switch" {% if sws.require_manual_in_notes %}checked{% endif %} />
               </label>
             </div>
@@ -70,12 +70,12 @@
             <div class="shop-stock-settings-group-body">
               <label class="shop-stock-settings-row">
                 <span class="shop-stock-settings-row-title">Refund</span>
-                <span class="shop-stock-settings-row-desc">Refund? and amount columns.</span>
+                <span class="shop-stock-settings-row-desc">When on, refund columns are shown. When off, they are hidden.</span>
                 <input type="checkbox" name="require_manual_out_refund" value="1" class="rc-receipt-switch" {% if sws.require_manual_out_refund %}checked{% endif %} />
               </label>
               <label class="shop-stock-settings-row">
                 <span class="shop-stock-settings-row-title">Notes</span>
-                <span class="shop-stock-settings-row-desc">Per-line and bulk notes.</span>
+                <span class="shop-stock-settings-row-desc">When on, notes are shown and required.</span>
                 <input type="checkbox" name="require_manual_out_notes" value="1" class="rc-receipt-switch" {% if sws.require_manual_out_notes %}checked{% endif %} />
               </label>
             </div>

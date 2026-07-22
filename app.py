@@ -1855,6 +1855,15 @@ def _save_item_upload(file_storage):
 BRANDING_UPLOAD_FOLDER_REL = "uploads/branding"
 
 
+def _branding_static_rel_exists(rel: str | None) -> bool:
+    """True when a branding-relative path exists under static/."""
+    path = (rel or "").strip().replace("\\", "/")
+    if not path or path.startswith("/") or ".." in path.split("/"):
+        return False
+    full = os.path.join(app.root_path, "static", *path.split("/"))
+    return os.path.isfile(full)
+
+
 def _save_branding_upload(file_storage):
     if not file_storage or not getattr(file_storage, "filename", None):
         return None
@@ -4904,10 +4913,16 @@ def _format_pos_walkin_quotation_whatsapp_message(
     parts = [
         f"Hello {name or 'there'},",
         "",
-        f"Thank you for visiting *{company}*. Here is your quotation #{quote_id}:",
-        "",
-        "*Items:*",
+        f"Thank you for visiting *{company}*.",
+        f"Your quotation *#{quote_id}* is ready.",
     ]
+    # Put the clickable link first so it is never buried / truncated.
+    link_block = _whatsapp_quotation_link_block(share_url)
+    if link_block:
+        parts.extend(link_block)
+    else:
+        parts.extend(["", "_Ask us for your quotation link if it is missing._", ""])
+    parts.append("*Items:*")
     for ln in lines or []:
         if not isinstance(ln, dict):
             continue
@@ -4929,19 +4944,10 @@ def _format_pos_walkin_quotation_whatsapp_message(
         [
             "",
             f"*Estimated total: KES {float(total):,.2f}*",
+            "",
+            "Reply to confirm or ask any questions.",
         ]
     )
-    share = _ensure_clickable_public_url((share_url or "").strip())
-    if share:
-        parts.extend(
-            [
-                "",
-                "View your quotation on our website:",
-                "",
-                share,
-            ]
-        )
-    parts.extend(["", "Reply to confirm or ask any questions."])
     return "\n".join(parts)
 
 
@@ -5082,10 +5088,12 @@ def _pos_quotation_share_public_url(token: str) -> str:
 
 
 def _ensure_clickable_public_url(url: str) -> str:
-    """Absolute HTTPS URL suitable for WhatsApp link detection (when a public host is configured)."""
+    """Absolute http(s) URL suitable for WhatsApp auto-link detection."""
     link = (url or "").strip()
     if not link:
         return ""
+    # Strip wrapping punctuation WhatsApp sometimes leaves non-clickable.
+    link = link.strip("<>\"' \t\r\n")
     if not link.lower().startswith(("http://", "https://")):
         link = _public_absolute_url(link if link.startswith("/") else f"/{link}")
     if not link:
@@ -5093,7 +5101,27 @@ def _ensure_clickable_public_url(url: str) -> str:
     low = link.lower()
     if low.startswith("http://") and "ngrok" not in low and "localhost" not in low and "127.0.0.1" not in low:
         link = "https://" + link[7:]
+    # WhatsApp only linkifies absolute http(s) URLs.
+    if not link.lower().startswith(("http://", "https://")):
+        return ""
     return link
+
+
+def _whatsapp_quotation_link_block(share_url: str) -> list[str]:
+    """
+    Lines that put the quotation URL alone so WhatsApp always makes it tappable.
+    Blank lines around the bare URL improve link detection.
+    """
+    share = _ensure_clickable_public_url(share_url)
+    if not share:
+        return []
+    return [
+        "",
+        "View your quotation (tap the link):",
+        "",
+        share,
+        "",
+    ]
 
 
 def _quotation_share_items_for_public(item_ids: list[int]) -> list[dict]:
@@ -5127,10 +5155,14 @@ def _format_quotation_share_whatsapp_message(items: list[dict], share_url: str) 
     item_list = items or []
     n = len(item_list)
     parts = [
-        f"📋 *Quotation from {company}*",
+        f"*Quotation from {company}*",
         f"_{n} item{'s' if n != 1 else ''} · indicative pricing_",
-        "",
     ]
+    link_block = _whatsapp_quotation_link_block(share_url)
+    if link_block:
+        parts.extend(link_block)
+    else:
+        parts.extend(["", "_Ask us for your quotation link if it is missing._", ""])
     total = 0.0
     for idx, item in enumerate(item_list, start=1):
         if not isinstance(item, dict):
@@ -5155,24 +5187,46 @@ def _format_quotation_share_whatsapp_message(items: list[dict], share_url: str) 
     if n > 1:
         parts.append(f"*Estimated total: KES {total:,.2f}*")
         parts.append("")
-    if share_url:
-        parts.append(share_url)
-        parts.append("")
     parts.append("_Reply to confirm availability or place your order._")
     return "\n".join(parts).strip()
 
 
 def _quotation_lines_catalog_lookup(item_ids: list[int]) -> dict[int, dict]:
+    """Resolve catalog rows for quotation lines (POS + website), including images."""
     ids = _normalize_quotation_share_item_ids(item_ids)
     if not ids:
         return {}
+    out: dict[int, dict] = {}
     try:
         from database import list_website_products_by_ids
 
-        rows = list_website_products_by_ids(ids) or []
+        for r in list_website_products_by_ids(ids) or []:
+            iid = int(r.get("id") or 0)
+            if iid > 0:
+                out[iid] = r
     except Exception:
-        return {}
-    return {int(r.get("id") or 0): r for r in rows if int(r.get("id") or 0) > 0}
+        pass
+    missing = [iid for iid in ids if iid not in out]
+    if missing:
+        try:
+            from database import get_item_by_id
+
+            for iid in missing:
+                row = get_item_by_id(iid)
+                if not row:
+                    continue
+                rr = dict(row)
+                out[iid] = {
+                    "id": iid,
+                    "category": (rr.get("category") or "").strip() or "General",
+                    "name": (rr.get("name") or "").strip() or "Product",
+                    "description": (rr.get("description") or "").strip(),
+                    "price": float(rr.get("selling_price") or rr.get("price") or 0),
+                    "image_path": (rr.get("image_path") or "").strip(),
+                }
+        except Exception:
+            pass
+    return out
 
 
 def _enrich_quotation_lines_for_display(
@@ -5235,7 +5289,12 @@ def _format_customer_quotation_whatsapp_message(
         parts.append(f"Quote #{qid}")
     if name:
         parts.extend(["", f"Hello {name},"])
-    parts.extend(["", "*Items:*"])
+    link_block = _whatsapp_quotation_link_block(share_url)
+    if link_block:
+        parts.extend(link_block)
+    else:
+        parts.extend(["", "_Ask us for your quotation link if it is missing._", ""])
+    parts.append("*Items:*")
     total = 0.0
     for ln in enriched_lines or []:
         if not isinstance(ln, dict):
@@ -5263,8 +5322,6 @@ def _format_customer_quotation_whatsapp_message(
     parts.extend(["", f"*Estimated total: KES {total:,.2f}*"])
     if (q.get("customer_notes") or "").strip():
         parts.extend(["", f"Note: {(q.get('customer_notes') or '').strip()}"])
-    if share_url:
-        parts.extend(["", f"View full quotation: {share_url}"])
     return "\n".join(parts).strip()
 
 
@@ -5289,10 +5346,11 @@ def _pos_quote_lines_to_public_items(enriched_lines: list) -> list[dict]:
             line_total = float(ln.get("total") if ln.get("total") is not None else unit * qty)
         except (TypeError, ValueError):
             line_total = unit * qty
-        display_name = f"{nm} × {qty}" if qty != 1 else nm
         out.append(
             {
-                "name": display_name,
+                "name": nm,
+                "qty": qty,
+                "unit_price": unit,
                 "category": (ln.get("category") or "").strip() or "General",
                 "description": (ln.get("description") or "").strip(),
                 "price": line_total,
@@ -5307,6 +5365,14 @@ def _render_quotation_share_public_response(
     items: Optional[list] = None,
     company_name: str = "",
     company_logo_url: str = "",
+    company_phone: str = "",
+    company_email: str = "",
+    company_location: str = "",
+    quote_id: Optional[int] = None,
+    shop_name: str = "",
+    customer_name: str = "",
+    customer_phone: str = "",
+    customer_notes: str = "",
     total_amount: float = 0.0,
     share_url: str = "",
     generated_date: str = "",
@@ -5320,6 +5386,14 @@ def _render_quotation_share_public_response(
             items=items or [],
             company_name=company_name,
             company_logo_url=company_logo_url,
+            company_phone=company_phone,
+            company_email=company_email,
+            company_location=company_location,
+            quote_id=quote_id,
+            shop_name=shop_name,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            customer_notes=customer_notes,
             total_amount=total_amount,
             share_url=share_url,
             generated_date=generated_date,
@@ -5715,6 +5789,26 @@ def _effective_company_settings_for_shop(shop: dict) -> dict:
     return merged
 
 
+def _shop_brand_logo_relpath(shop: dict | None) -> str:
+    """
+    Shop brand image for headers/POS: real shop logo file if present,
+    otherwise company app icon. Skips DB paths whose files are missing.
+    """
+    shop = shop or {}
+    shop_logo = (shop.get("shop_logo") or "").strip()
+    if shop_logo and _branding_static_rel_exists(shop_logo):
+        return shop_logo
+    shop_co = _effective_company_settings_for_shop(shop) if shop else _load_company_identity_settings()
+    icon = (shop_co.get("app_icon") or "").strip()
+    if icon and _branding_static_rel_exists(icon):
+        return icon
+    base = _load_company_identity_settings()
+    icon = (base.get("app_icon") or "").strip()
+    if icon and _branding_static_rel_exists(icon):
+        return icon
+    return ""
+
+
 def _enforce_exclusive_pos_inventory(merged: dict) -> None:
     """
     Exactly one POS inventory posture is active among:
@@ -5902,17 +5996,19 @@ def _effective_receipt_settings_for_shop(shop: dict) -> dict:
 
 def _receipt_logo_static_url(shop: dict) -> str:
     """Thermal receipt logo URL (shop override, then company app icon)."""
-    shop_co = _effective_company_settings_for_shop(shop)
-    if (shop_co.get("shop_logo") or "").strip():
-        return url_for("static", filename=str(shop_co["shop_logo"]).strip())
-    if (shop.get("shop_logo") or "").strip():
-        return url_for("static", filename=str(shop["shop_logo"]).strip())
-    if (shop_co.get("app_icon") or "").strip():
-        return url_for("static", filename=str(shop_co["app_icon"]).strip())
-    base = _load_company_identity_settings()
-    if (base.get("app_icon") or "").strip():
-        return url_for("static", filename=str(base["app_icon"]).strip())
+    rel = _shop_brand_logo_relpath(shop)
+    if rel:
+        return url_for("static", filename=rel)
     return url_for("static", filename="app-icon.svg")
+
+
+@app.template_global()
+def shop_brand_logo_url(shop=None) -> str:
+    """Public URL for shop header/POS brand mark (shop file, else company icon)."""
+    rel = _shop_brand_logo_relpath(shop if isinstance(shop, dict) else None)
+    if rel:
+        return url_for("static", filename=rel)
+    return ""
 
 
 def _pos_receipt_reprint_boot_payload(shop: dict) -> dict:
@@ -6636,9 +6732,9 @@ def _public_absolute_url(path: str) -> str:
             link = "https://" + link[7:]
         return link
     try:
-        return url_for("static", filename=rel.lstrip("/"), _external=True) if rel.startswith("/static/") else (
-            (request.url_root or "").rstrip("/") + rel
-        )
+        # Paths are already site-absolute (e.g. /static/uploads/... from url_for).
+        # Never re-wrap /static/... through url_for('static') — that doubles /static/.
+        return (request.url_root or "").rstrip("/") + rel
     except RuntimeError:
         return rel
 
@@ -6650,7 +6746,11 @@ def _public_static_upload_url(path) -> str:
         return ""
     if rel.startswith("http://") or rel.startswith("https://"):
         return rel
-    return _public_absolute_url(url_for("static", filename=rel, _external=False))
+    try:
+        static_path = url_for("static", filename=rel, _external=False)
+    except RuntimeError:
+        static_path = f"/static/{rel.lstrip('/')}"
+    return _public_absolute_url(static_path)
 
 
 def _quotation_share_domain_info() -> dict:
@@ -8856,87 +8956,9 @@ def _it_support_store_stock_management_post(direction: str):
 @app.route("/it_support/item-management/stock-management", methods=["GET", "POST"])
 @login_required
 def it_support_stock_management():
-    """Company stock grid: choose stock in or out, fill rows, submit once."""
+    """Retired: company stock in/out lives on company-stock-update / stock-status."""
     _it_support_only()
-    if request.method == "POST":
-        action = (request.form.get("action") or "").strip()
-        if action in (
-            "update_it_store_stock_item",
-            "toggle_it_store_stock_item_status",
-            "delete_it_store_stock_item",
-        ):
-            return _it_support_store_stock_catalog_post(action)
-        return _it_support_stock_management_post()
-    global_mode = _global_pos_inventory_mode()
-    is_store_stock = global_mode == "both"
-    show_register_stock_item_link = is_store_stock
-    items: list = []
-    store_catalog_items: list = []
-    both_shops_count = 0
-    inline_register_measure_options: tuple = ()
-    manage_item_id: int | None = None
-    try:
-        manage_item_id = int(request.args.get("manage_item") or 0) or None
-    except (TypeError, ValueError):
-        manage_item_id = None
-    try:
-        if is_store_stock:
-            from database import (
-                init_store_stock_items_table,
-                init_store_stock_transactions_table,
-                list_shops,
-                list_store_stock_items_for_management,
-                list_store_stock_items_for_management_catalog,
-                resolve_shop_pos_inventory_mode,
-            )
-
-            init_store_stock_items_table()
-            init_store_stock_transactions_table()
-            items = list_store_stock_items_for_management(limit=2000)
-            store_catalog_items = list_store_stock_items_for_management_catalog(limit=5000)
-            try:
-                for s in (list_shops(limit=500) or []):
-                    try:
-                        sid = int(s.get("id") or 0)
-                    except Exception:
-                        sid = 0
-                    if sid <= 0:
-                        continue
-                    try:
-                        if resolve_shop_pos_inventory_mode(sid) == "both":
-                            both_shops_count += 1
-                    except Exception:
-                        continue
-            except Exception:
-                both_shops_count = 0
-            inline_register_measure_options = (
-                "pcs",
-                "kg",
-                "g",
-                "l",
-                "ml",
-                "pack",
-                "crate",
-                "box",
-                "dozen",
-                "portion",
-            )
-        else:
-            from database import list_stock_manage_items
-
-            items = list_stock_manage_items(limit=500)
-    except Exception:
-        items = []
-    return render_template(
-        "it_support_stock_management.html",
-        items=items,
-        store_catalog_items=store_catalog_items,
-        manage_item_id=manage_item_id,
-        show_register_stock_item_link=show_register_stock_item_link,
-        is_store_stock=is_store_stock,
-        both_shops_count=both_shops_count,
-        inline_register_measure_options=inline_register_measure_options,
-    )
+    return redirect(url_for("it_support_company_stock_update"), code=302)
 
 
 @app.route("/it_support/item-management/register-stock-item", methods=["GET", "POST"])
@@ -8954,7 +8976,7 @@ def it_support_register_stock_item():
         )
     except Exception:
         flash("Could not load stock item registration tools.", "error")
-        return redirect(url_for("it_support_stock_management"))
+        return redirect(url_for("it_support_company_stock_update"))
 
     shops = list_shops(limit=500) or []
     both_shops = []
@@ -8986,7 +9008,8 @@ def it_support_register_stock_item():
     def _safe_next_redirect(default_endpoint: str):
         nxt = (request.form.get("next") or request.args.get("next") or "").strip()
         allowed_endpoints = {
-            "it_support_stock_management",
+            "it_support_company_stock_update",
+            "it_support_company_stock_analytics",
             "it_support_register_stock_item",
         }
         if nxt in allowed_endpoints:
@@ -9062,39 +9085,17 @@ def it_support_register_stock_item():
 @app.route("/it_support/item-management/stock-in", methods=["GET", "POST"])
 @login_required
 def it_support_stock_in():
+    """Retired: use company stock update instead."""
     _it_support_only()
-    page = _it_support_stock_page("in")
-    if isinstance(page, Response):
-        return page
-    items, item_id, selected_item, txs = page
-    if not item_id:
-        flash("Select an item from Company stock management first.", "error")
-        return redirect(url_for("it_support_stock_management"))
-    return render_template(
-        "it_support_stock_in.html",
-        selected_item_id=item_id,
-        selected_item=selected_item,
-        transactions=txs,
-    )
+    return redirect(url_for("it_support_company_stock_update"), code=302)
 
 
 @app.route("/it_support/item-management/stock-out", methods=["GET", "POST"])
 @login_required
 def it_support_stock_out():
+    """Retired: use company stock update instead."""
     _it_support_only()
-    page = _it_support_stock_page("out")
-    if isinstance(page, Response):
-        return page
-    items, item_id, selected_item, txs = page
-    if not item_id:
-        flash("Select an item from Company stock management first.", "error")
-        return redirect(url_for("it_support_stock_management"))
-    return render_template(
-        "it_support_stock_out.html",
-        selected_item_id=item_id,
-        selected_item=selected_item,
-        transactions=txs,
-    )
+    return redirect(url_for("it_support_company_stock_update"), code=302)
 
 
 @app.route("/it_support/stock-status")
@@ -10886,26 +10887,41 @@ def it_support_company_stock_update():
         shops, items, stock_rows = [], [], []
 
     if request.method == "POST":
+        action = (request.form.get("action") or "").strip().lower()
+        company_move_actions = {"stock_in", "stock_out", "transfer"}
+        company_store_actions = {"company_stock_in", "company_stock_out"}
+        manual_actions = {"manual_stock_in", "manual_stock_out"}
+        allowed_actions = company_move_actions | company_store_actions | manual_actions
+
         if inv_mode == "kitchen":
             flash(
-                "Company stock transfers are not available while POS is set to kitchen portions only. "
+                "Shop shelf stock actions are not available while POS is set to kitchen portions only. "
                 "Turn on shop stock sales in company printing settings, or use branch stock management where shelf inventory applies.",
                 "warning",
             )
             return redirect(url_for("it_support_company_stock_update"))
-        if inv_mode == "both":
-            flash("Company stock update actions here use sales catalog items. In Both mode, manage shelf stock from shop stock management.", "warning")
+        if inv_mode == "both" and action in {"stock_in", "stock_out"}:
+            flash(
+                "Company ↔ shop moves are not available in Both mode. "
+                "Use Company store stock in/out, Selected shop stock in/out, shop-to-shop transfer, "
+                "or manage shelf stock from shop stock management.",
+                "warning",
+            )
             return redirect(url_for("it_support_company_stock_update"))
-        action = (request.form.get("action") or "").strip().lower()
-        note = (request.form.get("note") or "").strip().upper() or None
+        if action not in allowed_actions:
+            flash("Invalid action.", "error")
+            return redirect(url_for("it_support_company_stock_update"))
 
+        note = (request.form.get("note") or "").strip().upper() or None
         item_ids = request.form.getlist("item_id[]")
         qtys = request.form.getlist("qty[]")
+        buying_prices = request.form.getlist("buying_price[]")
+        payment_statuses = request.form.getlist("payment_status[]")
 
         allowed_ids = {int(i.get("id") or 0) for i in (items or []) if int(i.get("id") or 0) > 0}
-        lines = []
         from database import normalize_stock_move_qty
 
+        lines = []
         for i in range(min(len(item_ids), len(qtys), 200)):
             iid_raw = (item_ids[i] or "").strip()
             qty_raw = (qtys[i] or "").strip()
@@ -10916,11 +10932,11 @@ def it_support_company_stock_update():
                 q = normalize_stock_move_qty(qty_raw)
             except Exception:
                 continue
-            if q is None:
+            if q is None or iid not in allowed_ids:
                 continue
-            if iid not in allowed_ids:
-                continue
-            lines.append((iid, q))
+            bp_raw = (buying_prices[i] if i < len(buying_prices) else "") or ""
+            pay_raw = (payment_statuses[i] if i < len(payment_statuses) else "") or "pending_payment"
+            lines.append((iid, q, bp_raw.strip(), pay_raw.strip().lower()))
 
         if not lines:
             flash("Add at least one item and quantity.", "error")
@@ -10932,20 +10948,83 @@ def it_support_company_stock_update():
 
         try:
             from database import (
+                create_stock_transaction,
                 ensure_shop_items_for_shop,
+                resolve_seller_name_and_phone,
+                shop_manual_stock_in,
                 shop_manual_stock_out,
                 shop_request_stock_from_company,
                 shop_return_stock_to_company,
                 shop_transfer_stock_between_shops,
             )
 
-            if action == "stock_in":
+            if action == "company_stock_in":
+                apply_sp = (request.form.get("apply_seller_phone") or "").strip()
+                apply_sn = (request.form.get("apply_seller_name") or "").strip().upper()
+                apply_pay = (request.form.get("apply_payment_status") or "").strip().lower()
+                allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
+                for iid, q, bp_raw, pay_raw in lines:
+                    payment_status = pay_raw if pay_raw in allowed_pay else (
+                        apply_pay if apply_pay in allowed_pay else "pending_payment"
+                    )
+                    sp = apply_sp
+                    sn = apply_sn
+                    place_final = None
+                    resolved_phone = None
+                    if sp or sn:
+                        resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                            seller_phone=sp,
+                            seller_name=sn,
+                        )
+                        if not resolved_name or not resolved_phone:
+                            fail_count += 1
+                            continue
+                        place_final = (resolved_name or "").strip()
+                    try:
+                        buying_price = float(bp_raw or 0)
+                        if buying_price < 0:
+                            raise ValueError()
+                    except Exception:
+                        fail_count += 1
+                        continue
+                    ok = create_stock_transaction(
+                        item_id=iid,
+                        direction="in",
+                        qty=q,
+                        buying_price=buying_price,
+                        place_brought_from=place_final,
+                        seller_phone=resolved_phone,
+                        note=note,
+                        created_by_employee_id=emp_id,
+                        payment_status=payment_status,
+                    )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+
+            elif action == "company_stock_out":
+                reason = (request.form.get("company_out_reason") or "").strip().lower()
+                if reason not in ("return", "waste", "display"):
+                    flash("Choose a company stock out reason (return, waste, or display).", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                for iid, q, _bp, _pay in lines:
+                    ok = create_stock_transaction(
+                        item_id=iid,
+                        direction="out",
+                        qty=q,
+                        stock_out_reason=reason.upper(),
+                        note=note,
+                        created_by_employee_id=emp_id,
+                    )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+
+            elif action == "stock_in":
                 shop_id = request.form.get("shop_id", type=int)
                 if not shop_id:
                     flash("Select a shop for stock in.", "error")
                     return redirect(url_for("it_support_company_stock_update"))
                 ensure_shop_items_for_shop(shop_id)
-                for iid, q in lines:
+                for iid, q, _bp, _pay in lines:
                     ok = shop_request_stock_from_company(
                         shop_id=shop_id,
                         item_id=iid,
@@ -10966,7 +11045,7 @@ def it_support_company_stock_update():
                     flash("Choose RETURN or WASTE.", "error")
                     return redirect(url_for("it_support_company_stock_update"))
                 ensure_shop_items_for_shop(shop_id)
-                for iid, q in lines:
+                for iid, q, _bp, _pay in lines:
                     if reason == "return":
                         ok = shop_return_stock_to_company(
                             shop_id=shop_id,
@@ -10979,7 +11058,6 @@ def it_support_company_stock_update():
                             created_by_employee_id=emp_id,
                         )
                     else:
-                        # Waste reduces shop stock only.
                         ok = shop_manual_stock_out(
                             shop_id=shop_id,
                             item_id=iid,
@@ -10993,6 +11071,87 @@ def it_support_company_stock_update():
                     ok_count += 1 if ok else 0
                     fail_count += 0 if ok else 1
 
+            elif action == "manual_stock_in":
+                shop_id = request.form.get("shop_id", type=int)
+                if not shop_id:
+                    flash("Select a shop for manual stock in.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                apply_sp = (request.form.get("apply_seller_phone") or "").strip()
+                apply_sn = (request.form.get("apply_seller_name") or "").strip().upper()
+                apply_pay = (request.form.get("apply_payment_status") or "").strip().lower()
+                allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
+                ensure_shop_items_for_shop(shop_id)
+                for iid, q, bp_raw, pay_raw in lines:
+                    payment_status = pay_raw if pay_raw in allowed_pay else (
+                        apply_pay if apply_pay in allowed_pay else "pending_payment"
+                    )
+                    sp = (request.form.get(f"seller_phone_{iid}") or "").strip() or apply_sp
+                    sn = (request.form.get(f"seller_name_{iid}") or "").strip().upper() or apply_sn
+                    resolved_name = None
+                    resolved_phone = None
+                    place_final = None
+                    if sp or sn:
+                        resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                            seller_phone=sp,
+                            seller_name=sn,
+                        )
+                        if not resolved_name or not resolved_phone:
+                            fail_count += 1
+                            continue
+                        place_final = (resolved_name or "").strip()
+                    ok = shop_manual_stock_in(
+                        shop_id=shop_id,
+                        item_id=iid,
+                        qty=q,
+                        buying_price=bp_raw or "0",
+                        place_brought_from=place_final,
+                        seller_phone=resolved_phone,
+                        payment_status=payment_status,
+                        note=note,
+                        created_by_employee_id=emp_id,
+                    )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+
+            elif action == "manual_stock_out":
+                shop_id = request.form.get("shop_id", type=int)
+                reason = (request.form.get("manual_out_reason") or "").strip().lower()
+                refunded_raw = (request.form.get("manual_out_refunded") or "no").strip().lower()
+                refund_amount_raw = (request.form.get("manual_out_refund_amount") or "").strip()
+                if not shop_id:
+                    flash("Select a shop for manual stock out.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                if reason not in ("return", "waste", "display"):
+                    flash("Choose a stock out reason (return, waste, or display).", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
+                refunded = refunded_raw == "yes"
+                refund_amount = None
+                if refunded:
+                    if not refund_amount_raw:
+                        flash("Refund amount is required when refunded is yes.", "error")
+                        return redirect(url_for("it_support_company_stock_update"))
+                    try:
+                        refund_amount = float(refund_amount_raw)
+                        if refund_amount < 0:
+                            raise ValueError()
+                    except Exception:
+                        flash("Refund amount must be a valid number.", "error")
+                        return redirect(url_for("it_support_company_stock_update"))
+                ensure_shop_items_for_shop(shop_id)
+                for iid, q, _bp, _pay in lines:
+                    ok = shop_manual_stock_out(
+                        shop_id=shop_id,
+                        item_id=iid,
+                        qty=q,
+                        reason=reason,
+                        refunded=refunded,
+                        refund_amount=refund_amount,
+                        note=note,
+                        created_by_employee_id=emp_id,
+                    )
+                    ok_count += 1 if ok else 0
+                    fail_count += 0 if ok else 1
+
             elif action == "transfer":
                 from_shop_id = request.form.get("from_shop_id", type=int)
                 to_shop_id = request.form.get("to_shop_id", type=int)
@@ -11001,7 +11160,7 @@ def it_support_company_stock_update():
                     return redirect(url_for("it_support_company_stock_update"))
                 ensure_shop_items_for_shop(from_shop_id)
                 ensure_shop_items_for_shop(to_shop_id)
-                for iid, q in lines:
+                for iid, q, _bp, _pay in lines:
                     ok = shop_transfer_stock_between_shops(
                         from_shop_id=from_shop_id,
                         to_shop_id=to_shop_id,
@@ -11012,9 +11171,6 @@ def it_support_company_stock_update():
                     )
                     ok_count += 1 if ok else 0
                     fail_count += 0 if ok else 1
-            else:
-                flash("Invalid action.", "error")
-                return redirect(url_for("it_support_company_stock_update"))
 
         except Exception as e:
             app.logger.exception("Company stock update failed: %s", e)
@@ -11026,7 +11182,7 @@ def it_support_company_stock_update():
         elif ok_count and fail_count:
             flash(f"Stock updated for {ok_count} item(s); {fail_count} failed.", "warning")
         else:
-            flash("No items were updated. Check quantities and stock availability.", "error")
+            flash("No items were updated. Check quantities, shop selection, and stock availability.", "error")
         return redirect(url_for("it_support_company_stock_update"))
 
     return render_template(
@@ -11035,6 +11191,11 @@ def it_support_company_stock_update():
         items=items,
         stock_rows=stock_rows,
         pos_inventory_mode=inv_mode,
+        item_last_buy_price={
+            int(i.get("id") or 0): i.get("last_buying_price")
+            for i in (items or [])
+            if int(i.get("id") or 0) > 0
+        },
     )
 
 
@@ -12753,7 +12914,7 @@ def company_credit_sale_detail():
 @login_required
 def it_support_store_management():
     _it_support_only()
-    return redirect(url_for("it_support_stock_management"))
+    return redirect(url_for("it_support_company_stock_update"))
 
 
 @app.route("/it_support/register-shop", methods=["GET", "POST"])
@@ -15807,16 +15968,17 @@ def shop_pos_record_quote(shop_id: int):
         share_url = _pos_quotation_share_public_url(share_token)
     except ValueError:
         share_url = ""
+    share_url = _ensure_clickable_public_url(share_url)
+    # Always build WhatsApp text with a bare clickable quotation URL when available.
+    wa_text = _format_pos_walkin_quotation_whatsapp_message(
+        quote_id=int(qid),
+        customer_name=customer_name,
+        lines=quote_lines,
+        total=total_amount,
+        share_url=share_url,
+    )
     wa_url = ""
-    wa_text = ""
     if customer_phone and len(customer_phone) >= 12:
-        wa_text = _format_pos_walkin_quotation_whatsapp_message(
-            quote_id=int(qid),
-            customer_name=customer_name,
-            lines=quote_lines,
-            total=total_amount,
-            share_url=share_url,
-        )
         wa_url = _whatsapp_send_url(customer_phone, wa_text)
 
     return jsonify(
@@ -16052,6 +16214,8 @@ def quotation_share_public(token: str):
     company = (identity.get("company_name") or "Our shop").strip()
     total = round(sum(float(i.get("price") or 0) for i in items), 2)
     company_phone = (identity.get("company_phone") or "").strip()
+    company_email = (identity.get("company_email") or "").strip()
+    company_location = (identity.get("company_location_name") or "").strip()
     wa_contact_url = ""
     if company_phone and _company_whatsapp_phone():
         wa_contact_url = _whatsapp_send_url(
@@ -16065,6 +16229,9 @@ def quotation_share_public(token: str):
         items=items,
         company_name=company,
         company_logo_url=company_logo_url,
+        company_phone=company_phone,
+        company_email=company_email,
+        company_location=company_location,
         total_amount=total,
         share_url=_quotation_share_public_url(token),
         generated_date=generated_date,
@@ -16104,6 +16271,8 @@ def pos_quotation_share_public(token: str):
     except (TypeError, ValueError):
         total = round(sum(float(i.get("price") or 0) for i in items), 2)
     company_phone = (identity.get("company_phone") or "").strip()
+    company_email = (identity.get("company_email") or "").strip()
+    company_location = (identity.get("company_location_name") or "").strip()
     wa_contact_url = ""
     if company_phone and _company_whatsapp_phone():
         wa_contact_url = _whatsapp_send_url(
@@ -16124,10 +16293,27 @@ def pos_quotation_share_public(token: str):
         generated_date = datetime.now().strftime("%d %b %Y")
     logo_path = (identity.get("app_icon") or "").strip()
     company_logo_url = _public_static_upload_url(logo_path) if logo_path else ""
+    shop_name = ""
+    try:
+        from database import get_shop_by_id
+
+        shop = get_shop_by_id(shop_id)
+        if shop:
+            shop_name = (shop.get("shop_name") or "").strip()
+    except Exception:
+        shop_name = ""
     return _render_quotation_share_public_response(
         items=items,
         company_name=company,
         company_logo_url=company_logo_url,
+        company_phone=company_phone,
+        company_email=company_email,
+        company_location=company_location,
+        quote_id=quote_id,
+        shop_name=shop_name,
+        customer_name=(quote.get("customer_name") or "").strip(),
+        customer_phone=(quote.get("customer_phone") or "").strip(),
+        customer_notes=(quote.get("customer_notes") or "").strip(),
         total_amount=total,
         share_url=_pos_quotation_share_public_url(token),
         generated_date=generated_date,
@@ -19851,7 +20037,10 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
                 ensure_shop_items_for_shop(shop_id)
                 ws = _load_shop_stock_workspace_settings(shop)
-                source_target = (request.form.get("batch_request_source") or "company").strip().lower()
+                source_target = (request.form.get("batch_request_source") or "").strip().lower()
+                if not source_target:
+                    flash("Select a request source (company warehouse or another shop).", "error")
+                    return redirect(url_for("shop_stock_management", shop_id=shop_id, view=view_arg))
                 source_type = "company"
                 source_shop_id = None
                 if source_target.startswith("shop:"):
@@ -19994,7 +20183,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     resolved_phone = None
                     place_final = None
                     if require_supplier or sp or sn:
-                        if require_supplier and not (sp or sn):
+                        if require_supplier and (not sp or not sn):
                             fail_seller += 1
                             fail_count += 1
                             continue
@@ -24748,9 +24937,9 @@ def ai_my_accountant_summary():
             }
         else:
             stock_url = (
-                url_for("it_support_stock_status")
-                if "it_support_stock_status" in app.view_functions
-                else url_for("it_support_stock_management")
+                url_for("it_support_company_stock_analytics")
+                if "it_support_company_stock_analytics" in app.view_functions
+                else url_for("it_support_company_stock_update")
             )
             audits_url = (
                 url_for("it_support_receipts")

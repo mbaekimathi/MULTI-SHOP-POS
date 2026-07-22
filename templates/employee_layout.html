@@ -13,10 +13,20 @@
       aria-label="Portal navigation"
     >
       <div class="portal-sidebar__brand flex h-14 shrink-0 items-center gap-2 border-b border-[rgb(var(--rc-border))] px-4 md:h-16">
-        <span
-          class="portal-sidebar__logo flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/30"
-          >R</span
-        >
+        {% if site_settings and site_settings.app_icon %}
+          <img
+            src="{{ url_for('static', filename=site_settings.app_icon) }}"
+            alt=""
+            class="portal-sidebar__logo h-9 w-9 shrink-0 rounded-xl object-cover shadow-lg shadow-brand-500/30"
+            width="36"
+            height="36"
+          />
+        {% else %}
+          <span
+            class="portal-sidebar__logo flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-lg shadow-brand-500/30"
+            aria-hidden="true"
+          >{{ ((site_settings.company_name if site_settings and site_settings.company_name else 'R')[:1])|e }}</span>
+        {% endif %}
         <div class="min-w-0 leading-tight">
           <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">
             {{ site_settings.company_name if site_settings else "Point of Sale" }}

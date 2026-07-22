@@ -76,12 +76,12 @@
 {% if not is_multi_line %}CATEGORY  {{ r.category_name or '—' }}
 {% endif %}SUPPLIER  {{ supplier_name }}
 PHONE     {{ supplier_phone }}
-{% if S.show_server %}RECORDED  {{ r.served_by or '—' }}
-{% endif %}{% else %}INVOICE   {{ id_label }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
+RECORDED  {{ r.served_by or '—' }}
+{% else %}INVOICE   {{ id_label }}{% if S.show_datetime %} · {{ dt_short }}{% endif %}
 SUPPLIER  {{ supplier_name }}
 PHONE     {{ supplier_phone }}
-{% if S.show_server %}RECORDED  {{ r.served_by or '—' }}
-{% endif %}{% endif %}{% if is_stock_transfer %}TO        {{ r.place_brought_from or '—' }}
+RECORDED  {{ r.served_by or '—' }}
+{% endif %}{% if is_stock_transfer %}TO        {{ r.place_brought_from or '—' }}
 {% if S.show_server %}STAFF     {{ r.served_by or '—' }}
 {% endif %}DELIVERED BY {% if r.delivered_by %}{{ r.delivered_by }}{% else %}_________________________{% endif %}
 {% endif %}</pre>

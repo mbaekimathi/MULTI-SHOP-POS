@@ -1,7 +1,7 @@
 {% extends "marketing/base_storefront.html" %}
-{% block title %}{% if error %}Quotation unavailable{% else %}Quotation — {{ company_name }}{% endif %}{% endblock %}
+{% block title %}{% if error %}Quotation unavailable{% elif quote_id %}Quotation #{{ quote_id }} — {{ company_name }}{% else %}Quotation — {{ company_name }}{% endif %}{% endblock %}
 {% block extra_head %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=4" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quotation-share-public.css') }}?v=5" />
 {% endblock %}
 {% block content %}
   <div class="qsp-page">
@@ -19,45 +19,74 @@
         </div>
       </div>
     {% else %}
-      <div class="qsp-wrap">
-        <header class="qsp-hero">
-          <div class="qsp-hero-top">
-            <div class="qsp-brand">
+      <div class="qsp-toolbar no-print">
+        <button type="button" class="qsp-print-btn" onclick="window.print()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+          Print / Save PDF
+        </button>
+        {% if whatsapp_contact_url %}
+          <a href="{{ whatsapp_contact_url }}" target="_blank" rel="noopener noreferrer" class="qsp-wa-btn qsp-wa-btn--toolbar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 00.918.918l4.458-1.495A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.714 9.714 0 01-4.915-1.332l-.352-.209-2.642.886.886-2.578-.23-.375A9.736 9.736 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+            Discuss on WhatsApp
+          </a>
+        {% endif %}
+      </div>
+
+      <article class="qsp-doc" aria-label="Quotation document">
+        <div class="qsp-doc-accent" aria-hidden="true"></div>
+
+        <header class="qsp-doc-header">
+          <div class="qsp-company">
+            <div class="qsp-logo-wrap">
               {% if company_logo_url %}
-                <img src="{{ company_logo_url }}" alt="" class="qsp-brand-logo" loading="eager" decoding="async" />
+                <img src="{{ company_logo_url }}" alt="{{ company_name }}" class="qsp-logo" loading="eager" decoding="async" />
               {% else %}
-                <span class="qsp-brand-mark" aria-hidden="true">{{ company_name[:1]|upper }}</span>
+                <span class="qsp-logo-fallback" aria-hidden="true">{{ company_name[:1]|upper }}</span>
               {% endif %}
-              <div class="qsp-brand-text">
-                <p class="qsp-kicker">{{ company_name }}</p>
-                <h1 class="qsp-title">Your quotation</h1>
+            </div>
+            <div class="qsp-company-copy">
+              <h1 class="qsp-company-name">{{ company_name }}</h1>
+              {% if shop_name %}
+                <p class="qsp-shop-name">{{ shop_name }}</p>
+              {% endif %}
+              <div class="qsp-company-meta">
+                {% if company_location %}<span>{{ company_location }}</span>{% endif %}
+                {% if company_phone %}<span>{{ company_phone }}</span>{% endif %}
+                {% if company_email %}<span>{{ company_email }}</span>{% endif %}
               </div>
             </div>
-            <div class="qsp-hero-meta">
-              {% if generated_date %}
-                <span class="qsp-pill">{{ generated_date }}</span>
-              {% endif %}
-              <span class="qsp-pill qsp-pill-muted">{{ items|length }} item{% if items|length != 1 %}s{% endif %}</span>
-            </div>
           </div>
-          <p class="qsp-lead">
-            Prepared for your review. Prices are indicative — contact us to confirm availability and final pricing.
-          </p>
-          <div class="qsp-summary-grid">
-            <div class="qsp-summary-card">
-              <span class="qsp-summary-label">Line items</span>
-              <span class="qsp-summary-value">{{ items|length }}</span>
-            </div>
-            <div class="qsp-summary-card qsp-summary-card-accent">
-              <span class="qsp-summary-label">Estimated total</span>
-              <span class="qsp-summary-value">KES {{ "%.2f"|format(total_amount) }}</span>
-            </div>
+          <div class="qsp-doc-badge">
+            <p class="qsp-doc-type">Quotation</p>
+            {% if quote_id %}
+              <p class="qsp-doc-number">#{{ "%04d"|format(quote_id) }}</p>
+            {% endif %}
+            {% if generated_date %}
+              <p class="qsp-doc-date">{{ generated_date }}</p>
+            {% endif %}
           </div>
         </header>
 
-        <section class="qsp-items" aria-label="Quoted products">
-          <h2 class="qsp-section-title">Products</h2>
+        <section class="qsp-parties">
+          <div class="qsp-party">
+            <p class="qsp-party-label">Prepared for</p>
+            <p class="qsp-party-name">{{ customer_name or "Valued customer" }}</p>
+            {% if customer_phone %}
+              <p class="qsp-party-detail">{{ customer_phone }}</p>
+            {% endif %}
+          </div>
+          <div class="qsp-party qsp-party--right">
+            <p class="qsp-party-label">Summary</p>
+            <p class="qsp-party-detail">{{ items|length }} line item{% if items|length != 1 %}s{% endif %}</p>
+            <p class="qsp-party-total">KES {{ "%.2f"|format(total_amount) }}</p>
+          </div>
+        </section>
 
+        {% if customer_notes %}
+          <p class="qsp-notes"><span>Note:</span> {{ customer_notes }}</p>
+        {% endif %}
+
+        <section class="qsp-items" aria-label="Quoted products">
           <div class="qsp-cards">
             {% for item in items %}
               <article class="qsp-card">
@@ -73,9 +102,14 @@
                     <h3 class="qsp-card-title">{{ item.name }}</h3>
                     <span class="qsp-card-price">KES {{ "%.2f"|format(item.price) }}</span>
                   </div>
-                  {% if item.category %}
-                    <span class="qsp-card-category">{{ item.category }}</span>
-                  {% endif %}
+                  <div class="qsp-card-meta">
+                    {% if item.category %}
+                      <span class="qsp-card-category">{{ item.category }}</span>
+                    {% endif %}
+                    {% if item.qty %}
+                      <span class="qsp-card-qty">Qty {{ item.qty }}{% if item.unit_price is defined %} × KES {{ "%.2f"|format(item.unit_price) }}{% endif %}</span>
+                    {% endif %}
+                  </div>
                   {% if item.description %}
                     <p class="qsp-card-desc">{{ item.description }}</p>
                   {% endif %}
@@ -88,14 +122,17 @@
             <table class="qsp-table">
               <thead>
                 <tr>
-                  <th scope="col">Product</th>
-                  <th scope="col" class="qsp-th-category">Category</th>
-                  <th scope="col" class="qsp-th-price">Line total (KES)</th>
+                  <th scope="col" class="qsp-th-num">#</th>
+                  <th scope="col">Item</th>
+                  <th scope="col" class="qsp-th-qty">Qty</th>
+                  <th scope="col" class="qsp-th-price">Unit (KES)</th>
+                  <th scope="col" class="qsp-th-price">Amount (KES)</th>
                 </tr>
               </thead>
               <tbody>
                 {% for item in items %}
                   <tr>
+                    <td class="qsp-td-num">{{ loop.index }}</td>
                     <td>
                       <div class="qsp-table-product">
                         <div class="qsp-table-thumb">
@@ -107,45 +144,76 @@
                         </div>
                         <div class="qsp-table-copy">
                           <p class="qsp-table-name">{{ item.name }}</p>
+                          {% if item.category %}
+                            <p class="qsp-table-cat">{{ item.category }}</p>
+                          {% endif %}
                           {% if item.description %}
                             <p class="qsp-table-desc">{{ item.description }}</p>
                           {% endif %}
                         </div>
                       </div>
                     </td>
-                    <td class="qsp-td-category">
-                      <span class="qsp-card-category">{{ item.category }}</span>
-                    </td>
+                    <td class="qsp-td-qty">{{ item.qty if item.qty is defined else 1 }}</td>
+                    <td class="qsp-td-price">{{ "%.2f"|format(item.unit_price if item.unit_price is defined else item.price) }}</td>
                     <td class="qsp-td-price">{{ "%.2f"|format(item.price) }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
-              {% if items|length > 1 %}
-                <tfoot>
-                  <tr>
-                    <td colspan="2" class="qsp-tfoot-label">Estimated total</td>
-                    <td class="qsp-tfoot-total">KES {{ "%.2f"|format(total_amount) }}</td>
-                  </tr>
-                </tfoot>
-              {% endif %}
+              <tfoot>
+                <tr>
+                  <td colspan="4" class="qsp-tfoot-label">Estimated total</td>
+                  <td class="qsp-tfoot-total">KES {{ "%.2f"|format(total_amount) }}</td>
+                </tr>
+              </tfoot>
             </table>
+          </div>
+        </section>
+
+        <section class="qsp-totals-mobile" aria-label="Quotation total">
+          <span>Estimated total</span>
+          <strong>KES {{ "%.2f"|format(total_amount) }}</strong>
+        </section>
+
+        <section class="qsp-signoff">
+          <div class="qsp-terms">
+            <p class="qsp-terms-title">Terms</p>
+            <ul>
+              <li>Prices are indicative and may change with stock availability.</li>
+              <li>This quotation is valid for 7 days from the date above unless otherwise agreed.</li>
+              <li>Confirm with us before payment to lock in final pricing.</li>
+            </ul>
+          </div>
+          <div class="qsp-stamp-block">
+            <div class="qsp-stamp" role="img" aria-label="Official quotation stamp">
+              <div class="qsp-stamp-inner">
+                {% if company_logo_url %}
+                  <img src="{{ company_logo_url }}" alt="" class="qsp-stamp-logo" loading="lazy" decoding="async" />
+                {% endif %}
+                <span class="qsp-stamp-brand">{{ company_name }}</span>
+                <span class="qsp-stamp-mark">Official Quotation</span>
+                {% if generated_date %}
+                  <span class="qsp-stamp-date">{{ generated_date }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <p class="qsp-stamp-caption">Authorized company stamp</p>
           </div>
         </section>
 
         <footer class="qsp-footer">
           <p class="qsp-footer-text">
-            Thank you for your interest in <strong>{{ company_name }}</strong>.
-            Reply on WhatsApp or contact us to confirm this quotation.
+            Thank you for considering <strong>{{ company_name }}</strong>.
+            Contact us to confirm this quotation.
           </p>
           {% if whatsapp_contact_url %}
-            <a href="{{ whatsapp_contact_url }}" target="_blank" rel="noopener noreferrer" class="qsp-wa-btn">
+            <a href="{{ whatsapp_contact_url }}" target="_blank" rel="noopener noreferrer" class="qsp-wa-btn no-print">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 00.918.918l4.458-1.495A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.714 9.714 0 01-4.915-1.332l-.352-.209-2.642.886.886-2.578-.23-.375A9.736 9.736 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
               Chat on WhatsApp
             </a>
           {% endif %}
-          <p class="qsp-footnote">This quotation was shared digitally and may not reflect real-time stock levels.</p>
+          <p class="qsp-footnote">Shared digitally · Prices may not reflect real-time stock levels.</p>
         </footer>
-      </div>
+      </article>
     {% endif %}
   </div>
 {% endblock %}

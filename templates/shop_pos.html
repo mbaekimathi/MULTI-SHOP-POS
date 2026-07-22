@@ -113,9 +113,10 @@
         >
           <div class="pos-header-top-row flex min-w-0 max-w-full items-center gap-1.5 sm:gap-2 lg:contents">
             <div class="pos-header-brand flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5 lg:max-w-[min(16rem,28%)] lg:flex-none">
-              {% if shop.shop_logo %}
+              {% set _brand_logo = shop_brand_logo_url(shop) %}
+              {% if _brand_logo %}
                 <img
-                  src="{{ url_for('static', filename=shop.shop_logo) }}"
+                  src="{{ _brand_logo }}"
                   alt=""
                   class="pos-header-brand__logo h-10 w-10 shrink-0 rounded-2xl object-cover"
                   width="40"

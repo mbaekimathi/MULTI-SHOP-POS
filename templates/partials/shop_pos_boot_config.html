@@ -1,16 +1,5 @@
 {# Runtime config for deferred POS JavaScript bundles. #}
-{% set _shop_co = shop_company_settings if shop_company_settings is defined else (company_settings if company_settings is defined else none) %}
-{% if _shop_co and _shop_co.shop_logo %}
-  {% set receipt_logo_url = url_for('static', filename=_shop_co.shop_logo) %}
-{% elif shop.shop_logo %}
-  {% set receipt_logo_url = url_for('static', filename=shop.shop_logo) %}
-{% elif _shop_co and _shop_co.app_icon %}
-  {% set receipt_logo_url = url_for('static', filename=_shop_co.app_icon) %}
-{% elif site_settings and site_settings.app_icon %}
-  {% set receipt_logo_url = url_for('static', filename=site_settings.app_icon) %}
-{% else %}
-  {% set receipt_logo_url = url_for('static', filename='app-icon.svg') %}
-{% endif %}
+{% set receipt_logo_url = shop_brand_logo_url(shop) or url_for('static', filename='app-icon.svg') %}
 <script>
   window.__POS_BOOT = {{ {
     "shopId": shop.id|int,

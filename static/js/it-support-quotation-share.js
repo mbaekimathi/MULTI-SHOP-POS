@@ -67,6 +67,22 @@
     return "https://api.whatsapp.com/send?text=" + encoded;
   }
 
+  function isClickableHttpUrl(url) {
+    return /^https?:\/\/\S+$/i.test(String(url || "").trim());
+  }
+
+  function ensureWhatsappTextHasQuotationLink(text, shareUrl) {
+    var body = String(text || "").trim();
+    var link = String(shareUrl || "").trim();
+    if (!isClickableHttpUrl(link)) return body;
+    if (body.indexOf(link) !== -1) return body;
+    return (
+      (body ? body + "\n\n" : "") +
+      "View your quotation (tap the link):\n\n" +
+      link
+    ).trim();
+  }
+
   function phoneValue() {
     return (phoneEl && phoneEl.value || "").trim();
   }
@@ -108,8 +124,8 @@
   }
 
   function applyShareResult(data) {
-    lastWaText = data.whatsapp_text || "";
     lastShareUrl = data.url || "";
+    lastWaText = ensureWhatsappTextHasQuotationLink(data.whatsapp_text || "", lastShareUrl);
     if (urlInput) urlInput.value = lastShareUrl;
     if (openLink) openLink.href = lastShareUrl || "#";
     if (resultEl) resultEl.classList.remove("hidden");
@@ -350,7 +366,15 @@
       if (!canSendWhatsApp()) return;
       generateShareLink(true)
         .then(function (data) {
-          var waUrl = buildWaUrl(phoneValue(), data.whatsapp_text || lastWaText);
+          var shareUrl = String((data && data.url) || lastShareUrl || "").trim();
+          if (!isClickableHttpUrl(shareUrl)) {
+            throw new Error("Quotation link could not be created. Check your public website / app URL in settings.");
+          }
+          var waText = ensureWhatsappTextHasQuotationLink(
+            (data && data.whatsapp_text) || lastWaText,
+            shareUrl
+          );
+          var waUrl = buildWaUrl(phoneValue(), waText);
           window.open(waUrl, "_blank", "noopener,noreferrer");
         })
         .catch(function (err) {

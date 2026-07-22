@@ -9,13 +9,14 @@
 {% set qmb = request.args.get('moved_by', '') %}
 {% set qsh = request.args.get('shop_id', '') %}
 {% set ep = request.endpoint %}
+{% set on_stock_status = ep == 'it_support_company_stock_analytics' %}
 {% set on_suppliers_home = ep == 'it_support_stock_suppliers' %}
 {% set on_supplier_detail = ep == 'it_support_stock_supplier_detail' %}
 {% set on_pay_tx = ep == 'it_support_supplier_payment_transactions' %}
 {% set suppliers_sidebar_payments_only = suppliers_sidebar_payments_only | default(false) %}
 
 {% if not suppliers_sidebar_payments_only %}
-  <a href="{{ url_for('it_support_company_stock_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface-2))]">
+  <a href="{{ url_for('it_support_company_stock_analytics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm {% if on_stock_status %}bg-[rgb(var(--rc-surface-2))] font-semibold{% else %}font-medium transition hover:bg-[rgb(var(--rc-surface-2))]{% endif %} text-[rgb(var(--rc-page-fg))]" {% if on_stock_status %}aria-current="page"{% endif %}>
     <svg class="h-5 w-5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19V5m0 14h16M9 17V9m4 8V7m4 10v-3" />
     </svg>

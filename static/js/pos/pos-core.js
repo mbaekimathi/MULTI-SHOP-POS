@@ -2037,8 +2037,8 @@ var saleType = "sale";
                 ? stockInAuthorizedEmployee.full_name
                 : "Employee";
             setStockInAuthStatus("Authorized: " + nm + ". Saving…", "ok");
-            /* Disabled inputs are not submitted — must include employee_code in POST. */
-            if (stockInAuthCode) stockInAuthCode.disabled = false;
+            /* Keep code field disabled during save to prevent re-entry.
+               Submit handler injects employee_code into FormData (disabled inputs are omitted). */
             stockInForm.requestSubmit();
           })
           .catch(function (err) {
@@ -2050,7 +2050,6 @@ var saleType = "sale";
                   "Authorized offline: " + (cached.full_name || "Employee") + ". Saving…",
                   "ok"
                 );
-                if (stockInAuthCode) stockInAuthCode.disabled = false;
                 stockInForm.requestSubmit();
                 return;
               }
@@ -2478,6 +2477,16 @@ var saleType = "sale";
           }
           var fd = new FormData(stockInForm);
           fd.set("lines_json", JSON.stringify(preflight.lines || []));
+          /* Always attach the verified employee code — disabled auth inputs are excluded from FormData. */
+          var stockInEmpCode = String(
+            (stockInAuthorizedEmployee && stockInAuthorizedEmployee.employee_code) ||
+              stockInLastSixCode ||
+              (stockInAuthCode && stockInAuthCode.value) ||
+              ""
+          )
+            .replace(/\D/g, "")
+            .slice(0, 6);
+          if (stockInEmpCode) fd.set("employee_code", stockInEmpCode);
           if (stockInEntryType === "expense") {
             fd.set("entry_type", "expense");
             fd.delete("item_id");
@@ -2556,7 +2565,12 @@ var saleType = "sale";
                       seller_phone: fd.get("seller_phone"),
                       seller_name: fd.get("seller_name"),
                       note: fd.get("note"),
-                      employee_code: fd.get("employee_code"),
+                      employee_code:
+                        stockInEmpCode ||
+                        fd.get("employee_code") ||
+                        (stockInAuthorizedEmployee && stockInAuthorizedEmployee.employee_code) ||
+                        stockInLastSixCode ||
+                        "",
                     };
                     return putOfflineStockIn(payloadSi).then(function () {
                       var idNum = parseInt(payloadSi.item_id, 10);
@@ -4862,6 +4876,32 @@ var saleType = "sale";
         }
       }
 
+      function isClickableHttpUrl(url) {
+        return /^https?:\/\/\S+$/i.test(String(url || "").trim());
+      }
+
+      function ensureWhatsappTextHasQuotationLink(text, shareUrl) {
+        var body = String(text || "").trim();
+        var link = String(shareUrl || "").trim();
+        if (!isClickableHttpUrl(link)) return body;
+        if (body.indexOf(link) !== -1) return body;
+        // Keep the bare URL on its own lines so WhatsApp always linkifies it.
+        return (
+          (body ? body + "\n\n" : "") +
+          "View your quotation (tap the link):\n\n" +
+          link
+        ).trim();
+      }
+
+      function buildQuoteWhatsappSendUrl(phone, text) {
+        var p = String(phone || "").trim();
+        var encoded = encodeURIComponent(String(text || "").trim());
+        if (p) {
+          return "https://api.whatsapp.com/send?phone=" + encodeURIComponent(p) + "&text=" + encoded;
+        }
+        return "https://api.whatsapp.com/send?text=" + encoded;
+      }
+
       function updateCustomerDetailsCardVisibility() {
         var detailsCard = document.getElementById("pos-customer-details-card");
         var quoteEl = document.getElementById("pos-quote-only");
@@ -6456,21 +6496,23 @@ var saleType = "sale";
                 if (res && res.queued) {
                   throw new Error("WhatsApp share needs internet. Connect and try again, or uncheck Share on WhatsApp to print.");
                 }
-                var waUrl = res && res.whatsapp_url;
-                if (!waUrl) {
-                  var fallbackPhone = quoteWhatsappPhoneFromField();
-                  if (quoteWhatsappPhoneReady(fallbackPhone)) {
-                    waUrl =
-                      "https://api.whatsapp.com/send?phone=" +
-                      encodeURIComponent(fallbackPhone) +
-                      (res && res.whatsapp_text
-                        ? "&text=" + encodeURIComponent(String(res.whatsapp_text))
-                        : "");
-                  }
+                var shareUrl = String((res && res.share_url) || "").trim();
+                if (!isClickableHttpUrl(shareUrl)) {
+                  throw new Error("Quotation link could not be created. Check your public website / app URL in settings, then try again.");
                 }
-                if (!waUrl) {
+                var waText = ensureWhatsappTextHasQuotationLink(
+                  (res && res.whatsapp_text) || "",
+                  shareUrl
+                );
+                if (!isClickableHttpUrl(shareUrl) || waText.indexOf(shareUrl) === -1) {
+                  throw new Error("Quotation WhatsApp message is missing a clickable link. Try again.");
+                }
+                var waUrl = "";
+                var fallbackPhone = quoteWhatsappPhoneFromField();
+                if (!quoteWhatsappPhoneReady(fallbackPhone)) {
                   throw new Error(quoteWhatsappValidationError());
                 }
+                waUrl = buildQuoteWhatsappSendUrl(fallbackPhone, waText);
                 openPosWhatsappUrl(waUrl);
                 return res;
               }

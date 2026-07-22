@@ -110,6 +110,110 @@
     if (!form || !window.ShopStockSubmitConfirm) return;
     window.ShopStockSubmitConfirm.show(Object.assign({ form: form }, opts));
   };
+
+  /** Move item rows with qty > 0 to the top of the table body. */
+  window.shopStockPromoteFilledRows = function (opts) {
+    if (!opts || !opts.tbody) return;
+    var tbody = opts.tbody;
+    var itemSel = opts.itemRow || ".js-stock-row";
+    var qtySel = opts.qtyInput || ".js-stock-qty-input";
+    var catSel = opts.catRow || "";
+    var bumpRow = opts.bumpRow || null;
+
+    var active = document.activeElement;
+    var selStart = null;
+    var selEnd = null;
+    if (active && active.tagName === "INPUT") {
+      try {
+        selStart = active.selectionStart;
+        selEnd = active.selectionEnd;
+      } catch (_e) {}
+    }
+
+    function hasQty(row) {
+      var input = row.querySelector(qtySel);
+      var raw = String((input && input.value) || "").trim().replace(",", ".");
+      if (!raw) return false;
+      var qty = parseFloat(raw);
+      return isFinite(qty) && qty > 0;
+    }
+
+    var children = Array.prototype.slice.call(tbody.children);
+    var stocked = [];
+    var rest = [];
+    children.forEach(function (node) {
+      if (node.matches && node.matches(itemSel) && hasQty(node)) stocked.push(node);
+      else rest.push(node);
+    });
+
+    if (bumpRow && stocked.indexOf(bumpRow) !== -1) {
+      stocked = [bumpRow].concat(stocked.filter(function (r) { return r !== bumpRow; }));
+    }
+
+    if (!stocked.length && !opts.force) {
+      // Still refresh category visibility when clearing the last qty.
+    }
+
+    var frag = document.createDocumentFragment();
+    stocked.forEach(function (r) { frag.appendChild(r); });
+    rest.forEach(function (r) { frag.appendChild(r); });
+    tbody.appendChild(frag);
+
+    if (catSel) {
+      Array.prototype.slice.call(tbody.querySelectorAll(catSel)).forEach(function (cat) {
+        var catKey = String(cat.getAttribute("data-cat") || "");
+        var hasEmptyVisible = false;
+        Array.prototype.slice.call(tbody.querySelectorAll(itemSel)).forEach(function (row) {
+          if (hasQty(row)) return;
+          if (String(row.getAttribute("data-stock-category") || "") !== catKey) return;
+          if (row.style.display === "none") return;
+          hasEmptyVisible = true;
+        });
+        cat.style.display = hasEmptyVisible ? "" : "none";
+      });
+    }
+
+    if (active && document.body.contains(active) && typeof active.focus === "function") {
+      try {
+        active.focus();
+        if (selStart != null && typeof active.setSelectionRange === "function") {
+          active.setSelectionRange(selStart, selEnd);
+        }
+      } catch (_e2) {}
+    }
+  };
+
+  window.shopStockBindPromoteOnQty = function (form, opts) {
+    if (!form || !opts) return;
+    var tbody = form.querySelector("tbody");
+    if (!tbody) return;
+    var qtySel = opts.qtyInput || ".js-stock-qty-input";
+    var itemSel = opts.itemRow || ".js-stock-row";
+
+    function run(bumpRow) {
+      window.shopStockPromoteFilledRows({
+        tbody: tbody,
+        itemRow: itemSel,
+        qtyInput: qtySel,
+        catRow: opts.catRow || "",
+        bumpRow: bumpRow || null,
+        force: true
+      });
+    }
+
+    form.querySelectorAll(qtySel).forEach(function (input) {
+      input.addEventListener("input", function () {
+        var row = input.closest(itemSel);
+        run(row);
+      });
+      input.addEventListener("change", function () {
+        var row = input.closest(itemSel);
+        run(row);
+      });
+    });
+
+    return run;
+  };
 </script>
 
 <script>
@@ -425,20 +529,26 @@
     function sync() {
       var q = (input.value || "").trim().toLowerCase();
       var n = 0;
-      var visibleByCat = {};
+      var visibleEmptyByCat = {};
       rows.forEach(function (row) {
         var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
         var show = !q || hay.indexOf(q) !== -1;
         row.style.display = show ? "" : "none";
         if (show) {
           n += 1;
-          var catKey = String(row.getAttribute("data-stock-category") || "");
-          if (catKey) visibleByCat[catKey] = true;
+          var qtyEl = row.querySelector(".js-manual-qty, .js-stock-qty-input");
+          var raw = String((qtyEl && qtyEl.value) || "").trim().replace(",", ".");
+          var qty = parseFloat(raw);
+          var hasQty = isFinite(qty) && qty > 0;
+          if (!hasQty) {
+            var catKey = String(row.getAttribute("data-stock-category") || "");
+            if (catKey) visibleEmptyByCat[catKey] = true;
+          }
         }
       });
-      (scope || document).querySelectorAll(".js-stock-cat-row").forEach(function (catRow) {
+      (scope || document).querySelectorAll(".js-stock-cat-row, .js-manual-in-cat-row").forEach(function (catRow) {
         var catKey = String(catRow.getAttribute("data-cat") || "");
-        catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
+        catRow.style.display = visibleEmptyByCat[catKey] ? "" : "none";
       });
       countEl.textContent = String(n);
     }
@@ -459,20 +569,26 @@
     function sync() {
       var q = (input.value || "").trim().toLowerCase();
       var n = 0;
-      var visibleByCat = {};
+      var visibleEmptyByCat = {};
       rows.forEach(function (row) {
         var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
         var show = !q || hay.indexOf(q) !== -1;
         row.style.display = show ? "" : "none";
         if (show) {
           n += 1;
-          var catKey = String(row.getAttribute("data-stock-category") || "");
-          if (catKey) visibleByCat[catKey] = true;
+          var qtyEl = row.querySelector(".js-manual-out-qty");
+          var raw = String((qtyEl && qtyEl.value) || "").trim().replace(",", ".");
+          var qty = parseFloat(raw);
+          var hasQty = isFinite(qty) && qty > 0;
+          if (!hasQty) {
+            var catKey = String(row.getAttribute("data-stock-category") || "");
+            if (catKey) visibleEmptyByCat[catKey] = true;
+          }
         }
       });
       scope.querySelectorAll(".js-manual-out-cat-row").forEach(function (catRow) {
         var catKey = String(catRow.getAttribute("data-cat") || "");
-        catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
+        catRow.style.display = visibleEmptyByCat[catKey] ? "" : "none";
       });
       countEl.textContent = String(n);
     }
@@ -494,13 +610,13 @@
     var sourceStockUrl = String(form.getAttribute("data-source-stock-url") || "");
     var sourceCells = Array.prototype.slice.call(form.querySelectorAll(".js-source-stock-cell"));
     var sessionShopLabel = sessionHeading ? String(sessionHeading.textContent || "Shop").trim() : "Shop";
-    var showNotesToggle = document.getElementById("js-request-stock-show-notes");
     var sharedNoteWrap = form.querySelector(".js-request-stock-shared-note-wrap");
     var sharedNoteInput = document.getElementById("js-request-stock-batch-note");
     var searchInput = document.getElementById("js-batch-request-stock-search");
     var visibleCountEl = document.getElementById("js-stock-visible-count");
     var linesCountEl = document.getElementById("js-request-stock-lines-count");
     var submitCountEl = document.getElementById("js-request-stock-submit-count");
+    var sideCountEl = document.getElementById("js-request-stock-side-count");
     var clearQtyBtn = document.getElementById("js-request-stock-clear-qty");
 
     function notesRequiredBySettings() {
@@ -508,8 +624,11 @@
     }
 
     function notesEnabled() {
-      if (notesRequiredBySettings()) return true;
-      return !!(showNotesToggle && showNotesToggle.checked);
+      return notesRequiredBySettings();
+    }
+
+    function sourceSelected() {
+      return !!(sourceSel && String(sourceSel.value || "").trim());
     }
 
     function setOptColVisible(el, show) {
@@ -518,7 +637,9 @@
     }
 
     function syncRequestCatColspan() {
-      var n = notesEnabled() ? 5 : 4;
+      var n = 3; // item + shop stock + qty
+      if (sourceSelected()) n += 1;
+      if (notesEnabled()) n += 1;
       form.querySelectorAll(".js-request-stock-cat-row td").forEach(function (td) {
         td.colSpan = n;
       });
@@ -536,6 +657,8 @@
       syncRequestCatColspan();
     }
 
+    syncNotesVisible(notesEnabled());
+
     function countLinesWithQty() {
       var n = 0;
       form.querySelectorAll(".js-request-stock-qty").forEach(function (input) {
@@ -551,43 +674,35 @@
       var n = countLinesWithQty();
       if (linesCountEl) linesCountEl.textContent = String(n);
       if (submitCountEl) submitCountEl.textContent = String(n);
+      if (sideCountEl) sideCountEl.textContent = String(n);
     }
 
     function syncBatchSearch() {
       if (!searchInput) return;
       var q = (searchInput.value || "").trim().toLowerCase();
       var visible = 0;
-      var visibleByCat = {};
+      var visibleEmptyByCat = {};
       form.querySelectorAll(".js-batch-request-stock-row").forEach(function (row) {
         var hay = (row.getAttribute("data-stock-search") || "").toLowerCase();
         var show = !q || hay.indexOf(q) !== -1;
         row.style.display = show ? "" : "none";
         if (show) {
           visible += 1;
-          var catKey = String(row.getAttribute("data-stock-category") || "");
-          if (catKey) visibleByCat[catKey] = true;
+          var qtyEl = row.querySelector(".js-request-stock-qty");
+          var raw = String((qtyEl && qtyEl.value) || "").trim().replace(",", ".");
+          var qty = parseFloat(raw);
+          var hasQty = isFinite(qty) && qty > 0;
+          if (!hasQty) {
+            var catKey = String(row.getAttribute("data-stock-category") || "");
+            if (catKey) visibleEmptyByCat[catKey] = true;
+          }
         }
       });
       form.querySelectorAll(".js-request-stock-cat-row").forEach(function (catRow) {
         var catKey = String(catRow.getAttribute("data-cat") || "");
-        catRow.style.display = !q || visibleByCat[catKey] ? "" : "none";
+        catRow.style.display = visibleEmptyByCat[catKey] ? "" : "none";
       });
       if (visibleCountEl) visibleCountEl.textContent = String(visible);
-    }
-
-    if (showNotesToggle) {
-      showNotesToggle.addEventListener("change", function () {
-        if (notesRequiredBySettings()) return;
-        syncNotesVisible(showNotesToggle.checked);
-      });
-      if (notesRequiredBySettings()) {
-        showNotesToggle.checked = true;
-        syncNotesVisible(true);
-      } else {
-        syncNotesVisible(false);
-      }
-    } else if (notesRequiredBySettings()) {
-      syncNotesVisible(true);
     }
 
     if (searchInput) {
@@ -600,10 +715,17 @@
     });
     syncLineCounts();
 
+    var promoteRequestRows = window.shopStockBindPromoteOnQty(form, {
+      itemRow: ".js-batch-request-stock-row",
+      qtyInput: ".js-request-stock-qty",
+      catRow: ".js-request-stock-cat-row"
+    });
+
     if (clearQtyBtn) {
       clearQtyBtn.addEventListener("click", function () {
         form.querySelectorAll(".js-request-stock-qty").forEach(function (input) { input.value = ""; });
         syncLineCounts();
+        if (promoteRequestRows) promoteRequestRows();
       });
     }
 
@@ -615,12 +737,12 @@
     }
 
     function selectedSourceValue() {
-      return sourceSel ? String(sourceSel.value || "company") : "company";
+      return sourceSel ? String(sourceSel.value || "").trim() : "";
     }
 
     function applySourceLabel(label) {
       var text = String(label || "Source").trim() || "Source";
-      if (heading) heading.textContent = text;
+      if (heading) heading.textContent = text + " current stock";
       if (hint) {
         hint.textContent = sessionShopLabel + " shows this shop's current shelf stock. "
           + "Requests are limited by available stock at " + text + " (source column; pending requests reduce availability).";
@@ -630,8 +752,17 @@
       });
     }
 
+    function syncSourceColumnVisible() {
+      var show = sourceSelected();
+      setOptColVisible(heading, show);
+      sourceCells.forEach(function (cell) {
+        setOptColVisible(cell, show);
+      });
+      syncRequestCatColspan();
+    }
+
     function refreshSourceStock() {
-      if (!sourceStockUrl) return;
+      if (!sourceStockUrl || !sourceSelected()) return;
       var src = selectedSourceValue();
       fetch(sourceStockUrl + "?batch_request_source=" + encodeURIComponent(src), { credentials: "same-origin" })
         .then(function (res) { return res.json(); })
@@ -650,6 +781,8 @@
     }
 
     function syncSourceUi() {
+      syncSourceColumnVisible();
+      if (!sourceSelected()) return;
       if (sourceSel) {
         var opt = sourceSel.options[sourceSel.selectedIndex];
         applySourceLabel(opt ? String(opt.textContent || "").trim() : "Source");
@@ -663,6 +796,11 @@
     form.addEventListener("submit", function (ev) {
       if (shopStockFormConfirmed(form)) {
         shopStockClearConfirmed(form);
+        return;
+      }
+      if (!sourceSelected()) {
+        ev.preventDefault();
+        window.alert("Select a request source (company warehouse or another shop) first.");
         return;
       }
       var issues = [];
@@ -743,8 +881,6 @@
     var applyName = document.getElementById("js-apply-all-name");
     var applyPayment = document.getElementById("js-apply-all-payment");
     var applyNote = document.getElementById("js-apply-all-note");
-    var showSupplierToggle = document.getElementById("js-manual-in-show-supplier");
-    var showNotesToggle = document.getElementById("js-manual-in-show-notes");
     var bulkSupplierWrap = document.getElementById("js-manual-in-bulk-supplier-wrap");
     var bulkNoteWrap = document.getElementById("js-manual-in-bulk-note-wrap");
     var copyBtn = document.getElementById("js-apply-all-copy-rows");
@@ -761,13 +897,11 @@
     }
 
     function supplierEnabled() {
-      if (supplierRequiredBySettingsIn()) return true;
-      return !!(showSupplierToggle && showSupplierToggle.checked);
+      return supplierRequiredBySettingsIn();
     }
 
     function notesEnabledIn() {
-      if (notesRequiredBySettingsIn()) return true;
-      return !!(showNotesToggle && showNotesToggle.checked);
+      return notesRequiredBySettingsIn();
     }
 
     function setInOptColVisible(el, show) {
@@ -776,7 +910,7 @@
     }
 
     function syncManualInCatColspan() {
-      var n = 5;
+      var n = 5; // item, shop stock, qty, buy, pay
       if (supplierEnabled()) n += 2;
       if (notesEnabledIn()) n += 1;
       form.querySelectorAll(".js-manual-in-cat-row td").forEach(function (td) {
@@ -812,36 +946,7 @@
     }
 
     syncSupplierVisible(supplierEnabled());
-
-    if (showSupplierToggle) {
-      showSupplierToggle.addEventListener("change", function () {
-        if (supplierRequiredBySettingsIn()) return;
-        syncSupplierVisible(showSupplierToggle.checked);
-      });
-      if (supplierRequiredBySettingsIn()) {
-        showSupplierToggle.checked = true;
-        syncSupplierVisible(true);
-      } else {
-        syncSupplierVisible(false);
-      }
-    } else if (supplierRequiredBySettingsIn()) {
-      syncSupplierVisible(true);
-    }
-
-    if (showNotesToggle) {
-      showNotesToggle.addEventListener("change", function () {
-        if (notesRequiredBySettingsIn()) return;
-        syncManualInNotesVisible(showNotesToggle.checked);
-      });
-      if (notesRequiredBySettingsIn()) {
-        showNotesToggle.checked = true;
-        syncManualInNotesVisible(true);
-      } else {
-        syncManualInNotesVisible(false);
-      }
-    } else if (notesRequiredBySettingsIn()) {
-      syncManualInNotesVisible(true);
-    }
+    syncManualInNotesVisible(notesEnabledIn());
 
     function normalizePhoneValue(raw) {
       var val = String(raw || "").trim();
@@ -909,6 +1014,12 @@
       bindSellerLookup(phone, name, hint);
     });
 
+    var promoteManualInRows = window.shopStockBindPromoteOnQty(form, {
+      itemRow: ".js-manual-stock-row",
+      qtyInput: ".js-manual-qty",
+      catRow: ".js-manual-in-cat-row"
+    });
+
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
         var supOn = supplierEnabled();
@@ -952,6 +1063,8 @@
           if (notesOn && noteEl) noteEl.value = noteVal;
           if (hintEl) hintEl.textContent = "";
         });
+
+        if (promoteManualInRows) promoteManualInRows();
 
         if (!feedback) return;
         if (!copied) {
@@ -1003,33 +1116,35 @@
         var noteRaw = notesEnabledIn() ? String((row.querySelector('input[name="note_' + id + '"]') || {}).value || "").trim() : "";
         var bulkPhone = String((applyPhone && applyPhone.value) || "").trim();
         var bulkName = String((applyName && applyName.value) || "").trim();
+        var bulkNote = String((applyNote && applyNote.value) || "").trim();
         var supOn = supplierEnabled();
-        var touched = (supOn && !!(nameRaw || phoneRaw || bulkPhone || bulkName)) || !!(notesEnabledIn() && noteRaw);
+        // Bulk side-card fields apply only to rows with qty — do not treat them as row "touched".
+        var touched = (supOn && !!(nameRaw || phoneRaw)) || !!(notesEnabledIn() && noteRaw);
 
         if (typeof qtyState === "number") {
           if (!priceRaw) { issues.push("Item #" + id + ": buying price required with quantity."); firstBad = firstBad || row; }
           else if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
           else if (supplierRequiredBySettingsIn() && !phoneRaw && !bulkPhone) { issues.push("Item #" + id + ": supplier phone required with quantity (or use bulk phone)."); firstBad = firstBad || row; }
           else if (supplierRequiredBySettingsIn() && !nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
-          else if (notesRequiredBySettingsIn() && !noteRaw && !(applyNote && String(applyNote.value || "").trim())) {
+          else if (notesRequiredBySettingsIn() && !noteRaw && !bulkNote) {
             issues.push("Item #" + id + ": note required with quantity (or use bulk note).");
             firstBad = firstBad || row;
           }
           else {
             var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
             var confirmRow = ["In", itemName, qtyRaw, priceRaw];
-            if (supplierRequiredBySettingsIn() || supOn) {
+            if (supplierRequiredBySettingsIn()) {
               confirmRow.push(nameRaw || bulkName, phoneRaw || bulkPhone || "—");
             }
             confirmRow.push(paymentLabel(payRaw));
-            if (notesEnabledIn()) confirmRow.push(noteRaw || "—");
+            if (notesEnabledIn()) confirmRow.push(noteRaw || bulkNote || "—");
             rows.push(confirmRow);
           }
         } else if (qtyState === false) {
           issues.push("Item #" + id + ": quantity must be a positive number or blank.");
           firstBad = firstBad || row;
         } else if (touched) {
-          issues.push("Item #" + id + ": add quantity or clear supplier fields.");
+          issues.push("Item #" + id + ": add quantity or clear that row's supplier/note fields.");
           firstBad = firstBad || row;
         }
       });
@@ -1057,7 +1172,7 @@
         { label: "Qty", key: "qty", align: "right" },
         { label: "Buy", align: "right" }
       ];
-      if (supplierRequiredBySettingsIn() || supplierEnabled()) {
+      if (supplierRequiredBySettingsIn()) {
         confirmColumns.push({ label: "Seller" });
         confirmColumns.push({ label: "Phone" });
       }
@@ -1083,8 +1198,6 @@
     var applyReason = document.getElementById("js-manual-out-apply-reason");
     var applyRefunded = document.getElementById("js-manual-out-apply-refunded");
     var applyNote = document.getElementById("js-manual-out-apply-note");
-    var showRefundToggle = document.getElementById("js-manual-out-show-refund");
-    var showNotesToggle = document.getElementById("js-manual-out-show-notes");
     var bulkRefundWrap = document.getElementById("js-manual-out-bulk-refund-wrap");
     var bulkNoteWrap = document.getElementById("js-manual-out-bulk-note-wrap");
     var copyBtn = document.getElementById("js-manual-out-copy-rows");
@@ -1100,13 +1213,11 @@
     }
 
     function refundsEnabled() {
-      if (refundsRequiredBySettings()) return true;
-      return !!(showRefundToggle && showRefundToggle.checked);
+      return refundsRequiredBySettings();
     }
 
     function notesEnabled() {
-      if (notesRequiredBySettingsOut()) return true;
-      return !!(showNotesToggle && showNotesToggle.checked);
+      return notesRequiredBySettingsOut();
     }
 
     function setOptColVisible(el, show) {
@@ -1193,35 +1304,14 @@
       syncCatColspan();
     }
 
-    if (showRefundToggle) {
-      showRefundToggle.addEventListener("change", function () {
-        if (refundsRequiredBySettings()) return;
-        syncRefundVisible(showRefundToggle.checked);
-      });
-      if (refundsRequiredBySettings()) {
-        showRefundToggle.checked = true;
-        syncRefundVisible(true);
-      } else {
-        syncRefundVisible(false);
-      }
-    } else if (refundsRequiredBySettings()) {
-      syncRefundVisible(true);
-    }
+    syncRefundVisible(refundsEnabled());
+    syncNotesVisible(notesEnabled());
 
-    if (showNotesToggle) {
-      showNotesToggle.addEventListener("change", function () {
-        if (notesRequiredBySettingsOut()) return;
-        syncNotesVisible(showNotesToggle.checked);
-      });
-      if (notesRequiredBySettingsOut()) {
-        showNotesToggle.checked = true;
-        syncNotesVisible(true);
-      } else {
-        syncNotesVisible(false);
-      }
-    } else if (notesRequiredBySettingsOut()) {
-      syncNotesVisible(true);
-    }
+    var promoteManualOutRows = window.shopStockBindPromoteOnQty(form, {
+      itemRow: ".js-manual-stock-out-row",
+      qtyInput: ".js-manual-out-qty",
+      catRow: ".js-manual-out-cat-row"
+    });
 
     form.querySelectorAll(".js-manual-out-refunded").forEach(function (sel) {
       var id = sel.getAttribute("data-item-id");
@@ -1244,11 +1334,7 @@
           if (feedback) feedback.textContent = "Choose Reason first (Return, Waste, or Display).";
           return;
         }
-        if (refunded === "yes" && refundsEnabled() && showRefundToggle && !showRefundToggle.checked) {
-          showRefundToggle.checked = true;
-          syncRefundVisible(true);
-        }
-        if (notesOn && notesRequiredBySettingsOut() && !noteVal) {
+        if (notesOn && !noteVal) {
           if (feedback) feedback.textContent = "Fill bulk note before copying to rows.";
           return;
         }
@@ -1268,6 +1354,8 @@
           if (notesOn && noteEl) noteEl.value = noteVal;
           syncRefundRow(id);
         });
+
+        if (promoteManualOutRows) promoteManualOutRows();
 
         if (!feedback) return;
         feedback.textContent = copied

@@ -46,6 +46,12 @@ html[data-theme="dark"] .portal-shell--modern .portal-sidebar__brand {
   box-shadow: 0 4px 14px -6px rgba(79, 70, 229, 0.55);
 }
 
+.portal-shell--modern img.portal-sidebar__logo {
+  display: block;
+  overflow: hidden;
+  background: rgba(var(--rc-surface-2), 0.85);
+}
+
 .portal-shell--modern .portal-sidebar__close,
 .portal-shell--modern .portal-header__menu-btn {
   border-radius: 0.65rem !important;
@@ -214,6 +220,18 @@ html[data-theme="dark"] .portal-shell--modern .portal-header--modern {
   border-color: rgba(99, 102, 241, 0.25) !important;
   background: rgba(99, 102, 241, 0.06) !important;
   border-radius: 0.75rem !important;
+}
+
+@media (min-width: 1280px) {
+  .portal-shell--modern .portal-header--shop .portal-header__role-preview-row {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: min(18rem, 42%);
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__leading {
+    flex: 0 1 auto;
+  }
 }
 
 /* ── Footer ── */

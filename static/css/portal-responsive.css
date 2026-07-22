@@ -16,6 +16,25 @@
   overflow-x: clip;
 }
 
+.portal-shell--modern .portal-header--shop {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.portal-shell--modern .portal-header--shop .portal-header__leading {
+  min-width: 0;
+}
+
+.portal-shell--modern .portal-header--shop .portal-header__role-preview-row {
+  min-width: 0;
+}
+
+.portal-shell--modern .portal-header--shop .portal-header__role-preview {
+  max-width: 100%;
+}
+
 .portal-shell--modern .portal-main {
   min-width: 0;
   max-width: 100%;
@@ -192,15 +211,42 @@
   }
 }
 
-/* ── Tablet ── */
+/* ── Tablet / small desktop (sidebar visible) ── */
+@media (max-width: 1279px) {
+  .portal-shell--modern .portal-header__role-preview {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .portal-shell--modern .portal-header--shop {
+    row-gap: 0.5rem;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__role-preview-row {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__role-preview select {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 @media (max-width: 1023px) {
   .portal-shell--modern .portal-sidebar--modern {
     width: min(18rem, 88vw) !important;
   }
 
-  .portal-shell--modern .portal-header__role-preview {
-    width: 100%;
-    max-width: 100%;
+  .portal-shell--modern .portal-header--shop .portal-header__role-preview label {
+    display: none;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .portal-shell--modern .portal-header--shop .portal-header__role-preview label {
+    display: inline;
   }
 }
 
@@ -219,6 +265,32 @@
     padding-top: max(0.35rem, env(safe-area-inset-top, 0px)) !important;
     padding-bottom: 0.35rem !important;
     gap: 0.35rem !important;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__leading {
+    max-width: calc(100% - 5.75rem) !important;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__actions {
+    gap: 0.35rem !important;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__actions [data-theme-toggle],
+  .portal-shell--modern .portal-header--shop .portal-header__actions [data-rc-notif-bell] {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__actions [data-theme-toggle] svg,
+  .portal-shell--modern .portal-header--shop .portal-header__actions [data-rc-notif-bell] svg {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+
+  .portal-shell--modern .portal-header--shop .portal-header__actions details summary span,
+  .portal-shell--modern .portal-header--shop .portal-header__actions details summary img {
+    width: 2rem !important;
+    height: 2rem !important;
   }
 
   .portal-shell--modern .portal-header__title {

@@ -10,7 +10,7 @@
           Create store stock items once and apply them to all shops currently in POS <strong class="text-[rgb(var(--rc-page-fg))]">Both</strong> mode.
         </p>
       </div>
-      <a href="{{ url_for('it_support_stock_management') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock management</a>
+      <a href="{{ url_for('it_support_company_stock_update') }}" class="btn-rc btn-rc-ghost px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to shop stock update</a>
     </div>
 
     {% if not both_shops %}
@@ -78,7 +78,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Created stock items ({{ store_stock_items|length }})</h3>
           {% if store_stock_items %}
-            <a href="{{ url_for('it_support_stock_management') }}" class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">Open stock in/out grid →</a>
+            <a href="{{ url_for('it_support_company_stock_update') }}" class="text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-primary))] hover:underline">Open shop stock update →</a>
           {% endif %}
         </div>
         {% if store_stock_items %}

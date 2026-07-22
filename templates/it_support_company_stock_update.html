@@ -3,10 +3,14 @@
 {% block portal_page_title %}Company stock update{% endblock %}
 {% block employee_content %}
   {% set rows = stock_rows or [] %}
-  <div class="mx-auto min-w-0 max-w-6xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4">
+  <div class="mx-auto min-w-0 max-w-7xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4">
     {% if pos_inventory_mode is defined and pos_inventory_mode == "kitchen" %}
     <div class="border-b border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] md:rounded-2xl md:border md:border-amber-500/40 md:px-4 md:py-3 md:shadow-none">
-      POS is in <strong>kitchen portions</strong> mode: you can review company and branch quantities below, but stock in/out and transfers from this screen are disabled (they require shop shelf inventory on the branch).
+      POS is in <strong>kitchen portions</strong> mode: shelf stock in/out is disabled. Turn on shop stock sales in company printing settings to use manual stock actions here.
+    </div>
+    {% elif pos_inventory_mode is defined and pos_inventory_mode == "both" %}
+    <div class="border-b border-sky-500/35 bg-sky-500/10 px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] md:rounded-2xl md:border md:border-sky-500/35 md:px-4 md:py-3 md:shadow-none">
+      POS is in <strong>Both</strong> mode: company ↔ shop moves are disabled here. You can still stock the <strong>company store</strong> or a <strong>selected shop</strong> shelf directly, or manage shelf SKUs from shop stock management.
     </div>
     {% endif %}
     <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-6 md:shadow-sm">
@@ -14,7 +18,7 @@
         <div class="min-w-0">
           <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock update</h2>
           <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
-            Choose an action, select shop(s), then add multiple items and quantities.
+            Stock the company store or a selected shop, or transfer stock between shops. Pick an action, then enter quantities on the rows below.
           </p>
         </div>
         <a href="{{ url_for('it_support_company_stock_analytics') }}" class="btn-rc btn-rc-ghost shrink-0 px-4 py-2 text-xs font-bold uppercase tracking-wider">Back to stock status</a>
@@ -27,9 +31,19 @@
         <div>
           <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Action</label>
           <select id="action" name="action" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
-            <option value="stock_in">Stock in (company → shop)</option>
-            <option value="stock_out">Stock out (shop → return/waste)</option>
-            <option value="transfer">Transfer (shop → shop)</option>
+            <optgroup label="Company store">
+              <option value="company_stock_in" selected>Stock in</option>
+              <option value="company_stock_out">Stock out</option>
+            </optgroup>
+            <optgroup label="Selected shop">
+              <option value="manual_stock_in">Stock in</option>
+              <option value="manual_stock_out">Stock out</option>
+            </optgroup>
+            <optgroup label="Transfer stock">
+              <option value="transfer">Shop → shop</option>
+              <option value="stock_in" {% if pos_inventory_mode is defined and pos_inventory_mode == 'both' %}disabled{% endif %}>Company → shop</option>
+              <option value="stock_out" {% if pos_inventory_mode is defined and pos_inventory_mode == 'both' %}disabled{% endif %}>Shop → company / waste</option>
+            </optgroup>
           </select>
         </div>
 
@@ -69,73 +83,156 @@
           </select>
         </div>
 
-        <div class="lg:col-span-2">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Note (optional)</label>
-          <input name="note" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-4 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none uppercase md:rounded-xl md:text-sm" placeholder="E.G. WEEKLY REPLENISHMENT" />
+        <div id="company-out-reason-wrap" class="hidden">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Company stock out reason</label>
+          <select name="company_out_reason" id="company_out_reason" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
+            <option value="waste">Waste</option>
+            <option value="return">Return</option>
+            <option value="display">Display</option>
+          </select>
+        </div>
+
+        <div id="manual-out-wrap" class="hidden lg:col-span-2">
+          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Manual stock out</label>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <select name="manual_out_reason" id="manual_out_reason" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
+              <option value="return">Return</option>
+              <option value="waste">Waste</option>
+              <option value="display">Display</option>
+            </select>
+            <select name="manual_out_refunded" id="manual_out_refunded" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none md:rounded-xl md:text-sm">
+              <option value="no" selected>Not refunded</option>
+              <option value="yes">Refunded</option>
+            </select>
+            <input name="manual_out_refund_amount" id="manual_out_refund_amount" type="number" min="0" step="0.01" disabled class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none disabled:opacity-50 md:rounded-xl md:text-sm" placeholder="Refund amount" />
+          </div>
         </div>
       </div>
 
-      <div class="mt-4 overflow-hidden border border-[rgb(var(--rc-border))] max-md:-mx-4 max-md:rounded-none max-md:border-x-0 sm:max-md:-mx-6 md:mt-6 md:rounded-2xl md:border md:border-[rgb(var(--rc-border))]">
-        <div class="flex items-center justify-between gap-2 bg-[rgb(var(--rc-surface-2))] px-4 py-3">
-          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and current stock</h3>
-        </div>
-        <div class="border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3">
-          <input
-            id="company-stock-update-live-search"
-            type="search"
-            autocomplete="off"
-            placeholder="Search by item, category or description..."
-            class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm"
-          />
-        </div>
-        {% if not rows %}
-          <p class="px-4 py-4 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
-        {% else %}
-        <div class="min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
-          <table class="min-w-[44rem] w-full text-xs sm:min-w-[52rem] md:min-w-[980px] md:text-sm">
-            <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-              <tr>
-                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th>
-                <th class="px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Co.</th>
-                <th id="shop-a-header" class="max-w-[5.5rem] px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:max-w-none sm:px-3 sm:text-xs">Shop A</th>
-                <th id="shop-b-header" class="max-w-[5.5rem] px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:max-w-none sm:px-3 sm:text-xs">Shop B</th>
-                <th class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Qty</th>
-              </tr>
-            </thead>
-            <tbody id="lines" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-              {% for r in rows %}
-                <tr
-                  class="line"
-                  data-item-id="{{ r.id }}"
-                  data-company-stock="{{ r.company_stock_qty or 0 }}"
-                  data-per-shop='{{ (r.per_shop or {})|tojson|e }}'
-                  data-search="{{ ((r.name or '') ~ ' ' ~ (r.category or '') ~ ' ' ~ (r.description or ''))|lower }}"
-                >
-                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3">
-                    <div class="max-w-[11rem] truncate font-semibold text-[rgb(var(--rc-page-fg))] sm:max-w-[16rem] md:max-w-none">{{ r.name }}</div>
-                    <div class="text-[10px] text-[rgb(var(--rc-muted))] sm:text-xs">{{ r.category or "—" }} · ITEM #{{ r.id }}</div>
-                    <input type="hidden" name="item_id[]" value="{{ r.id }}" />
-                  </td>
-                  <td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.company_stock_qty or 0 }}</td>
-                  <td class="shop-a-cell px-2 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">0</td>
-                  <td class="shop-b-cell px-2 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">0</td>
-                  <td class="px-2 py-2 sm:px-3">
-                    <input name="qty[]" type="text" inputmode="decimal" class="w-full min-w-0 max-w-[6.5rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-base text-[rgb(var(--rc-page-fg))] outline-none sm:w-36 sm:px-3 sm:text-sm md:rounded-xl" placeholder="0 or 1.25" title="Whole or decimal quantity (use . or , as decimal separator)" />
-                  </td>
+      <div class="company-stock-update-workspace mt-4 grid gap-4 lg:mt-6 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+        <div class="company-stock-update-main min-w-0 overflow-hidden border border-[rgb(var(--rc-border))] max-md:-mx-4 max-md:rounded-none max-md:border-x-0 sm:max-md:-mx-6 md:rounded-2xl md:border md:border-[rgb(var(--rc-border))]">
+          <div class="flex items-center justify-between gap-2 bg-[rgb(var(--rc-surface-2))] px-4 py-3">
+            <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and current stock</h3>
+          </div>
+          <div class="border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3">
+            <input
+              id="company-stock-update-live-search"
+              type="search"
+              autocomplete="off"
+              placeholder="Search by item, category or description..."
+              class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm"
+            />
+          </div>
+          {% if not rows %}
+            <p class="px-4 py-4 text-sm text-[rgb(var(--rc-muted))]">No items found.</p>
+          {% else %}
+          <div class="min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
+            <table class="min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
+              <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+                <tr>
+                  <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th>
+                  <th id="company-col-header" class="hidden px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs">Company current stock</th>
+                  <th id="shop-a-header" class="hidden max-w-[5.5rem] px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:max-w-none sm:px-3 sm:text-xs">Shop current stock</th>
+                  <th id="qty-col-header" class="px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 sm:px-3 sm:text-xs">Stock qty in</th>
+                  <th class="manual-in-col hidden px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 sm:px-3 sm:text-xs">Buying price</th>
+                  <th class="manual-in-col hidden px-2 py-2 text-left text-[10px] font-black uppercase tracking-wider text-emerald-600 sm:px-3 sm:text-xs">Payment status</th>
+                  <th id="shop-b-header" class="hidden max-w-[5.5rem] px-2 py-2 text-right text-[10px] font-black uppercase tracking-wider sm:max-w-none sm:px-3 sm:text-xs">Shop B</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody id="lines" class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
+                {% for r in rows %}
+                  <tr
+                    class="line"
+                    data-item-id="{{ r.id }}"
+                    data-company-stock="{{ r.company_stock_qty or 0 }}"
+                    data-per-shop='{{ (r.per_shop or {})|tojson|e }}'
+                    data-search="{{ ((r.name or '') ~ ' ' ~ (r.category or '') ~ ' ' ~ (r.description or ''))|lower }}"
+                  >
+                    <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3">
+                      <div class="max-w-[11rem] truncate font-semibold text-[rgb(var(--rc-page-fg))] sm:max-w-[16rem] md:max-w-none">{{ r.name }}</div>
+                      <div class="text-[10px] text-[rgb(var(--rc-muted))] sm:text-xs">{{ r.category or "—" }} · ITEM #{{ r.id }}</div>
+                      <input type="hidden" name="item_id[]" value="{{ r.id }}" />
+                    </td>
+                    <td class="company-col hidden px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.company_stock_qty or 0 }}</td>
+                    <td class="shop-a-cell hidden px-2 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">0</td>
+                    <td class="px-2 py-2 sm:px-3">
+                      <input name="qty[]" type="text" inputmode="decimal" class="w-full min-w-0 max-w-[6.5rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-base text-[rgb(var(--rc-page-fg))] outline-none sm:w-36 sm:px-3 sm:text-sm md:rounded-xl" placeholder="0 or 1.25" title="Whole or decimal quantity (use . or , as decimal separator)" />
+                    </td>
+                    <td class="manual-in-col hidden px-2 py-2 sm:px-3">
+                      <input name="buying_price[]" type="number" min="0" step="0.01" class="w-full min-w-0 max-w-[6rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-base text-[rgb(var(--rc-page-fg))] outline-none sm:text-sm md:rounded-xl" placeholder="0" {% set _lbp = (item_last_buy_price or {}).get(r.id) %}{% if _lbp is not none %}value="{{ '%.2f'|format(_lbp) }}"{% endif %} />
+                    </td>
+                    <td class="manual-in-col hidden px-2 py-2 sm:px-3">
+                      <select name="payment_status[]" class="w-full min-w-0 max-w-[7rem] rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-base text-[rgb(var(--rc-page-fg))] outline-none sm:text-sm md:rounded-xl">
+                        <option value="pending_payment" selected>Not paid</option>
+                        <option value="partially_paid">Partial</option>
+                        <option value="paid">Paid</option>
+                      </select>
+                    </td>
+                    <td class="shop-b-cell hidden px-2 py-2 text-right tabular-nums text-[rgb(var(--rc-page-fg))] sm:px-3">0</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
-      </div>
 
-      <div class="mt-4 md:mt-5">
-        <button type="submit" class="btn-rc btn-rc-primary min-h-[44px] w-full px-6 py-3 text-sm sm:min-h-0">Submit stock update</button>
+        <aside id="company-stock-side-card" class="company-stock-side-card rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <div id="manual-in-supplier-wrap" class="hidden">
+            <p class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Supplier</p>
+            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Optional — applies to all rows with quantity</p>
+            <div class="mt-3 grid gap-2">
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Seller phone</span>
+                <input name="apply_seller_phone" id="apply_seller_phone" type="text" autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="07… or 254…" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Seller name</span>
+                <input name="apply_seller_name" id="apply_seller_name" type="text" autocomplete="off" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-sm uppercase text-[rgb(var(--rc-page-fg))] outline-none" placeholder="Seller name" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Payment</span>
+                <select name="apply_payment_status" id="apply_payment_status" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none">
+                  <option value="pending_payment" selected>Not paid</option>
+                  <option value="partially_paid">Partially paid</option>
+                  <option value="paid">Paid</option>
+                </select>
+              </label>
+            </div>
+            <p id="apply-seller-hint" class="mt-1 text-[11px] text-[rgb(var(--rc-muted))]"></p>
+          </div>
+
+          <label class="mt-3 block" id="company-stock-note-wrap">
+            <span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Note (optional)</span>
+            <input name="note" id="company-stock-note" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 text-sm uppercase text-[rgb(var(--rc-page-fg))] outline-none" placeholder="E.G. WEEKLY REPLENISHMENT" />
+          </label>
+
+          <button type="submit" id="submit-btn" class="btn-rc btn-rc-success mt-4 min-h-[44px] w-full px-4 py-3 text-sm font-bold">Submit stock in</button>
+        </aside>
       </div>
       </fieldset>
     </form>
   </div>
+
+  <style>
+    .company-stock-side-card {
+      position: sticky;
+      top: 1rem;
+      z-index: 20;
+      align-self: start;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+      box-shadow: 0 8px 24px -12px rgba(15, 23, 42, 0.35);
+    }
+    @media (max-width: 1023px) {
+      .company-stock-side-card {
+        position: static;
+        max-height: none;
+        overflow: visible;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+      }
+    }
+  </style>
 
   <script>
     (function () {
@@ -143,22 +240,92 @@
       var oneWrap = document.getElementById("shop-one-wrap");
       var transferWrap = document.getElementById("shop-transfer-wrap");
       var outReasonWrap = document.getElementById("stock-out-reason-wrap");
+      var companyOutReasonWrap = document.getElementById("company-out-reason-wrap");
+      var manualOutWrap = document.getElementById("manual-out-wrap");
+      var manualInSupplierWrap = document.getElementById("manual-in-supplier-wrap");
       var shopIdEl = document.getElementById("shop_id");
       var fromShopEl = document.getElementById("from_shop_id");
       var toShopEl = document.getElementById("to_shop_id");
       var shopAHeader = document.getElementById("shop-a-header");
       var shopBHeader = document.getElementById("shop-b-header");
+      var companyColHeader = document.getElementById("company-col-header");
+      var qtyColHeader = document.getElementById("qty-col-header");
+      var submitBtn = document.getElementById("submit-btn");
       var lines = document.getElementById("lines");
+      var manualOutRefunded = document.getElementById("manual_out_refunded");
+      var manualOutRefundAmt = document.getElementById("manual_out_refund_amount");
+      var applySellerPhone = document.getElementById("apply_seller_phone");
+      var applySellerName = document.getElementById("apply_seller_name");
+      var applySellerHint = document.getElementById("apply-seller-hint");
       var shopNameById = {};
       {% for s in shops %}
       shopNameById["{{ s.id }}"] = {{ (s.shop_name or ("Shop " ~ s.id))|tojson }};
       {% endfor %}
 
+      function syncManualOutRefund() {
+        var yes = manualOutRefunded && manualOutRefunded.value === "yes";
+        if (manualOutRefundAmt) {
+          manualOutRefundAmt.disabled = !yes;
+          manualOutRefundAmt.required = !!yes;
+        }
+      }
+      if (manualOutRefunded) manualOutRefunded.addEventListener("change", syncManualOutRefund);
+      syncManualOutRefund();
+
       function syncActionUI() {
-        var v = (action && action.value) || "stock_in";
-        if (transferWrap) transferWrap.classList.toggle("hidden", v !== "transfer");
-        if (oneWrap) oneWrap.classList.toggle("hidden", v === "transfer");
-        if (outReasonWrap) outReasonWrap.classList.toggle("hidden", v !== "stock_out");
+        var v = (action && action.value) || "company_stock_in";
+        var isTransfer = v === "transfer";
+        var isCompanyToShop = v === "stock_in";
+        var isShopToCompany = v === "stock_out";
+        var isCompanyIn = v === "company_stock_in";
+        var isCompanyOut = v === "company_stock_out";
+        var isCompanyOnly = isCompanyIn || isCompanyOut;
+        var isManualIn = v === "manual_stock_in";
+        var isManualOut = v === "manual_stock_out";
+        var isShopOnly = isManualIn || isManualOut;
+        var needsShop = isShopOnly || isCompanyToShop || isShopToCompany;
+        var showSupplierCard = isCompanyIn || isManualIn;
+        var showBuyPay = isCompanyIn || isManualIn;
+
+        if (transferWrap) transferWrap.classList.toggle("hidden", !isTransfer);
+        if (oneWrap) oneWrap.classList.toggle("hidden", !needsShop);
+        if (outReasonWrap) outReasonWrap.classList.toggle("hidden", !isShopToCompany);
+        if (companyOutReasonWrap) companyOutReasonWrap.classList.toggle("hidden", !isCompanyOut);
+        if (manualOutWrap) manualOutWrap.classList.toggle("hidden", !isManualOut);
+        if (manualInSupplierWrap) manualInSupplierWrap.classList.toggle("hidden", !showSupplierCard);
+
+        document.querySelectorAll(".manual-in-col").forEach(function (el) {
+          el.classList.toggle("hidden", !showBuyPay);
+        });
+
+        if (qtyColHeader) {
+          if (isCompanyOut || isManualOut || isShopToCompany) {
+            qtyColHeader.textContent = "Stock qty out";
+            qtyColHeader.classList.remove("text-emerald-600");
+            qtyColHeader.classList.add("text-rose-500");
+          } else {
+            qtyColHeader.textContent = isTransfer ? "Transfer qty" : "Stock qty in";
+            qtyColHeader.classList.add("text-emerald-600");
+            qtyColHeader.classList.remove("text-rose-500");
+          }
+        }
+
+        if (submitBtn) {
+          submitBtn.classList.remove("btn-rc-primary", "btn-rc-success", "btn-rc-danger");
+          if (isCompanyIn || isManualIn || isCompanyToShop) {
+            submitBtn.textContent = isCompanyIn ? "Submit company stock in" : (isManualIn ? "Submit shop stock in" : "Submit company → shop");
+            submitBtn.classList.add("btn-rc-success");
+          } else if (isCompanyOut || isManualOut || isShopToCompany) {
+            submitBtn.textContent = isCompanyOut ? "Submit company stock out" : (isManualOut ? "Submit shop stock out" : "Submit stock out");
+            submitBtn.classList.add("btn-rc-danger");
+          } else if (isTransfer) {
+            submitBtn.textContent = "Submit transfer";
+            submitBtn.classList.add("btn-rc-primary");
+          } else {
+            submitBtn.textContent = "Submit stock update";
+            submitBtn.classList.add("btn-rc-primary");
+          }
+        }
         syncStockColumns();
       }
       if (action) action.addEventListener("change", syncActionUI);
@@ -171,21 +338,65 @@
         }
       }
 
+      function setColVisible(headerEl, cellSelector, show) {
+        if (headerEl) headerEl.classList.toggle("hidden", !show);
+        document.querySelectorAll(cellSelector).forEach(function (el) {
+          el.classList.toggle("hidden", !show);
+        });
+      }
+
       function syncStockColumns() {
         if (!lines) return;
-        var v = (action && action.value) || "stock_in";
+        var v = (action && action.value) || "company_stock_in";
+        var isTransfer = v === "transfer";
+        var isCompanyToShop = v === "stock_in";
+        var isShopToCompany = v === "stock_out";
+        var isCompanyOnly = v === "company_stock_in" || v === "company_stock_out";
+        var isShopOnly = v === "manual_stock_in" || v === "manual_stock_out";
+
         var shopAId = "";
         var shopBId = "";
-        if (v === "transfer") {
+        if (isTransfer) {
           shopAId = (fromShopEl && fromShopEl.value) || "";
           shopBId = (toShopEl && toShopEl.value) || "";
-          if (shopAHeader) shopAHeader.textContent = (shopNameById[shopAId] || "From shop") + " stock";
-          if (shopBHeader) shopBHeader.textContent = (shopNameById[shopBId] || "To shop") + " stock";
-        } else {
+        } else if (!isCompanyOnly) {
           shopAId = (shopIdEl && shopIdEl.value) || "";
-          if (shopAHeader) shopAHeader.textContent = (shopNameById[shopAId] || "Selected shop") + " stock";
-          if (shopBHeader) shopBHeader.textContent = "Shop B stock";
         }
+
+        // Company stock: never on shop→shop transfer; only for company store
+        // actions or company↔shop moves.
+        var showCompany = !isTransfer && (isCompanyOnly || isCompanyToShop || isShopToCompany);
+        setColVisible(companyColHeader, ".company-col", showCompany);
+        if (companyColHeader && showCompany) {
+          companyColHeader.textContent = "Company current stock";
+        }
+
+        // Shop A stock: only after an actual shop is chosen.
+        var showShopA = false;
+        if (isTransfer) {
+          showShopA = !!shopAId;
+          if (shopAHeader) {
+            shopAHeader.textContent = shopAId
+              ? (shopNameById[shopAId] || "From shop") + " current stock"
+              : "Shop current stock";
+          }
+        } else if (isShopOnly || isCompanyToShop || isShopToCompany) {
+          showShopA = !!shopAId;
+          if (shopAHeader) {
+            shopAHeader.textContent = shopAId
+              ? (shopNameById[shopAId] || "Selected shop") + " current stock"
+              : "Shop current stock";
+          }
+        }
+        setColVisible(shopAHeader, ".shop-a-cell", showShopA);
+
+        // Shop B stock: transfer only, after TO shop is chosen.
+        var showShopB = isTransfer && !!shopBId;
+        setColVisible(shopBHeader, ".shop-b-cell", showShopB);
+        if (shopBHeader && showShopB) {
+          shopBHeader.textContent = (shopNameById[shopBId] || "To shop") + " current stock";
+        }
+
         lines.querySelectorAll("tr.line").forEach(function (tr) {
           var map = safeParsePerShop(tr.getAttribute("data-per-shop"));
           var a = map[String(shopAId)] || 0;
@@ -193,7 +404,7 @@
           var aCell = tr.querySelector(".shop-a-cell");
           var bCell = tr.querySelector(".shop-b-cell");
           if (aCell) aCell.textContent = String(a);
-          if (bCell) bCell.textContent = String(v === "transfer" ? b : "-");
+          if (bCell) bCell.textContent = String(b);
         });
       }
 
@@ -202,10 +413,47 @@
       if (toShopEl) toShopEl.addEventListener("change", syncStockColumns);
       syncActionUI();
 
-      var searchInput = document.getElementById("company-stock-update-live-search");
-      if (searchInput) {
-        searchInput.value = "";
+      var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+      var sellerTimer = null;
+      function syncSellerLookup() {
+        if (!applySellerPhone || !applySellerName) return;
+        var p = (applySellerPhone.value || "").trim();
+        if (p.indexOf("+254") === 0) p = "254" + p.slice(4);
+        p = p.replace(/\s+/g, "");
+        if (applySellerPhone.value !== p) applySellerPhone.value = p;
+        if (!p) {
+          if (applySellerHint) applySellerHint.textContent = "";
+          return;
+        }
+        var digits = p.replace(/\D/g, "");
+        if (digits.length < 10) {
+          if (applySellerHint) applySellerHint.textContent = "Continue typing seller phone…";
+          return;
+        }
+        var fd = new FormData();
+        fd.append("seller_phone", p);
+        fetch(sellerLookupUrl, { method: "POST", body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.ok && data.registered && data.seller) {
+              applySellerName.value = String(data.seller.seller_name || "").toUpperCase();
+              if (applySellerHint) applySellerHint.textContent = "Registered seller found — name auto-filled.";
+            } else if (applySellerHint) {
+              applySellerHint.textContent = "New seller — enter seller name above.";
+            }
+          })
+          .catch(function () {});
       }
+      if (applySellerPhone) {
+        applySellerPhone.addEventListener("input", function () {
+          if (sellerTimer) clearTimeout(sellerTimer);
+          sellerTimer = setTimeout(syncSellerLookup, 220);
+        });
+      }
+
+      var searchInput = document.getElementById("company-stock-update-live-search");
+      if (searchInput) searchInput.value = "";
+
       function syncLiveSearch() {
         if (!lines || !searchInput) return;
         var q = String(searchInput.value || "").trim().toLowerCase();
@@ -257,4 +505,3 @@
     })();
   </script>
 {% endblock %}
-

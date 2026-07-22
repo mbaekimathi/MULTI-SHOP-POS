@@ -13,10 +13,22 @@
       aria-label="Shop navigation"
     >
       <div class="portal-sidebar__brand flex h-14 items-center gap-2 border-b border-[rgb(var(--rc-border))] px-4 md:h-16">
-        <span
-          class="portal-sidebar__logo flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-lg shadow-black/20"
-          style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
-        >S</span>
+        {% set _brand_logo = shop_brand_logo_url(shop) if shop else (url_for('static', filename=site_settings.app_icon) if site_settings and site_settings.app_icon else '') %}
+        {% if _brand_logo %}
+          <img
+            src="{{ _brand_logo }}"
+            alt=""
+            class="portal-sidebar__logo h-9 w-9 shrink-0 rounded-xl object-cover shadow-lg shadow-black/20"
+            width="36"
+            height="36"
+          />
+        {% else %}
+          <span
+            class="portal-sidebar__logo flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-lg shadow-black/20"
+            style="background: linear-gradient(135deg, rgb(var(--rc-primary)) 0%, rgb(var(--rc-accent)) 100%)"
+            aria-hidden="true"
+          >{{ (shop.shop_name[:1] if shop and shop.shop_name else 'S')|e }}</span>
+        {% endif %}
         <div class="min-w-0 leading-tight">
           <p class="truncate text-sm font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop.shop_name if shop else "SHOP" }}</p>
           <p class="truncate text-xs text-[rgb(var(--rc-muted))]">Shop session • {{ shop.id if shop else '' }}</p>
@@ -120,8 +132,8 @@
     </aside>
 
     <div class="portal-content-column flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0">
-      <header class="portal-header--modern sticky top-0 z-40 flex min-h-14 shrink-0 flex-wrap items-center gap-x-2 gap-y-2 overflow-visible border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/95 px-3 py-2 backdrop-blur-md sm:gap-x-3 sm:px-4 md:h-16 md:flex-nowrap md:py-0 md:px-6" style="padding-top: env(safe-area-inset-top, 0px)">
-        <div class="flex min-w-0 flex-1 items-center gap-3 md:flex-none md:max-w-[min(40vw,24rem)]">
+      <header class="portal-header--modern portal-header--shop sticky top-0 z-40 flex w-full min-w-0 max-w-full min-h-14 shrink-0 flex-wrap items-center gap-x-2 gap-y-2 overflow-x-clip border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]/95 px-3 py-2 backdrop-blur-md sm:gap-x-3 sm:px-4 md:h-auto md:min-h-16 md:py-2 md:px-6 xl:h-16 xl:flex-nowrap xl:py-0" style="padding-top: env(safe-area-inset-top, 0px)">
+        <div class="portal-header__leading flex min-w-0 flex-1 items-center gap-2 sm:gap-3 max-w-[calc(100%-6.5rem)] xl:max-w-[min(32vw,18rem)] 2xl:max-w-[min(40vw,24rem)]">
           <button
             type="button"
             id="shop-sidebar-open"
@@ -149,10 +161,10 @@
           <form
             method="post"
             action="{{ url_for('shop_role_preview_set', shop_id=shop.id) }}"
-            class="order-last flex w-full basis-full justify-center sm:order-none sm:flex-1 sm:basis-auto sm:px-2 md:max-w-md md:flex-none lg:flex-1"
+            class="portal-header__role-preview-row order-last flex w-full min-w-0 basis-full justify-stretch xl:order-none xl:w-auto xl:min-w-0 xl:flex-1 xl:basis-auto xl:justify-center xl:px-2 xl:max-w-xs 2xl:max-w-md"
           >
             <input type="hidden" name="next" value="{{ request.full_path }}" />
-            <div class="portal-header__role-preview flex w-full max-w-md items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2">
+            <div class="portal-header__role-preview flex w-full min-w-0 items-center gap-2 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-2.5 py-2 sm:px-3">
               <label for="shop-role-preview-select" class="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">
                 View as
               </label>
@@ -175,7 +187,7 @@
           </form>
         {% endif %}
 
-        <div class="ml-auto flex shrink-0 items-center gap-2">
+        <div class="portal-header__actions ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
           {% include "partials/theme_toggle.html" %}
           {% if shop_shell_can('notifications') %}
           {% include "partials/notification_bell.html" %}

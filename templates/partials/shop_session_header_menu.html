@@ -6,9 +6,10 @@
     aria-haspopup="menu"
     aria-controls="shop-header-dd-panel"
   >
-    {% if shop.shop_logo %}
+    {% set _brand_logo = shop_brand_logo_url(shop) %}
+    {% if _brand_logo %}
       <img
-        src="{{ url_for('static', filename=shop.shop_logo) }}"
+        src="{{ _brand_logo }}"
         alt=""
         class="h-7 w-7 shrink-0 rounded-lg object-cover ring-1 ring-black/10 sm:h-8 sm:w-8"
         width="28"

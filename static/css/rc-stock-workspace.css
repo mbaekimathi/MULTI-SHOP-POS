@@ -593,6 +593,40 @@
     overflow-y: auto;
     box-shadow: 0 8px 24px -12px rgba(15, 23, 42, 0.35);
   }
+  .shop-stock-mgmt-page .company-stock-side-card,
+  .shop-stock-mgmt-page .shop-mgmt-bulk-aside.company-stock-side-card {
+    position: sticky;
+    top: 1rem;
+    z-index: 20;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    box-shadow: 0 8px 24px -12px rgba(15, 23, 42, 0.35);
+  }
+  @media (max-width: 1023px) {
+    .shop-stock-mgmt-page .company-stock-side-card,
+    .shop-stock-mgmt-page .shop-mgmt-bulk-aside.company-stock-side-card {
+      position: static;
+      max-height: none;
+      overflow: visible;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    }
+  }
+  .shop-stock-mgmt-page .company-stock-update-main {
+    background: rgb(var(--rc-surface));
+  }
+  .shop-stock-mgmt-page .company-stock-update-main .sa-stock-mgmt-table thead th,
+  .shop-stock-mgmt-page .company-stock-update-main .sa-stock-data-table thead th {
+    background: rgb(var(--rc-surface-2));
+  }
+  .shop-stock-mgmt-page form.sa-stock-panel {
+    padding: 1rem;
+  }
+  @media (min-width: 640px) {
+    .shop-stock-mgmt-page form.sa-stock-panel {
+      padding: 1.5rem;
+    }
+  }
 
   .shop-mgmt-stock-row-focus {
     outline: 2px solid rgba(16, 185, 129, 0.65);
