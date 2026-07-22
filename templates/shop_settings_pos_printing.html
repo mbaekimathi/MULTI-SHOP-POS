@@ -206,7 +206,7 @@
 
         <div>
           <p class="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Allowed printer types (POS setup)</p>
-          <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">You can allow printer types but leave <strong class="font-medium text-[rgb(var(--rc-page-fg))]">Printing compulsory on sale</strong> off. If all three types are off, compulsory printing turns off automatically.</p>
+          <p class="mb-3 text-xs text-[rgb(var(--rc-muted))]">Bluetooth (direct printing) and USB (browser print dialog) cannot both be on — turn one off to enable the other. Network can be used with either. If all types are off, compulsory printing turns off automatically.</p>
           <div class="grid gap-3 sm:grid-cols-3">
             <div class="flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5">
               <span class="text-sm font-medium text-[rgb(var(--rc-page-fg))]">Bluetooth</span>
@@ -237,6 +237,7 @@
 {% endblock %}
 {% block scripts %}
   {{ super() }}
+  <script src="{{ url_for('static', filename='js/printing-allow-printer-ui.js') }}?v=1"></script>
   <script>
     function applyPosInventoryExclusiveUi(root, mode) {
       if (!root) return;
@@ -303,24 +304,7 @@
     })();
 
     (function () {
-      var allows = document.querySelectorAll("input.js-printing-allow-printer");
-      var comp = document.querySelector("input.js-printing-compulsory-sale");
-      if (!allows.length || !comp) return;
-      function syncAllowVsCompulsory() {
-        var any = false;
-        allows.forEach(function (el) {
-          if (el.checked) any = true;
-        });
-        comp.disabled = !any;
-        comp.title = any
-          ? ""
-          : "Turn on at least one allowed printer type to enable this option.";
-        if (!any) comp.checked = false;
-      }
-      allows.forEach(function (el) {
-        el.addEventListener("change", syncAllowVsCompulsory);
-      });
-      syncAllowVsCompulsory();
+      initPrintingAllowPrinterUi(document.getElementById("shop-settings-pos-printing-form"));
     })();
 
     (function () {

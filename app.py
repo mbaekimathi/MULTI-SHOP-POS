@@ -5811,6 +5811,7 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     merged["pos_cart_mode"] = _coerce_pos_cart_mode(merged.get("pos_cart_mode"))
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
+    _enforce_exclusive_bluetooth_usb_printer_types(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
     _enforce_exclusive_pos_inventory(merged)
     return merged
@@ -7315,6 +7316,35 @@ def _sync_print_compulsory_with_printer_allow_list(merged: dict) -> None:
         merged["print_compulsory_sale"] = False
 
 
+def _enforce_exclusive_bluetooth_usb_printer_types(merged: dict, patch: Optional[dict] = None) -> None:
+    """
+    Bluetooth (direct BLE ESC/POS) and USB (browser print dialog) cannot both be enabled.
+    Network is independent. When both are on, honour the patch toggle if present, else keep Bluetooth.
+    """
+    bt = bool(merged.get("printer_allow_bluetooth"))
+    usb = bool(merged.get("printer_allow_usb"))
+    if not (bt and usb):
+        return
+    prefer_usb = False
+    if isinstance(patch, dict):
+        bt_in = "printing_allow_bluetooth" in patch
+        usb_in = "printing_allow_usb" in patch
+        bt_val = _pos_patch_bool(patch.get("printing_allow_bluetooth")) if bt_in else None
+        usb_val = _pos_patch_bool(patch.get("printing_allow_usb")) if usb_in else None
+        if usb_val is True and bt_val is not True:
+            prefer_usb = True
+        elif bt_val is True and usb_val is not True:
+            prefer_usb = False
+        elif usb_in and not bt_in:
+            prefer_usb = True
+        elif bt_in and not usb_in:
+            prefer_usb = False
+    if prefer_usb:
+        merged["printer_allow_bluetooth"] = False
+    else:
+        merged["printer_allow_usb"] = False
+
+
 def _normalize_print_compulsory_key(merged: dict) -> None:
     """Fold form-style alias ``printing_compulsory_sale`` into canonical ``print_compulsory_sale`` (saved JSON)."""
     if merged.get("printing_compulsory_sale") is not None:
@@ -7457,7 +7487,7 @@ def _default_printing_settings() -> dict:
         "receipt_copies": "1",
         "printer_allow_bluetooth": True,
         "printer_allow_network": True,
-        "printer_allow_usb": True,
+        "printer_allow_usb": False,
     }
 
 
@@ -7503,6 +7533,7 @@ def _load_printing_settings() -> dict:
     merged["pos_cart_mode"] = _coerce_pos_cart_mode(merged.get("pos_cart_mode"))
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
+    _enforce_exclusive_bluetooth_usb_printer_types(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
     _enforce_exclusive_pos_inventory(merged)
     return merged
@@ -7545,6 +7576,7 @@ def _printing_settings_from_form() -> dict:
     _apply_pos_inventory_exclusive_form_choice(merged, inv_choice)
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
+    _enforce_exclusive_bluetooth_usb_printer_types(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
     _enforce_exclusive_pos_inventory(merged)
     return merged
@@ -7617,6 +7649,7 @@ def _printing_settings_apply_pos_panel_patch_dict(merged: dict, patch: dict) -> 
     _enforce_exclusive_pos_inventory(merged)
     _ensure_at_least_one_pos_transactional_type(merged)
     _ensure_at_least_one_pos_payment_method(merged)
+    _enforce_exclusive_bluetooth_usb_printer_types(merged, patch)
     _sync_print_compulsory_with_printer_allow_list(merged)
 
 

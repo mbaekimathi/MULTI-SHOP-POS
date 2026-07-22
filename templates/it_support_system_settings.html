@@ -857,6 +857,7 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/receipt-thermal-reprint.js') }}?v=42"></script>
+  <script src="{{ url_for('static', filename='js/printing-allow-printer-ui.js') }}?v=1"></script>
   <script>
     (function () {
       var DEFAULT_TAB = "system";
@@ -1216,24 +1217,7 @@
     })();
 
     (function () {
-      var allows = document.querySelectorAll("input.js-printing-allow-printer");
-      var comp = document.querySelector("input.js-printing-compulsory-sale");
-      if (!allows.length || !comp) return;
-      function syncAllowVsCompulsory() {
-        var any = false;
-        allows.forEach(function (el) {
-          if (el.checked) any = true;
-        });
-        comp.disabled = !any;
-        comp.title = any
-          ? ""
-          : "Turn on at least one allowed printer type to enable this option.";
-        if (!any) comp.checked = false;
-      }
-      allows.forEach(function (el) {
-        el.addEventListener("change", syncAllowVsCompulsory);
-      });
-      syncAllowVsCompulsory();
+      initPrintingAllowPrinterUi(document.getElementById("pos") || document);
     })();
 
     (function () {
