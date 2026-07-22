@@ -29,6 +29,8 @@
     var storageKey = "marketing-theme";
     var docEl = document.documentElement;
     var isPreview = root.getAttribute("data-wsf-design-preview") === "1";
+    var defaultTheme = (docEl.getAttribute("data-marketing-theme-default") || "light").toLowerCase();
+    if (defaultTheme !== "dark" && defaultTheme !== "light") defaultTheme = "light";
 
     function currentTheme() {
       if (isPreview) {
@@ -38,46 +40,48 @@
     }
 
     function applyTheme(theme, persist) {
-      var dark = theme === "dark";
+      var next = theme === "dark" ? "dark" : "light";
+      var dark = next === "dark";
       if (isPreview) {
         root.classList.toggle("wsf-theme-dark", dark);
         root.classList.toggle("wsf-theme-light", !dark);
-        root.setAttribute("data-wsf-theme", theme);
-      } else {
-        docEl.setAttribute("data-marketing-theme", theme);
-        docEl.style.colorScheme = dark ? "dark" : "light";
+        root.setAttribute("data-wsf-theme", next);
       }
+      docEl.setAttribute("data-marketing-theme", next);
+      docEl.setAttribute("data-marketing-theme-default", defaultTheme);
+      docEl.style.colorScheme = dark ? "dark" : "light";
+      root.classList.toggle("wsf-theme-dark", dark);
+      root.classList.toggle("wsf-theme-light", !dark);
+
       root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
         btn.setAttribute("aria-pressed", dark ? "true" : "false");
         btn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+        var label = btn.querySelector("[data-wsf-theme-toggle-label]");
+        if (label) label.textContent = dark ? "Light mode" : "Dark mode";
       });
       if (persist === false) return;
       try {
-        localStorage.setItem(storageKey, theme);
+        localStorage.setItem(storageKey, next);
         var cfg = docEl.getAttribute("data-marketing-theme-config") || "";
         if (cfg) localStorage.setItem("marketing-theme-config", cfg);
       } catch (e) {}
     }
 
-    if (isPreview) {
-      var stored = null;
-      try {
-        stored = localStorage.getItem(storageKey);
-      } catch (e) {}
-      if (stored === "dark" || stored === "light") {
-        applyTheme(stored);
-      }
+    var stored = null;
+    try {
+      stored = localStorage.getItem(storageKey);
+    } catch (e) {}
+    if (stored === "dark" || stored === "light") {
+      applyTheme(stored, false);
     } else {
-      applyTheme("dark", false);
+      applyTheme(defaultTheme, false);
     }
 
     root.querySelectorAll("[data-wsf-theme-toggle]").forEach(function (btn) {
       if (btn.getAttribute("data-wsf-theme-bound") === "1") return;
       btn.setAttribute("data-wsf-theme-bound", "1");
       btn.addEventListener("click", function () {
-        if (isPreview) {
-          applyTheme(currentTheme() === "dark" ? "light" : "dark");
-        }
+        applyTheme(currentTheme() === "dark" ? "light" : "dark");
       });
     });
   })();
@@ -121,12 +125,16 @@
   });
 
   function markCardImageLoaded(img) {
-    var media = img.closest(".wsf-card__media") || img.closest(".wsf-home-hero__tile");
+    var media =
+      img.closest(".wsf-card__media") ||
+      img.closest(".wsf-home-hero__tile") ||
+      img.closest(".wsf-ecom-hero__tile") ||
+      img.closest(".wsf-ecom-cat");
     if (media) media.classList.add("is-img-loaded");
   }
 
-  root.querySelectorAll(".wsf-card__img, .wsf-home-hero__tile-media img").forEach(function (img) {
-    if (img.complete && img.naturalWidth > 0) {
+  root.querySelectorAll(".wsf-card__img, .wsf-home-hero__tile-media img, .wsf-ecom-hero__tile-media img, .wsf-ecom-cat__img").forEach(function (img) {
+    if (img.complete) {
       markCardImageLoaded(img);
     } else {
       img.addEventListener("load", function () {

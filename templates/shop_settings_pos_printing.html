@@ -4,6 +4,7 @@
 {% block head %}
   {{ super() }}
   {% include "partials/shop_settings_switch_styles.html" %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/receipt-settings-preview.css') }}?v=5" />
 {% endblock %}
 {% block shop_sidebar_links %}
   {% set shop_settings_nav_active = 'pos' %}
@@ -11,7 +12,7 @@
 {% endblock %}
 {% block shop_content %}
   {% set ps = printing_settings %}
-  <form method="post" action="{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}" class="space-y-8">
+  <form method="post" action="{{ url_for('shop_settings_pos_printing', shop_id=shop.id) }}" id="shop-settings-pos-printing-form" class="space-y-8">
     <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6">
       <div class="border-b border-[rgb(var(--rc-border))] pb-4">
         <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Point of sale</h2>
@@ -224,10 +225,15 @@
       </div>
     </div>
 
-    <div class="flex flex-wrap gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
-      <button type="submit" class="btn-rc btn-rc-primary px-6 py-2.5 text-sm">Save point of sale settings</button>
+    <div class="flex flex-wrap items-center gap-3 border-t border-[rgb(var(--rc-border))] pt-6">
+      <div id="js-shop-pos-printing-settings-save-status" class="shop-receipt-settings-save-pill" aria-live="polite">
+        <span class="shop-receipt-settings-save-pill__dot" aria-hidden="true"></span>
+        <span class="shop-receipt-settings-save-pill__text">Auto-save on</span>
+      </div>
+      <p class="text-xs text-[rgb(var(--rc-muted))]">Edits save automatically. Uncheck “Customize POS printing” above to use company defaults again.</p>
     </div>
   </form>
+  <div id="js-shop-pos-printing-settings-toast" class="pointer-events-none fixed bottom-6 right-6 z-50 hidden max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg transition-opacity duration-300" role="status" aria-live="polite"></div>
 {% endblock %}
 {% block scripts %}
   {{ super() }}
@@ -315,6 +321,169 @@
         el.addEventListener("change", syncAllowVsCompulsory);
       });
       syncAllowVsCompulsory();
+    })();
+
+    (function () {
+      var form = document.getElementById("shop-settings-pos-printing-form");
+      var statusEl = document.getElementById("js-shop-pos-printing-settings-save-status");
+      var toastEl = document.getElementById("js-shop-pos-printing-settings-toast");
+      if (!form) return;
+
+      var actionUrl = form.getAttribute("action") || window.location.pathname;
+      var inFlight = false;
+      var pending = false;
+      var debounceTimer = null;
+      var debounceMs = 450;
+      var idleTimer = null;
+      var toastTimer = null;
+
+      function customCheckbox() {
+        return form.querySelector('[name="shop_printing_custom"]');
+      }
+
+      function ensureCustomChecked() {
+        var custom = customCheckbox();
+        if (custom && !custom.checked) custom.checked = true;
+      }
+
+      function setStatus(mode, text) {
+        if (!statusEl) return;
+        var textEl = statusEl.querySelector(".shop-receipt-settings-save-pill__text");
+        var iconWrap = statusEl.querySelector(
+          ".shop-receipt-settings-save-pill__dot, .shop-receipt-settings-save-pill__spinner"
+        );
+        statusEl.classList.remove(
+          "shop-receipt-settings-save-pill--saving",
+          "shop-receipt-settings-save-pill--saved",
+          "shop-receipt-settings-save-pill--error"
+        );
+        if (mode === "saving") statusEl.classList.add("shop-receipt-settings-save-pill--saving");
+        else if (mode === "saved") statusEl.classList.add("shop-receipt-settings-save-pill--saved");
+        else if (mode === "error") statusEl.classList.add("shop-receipt-settings-save-pill--error");
+
+        if (iconWrap) iconWrap.remove();
+        var icon = document.createElement("span");
+        icon.setAttribute("aria-hidden", "true");
+        icon.className =
+          mode === "saving"
+            ? "shop-receipt-settings-save-pill__spinner"
+            : "shop-receipt-settings-save-pill__dot";
+        statusEl.insertBefore(icon, textEl || null);
+        if (textEl) textEl.textContent = text || "Auto-save on";
+      }
+
+      function showToast(msg, isError) {
+        if (!toastEl || !msg) return;
+        clearTimeout(toastTimer);
+        toastEl.textContent = msg;
+        toastEl.classList.remove("hidden", "opacity-0");
+        toastEl.className =
+          "pointer-events-none fixed bottom-6 right-6 z-50 max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg transition-opacity duration-300 " +
+          (isError
+            ? "border-red-500/30 bg-red-950/90 text-red-100"
+            : "border-emerald-500/30 bg-emerald-950/90 text-emerald-100");
+        toastTimer = setTimeout(function () {
+          toastEl.classList.add("opacity-0");
+          setTimeout(function () {
+            toastEl.classList.add("hidden");
+          }, 300);
+        }, 2600);
+      }
+
+      function markSaved() {
+        if (idleTimer) clearTimeout(idleTimer);
+        setStatus("saved", "Saved");
+        showToast("Point of sale settings auto-saved.", false);
+        idleTimer = setTimeout(function () {
+          setStatus("idle", "Auto-save on");
+        }, 2800);
+      }
+
+      function postSave() {
+        if (inFlight) {
+          pending = true;
+          return;
+        }
+        inFlight = true;
+        setStatus("saving", "Saving…");
+        fetch(actionUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          body: new FormData(form),
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        })
+          .then(function (res) {
+            return res
+              .json()
+              .then(function (j) {
+                return { okHttp: res.ok, j: j || {} };
+              })
+              .catch(function () {
+                return { okHttp: res.ok, j: {} };
+              });
+          })
+          .then(function (x) {
+            if (!x.okHttp || !x.j.ok) {
+              if (idleTimer) clearTimeout(idleTimer);
+              setStatus("error", "Save failed");
+              showToast((x.j.error && String(x.j.error)) || "Could not save.", true);
+              idleTimer = setTimeout(function () {
+                setStatus("idle", "Auto-save on");
+              }, 4000);
+              return;
+            }
+            markSaved();
+          })
+          .catch(function () {
+            if (idleTimer) clearTimeout(idleTimer);
+            setStatus("error", "Offline");
+            showToast("Could not reach server.", true);
+            idleTimer = setTimeout(function () {
+              setStatus("idle", "Auto-save on");
+            }, 4000);
+          })
+          .finally(function () {
+            inFlight = false;
+            if (pending) {
+              pending = false;
+              postSave();
+            }
+          });
+      }
+
+      function scheduleSave() {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          debounceTimer = null;
+          postSave();
+        }, debounceMs);
+      }
+
+      function onFieldChange(el) {
+        if (el && el.name && el.name !== "shop_printing_custom") ensureCustomChecked();
+        scheduleSave();
+      }
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+        postSave();
+      });
+
+      form.querySelectorAll("input, select, textarea").forEach(function (el) {
+        el.addEventListener("input", function () {
+          onFieldChange(el);
+        });
+        el.addEventListener("change", function () {
+          onFieldChange(el);
+        });
+      });
     })();
   </script>
 {% endblock %}

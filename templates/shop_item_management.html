@@ -160,7 +160,7 @@
                   {% set search_blob = ((item.name or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.description or ''))|lower %}
                   <tr class="sim-item-row align-top" data-sim-search="{{ search_blob }}">
                     <td class="px-4 py-3">
-                      {% set _item_img = static_upload_url(item.image_path) %}
+                      {% set _item_img = static_upload_url(item.image_path, item.name) %}
                       {% if _item_img %}
                         <img
                           src="{{ _item_img }}"

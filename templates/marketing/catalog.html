@@ -8,10 +8,6 @@
 
 {% block meta_description %}{{ _c.meta_description or ('Browse the full ' ~ _c.company_name ~ ' product catalogue and request a quote online.') }}{% endblock %}
 
-{% block extra_head %}
-  {% include "partials/storefront_catalog_jsonld.html" %}
-{% endblock %}
-
 {% block content %}
 
   {% with website_design=_d, storefront_include_chrome=true, storefront_catalog_mode=true %}
@@ -21,4 +17,3 @@
   {% endwith %}
 
 {% endblock %}
-

@@ -9,7 +9,7 @@
   <div class="wsf-cat-visual__scroll">
     {% if _cat_nav_show_all %}
     <a
-      href="{{ _catalog_url if _cat_nav_catalog else '#wsf-products' }}"
+      href="{{ _products_url if _cat_nav_catalog else '#wsf-products' }}"
       class="wsf-cat-tile{% if not _cat_nav_catalog %} is-active{% endif %}{% if _cat_nav_pills %} wsf-cat-tile--pill{% elif _cat_nav_cards %} wsf-cat-tile--card{% elif _cat_nav_compact %} wsf-cat-tile--compact{% endif %}"
       {% if not _cat_nav_catalog or _cat_nav_pills %}data-wsf-cat-nav="all"{% endif %}
     >
@@ -43,7 +43,7 @@
       {% set cat_img = cat.image_url if cat is mapping else '' %}
       {% set cat_alt = (cat.top_product_name if cat is mapping else cat_name) or cat_name %}
       <a
-        href="{{ (_catalog_url ~ '?cat=' ~ (cat_name|urlencode)) if _cat_nav_catalog else ('#wsf-cat-' ~ loop.index0|string) }}"
+        href="{{ (_products_url ~ '?cat=' ~ (cat_name|urlencode)) if _cat_nav_catalog else ('#wsf-cat-' ~ loop.index0|string) }}"
         class="wsf-cat-tile{% if _cat_nav_pills %} wsf-cat-tile--pill{% elif _cat_nav_cards %} wsf-cat-tile--card wsf-reveal-child{% elif _cat_nav_compact %} wsf-cat-tile--compact{% endif %}"
         {% if _cat_nav_cards %}style="--wsf-i: {{ loop.index0 + 1 }}"{% endif %}
         {% if not _cat_nav_catalog or _cat_nav_pills %}data-wsf-cat-nav="{{ cat_key }}" data-wsf-cat-label="{{ cat_name|urlencode }}"{% endif %}

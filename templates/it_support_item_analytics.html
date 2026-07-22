@@ -80,7 +80,7 @@
       <div class="overflow-hidden rounded-3xl border border-[rgb(var(--rc-border))] bg-gradient-to-br from-[rgb(var(--rc-surface))] to-[rgb(var(--rc-surface-2))] p-6 shadow-sm sm:p-8">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div class="flex gap-4">
-            {% set _img = static_upload_url(it.image_path) %}
+            {% set _img = static_upload_url(it.image_path, it.name) %}
             {% if _img %}
               <img src="{{ _img }}" alt="" class="h-24 w-24 shrink-0 rounded-2xl border border-[rgb(var(--rc-border))] object-cover shadow-md sm:h-28 sm:w-28" loading="lazy" />
             {% else %}
@@ -354,7 +354,7 @@
               data-ia-search="{{ blob }}"
               class="ia-card group flex gap-4 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm ring-1 ring-black/5 transition duration-200 hover:border-[rgb(var(--rc-primary))]/35 hover:shadow-md hover:ring-[rgb(var(--rc-primary))]/15"
             >
-              {% set _thumb = static_upload_url(it.image_path) %}
+              {% set _thumb = static_upload_url(it.image_path, it.name) %}
               {% if _thumb %}
                 <img src="{{ _thumb }}" alt="" class="h-16 w-16 shrink-0 rounded-xl object-cover ring-1 ring-[rgb(var(--rc-border))] transition duration-300 group-hover:scale-105" loading="lazy" />
               {% else %}

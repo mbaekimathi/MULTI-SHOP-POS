@@ -5,7 +5,7 @@
 {% set _trust_tt = _tt|default(_c.tiktok if _c is defined else '') %}
 {% set _trust_has_social = _trust_fb or _trust_ig or _trust_tw or _trust_tt %}
 {% set _trust_in_hero = trust_strip_in_hero|default(false) %}
-{% set _trust_catalog = _catalog_url|default('') %}
+{% set _trust_catalog = _products_url|default('') %}
 <section class="wsf-trust wsf-reveal{% if _trust_in_hero %} wsf-trust--in-hero{% endif %}" role="region" aria-label="Why shop with us">
   {% if not _trust_in_hero %}<div class="wsf-trust__ambient" aria-hidden="true"></div>{% endif %}
   <div class="{% if not _trust_in_hero %}wsf-shell {% endif %}wsf-trust__inner">

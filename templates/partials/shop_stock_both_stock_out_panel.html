@@ -2,7 +2,7 @@
 
 
 
-<section id="shop-store-stock-out" class="shop-mgmt-tabpanel sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+<section id="shop-store-stock-out" class="shop-mgmt-tabpanel sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
 
   <div class="sa-stock-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 pb-3">
 
@@ -38,11 +38,19 @@
 
     </div>
 
-    <form id="shop-store-bulk-form-out" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="shop-mgmt-bulk-layout mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+    <form id="shop-store-bulk-form-out" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view) }}" class="mt-3">
 
       <input type="hidden" name="action" value="bulk_store_out" />
 
       <input type="hidden" name="view" value="{{ view }}" />
+
+      <div class="sa-stock-mgmt-submit sa-stock-mgmt-submit--top">
+
+        <button type="submit" class="btn-rc btn-rc-danger px-4 py-2 text-sm">Apply stock out</button>
+
+      </div>
+
+      <div class="shop-mgmt-bulk-layout mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
 
       <div class="sa-stock-mgmt-scroll shop-mgmt-bulk-table-scroll overflow-x-auto">
 
@@ -138,11 +146,7 @@
 
       </aside>
 
-      <div class="sa-stock-mgmt-submit shop-mgmt-bulk-submit lg:col-span-2">
-
-        <button type="submit" class="btn-rc btn-rc-danger px-4 py-2 text-sm">Apply stock out</button>
-
-      </div>
+    </div>
 
     </form>
 

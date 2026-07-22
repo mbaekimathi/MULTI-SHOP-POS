@@ -1,10 +1,10 @@
 {% set _sf_font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
-{% set _mk_theme_default = 'dark' %}
+{% set _mk_theme_default = 'light' %}
 <!DOCTYPE html>
 <html
   lang="en"
-  data-marketing-theme-default="dark"
-  data-marketing-theme="dark"
+  data-marketing-theme-default="light"
+  data-marketing-theme="light"
   data-marketing-theme-config="{{ (website_settings.theme_config_key if website_settings else none)|default(site_settings.theme_config_key if site_settings else '', true) }}"
   data-theme-preset="{{ site_settings.theme_preset if site_settings else 'eye-comfort' }}"
   style="--mk-primary: {{ site_settings.primary_color if site_settings else '#f97316' }}; --mk-accent: {{ site_settings.accent_color if site_settings else '#fb923c' }}; --mk-primary-rgb: {{ site_settings.primary_color_rgb if site_settings else '249, 115, 22' }}; --mk-accent-rgb: {{ site_settings.accent_color_rgb if site_settings else '251, 146, 60' }}; --rc-font-family: {{ _sf_font }};"
@@ -13,9 +13,12 @@
     (function () {
       try {
         var docEl = document.documentElement;
-        docEl.setAttribute("data-marketing-theme", "dark");
-        docEl.setAttribute("data-marketing-theme-default", "dark");
-        docEl.style.colorScheme = "dark";
+        var stored = null;
+        try { stored = localStorage.getItem("marketing-theme"); } catch (e2) {}
+        var theme = stored === "dark" || stored === "light" ? stored : "light";
+        docEl.setAttribute("data-marketing-theme", theme);
+        docEl.setAttribute("data-marketing-theme-default", "light");
+        docEl.style.colorScheme = theme === "dark" ? "dark" : "light";
       } catch (e) {}
     })();
   </script>
@@ -44,12 +47,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-fresh.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-luxury.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-modern.css') }}?v=3" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-home.css') }}?v=4" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/website-storefront-home.css') }}?v=6" />
     {% block extra_head %}{% endblock %}
   </head>
-  <body class="overflow-x-hidden text-zinc-900 dark:text-zinc-100">
+  <body class="overflow-x-hidden text-zinc-900">
     <main class="wsf-page-main">{% block content %}{% endblock %}</main>
-    <script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/website-storefront-ui.js') }}?v=4" defer></script>
     <script src="{{ url_for('static', filename='js/website-storefront-location.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/website-storefront-cart.js') }}" defer></script>
     {% block extra_scripts %}{% endblock %}

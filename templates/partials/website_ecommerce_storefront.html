@@ -12,8 +12,8 @@
 {% set _product_mode = storefront_product_mode|default(false) %}
 {% set _primary = site_settings.primary_color if site_settings else '#2563eb' %}
 {% set _accent = site_settings.accent_color if site_settings else '#3b82f6' %}
-{% set _font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Inter')|font_stack) %}
-{% set _catalog_url = url_for('marketing_catalog_live') if is_live_public_website|default(false) else url_for('marketing_catalog') %}
+{% set _font = font_family_stack if font_family_stack else ((site_settings.font_family if site_settings else 'Plus Jakarta Sans')|font_stack) %}
+{% set _products_url = url_for('marketing_catalog_live') if is_live_public_website|default(false) else url_for('marketing_catalog') %}
 {% set _home_url = url_for('index') if is_live_public_website|default(false) else url_for('marketing_home') %}
 {% set _shop_login_url = url_for('public_shop_login') %}
 {% set _phone = _c.phone %}
@@ -39,7 +39,7 @@
   data-shop-lat="{{ _lat }}"
   data-shop-lng="{{ _lng }}"
   data-shop-location="{{ _loc }}"
-  data-wsf-catalog-url="{{ _catalog_url }}"
+  data-wsf-catalog-url="{{ _products_url }}"
   {% if _catalog_mode %}data-wsf-products-url="{{ url_for('storefront_products_json') }}"{% endif %}
   {% if _design_mode %}data-wsf-design-preview="1"{% endif %}
 >
@@ -54,7 +54,7 @@
   {% set _include_chrome = storefront_include_chrome|default(true) %}
   {% if _include_chrome %}
 
-  {% if _c.promo_banner_text and not _catalog_mode %}
+  {% if _c.promo_banner_text and not _catalog_mode and not _product_mode %}
   <div class="wsf-announce" role="status">{{ _c.promo_banner_text }}</div>
   {% endif %}
 
@@ -72,7 +72,7 @@
           </span>
           <span class="wsf-header-brand__copy">
             <span class="wsf-header-brand__name">{{ _company }}</span>
-            {% if _c.header_tagline and not _catalog_mode %}
+            {% if _c.header_tagline and not _catalog_mode and not _product_mode %}
             <span class="wsf-header-brand__tag">{{ _c.header_tagline }}</span>
             {% endif %}
           </span>
@@ -81,7 +81,7 @@
         <nav class="wsf-header-nav" aria-label="Primary">
           <div class="wsf-header-nav__track">
             <a href="{{ _home_url }}" class="wsf-header-nav__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
-            <a href="{{ _catalog_url }}" class="wsf-header-nav__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
+            <a href="{{ _products_url }}" class="wsf-header-nav__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
             {% if _shops %}
             <a href="{{ _home_url }}#wsf-shops" class="wsf-header-nav__link">Locations</a>
             {% endif %}
@@ -101,6 +101,21 @@
           </div>
           {% endif %}
           <div class="wsf-header-actions__tools">
+            <button
+              type="button"
+              class="wsf-theme-toggle"
+              data-wsf-theme-toggle
+              aria-pressed="false"
+              aria-label="Switch to dark mode"
+              title="Toggle light / dark mode"
+            >
+              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+              </svg>
+              <svg class="wsf-theme-toggle__icon wsf-theme-toggle__icon--sun" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+              </svg>
+            </button>
             <button type="button" class="wsf-header-tool wsf-header-tool--cart" data-wsf-open-cart aria-label="Open quote cart">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
               <span class="wsf-header-cart__count hidden" data-wsf-cart-count>0</span>
@@ -129,7 +144,7 @@
       <p class="wsf-menu-drawer__section-label">Browse</p>
       <div class="wsf-menu-drawer__links">
         <a href="{{ _home_url }}" class="wsf-menu-drawer__link{% if not _catalog_mode and not _product_mode %} is-active{% endif %}">Home</a>
-        <a href="{{ _catalog_url }}" class="wsf-menu-drawer__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
+        <a href="{{ _products_url }}" class="wsf-menu-drawer__link{% if _catalog_mode or _product_mode %} is-active{% endif %}">Products</a>
         {% if _shops %}
         <a href="{{ _home_url }}#wsf-shops" class="wsf-menu-drawer__link" data-wsf-close-menu-on-click>Locations</a>
         {% endif %}
@@ -139,6 +154,9 @@
       </div>
       <p class="wsf-menu-drawer__section-label">Actions</p>
       <div class="wsf-menu-drawer__links">
+        <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-theme-toggle aria-pressed="false" aria-label="Switch to dark mode">
+          <span data-wsf-theme-toggle-label>Dark mode</span>
+        </button>
         <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn wsf-menu-drawer__link--accent" data-wsf-open-cart data-wsf-close-menu-on-click>Request quote</button>
         {% if _phone or _email %}
         <button type="button" class="wsf-menu-drawer__link wsf-menu-drawer__link--btn" data-wsf-open-contact data-wsf-close-menu-on-click>Contact us</button>
@@ -162,10 +180,10 @@
       <nav class="wsf-breadcrumb" aria-label="Breadcrumb">
         <a href="{{ _home_url }}">Home</a>
         <span aria-hidden="true">/</span>
-        <a href="{{ _catalog_url }}">Products</a>
+        <a href="{{ _products_url }}">Products</a>
         {% if _p.category %}
         <span aria-hidden="true">/</span>
-        <a href="{{ _catalog_url }}?cat={{ _p.category|urlencode }}">{{ _p.category }}</a>
+        <a href="{{ _home_url }}#wsf-products">{{ _p.category }}</a>
         {% endif %}
       </nav>
 
@@ -228,14 +246,87 @@
               class="wsf-btn wsf-btn--primary"
               data-wsf-add-id="{{ _p.id }}"
             >Add to quote</button>
-            <a href="{{ _catalog_url }}" class="wsf-btn wsf-btn--ghost">← Back to catalogue</a>
+            <a href="{{ _products_url }}" class="wsf-btn wsf-btn--ghost">← Back to products</a>
           </div>
         </div>
       </article>
     </div>
   </section>
 
-  {% elif not _catalog_mode %}
+  {% elif _catalog_mode %}
+  <section class="wsf-pagehead wsf-pagehead--full wsf-pagehead--immersive wsf-pagehead--slideshow wsf-reveal" aria-label="Catalogue">
+    {% include "partials/website_storefront_bg_slideshow.html" %}
+    <div class="wsf-pagehead__scrim" aria-hidden="true"></div>
+    <div class="wsf-shell wsf-pagehead__inner">
+      <div class="wsf-pagehead__hero">
+        <div class="wsf-pagehead__float">
+          <p class="wsf-kicker wsf-pagehead__kicker">Catalogue</p>
+          <h1 class="wsf-pagehead__title">All products</h1>
+          <p class="wsf-pagehead__lead">Search, filter by category, and request a quote online.</p>
+          <div class="wsf-pagehead__meta">
+            {% if _products %}
+            <span class="wsf-pill wsf-pagehead__pill">
+              <span id="wsf-catalog-total-count">{{ _products|length }}</span>
+              {{ 'product' if _products|length == 1 else 'products' }}
+            </span>
+            {% endif %}
+            {% if _shops %}
+            <span class="wsf-pill wsf-pagehead__pill wsf-pagehead__pill--muted">
+              {{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}
+            </span>
+            {% endif %}
+            <a href="{{ _home_url }}" class="wsf-btn wsf-btn--ghost wsf-pagehead__cta">← Back home</a>
+          </div>
+        </div>
+        {% include "partials/website_storefront_slide_ui.html" %}
+      </div>
+    </div>
+  </section>
+
+  {% include "partials/website_storefront_trust_strip.html" %}
+
+  <section id="wsf-products" class="wsf-section wsf-catalog wsf-reveal">
+    <div class="wsf-shell">
+      <div class="wsf-catalog__toolbar">
+        <div class="wsf-catalog__bar">
+          <div class="wsf-catalog__bar-meta">
+            <span class="wsf-pill wsf-catalog__count">
+              <span id="wsf-visible-count">{{ _products|length }}</span> shown
+            </span>
+            {% if _cats %}
+            <span class="wsf-pill wsf-catalog__count wsf-catalog__count--muted">{{ _cats|length }} {{ 'category' if _cats|length == 1 else 'categories' }}</span>
+            {% endif %}
+          </div>
+          <div class="wsf-toolbar wsf-toolbar--grow">
+            {% include "partials/website_storefront_search.html" %}
+          </div>
+        </div>
+
+        {% if _cats %}
+        <div class="wsf-catalog__filters">
+          {% with cats=_cats, category_nav_pills=true, category_nav_catalog_links=true %}
+            {% include "partials/website_category_nav.html" %}
+          {% endwith %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% if _products %}
+      <div id="wsf-categories" class="wsf-catalog__groups">
+        {% with cats=_cats, products=_products, catalog_url=_products_url %}
+          {% include "partials/website_category_product_rows.html" %}
+        {% endwith %}
+      </div>
+      {% else %}
+      <div class="wsf-empty">
+        <p class="wsf-empty__title">No products yet</p>
+        <p class="wsf-empty__text">Products from your POS will appear here.</p>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% else %}
   {% with hero_products=_sorted_products %}
     {% include "partials/website_hero_pro.html" %}
   {% endwith %}
@@ -300,7 +391,7 @@
                 {% if shop.shop_location_description %}
                 <p class="wsf-shop-card__desc">{{ shop.shop_location_description }}</p>
                 {% endif %}
-                <a href="{{ _catalog_url }}" class="wsf-shop-card__cta">
+                <a href="{{ _products_url }}" class="wsf-shop-card__cta">
                   <span class="wsf-shop-card__cta-label">View our products</span>
                   <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -315,80 +406,6 @@
     </div>
   </section>
   {% endif %}
-
-  {# ── CATALOG PAGE ── #}
-  {% else %}
-  <section class="wsf-pagehead wsf-pagehead--full wsf-pagehead--immersive wsf-pagehead--slideshow wsf-reveal" aria-label="Catalogue">
-    {% include "partials/website_storefront_bg_slideshow.html" %}
-    <div class="wsf-pagehead__scrim" aria-hidden="true"></div>
-    <div class="wsf-shell wsf-pagehead__inner">
-      <div class="wsf-pagehead__hero">
-        <div class="wsf-pagehead__float">
-          <p class="wsf-kicker wsf-pagehead__kicker">Catalogue</p>
-          <h1 class="wsf-pagehead__title">All products</h1>
-          <p class="wsf-pagehead__lead">Search, filter by category, and request a quote online.</p>
-          <div class="wsf-pagehead__meta">
-            {% if _products %}
-            <span class="wsf-pill wsf-pagehead__pill">
-              <span id="wsf-catalog-total-count">{{ _products|length }}</span>
-              {{ 'product' if _products|length == 1 else 'products' }}
-            </span>
-            {% endif %}
-            {% if _shops %}
-            <span class="wsf-pill wsf-pagehead__pill wsf-pagehead__pill--muted">
-              {{ _shops|length }} {{ 'branch' if _shops|length == 1 else 'branches' }}
-            </span>
-            {% endif %}
-            <a href="{{ _home_url }}" class="wsf-btn wsf-btn--ghost wsf-pagehead__cta">← Back home</a>
-          </div>
-        </div>
-        {% include "partials/website_storefront_slide_ui.html" %}
-      </div>
-    </div>
-  </section>
-
-  {% include "partials/website_storefront_trust_strip.html" %}
-
-  <section id="wsf-products" class="wsf-section wsf-catalog wsf-reveal">
-    <div class="wsf-shell">
-      <div class="wsf-catalog__toolbar">
-        <div class="wsf-catalog__bar">
-          <div class="wsf-catalog__bar-meta">
-            <span class="wsf-pill wsf-catalog__count">
-              <span id="wsf-visible-count">{{ _products|length }}</span> shown
-            </span>
-            {% if _cats %}
-            <span class="wsf-pill wsf-catalog__count wsf-catalog__count--muted">{{ _cats|length }} {{ 'category' if _cats|length == 1 else 'categories' }}</span>
-            {% endif %}
-          </div>
-          <div class="wsf-toolbar wsf-toolbar--grow">
-            {% include "partials/website_storefront_search.html" %}
-          </div>
-        </div>
-
-        {% if _cats %}
-        <div class="wsf-catalog__filters">
-          {% with cats=_cats, category_nav_pills=true, category_nav_catalog_links=true %}
-            {% include "partials/website_category_nav.html" %}
-          {% endwith %}
-        </div>
-        {% endif %}
-      </div>
-
-      {% if _products %}
-      <div id="wsf-categories" class="wsf-catalog__groups">
-        {% with cats=_cats, products=_products, catalog_url=_catalog_url %}
-          {% include "partials/website_category_product_rows.html" %}
-        {% endwith %}
-      </div>
-      {% else %}
-      <div class="wsf-empty">
-        <p class="wsf-empty__title">No products yet</p>
-        <p class="wsf-empty__text">Products from your POS will appear here.</p>
-      </div>
-      {% endif %}
-    </div>
-  </section>
   {% endif %}
 
   {# ── POLICIES ── #}
@@ -462,7 +479,7 @@
         <h3 class="wsf-footer__heading">Shop</h3>
         <ul class="wsf-footer__links">
           <li><a href="{{ _home_url }}">Home</a></li>
-          <li><a href="{{ _catalog_url }}">All products</a></li>
+          <li><a href="{{ _products_url }}">Products</a></li>
           {% if _shops %}<li><a href="{{ _home_url }}#wsf-shops">Our locations</a></li>{% endif %}
           <li><button type="button" data-wsf-open-cart>Request quote</button></li>
         </ul>
@@ -501,7 +518,7 @@
       <nav class="wsf-footer__bar-nav" aria-label="Footer quick links">
         <a href="{{ _home_url }}">Home</a>
         <span aria-hidden="true">·</span>
-        <a href="{{ _catalog_url }}">Products</a>
+        <a href="{{ _products_url }}">Products</a>
         <span aria-hidden="true">·</span>
         <button type="button" data-wsf-open-cart>Quote</button>
         {% if _phone or _email %}
@@ -519,12 +536,7 @@
   </button>
   {% endif %}
 
-  {% if _catalog_mode %}
-  <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-fab--cart" data-wsf-open-cart aria-label="Open cart">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-    <span class="wsf-fab__count hidden" data-wsf-cart-count>0</span>
-  </button>
-  {% elif _product_mode %}
+  {% if _catalog_mode or _product_mode %}
   <button type="button" id="wsf-fab-cart" class="wsf-fab wsf-fab--cart" data-wsf-open-cart aria-label="Open cart">
     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
     <span class="wsf-fab__count hidden" data-wsf-cart-count>0</span>

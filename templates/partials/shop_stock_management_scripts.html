@@ -743,6 +743,7 @@
     var applyName = document.getElementById("js-apply-all-name");
     var applyPayment = document.getElementById("js-apply-all-payment");
     var applyNote = document.getElementById("js-apply-all-note");
+    var showSupplierToggle = document.getElementById("js-manual-in-show-supplier");
     var showNotesToggle = document.getElementById("js-manual-in-show-notes");
     var bulkSupplierWrap = document.getElementById("js-manual-in-bulk-supplier-wrap");
     var bulkNoteWrap = document.getElementById("js-manual-in-bulk-note-wrap");
@@ -751,12 +752,17 @@
     var applyHint = document.getElementById("js-apply-all-hint");
     var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
 
+    function supplierRequiredBySettingsIn() {
+      return window.shopStockWsRequired("require_manual_in_supplier");
+    }
+
     function notesRequiredBySettingsIn() {
       return window.shopStockWsRequired("require_manual_in_notes");
     }
 
     function supplierEnabled() {
-      return true;
+      if (supplierRequiredBySettingsIn()) return true;
+      return !!(showSupplierToggle && showSupplierToggle.checked);
     }
 
     function notesEnabledIn() {
@@ -805,7 +811,22 @@
       syncManualInCatColspan();
     }
 
-    syncSupplierVisible(true);
+    syncSupplierVisible(supplierEnabled());
+
+    if (showSupplierToggle) {
+      showSupplierToggle.addEventListener("change", function () {
+        if (supplierRequiredBySettingsIn()) return;
+        syncSupplierVisible(showSupplierToggle.checked);
+      });
+      if (supplierRequiredBySettingsIn()) {
+        showSupplierToggle.checked = true;
+        syncSupplierVisible(true);
+      } else {
+        syncSupplierVisible(false);
+      }
+    } else if (supplierRequiredBySettingsIn()) {
+      syncSupplierVisible(true);
+    }
 
     if (showNotesToggle) {
       showNotesToggle.addEventListener("change", function () {
@@ -890,17 +911,25 @@
 
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
+        var supOn = supplierEnabled();
         var notesOn = notesEnabledIn();
-        var pv = normalizePhoneValue(applyPhone && applyPhone.value);
-        var nv = String((applyName && applyName.value) || "").trim().toUpperCase();
         var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
         var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
+        var pv = supOn ? normalizePhoneValue(applyPhone && applyPhone.value) : "";
+        var nv = supOn ? String((applyName && applyName.value) || "").trim().toUpperCase() : "";
         var noteVal = notesOn ? String((applyNote && applyNote.value) || "").trim().toUpperCase() : "";
-        if (!pv || !nv || !payOk) {
+        if (!payOk) {
+          if (feedback) feedback.textContent = "Choose payment before copying to rows.";
+          return;
+        }
+        if (supOn && (!pv || !nv)) {
           if (feedback) {
-            feedback.textContent =
-              "Fill supplier phone, seller name, and payment above before copying to rows.";
+            feedback.textContent = "Fill supplier phone and seller name before copying to rows.";
           }
+          return;
+        }
+        if (notesOn && notesRequiredBySettingsIn() && !noteVal) {
+          if (feedback) feedback.textContent = "Fill bulk note before copying to rows.";
           return;
         }
         var copied = 0;
@@ -917,10 +946,10 @@
           var payEl = row.querySelector('select[name="payment_status_' + id + '"]');
           var noteEl = row.querySelector('input[name="note_' + id + '"]');
           var hintEl = row.querySelector('[data-seller-hint="' + id + '"]');
-          if (pEl) pEl.value = pv;
-          if (nEl) nEl.value = nv;
+          if (supOn && pEl) pEl.value = pv;
+          if (supOn && nEl) nEl.value = nv;
           if (payEl && payOk) payEl.value = payRaw;
-          if (notesOn && noteEl && noteVal) noteEl.value = noteVal;
+          if (notesOn && noteEl) noteEl.value = noteVal;
           if (hintEl) hintEl.textContent = "";
         });
 
@@ -928,7 +957,10 @@
         if (!copied) {
           feedback.textContent = "No rows updated - enter quantity on target lines, then copy again.";
         } else {
-          feedback.textContent = "Copied supplier phone, seller, and payment to " + copied + " row(s) with quantity.";
+          var parts = ["payment"];
+          if (supOn) parts.unshift("supplier");
+          if (notesOn) parts.push("note");
+          feedback.textContent = "Copied " + parts.join(", ") + " to " + copied + " row(s) with quantity.";
         }
       });
     }
@@ -971,20 +1003,25 @@
         var noteRaw = notesEnabledIn() ? String((row.querySelector('input[name="note_' + id + '"]') || {}).value || "").trim() : "";
         var bulkPhone = String((applyPhone && applyPhone.value) || "").trim();
         var bulkName = String((applyName && applyName.value) || "").trim();
-        var touched = !!(nameRaw || phoneRaw || bulkPhone || bulkName) || !!(notesEnabledIn() && noteRaw);
+        var supOn = supplierEnabled();
+        var touched = (supOn && !!(nameRaw || phoneRaw || bulkPhone || bulkName)) || !!(notesEnabledIn() && noteRaw);
 
         if (typeof qtyState === "number") {
           if (!priceRaw) { issues.push("Item #" + id + ": buying price required with quantity."); firstBad = firstBad || row; }
           else if (!payOk) { issues.push("Item #" + id + ": choose payment (Not paid / Partial / Paid)."); firstBad = firstBad || row; }
-          else if (!phoneRaw && !bulkPhone) { issues.push("Item #" + id + ": supplier phone required with quantity (or use bulk phone)."); firstBad = firstBad || row; }
-          else if (!nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
+          else if (supplierRequiredBySettingsIn() && !phoneRaw && !bulkPhone) { issues.push("Item #" + id + ": supplier phone required with quantity (or use bulk phone)."); firstBad = firstBad || row; }
+          else if (supplierRequiredBySettingsIn() && !nameRaw && !bulkName) { issues.push("Item #" + id + ": seller name required with quantity (or use bulk seller)."); firstBad = firstBad || row; }
           else if (notesRequiredBySettingsIn() && !noteRaw && !(applyNote && String(applyNote.value || "").trim())) {
             issues.push("Item #" + id + ": note required with quantity (or use bulk note).");
             firstBad = firstBad || row;
           }
           else {
             var itemName = row.querySelector("td") ? row.querySelector("td").textContent.trim() : "";
-            var confirmRow = ["In", itemName, qtyRaw, priceRaw, nameRaw || bulkName, phoneRaw || bulkPhone || "—", paymentLabel(payRaw)];
+            var confirmRow = ["In", itemName, qtyRaw, priceRaw];
+            if (supplierRequiredBySettingsIn() || supOn) {
+              confirmRow.push(nameRaw || bulkName, phoneRaw || bulkPhone || "—");
+            }
+            confirmRow.push(paymentLabel(payRaw));
             if (notesEnabledIn()) confirmRow.push(noteRaw || "—");
             rows.push(confirmRow);
           }
@@ -1018,11 +1055,13 @@
         { label: "Type", key: "type" },
         { label: "Item", key: "item" },
         { label: "Qty", key: "qty", align: "right" },
-        { label: "Buy", align: "right" },
-        { label: "Seller" },
-        { label: "Phone" },
-        { label: "Payment" }
+        { label: "Buy", align: "right" }
       ];
+      if (supplierRequiredBySettingsIn() || supplierEnabled()) {
+        confirmColumns.push({ label: "Seller" });
+        confirmColumns.push({ label: "Phone" });
+      }
+      confirmColumns.push({ label: "Payment" });
       if (notesEnabledIn()) confirmColumns.push({ label: "Note" });
       shopStockShowSubmitConfirm(form, {
         title: "Confirm manual stock in",
@@ -1205,11 +1244,14 @@
           if (feedback) feedback.textContent = "Choose Reason first (Return, Waste, or Display).";
           return;
         }
-        if (refunded === "yes" && showRefundToggle && !showRefundToggle.checked) {
+        if (refunded === "yes" && refundsEnabled() && showRefundToggle && !showRefundToggle.checked) {
           showRefundToggle.checked = true;
           syncRefundVisible(true);
         }
-
+        if (notesOn && notesRequiredBySettingsOut() && !noteVal) {
+          if (feedback) feedback.textContent = "Fill bulk note before copying to rows.";
+          return;
+        }
         var copied = 0;
         form.querySelectorAll(".js-manual-stock-out-row").forEach(function (row) {
           var id = row.getAttribute("data-item-id");
@@ -1223,7 +1265,7 @@
           var noteEl = row.querySelector('input[name="out_note_' + id + '"]');
           if (reasonEl) reasonEl.value = reason;
           if (refundedEl && refundsEnabled()) refundedEl.value = refunded === "yes" ? "yes" : "no";
-          if (noteEl && noteVal) noteEl.value = noteVal;
+          if (notesOn && noteEl) noteEl.value = noteVal;
           syncRefundRow(id);
         });
 

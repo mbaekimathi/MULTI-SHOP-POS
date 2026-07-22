@@ -1,0 +1,70 @@
+{# Ecommerce category grid — each tile links to the products page filtered by category #}
+{% set _cat_list = _cats|default([]) %}
+{% if _cat_list %}
+<section id="wsf-categories" class="wsf-ecom-cats wsf-reveal" aria-labelledby="wsf-ecom-cats-title">
+  <div class="wsf-shell">
+    <div class="wsf-ecom-cats__head">
+      <div>
+        <p class="wsf-home-kicker">Shop by category</p>
+        <h2 id="wsf-ecom-cats-title" class="wsf-home-section__title">Explore our collections</h2>
+        <p class="wsf-home-section__sub">Tap a category to browse matching products and request a quote.</p>
+      </div>
+      <a href="{{ _products_url }}" class="wsf-ecom-cats__all">
+        View all products
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+      </a>
+    </div>
+
+    <div class="wsf-ecom-cats__grid" role="list">
+      <a href="{{ _products_url }}" class="wsf-ecom-cat wsf-ecom-cat--all wsf-reveal-child" style="--wsf-i: 0" role="listitem">
+        <span class="wsf-ecom-cat__media" aria-hidden="true">
+          <span class="wsf-ecom-cat__icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="28" height="28"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+          </span>
+        </span>
+        <span class="wsf-ecom-cat__body">
+          <span class="wsf-ecom-cat__name">All products</span>
+          <span class="wsf-ecom-cat__meta">Browse everything</span>
+        </span>
+        <span class="wsf-ecom-cat__arrow" aria-hidden="true">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </span>
+      </a>
+
+      {% for cat in _cat_list %}
+        {% set cat_name = cat.name if cat is mapping else cat %}
+        {% set cat_img = cat.image_url if cat is mapping else '' %}
+        {% set cat_count = cat.count if cat is mapping else none %}
+        {% set cat_label = cat_name|title if cat_name.isupper() and cat_name|length > 3 else cat_name %}
+        <a
+          href="{{ _products_url }}?cat={{ cat_name|urlencode }}"
+          class="wsf-ecom-cat wsf-reveal-child"
+          style="--wsf-i: {{ loop.index }}"
+          role="listitem"
+          title="Shop {{ cat_label }}"
+        >
+          <span class="wsf-ecom-cat__media">
+            {% if cat_img %}
+              <img src="{{ cat_img }}" alt="" class="wsf-ecom-cat__img" loading="lazy" decoding="async" />
+            {% else %}
+              <span class="wsf-ecom-cat__ph" aria-hidden="true">{{ cat_label[:1]|upper }}</span>
+            {% endif %}
+            <span class="wsf-ecom-cat__veil" aria-hidden="true"></span>
+          </span>
+          <span class="wsf-ecom-cat__body">
+            <span class="wsf-ecom-cat__name">{{ cat_label }}</span>
+            {% if cat_count %}
+              <span class="wsf-ecom-cat__meta">{{ cat_count }} {{ 'item' if cat_count == 1 else 'items' }}</span>
+            {% else %}
+              <span class="wsf-ecom-cat__meta">Shop now</span>
+            {% endif %}
+          </span>
+          <span class="wsf-ecom-cat__arrow" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}

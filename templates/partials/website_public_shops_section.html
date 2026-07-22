@@ -11,7 +11,7 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <span class="wsf-count-badge"><span>{{ _shops|length }}</span> {{ 'shop' if _shops|length == 1 else 'shops' }}</span>
-          <a href="{{ _catalog_url }}" class="wsf-view-all-link">Browse all products</a>
+          <a href="{{ _products_url }}" class="wsf-view-all-link">Browse all products</a>
         </div>
       </div>
     </div>
@@ -62,7 +62,7 @@
                   {% if shop.shop_location_description %}
                     <p class="wsf-shop-card__desc">{{ shop.shop_location_description }}</p>
                   {% endif %}
-                  <a href="{{ _catalog_url }}" class="wsf-shop-card__cta">
+                  <a href="{{ _products_url }}" class="wsf-shop-card__cta">
                     <span class="wsf-shop-card__cta-label">View our products</span>
                     <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />

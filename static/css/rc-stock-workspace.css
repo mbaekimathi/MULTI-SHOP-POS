@@ -499,6 +499,31 @@
   }
 
   /* Bulk apply — sticky beside scrollable item table */
+  .shop-stock-mgmt-page .sa-stock-panel,
+  .shop-stock-mgmt-page form.sa-stock-panel,
+  .shop-stock-mgmt-page .shop-mgmt-tabpanel.sa-stock-panel {
+    overflow: visible;
+  }
+  .shop-stock-mgmt-page .sa-stock-mgmt-submit--top {
+    position: sticky;
+    top: calc(3.5rem + env(safe-area-inset-top, 0px));
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    padding: 0.65rem 0;
+    border-top: none;
+    border-bottom: 1px solid rgba(var(--rc-border), 0.82);
+    background: rgba(var(--rc-surface), 0.97);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 18px -16px rgba(15, 23, 42, 0.45);
+  }
+  .shop-stock-mgmt-page .sa-stock-mgmt-submit--top .btn-rc {
+    flex-shrink: 0;
+  }
   .shop-mgmt-tabpanel:has(.shop-mgmt-bulk-layout),
   #stk-workspace:has(.shop-mgmt-bulk-layout) {
     overflow: visible;
@@ -561,7 +586,7 @@
 
   .shop-mgmt-bulk-aside {
     position: sticky;
-    top: 1rem;
+    top: calc(5.5rem + env(safe-area-inset-top, 0px));
     z-index: 8;
     align-self: start;
     max-height: calc(100vh - 2rem);
@@ -2025,6 +2050,15 @@
     margin-top: 0.85rem;
     padding-top: 1rem;
     border-top: 1px solid rgba(var(--rc-border), 0.8);
+  }
+  .shop-stock-mgmt-page .sa-stock-mgmt-submit--top {
+    justify-content: flex-start;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+    border-top: none;
+    border-bottom: 1px solid rgba(var(--rc-border), 0.82);
   }
   .sa-stock-mgmt-actions-cell .flex {
     display: flex;

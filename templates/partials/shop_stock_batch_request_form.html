@@ -2,7 +2,7 @@
 {% set batch_view = batch_request_view|default(view|default('auto')) %}
 
 {% if item_count %}
-<form id="js-batch-request-stock-form" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=batch_view) }}" data-source-stock-url="{{ url_for('shop_stock_management_source_stock_json', shop_id=shop.id) }}" class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+<form id="js-batch-request-stock-form" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=batch_view) }}" data-source-stock-url="{{ url_for('shop_stock_management_source_stock_json', shop_id=shop.id) }}" class="sa-stock-panel rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
 
   <input type="hidden" name="action" value="batch_request_stock" />
 
@@ -19,6 +19,14 @@
     </div>
 
     <span class="sa-stock-panel-meta text-[10px] font-bold uppercase tracking-[0.14em] text-[rgb(var(--rc-muted))]">{{ item_count }} items</span>
+
+  </div>
+
+  <div class="sa-stock-mgmt-submit sa-stock-mgmt-submit--top mt-3 flex flex-wrap items-center gap-3">
+
+    <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm">Submit <span id="js-request-stock-submit-count">0</span> request(s)</button>
+
+    <button type="button" id="js-request-stock-clear-qty" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Clear quantities</button>
 
   </div>
 
@@ -118,14 +126,6 @@
   <p class="sa-stock-mgmt-table-scroll-hint shop-mgmt-scroll-hint" aria-hidden="true">Swipe sideways to see all columns</p>
 
   <p id="js-source-stock-hint" class="sr-only">Request up to available source stock per item.</p>
-
-  <div class="sa-stock-mgmt-submit mt-4 flex flex-wrap items-center gap-3">
-
-    <button type="submit" class="btn-rc btn-rc-primary px-4 py-2 text-sm">Submit <span id="js-request-stock-submit-count">0</span> request(s)</button>
-
-    <button type="button" id="js-request-stock-clear-qty" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Clear quantities</button>
-
-  </div>
 
 </form>
 {% endif %}

@@ -1241,10 +1241,101 @@ def _normalize_static_relative_path(path) -> str:
     return s
 
 
+ITEM_UPLOAD_FOLDER_REL = "uploads/items"
+
+
+_ITEM_IMAGE_EXTS = (".jpeg", ".jpg", ".png", ".webp", ".gif")
+_item_upload_index_cache: dict = {"mtime": None, "map": {}}
+
+
+def _static_rel_exists(rel: str) -> bool:
+    """True when ``rel`` resolves to a file under the app static folder."""
+    rel = (rel or "").strip().replace("\\", "/")
+    if not rel or rel.lower().startswith(("http://", "https://")):
+        return False
+    while rel.startswith("/"):
+        rel = rel[1:]
+    full = os.path.join(app.root_path, "static", *rel.split("/"))
+    try:
+        return os.path.isfile(full)
+    except OSError:
+        return False
+
+
+def _item_upload_filename_map() -> dict[str, str]:
+    """Map lowercased filename → real filename in static/uploads/items."""
+    folder = os.path.join(app.root_path, "static", ITEM_UPLOAD_FOLDER_REL)
+    try:
+        mtime = os.path.getmtime(folder)
+    except OSError:
+        return {}
+    if _item_upload_index_cache.get("mtime") != mtime:
+        try:
+            files = os.listdir(folder)
+        except OSError:
+            files = []
+        _item_upload_index_cache["map"] = {f.lower(): f for f in files if f and not f.startswith(".")}
+        _item_upload_index_cache["mtime"] = mtime
+    return _item_upload_index_cache.get("map") or {}
+
+
+def _find_item_image_by_name(item_name: str) -> str:
+    """Fallback when DB image_path is missing/stale: match uploads/items/<name>.<ext>."""
+    name = (item_name or "").strip()
+    if not name:
+        return ""
+    lowmap = _item_upload_filename_map()
+    if not lowmap:
+        return ""
+    candidates: list[str] = []
+    variants = [name]
+    cleaned = re.sub(r'[<>:"/\\|?*]+', " ", name).strip()
+    if cleaned and cleaned not in variants:
+        variants.append(cleaned)
+    try:
+        safe = secure_filename(name)
+    except Exception:
+        safe = ""
+    if safe and safe not in variants:
+        variants.append(safe)
+    for base in variants:
+        for ext in _ITEM_IMAGE_EXTS:
+            candidates.append(f"{base}{ext}")
+            candidates.append(f"{base}{ext.upper()}")
+    for cand in candidates:
+        hit = lowmap.get(cand.lower())
+        if hit:
+            return f"{ITEM_UPLOAD_FOLDER_REL}/{hit}"
+    return ""
+
+
+def _resolve_item_image_rel_path(image_path, item_name: str = "") -> str:
+    """Return a static-relative image path that exists on disk, or an absolute URL."""
+    rel = _normalize_static_relative_path(image_path)
+    if rel.lower().startswith(("http://", "https://")):
+        return rel
+    if rel and _static_rel_exists(rel):
+        return rel
+    if rel:
+        base = os.path.basename(rel.replace("\\", "/"))
+        if base:
+            candidate = f"{ITEM_UPLOAD_FOLDER_REL}/{base}"
+            if _static_rel_exists(candidate):
+                return candidate
+            lowmap = _item_upload_filename_map()
+            hit = lowmap.get(base.lower())
+            if hit:
+                return f"{ITEM_UPLOAD_FOLDER_REL}/{hit}"
+    by_name = _find_item_image_by_name(item_name)
+    if by_name:
+        return by_name
+    return ""
+
+
 @app.template_global()
-def static_upload_url(path) -> str:
+def static_upload_url(path, name: str | None = None) -> str:
     """Public URL for files under static/ (e.g. uploads/items/...) or an absolute image URL."""
-    s = _normalize_static_relative_path(path)
+    s = _resolve_item_image_rel_path(path, name or "")
     if not s:
         return ""
     if s.startswith("http://") or s.startswith("https://"):
@@ -1727,9 +1818,6 @@ def _save_profile_upload(file_storage):
     return f"{UPLOAD_FOLDER_REL}/{fn}"
 
 
-ITEM_UPLOAD_FOLDER_REL = "uploads/items"
-
-
 def _item_website_fields_from_form() -> dict:
     """Website-only listing fields from register/edit item forms (POS fields unchanged)."""
     web_name = (request.form.get("website_name") or "").strip()
@@ -1799,7 +1887,7 @@ def _resolve_shop_logo_upload(*, existing: str | None = None) -> tuple[str | Non
 
 @app.route("/")
 def index():
-    """Public customer storefront at root, or shop login when the website is turned off."""
+    """Public customer storefront landing, or shop login when the website is turned off."""
     if not _public_website_enabled():
         return redirect(url_for("public_shop_login"))
     return _render_public_storefront()
@@ -1815,7 +1903,7 @@ def marketing_home():
 
 @app.route("/site/catalog")
 def marketing_catalog():
-    """Full product catalog for the public shop."""
+    """Full product catalogue for the public shop."""
     if _is_public_website_host_request():
         return redirect(url_for("marketing_catalog_live"), code=301)
     return _render_public_storefront(catalog_mode=True)
@@ -1823,7 +1911,7 @@ def marketing_catalog():
 
 @app.route("/catalog")
 def marketing_catalog_live():
-    """Full catalog on the live website domain."""
+    """Full catalogue on the live website domain."""
     if not _is_public_website_host_request():
         return redirect(url_for("marketing_catalog"), code=302)
     if not _public_website_enabled():
@@ -4442,60 +4530,7 @@ def _storefront_seo_context_for_request() -> dict:
         ld = _storefront_local_business_json_ld()
         if ld:
             ctx["local_business_json"] = ld
-    elif page == "catalog":
-        ctx["catalog_itemlist_json"] = _storefront_catalog_itemlist_json_ld()
     return ctx
-
-
-def _storefront_catalog_itemlist_json_ld() -> dict | None:
-    """Schema.org ItemList for the full public catalogue."""
-    try:
-        from database import list_website_catalog_items
-
-        catalog_rows = list_website_catalog_items(limit=500)
-    except Exception:
-        catalog_rows = []
-    products = [_serialize_website_product_row(r) for r in catalog_rows if int(r.get("id") or 0) > 0]
-    if not products:
-        return None
-    try:
-        ws = _load_website_settings()
-        co = _load_company_identity_settings()
-        copy = _storefront_homepage_copy(ws.get("design"), co)
-    except Exception:
-        copy = _storefront_homepage_copy({}, {})
-    company = copy.get("company_name") or "Our Store"
-    elements: list[dict] = []
-    for idx, p in enumerate(products, start=1):
-        path = _website_product_canonical_path(int(p.get("id") or 0), p.get("name") or "")
-        page_url = _storefront_seo_absolute_url(path)
-        desc = (p.get("description") or "").strip() or (p.get("category") or "Product")
-        item: dict = {
-            "@type": "Product",
-            "name": p.get("name") or "Product",
-            "description": desc,
-            "category": p.get("category") or "General",
-        }
-        if page_url:
-            item["url"] = page_url
-        image = _website_product_absolute_image_url(p.get("image_url") or "")
-        if image:
-            item["image"] = image
-        item["offers"] = {
-            "@type": "Offer",
-            "priceCurrency": "KES",
-            "price": f"{float(p.get('price') or 0):.2f}",
-            "availability": "https://schema.org/InStock",
-            "url": page_url,
-        }
-        elements.append({"@type": "ListItem", "position": idx, "item": item})
-    return {
-        "@context": "https://schema.org",
-        "@type": "ItemList",
-        "name": f"{company} product catalogue",
-        "numberOfItems": len(elements),
-        "itemListElement": elements,
-    }
 
 
 def _render_public_storefront(*, catalog_mode: bool = False):
@@ -4626,7 +4661,7 @@ def _website_featured_product_rows(limit: int | None = None) -> list[dict]:
 
 def _serialize_website_product_row(r: dict) -> dict:
     iid = int(r.get("id") or 0)
-    img_rel = _normalize_static_relative_path(r.get("image_path"))
+    img_rel = _resolve_item_image_rel_path(r.get("image_path"), r.get("name") or "")
     if img_rel.startswith("http://") or img_rel.startswith("https://"):
         image_url = img_rel
     elif img_rel:
@@ -4740,8 +4775,10 @@ def _website_product_categories(products: list[dict]) -> list[dict]:
                 "image_url": image_url,
                 "top_product_name": name,
                 "qty_sold": qty,
+                "count": 1,
             }
             continue
+        best[key]["count"] = int(best[key].get("count") or 0) + 1
         if qty > best[key]["qty_sold"]:
             best[key]["qty_sold"] = qty
             best[key]["image_url"] = image_url or best[key]["image_url"]
@@ -5776,15 +5813,6 @@ def _effective_printing_settings_for_shop(shop: dict) -> dict:
     _ensure_at_least_one_pos_payment_method(merged)
     _sync_print_compulsory_with_printer_allow_list(merged)
     _enforce_exclusive_pos_inventory(merged)
-    # Company IT policy (site settings) — shop JSON may carry stale overrides from older saves.
-    for k in (
-        "printer_allow_bluetooth",
-        "printer_allow_network",
-        "printer_allow_usb",
-        "print_compulsory_sale",
-    ):
-        merged[k] = base[k]
-    _sync_print_compulsory_with_printer_allow_list(merged)
     return merged
 
 
@@ -7783,7 +7811,6 @@ def it_support_system_settings():
         website_using_auto_products=not selected_ids,
         website_homepage_featured_max=WEBSITE_HOMEPAGE_FEATURED_MAX,
         website_preview_url=_public_storefront_url(),
-        catalog_preview_url=url_for("marketing_catalog", _external=False),
         preview_url=_public_storefront_url(),
         company_opening_hours=_load_company_opening_hours(),
         company_weekdays=COMPANY_WEEKDAYS,
@@ -19892,6 +19919,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
                 ensure_shop_items_for_shop(shop_id)
                 ws = _load_shop_stock_workspace_settings(shop)
+                require_supplier = bool(ws.get("require_manual_in_supplier"))
                 allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
                 # Shared seller: merged into lines that are actually stocked in (qty > 0 below).
                 apply_sp = (request.form.get("apply_all_seller_phone") or "").strip()
@@ -19929,23 +19957,28 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         fail_note += 1
                         fail_count += 1
                         continue
-                    if not (sp or sn):
-                        fail_seller += 1
-                        fail_count += 1
-                        continue
-                    resolved_name, resolved_phone = resolve_seller_name_and_phone(
-                        seller_phone=sp,
-                        seller_name=sn,
-                    )
-                    if not resolved_name or not resolved_phone:
-                        fail_seller += 1
-                        fail_count += 1
-                        continue
-                    place_final = (resolved_name or "").strip()
-                    if not place_final:
-                        fail_seller += 1
-                        fail_count += 1
-                        continue
+                    resolved_name = None
+                    resolved_phone = None
+                    place_final = None
+                    if require_supplier or sp or sn:
+                        if require_supplier and not (sp or sn):
+                            fail_seller += 1
+                            fail_count += 1
+                            continue
+                        if sp or sn:
+                            resolved_name, resolved_phone = resolve_seller_name_and_phone(
+                                seller_phone=sp,
+                                seller_name=sn,
+                            )
+                            if not resolved_name or not resolved_phone:
+                                fail_seller += 1
+                                fail_count += 1
+                                continue
+                            place_final = (resolved_name or "").strip()
+                            if require_supplier and not place_final:
+                                fail_seller += 1
+                                fail_count += 1
+                                continue
                     ok = shop_manual_stock_in(
                         shop_id=shop_id,
                         item_id=iid,
@@ -20016,6 +20049,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
                 ensure_shop_items_for_shop(shop_id)
                 ws = _load_shop_stock_workspace_settings(shop)
+                apply_note = (request.form.get("apply_all_out_note") or "").strip().upper() or None
                 allowed_reasons = {"return", "waste", "display"}
                 ok_count = 0
                 fail_count = 0
@@ -20062,7 +20096,8 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                             fail_count += 1
                             continue
                     row_note = (request.form.get(f"out_note_{iid}") or "").strip().upper() or None
-                    if ws.get("require_manual_out_notes") and not row_note:
+                    line_note = row_note or apply_note
+                    if ws.get("require_manual_out_notes") and not line_note:
                         fail_note += 1
                         fail_count += 1
                         continue
@@ -20073,7 +20108,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                         reason=reason,
                         refunded=refunded,
                         refund_amount=refund_amount,
-                        note=row_note,
+                        note=line_note,
                         created_by_employee_id=session.get("employee_id"),
                     )
                     if ok:
@@ -22071,6 +22106,7 @@ def shop_settings_pos_printing(shop_id: int):
     if gate is not None:
         return gate
     if request.method == "POST":
+        wants_json = _request_wants_json()
         use_custom_printing = (request.form.get("shop_printing_custom") or "").strip() == "1"
         # Full replace from form (unchecked checkboxes are absent → false), same as IT system settings.
         printing_json = (
@@ -22092,6 +22128,10 @@ def shop_settings_pos_printing(shop_id: int):
             )
         except Exception:
             ok = False
+        if wants_json:
+            if ok:
+                return jsonify({"ok": True})
+            return jsonify({"ok": False, "error": "Could not update point of sale settings."}), 500
         flash("Point of sale settings updated." if ok else "Could not update point of sale settings.", "success" if ok else "error")
         return redirect(url_for("shop_settings_pos_printing", shop_id=shop["id"]))
     return render_template("shop_settings_pos_printing.html", shop=shop, **_shop_settings_template_extra(shop))
@@ -24390,7 +24430,6 @@ def it_support_website_designs():
         website_using_auto_products=using_auto,
         preview_url=_public_storefront_url(),
         website_homepage_featured_max=WEBSITE_HOMEPAGE_FEATURED_MAX,
-        catalog_preview_url=url_for("marketing_catalog"),
     )
 
 

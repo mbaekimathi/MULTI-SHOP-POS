@@ -70,7 +70,7 @@
                       <div class="text-[11px] text-[rgb(var(--rc-muted))]">#{{ iid }}</div>
                     </td>
                     <td class="px-2 py-2 align-middle sm:px-3">
-                      {% set _img = static_upload_url(it.image_path) %}
+                      {% set _img = static_upload_url(it.image_path, it.name) %}
                       {% if _img %}
                         <img src="{{ _img }}" alt="" class="h-10 w-10 rounded-lg border border-[rgb(var(--rc-border))] object-cover" loading="lazy" decoding="async" />
                       {% else %}

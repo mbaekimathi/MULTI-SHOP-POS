@@ -1,6 +1,7 @@
-{# Homepage-only sections — featured, categories, how-it-works, CTA #}
+{# Homepage-only sections — categories first, then featured, how-it-works, CTA #}
 {% set _featured = (featured_products|default([]))|batch(8)|first|default([]) %}
-{% set _feat_count = _featured|length %}
+
+{% include "partials/website_landing_categories.html" %}
 
 {% if _featured %}
 <section class="wsf-home-section wsf-home-section--featured wsf-reveal" aria-labelledby="wsf-home-featured-title">
@@ -11,7 +12,7 @@
         <h2 id="wsf-home-featured-title" class="wsf-home-section__title">{{ _c.featured_section_title }}</h2>
         <p class="wsf-home-section__sub">{{ _c.featured_subtitle }}</p>
       </div>
-      <a href="{{ _catalog_url }}" class="wsf-home-link">View all products →</a>
+      <a href="{{ _products_url }}" class="wsf-home-link">View all products →</a>
     </div>
     <div class="wsf-home-products">
       {% for p in _featured %}
@@ -19,23 +20,6 @@
           {% include "partials/website_ecommerce_product_card.html" %}
         {% endwith %}
       {% endfor %}
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{% if _cats %}
-<section id="wsf-products" class="wsf-home-section wsf-home-section--categories wsf-reveal" aria-labelledby="wsf-home-cats-title">
-  <div class="wsf-shell">
-    <div class="wsf-home-section__head wsf-home-section__head--center">
-      <p class="wsf-home-kicker">Categories</p>
-      <h2 id="wsf-home-cats-title" class="wsf-home-section__title">Shop by category</h2>
-      <p class="wsf-home-section__sub">Browse our range — every category features a top seller.</p>
-    </div>
-    <div class="wsf-home-categories">
-      {% with cats=_cats, category_nav_homepage=true, category_nav_catalog_links=true, category_nav_show_all=true %}
-        {% include "partials/website_category_nav.html" %}
-      {% endwith %}
     </div>
   </div>
 </section>
@@ -50,13 +34,13 @@
     <ol class="wsf-home-steps">
       <li class="wsf-home-step">
         <span class="wsf-home-step__num">1</span>
-        <h3 class="wsf-home-step__title">Browse products</h3>
-        <p class="wsf-home-step__text">Explore our catalogue by category or search for what you need.</p>
+        <h3 class="wsf-home-step__title">Choose a category</h3>
+        <p class="wsf-home-step__text">Start from the landing page and open the category you need.</p>
       </li>
       <li class="wsf-home-step">
         <span class="wsf-home-step__num">2</span>
-        <h3 class="wsf-home-step__title">Build your quote</h3>
-        <p class="wsf-home-step__text">Add items to your quote list — adjust quantities anytime.</p>
+        <h3 class="wsf-home-step__title">Add products to quote</h3>
+        <p class="wsf-home-step__text">Browse the products page, then add items and adjust quantities.</p>
       </li>
       <li class="wsf-home-step">
         <span class="wsf-home-step__num">3</span>
@@ -74,7 +58,7 @@
       <p class="wsf-home-cta__text">Browse the full catalogue or send us a quote request today.</p>
     </div>
     <div class="wsf-home-cta__actions">
-      <a href="{{ _catalog_url }}" class="wsf-home-btn wsf-home-btn--primary">Browse catalogue</a>
+      <a href="{{ _products_url }}" class="wsf-home-btn wsf-home-btn--primary">Browse catalogue</a>
       {% if _phone or _email %}
         <button type="button" class="wsf-home-btn wsf-home-btn--ghost" data-wsf-open-contact>Contact us</button>
       {% else %}
