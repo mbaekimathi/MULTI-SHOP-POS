@@ -58,6 +58,10 @@
     if (url.indexOf("next=") >= 0) return url;
     var returnUrl = currentReturnUrl();
     if (!returnUrl) return appendQuery(url, "reason", "idle");
+    // Never bounce customers back through /login?next=/ (public storefront).
+    if (returnUrl === "/" || returnUrl.indexOf("/catalog") === 0 || returnUrl.indexOf("/site") === 0) {
+      return appendQuery(url, "reason", "idle");
+    }
     url = appendQuery(url, "next", returnUrl);
     return appendQuery(url, "reason", "idle");
   }

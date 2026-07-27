@@ -101,19 +101,40 @@ def _normalize_employee_session_idle_settings(data: Optional[dict]) -> dict:
     }
 
 
+_EMPLOYEE_IDLE_SETTINGS_CACHE: dict | None = None
+_EMPLOYEE_IDLE_SETTINGS_CACHE_AT = 0.0
+_EMPLOYEE_IDLE_SETTINGS_TTL_SEC = 45.0
+
+
+def _invalidate_employee_session_idle_settings_cache() -> None:
+    global _EMPLOYEE_IDLE_SETTINGS_CACHE, _EMPLOYEE_IDLE_SETTINGS_CACHE_AT
+    _EMPLOYEE_IDLE_SETTINGS_CACHE = None
+    _EMPLOYEE_IDLE_SETTINGS_CACHE_AT = 0.0
+
+
 def _load_employee_session_idle_settings() -> dict:
+    """Load idle settings with a short process cache (avoids DB on every request)."""
+    global _EMPLOYEE_IDLE_SETTINGS_CACHE, _EMPLOYEE_IDLE_SETTINGS_CACHE_AT
+    now = time.time()
+    cached = _EMPLOYEE_IDLE_SETTINGS_CACHE
+    if cached is not None and (now - _EMPLOYEE_IDLE_SETTINGS_CACHE_AT) < _EMPLOYEE_IDLE_SETTINGS_TTL_SEC:
+        return cached
     try:
         from database import get_site_settings
 
         raw = (get_site_settings([EMPLOYEE_SESSION_IDLE_JSON_KEY]).get(EMPLOYEE_SESSION_IDLE_JSON_KEY) or "").strip()
         if not raw:
-            return _normalize_employee_session_idle_settings({})
-        data = json.loads(raw)
+            data = {}
+        else:
+            data = json.loads(raw)
     except (json.JSONDecodeError, TypeError, Exception):
         data = {}
     if not isinstance(data, dict):
         data = {}
-    return _normalize_employee_session_idle_settings(data)
+    normalized = _normalize_employee_session_idle_settings(data)
+    _EMPLOYEE_IDLE_SETTINGS_CACHE = normalized
+    _EMPLOYEE_IDLE_SETTINGS_CACHE_AT = now
+    return normalized
 
 
 def _employee_session_idle_settings_from_form() -> dict:
@@ -487,12 +508,65 @@ _EMPLOYEE_IDLE_SKIP_ENDPOINTS = frozenset(
     }
 )
 
+_EMPLOYEE_IDLE_PUBLIC_ENDPOINTS = frozenset(
+    {
+        "index",
+        "marketing_home",
+        "marketing_catalog",
+        "marketing_catalog_live",
+        "marketing_product",
+        "marketing_product_live",
+        "marketing_features",
+        "marketing_pricing",
+        "marketing_about",
+        "marketing_contact",
+        "marketing_dashboard_preview",
+        "storefront_robots_txt",
+        "storefront_sitemap_xml",
+        "storefront_products_json",
+        "storefront_request_quotation",
+        "storefront_customer_lookup",
+        "quotation_share_public",
+        "pos_quotation_share_public",
+    }
+)
+
+
+def _request_is_public_customer_view() -> bool:
+    """True on public storefront / marketing pages (customers, not employee portal)."""
+    ep = (request.endpoint or "").strip()
+    if not ep:
+        return False
+    if ep in _EMPLOYEE_IDLE_PUBLIC_ENDPOINTS:
+        return True
+    if ep.startswith("marketing_") or ep.startswith("storefront_"):
+        return True
+    return False
+
+
+def _continuation_is_public_customer_path(next_url: str) -> bool:
+    """True when ``next`` would resume a public shop page (e.g. ``/`` or ``/catalog``)."""
+    if not _safe_login_next(next_url):
+        return False
+    path = (urlparse(next_url).path or "/").rstrip("/") or "/"
+    if path == "/":
+        return True
+    public_prefixes = (
+        "/site",
+        "/catalog",
+        "/features",
+        "/pricing",
+        "/about",
+        "/contact",
+        "/q/",
+        "/quote/",
+    )
+    return any(path == p.rstrip("/") or path.startswith(p.rstrip("/") + "/") for p in public_prefixes)
+
 
 def _enforce_employee_session_idle_timeout():
     """Sign out employee portal sessions after inactivity (shop-password session may remain)."""
-    idle_cfg = _load_employee_session_idle_settings()
-    if not idle_cfg["enabled"]:
-        return None
+    # Cheap exits first — never hit MySQL for anonymous / static / public traffic.
     if request.endpoint in _EMPLOYEE_IDLE_SKIP_ENDPOINTS:
         return None
     if not session.get("employee_id"):
@@ -500,17 +574,26 @@ def _enforce_employee_session_idle_timeout():
     if _request_is_shop_branch_session_view():
         return None
 
+    idle_cfg = _load_employee_session_idle_settings()
+    if not idle_cfg["enabled"]:
+        return None
+
     idle_minutes = idle_cfg["idle_minutes"]
     idle_seconds = idle_cfg["idle_seconds"]
     now = time.time()
+    public_view = _request_is_public_customer_view()
     try:
         last = float(session.get("employee_last_activity"))
     except (TypeError, ValueError):
-        _touch_employee_session_activity()
+        if not public_view:
+            _touch_employee_session_activity()
         return None
 
     if now - last <= idle_seconds:
-        _touch_employee_session_activity()
+        # Browsing the public website must not refresh portal idle timers,
+        # and must never redirect customers to /login?next=/&reason=idle.
+        if not public_view:
+            _touch_employee_session_activity()
         return None
 
     emp_id = session.get("employee_id")
@@ -527,12 +610,18 @@ def _enforce_employee_session_idle_timeout():
     )
     _clear_employee_portal_session()
 
+    # Public storefront: clear quietly and keep serving the page.
+    if public_view:
+        return None
+
     wants_json = (
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("Accept") or "").lower()
     )
+    next_url = _request_continuation_url()
+    if _continuation_is_public_customer_path(next_url):
+        next_url = ""
     if wants_json:
-        next_url = _request_continuation_url()
         return (
             jsonify(
                 {
@@ -545,7 +634,6 @@ def _enforce_employee_session_idle_timeout():
         )
 
     flash(str(idle_minutes), "idle_signout")
-    next_url = _request_continuation_url()
     return redirect(_employee_login_url(next_url=next_url, reason="idle"))
 
 
@@ -1743,7 +1831,8 @@ def inject_notification_context():
         "notification_count": int(notification_count or 0),
         "notifications_url": url_for("shop_notifications", shop_id=int(shop_id)),
         "notification_scope": f"shop-{int(shop_id)}",
-        "notification_bell_popup": request.endpoint == "shop_pos",
+        # Live Accept/Decline popup on every shop page (not only POS).
+        "notification_bell_popup": True,
         "notification_bell_visible": True,
     }
 
@@ -2120,6 +2209,9 @@ def employee_login():
         return _redirect_to_employee_dashboard()
 
     if request.method == "POST":
+        if not _rate_limit_allow(_client_rate_limit_key("emp-login"), limit=20, window_sec=60.0):
+            flash("Too many sign-in attempts. Please wait a minute and try again.", "error")
+            return _redirect_login_preserving_next()
         next_url = (request.form.get("next") or "").strip()
         code = (request.form.get("employee_code") or "").strip()
         password = request.form.get("password") or ""
@@ -4847,15 +4939,46 @@ def _website_product_categories(products: list[dict]) -> list[dict]:
 
 
 def _website_catalog_categories() -> list[dict]:
-    """All product categories from the full storefront catalogue."""
+    """All product categories from the storefront catalogue (lightweight DISTINCT query)."""
     try:
-        from database import list_website_catalog_items
+        from database import list_website_catalog_category_summaries
 
-        rows = list_website_catalog_items(limit=500)
+        summaries = list_website_catalog_category_summaries()
     except Exception:
-        rows = []
-    products = [_serialize_website_product_row(r) for r in rows if int(r.get("id") or 0) > 0]
-    return _website_product_categories(products)
+        summaries = []
+    if not summaries:
+        return []
+    sample_ids = [int(s.get("sample_id") or 0) for s in summaries if int(s.get("sample_id") or 0) > 0]
+    images_by_id: dict[int, str] = {}
+    names_by_id: dict[int, str] = {}
+    if sample_ids:
+        try:
+            from database import list_website_products_by_ids
+
+            for row in list_website_products_by_ids(sample_ids, include_sales=False):
+                ser = _serialize_website_product_row(row)
+                iid = int(ser.get("id") or 0)
+                if iid > 0:
+                    images_by_id[iid] = ser.get("image_url") or ""
+                    names_by_id[iid] = ser.get("name") or ""
+        except Exception:
+            pass
+    out = []
+    for s in summaries:
+        cat = (s.get("category") or "General").strip() or "General"
+        key = cat.upper()
+        sid = int(s.get("sample_id") or 0)
+        out.append(
+            {
+                "name": cat,
+                "key": key,
+                "image_url": images_by_id.get(sid) or "",
+                "top_product_name": names_by_id.get(sid) or "",
+                "qty_sold": 0.0,
+                "count": int(s.get("count") or 0),
+            }
+        )
+    return out
 
 
 def _normalize_storefront_phone(raw: str) -> str:
@@ -5494,10 +5617,26 @@ def _build_storefront_quotation_lines(cart_lines: list) -> tuple[list[dict], flo
     """Validate cart lines against active catalog; return lines, total, item_count, error."""
     if not cart_lines:
         return [], 0.0, 0, "Your cart is empty."
+    ids: list[int] = []
+    for raw in cart_lines:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            iid = int(raw.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if iid > 0:
+            ids.append(iid)
+    if not ids:
+        return [], 0.0, 0, "Your cart is empty."
     try:
-        from database import list_website_featured_products
+        from database import list_website_products_by_ids
 
-        catalog = {int(p["id"]): p for p in _website_featured_product_rows(limit=48) if int(p.get("id") or 0) > 0}
+        catalog = {
+            int(p["id"]): p
+            for p in list_website_products_by_ids(ids, include_sales=False)
+            if int(p.get("id") or 0) > 0
+        }
     except Exception:
         catalog = {}
     if not catalog:
@@ -5542,9 +5681,39 @@ def _build_storefront_quotation_lines(cart_lines: list) -> tuple[list[dict], flo
     return validated, round(total, 2), count, None
 
 
+_RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
+
+
+def _client_rate_limit_key(prefix: str) -> str:
+    forwarded = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    ip = forwarded or (request.remote_addr or "unknown")
+    return f"{prefix}:{ip}"
+
+
+def _rate_limit_allow(key: str, *, limit: int, window_sec: float = 60.0) -> bool:
+    """Simple in-process sliding window; returns False when over limit."""
+    now = time.time()
+    with _RATE_LIMIT_LOCK:
+        hits = [t for t in (_RATE_LIMIT_BUCKETS.get(key) or []) if now - t < window_sec]
+        if len(hits) >= limit:
+            _RATE_LIMIT_BUCKETS[key] = hits
+            return False
+        hits.append(now)
+        _RATE_LIMIT_BUCKETS[key] = hits
+        # Bound memory under long-running storms
+        if len(_RATE_LIMIT_BUCKETS) > 5000:
+            stale_keys = [k for k, v in _RATE_LIMIT_BUCKETS.items() if not v or now - v[-1] > window_sec]
+            for k in stale_keys[:2000]:
+                _RATE_LIMIT_BUCKETS.pop(k, None)
+        return True
+
+
 @app.route("/api/storefront/customer-lookup", methods=["POST"])
 def storefront_customer_lookup():
     """Public read-only phone lookup for cart name autofill (no registration)."""
+    if not _rate_limit_allow(_client_rate_limit_key("sf-lookup"), limit=40, window_sec=60.0):
+        return jsonify({"ok": False, "error": "Too many requests. Please wait a moment."}), 429
     data = request.get_json(force=True, silent=True) or {}
     phone = (data.get("phone") or "").strip()
     if len(re.sub(r"\D", "", phone)) < 7:
@@ -5600,6 +5769,8 @@ def _notify_online_storefront_quotation(
 @app.route("/api/storefront/request-quotation", methods=["POST"])
 def storefront_request_quotation():
     """Public website cart → online quotation (lead) for IT leads & quotations."""
+    if not _rate_limit_allow(_client_rate_limit_key("sf-quote"), limit=12, window_sec=60.0):
+        return jsonify({"ok": False, "error": "Too many quotation requests. Please wait a minute."}), 429
     data = request.get_json(force=True, silent=True) or {}
     phone = _normalize_storefront_phone(data.get("customer_phone") or "")
     name = (data.get("customer_name") or "").strip()
@@ -7932,6 +8103,8 @@ def it_support_system_settings():
             if app_icon_path is not None:
                 values["app_icon"] = app_icon_path
             ok = set_site_settings(values)
+            if ok:
+                _invalidate_employee_session_idle_settings_cache()
         except Exception:
             ok = False
 

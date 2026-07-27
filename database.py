@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import re
+import threading
 from contextlib import contextmanager
 import calendar
 from datetime import date, datetime, time, timedelta
@@ -24,6 +25,13 @@ from pymysql.cursors import DictCursor
 import project_env  # noqa: F401 — loads .env.example then .env
 
 logger = logging.getLogger(__name__)
+
+# Process-local schema probes — INFORMATION_SCHEMA on every hot path was a stress bottleneck.
+_SCHEMA_CACHE_LOCK = threading.RLock()
+_TABLE_EXISTS_CACHE: dict[str, bool] = {}
+_COLUMN_EXISTS_CACHE: dict[tuple[str, str], bool] = {}
+_SHOP_COLUMNS_ENSURED = False
+_SHOP_COLUMNS_ENSURE_LOCK = threading.Lock()
 
 # Stock movements (manual stock in/out, company grid, transfers) allow fractional qty e.g. 0.15 kg.
 STOCK_QTY_DECIMAL_PLACES = 4
@@ -446,11 +454,21 @@ def _schema_ident(name: str) -> Optional[str]:
     return n[:64]
 
 
+def clear_schema_existence_cache() -> None:
+    """Drop cached table/column existence results (tests / migrations)."""
+    with _SCHEMA_CACHE_LOCK:
+        _TABLE_EXISTS_CACHE.clear()
+        _COLUMN_EXISTS_CACHE.clear()
+
+
 def table_exists(table: str) -> bool:
     """True if the table exists in the configured application database."""
     t = _schema_ident(table)
     if not t:
         return False
+    with _SCHEMA_CACHE_LOCK:
+        if t in _TABLE_EXISTS_CACHE:
+            return _TABLE_EXISTS_CACHE[t]
     db = get_database_name()
     try:
         with get_cursor() as cur:
@@ -462,9 +480,12 @@ def table_exists(table: str) -> bool:
                 """,
                 (db, t),
             )
-            return cur.fetchone() is not None
+            found = cur.fetchone() is not None
     except pymysql.Error:
-        return False
+        found = False
+    with _SCHEMA_CACHE_LOCK:
+        _TABLE_EXISTS_CACHE[t] = found
+    return found
 
 
 def column_exists(table: str, column: str) -> bool:
@@ -473,6 +494,10 @@ def column_exists(table: str, column: str) -> bool:
     c = _schema_ident(column)
     if not t or not c:
         return False
+    key = (t, c)
+    with _SCHEMA_CACHE_LOCK:
+        if key in _COLUMN_EXISTS_CACHE:
+            return _COLUMN_EXISTS_CACHE[key]
     db = get_database_name()
     try:
         with get_cursor() as cur:
@@ -484,9 +509,12 @@ def column_exists(table: str, column: str) -> bool:
                 """,
                 (db, t, c),
             )
-            return cur.fetchone() is not None
+            found = cur.fetchone() is not None
     except pymysql.Error:
-        return False
+        found = False
+    with _SCHEMA_CACHE_LOCK:
+        _COLUMN_EXISTS_CACHE[key] = found
+    return found
 
 
 def init_contact_table():
@@ -4615,12 +4643,18 @@ def list_website_featured_products(limit: int = 12) -> list:
     return [_website_item_row_from_db(dict(r)) for r in rows]
 
 
-def list_website_catalog_items(limit: int = 300) -> list:
-    """All active catalog items for the website product picker."""
+def list_website_catalog_items(limit: int = 300, *, include_sales: bool = False) -> list:
+    """All active catalog items for the website product picker.
+
+    Sales aggregation is expensive under load; list/JSON/category paths skip it by default.
+    """
     lim = max(1, min(int(limit), 500))
     if not table_exists("items"):
         return []
-    sales_join, qty_col = _website_sales_join_sql()
+    if include_sales:
+        sales_join, qty_col = _website_sales_join_sql()
+    else:
+        sales_join, qty_col = "", "0"
     cols = _website_catalog_item_select_cols(qty_col)
     sql = f"""
     SELECT{cols}
@@ -4637,6 +4671,42 @@ def list_website_catalog_items(limit: int = 300) -> list:
     except Exception:
         rows = []
     return [_website_item_row_from_db(dict(r)) for r in rows if int(dict(r).get("id") or 0) > 0]
+
+
+def list_website_catalog_category_summaries() -> list:
+    """Distinct categories with counts — avoids loading the full catalog twice on home."""
+    if not table_exists("items"):
+        return []
+    sql = f"""
+    SELECT
+        COALESCE(NULLIF(TRIM(i.category), ''), 'General') AS category,
+        COUNT(*) AS item_count,
+        MIN(i.id) AS sample_id
+    FROM items i
+    WHERE i.status = 'active'{_website_catalog_published_where()}
+    GROUP BY COALESCE(NULLIF(TRIM(i.category), ''), 'General')
+    ORDER BY category ASC
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql)
+            rows = cur.fetchall() or []
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        d = dict(r)
+        cat = (d.get("category") or "General").strip() or "General"
+        try:
+            count = int(d.get("item_count") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        try:
+            sample_id = int(d.get("sample_id") or 0)
+        except (TypeError, ValueError):
+            sample_id = 0
+        out.append({"category": cat, "count": count, "sample_id": sample_id})
+    return out
 
 
 def get_website_catalog_item(item_id: int) -> dict | None:
@@ -4667,7 +4737,7 @@ def get_website_catalog_item(item_id: int) -> dict | None:
     return _website_item_row_from_db(dict(row))
 
 
-def list_website_products_by_ids(item_ids: list) -> list:
+def list_website_products_by_ids(item_ids: list, *, include_sales: bool = False) -> list:
     """Active website products in the exact order of ``item_ids``."""
     ids: list[int] = []
     seen: set[int] = set()
@@ -4682,7 +4752,10 @@ def list_website_products_by_ids(item_ids: list) -> list:
         ids.append(iid)
     if not ids or not table_exists("items"):
         return []
-    sales_join, qty_col = _website_sales_join_sql()
+    if include_sales:
+        sales_join, qty_col = _website_sales_join_sql()
+    else:
+        sales_join, qty_col = "", "0"
     placeholders = ",".join(["%s"] * len(ids))
     field_order = ",".join(str(i) for i in ids)
     cols = _website_catalog_item_select_cols(qty_col)
@@ -5377,9 +5450,21 @@ def shop_code_available(shop_code: str) -> bool:
         return cur.fetchone() is None
 
 
+def _ensure_shop_optional_columns_once() -> None:
+    """Run shop column ALTERs at most once per process (list/get are hot)."""
+    global _SHOP_COLUMNS_ENSURED
+    if _SHOP_COLUMNS_ENSURED:
+        return
+    with _SHOP_COLUMNS_ENSURE_LOCK:
+        if _SHOP_COLUMNS_ENSURED:
+            return
+        ensure_shop_location_description_column()
+        ensure_shop_phone_column()
+        _SHOP_COLUMNS_ENSURED = True
+
+
 def list_shops(limit: int = 500):
-    ensure_shop_location_description_column()
-    ensure_shop_phone_column()
+    _ensure_shop_optional_columns_once()
     sql = """
     SELECT id, shop_name, shop_code, shop_location, shop_location_description, shop_phone, status, default_theme, font_family, primary_color, accent_color, shop_logo,
            printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,
@@ -5394,8 +5479,7 @@ def list_shops(limit: int = 500):
 
 
 def get_shop_by_id(shop_id: int):
-    ensure_shop_location_description_column()
-    ensure_shop_phone_column()
+    _ensure_shop_optional_columns_once()
     sql = """
     SELECT id, shop_name, shop_code, shop_password_hash, shop_location, shop_location_description, shop_phone, status, default_theme, font_family, primary_color, accent_color, shop_logo,
            printing_settings_json, receipt_settings_json, appearance_settings_json, company_settings_json,

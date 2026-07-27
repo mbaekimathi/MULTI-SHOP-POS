@@ -211,6 +211,9 @@
   </div>
   {% include "partials/ai_accountant_floating.html" %}
   {% include "partials/shop_stock_request_outcome_modal.html" %}
+  {% if shop_shell_can('notifications') %}
+  {% include "partials/shop_incoming_stock_request_modal.html" %}
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}

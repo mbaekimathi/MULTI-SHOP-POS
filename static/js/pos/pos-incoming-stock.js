@@ -1,11 +1,17 @@
 (function () {
   var BOOT = window.__POS_BOOT || {};
-  if (!BOOT.apis || !BOOT.apis.canReviewIncomingStock) return;
-  var POS_SID = BOOT.shopId;
-  var API = BOOT.apis.incomingStockRequests;
+  var SHOP_BOOT = window.__SHOP_INCOMING_SR || {};
+  var canReview =
+    (BOOT.apis && BOOT.apis.canReviewIncomingStock) || !!SHOP_BOOT.enabled;
+  if (!canReview) return;
+  var POS_SID = BOOT.shopId || SHOP_BOOT.shopId;
+  var API =
+    (BOOT.apis && BOOT.apis.incomingStockRequests) || SHOP_BOOT.api || null;
+  if (!POS_SID || !API) return;
   var LS_KEY = "pos_incoming_sr_sig_shop_" + POS_SID;
   var SNOOZE_KEY = "pos_incoming_sr_snooze_shop_" + POS_SID;
   var SNOOZE_MS = 5 * 60 * 1000;
+  var POLL_MS = 8000;
 
   var modal = document.getElementById("pos-incoming-sr-modal");
   var detailEl = document.getElementById("pos-incoming-sr-detail");
@@ -56,6 +62,7 @@
   function setSnooze() {
     try {
       localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS));
+      localStorage.setItem(LS_KEY, window.__posIncomingSrLastSig || "");
     } catch (e) {}
   }
 
@@ -63,6 +70,14 @@
     try {
       localStorage.removeItem(SNOOZE_KEY);
     } catch (e) {}
+  }
+
+  function snoozeSig() {
+    try {
+      return localStorage.getItem(LS_KEY) || "";
+    } catch (e) {
+      return "";
+    }
   }
 
   function playSoftChime() {
@@ -126,7 +141,9 @@
   }
 
   function showApprovalToast(msg) {
-    var toast = document.getElementById("pos-toast");
+    var toast =
+      document.getElementById("pos-toast") ||
+      document.getElementById("pos-incoming-sr-toast");
     if (!toast) return;
     toast.textContent = msg || "Approved.";
     toast.classList.remove("hidden");
@@ -210,33 +227,15 @@
     });
   }
 
-  function syncIncomingSrQueueBackground() {
-    fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" } })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        if (!data || !data.ok) return;
-        var reqs = data.requests || [];
-        if (!reqs.length) {
-          window.__posIncomingSrCurrent = null;
-          window.__posIncomingSrLastSig = "";
-          try {
-            localStorage.removeItem(LS_KEY);
-          } catch (e) {}
-          return;
-        }
-        var sig = signatureFor(
-          reqs.map(function (x) {
-            return x.id;
-          })
-        );
-        window.__posIncomingSrLastSig = sig;
-        try {
-          localStorage.setItem(LS_KEY, sig);
-        } catch (e) {}
-      })
-      .catch(function () {});
+  function openNextPendingAfterReview() {
+    window.__posIncomingSrCurrent = null;
+    window.__posIncomingSrLastSig = "";
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch (e) {}
+    setTimeout(function () {
+      poll(true);
+    }, 350);
   }
 
   function handleApproveSuccess(resp) {
@@ -255,7 +254,7 @@
       updateBellCountAfterApproval();
       if (codeEl) codeEl.value = "";
       if (deliveredByEl) deliveredByEl.value = "";
-      syncIncomingSrQueueBackground();
+      openNextPendingAfterReview();
     });
   }
 
@@ -393,19 +392,18 @@
       showErr("");
       return;
     }
-    if (!force && isSnoozed()) {
-      setOpen(false);
-      return;
-    }
     var ids = reqs.map(function (x) {
       return x.id;
     });
     var sig = signatureFor(ids);
-    var last = "";
-    try {
-      last = localStorage.getItem(LS_KEY) || "";
-    } catch (e) {}
-    if (!force && sig === last) return;
+    if (!force && isSnoozed()) {
+      // Keep snooze only for the same pending set; a new request breaks through.
+      if (sig === snoozeSig()) {
+        setOpen(false);
+        return;
+      }
+      clearSnooze();
+    }
     window.__posIncomingSrLastSig = sig;
     applyDetail(reqs[0], reqs.length);
     showErr("");
@@ -413,15 +411,37 @@
     setOpen(true, { silent: !!opts.silent });
   }
 
+  function syncBellCount(pendingCount) {
+    var next = Math.max(0, parseInt(pendingCount, 10) || 0);
+    document.querySelectorAll("[data-rc-notif-bell]").forEach(function (bell) {
+      bell.setAttribute("data-rc-notif-count", String(next));
+      var badge = bell.querySelector("span.rounded-full, span.absolute");
+      if (next > 0) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className =
+            "absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-4 text-white";
+          bell.appendChild(badge);
+        }
+        badge.textContent = next < 100 ? String(next) : "99+";
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }
+
   function poll(force) {
     if (!modal || !detailEl || !qtyEl || !codeEl) return;
+    if (!force && !modal.classList.contains("hidden")) return;
     fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (res) {
         return res.json();
       })
       .then(function (data) {
         if (!data || !data.ok) return;
-        handleRequestsResponse(data.requests || [], { force: !!force, allowEmpty: false });
+        var reqs = data.requests || [];
+        syncBellCount(reqs.length);
+        handleRequestsResponse(reqs, { force: !!force, allowEmpty: false });
       })
       .catch(function () {});
   }
@@ -516,7 +536,8 @@
         if (deliveredByEl) deliveredByEl.value = "";
         setOpen(false);
         showApprovalToast(action === "reject" ? "Request declined." : "Request updated.");
-        syncIncomingSrQueueBackground();
+        updateBellCountAfterApproval();
+        openNextPendingAfterReview();
       })
       .catch(function () {
         setBusy(false);
@@ -582,5 +603,5 @@
   }, 1200);
   setInterval(function () {
     poll(false);
-  }, 25000);
+  }, POLL_MS);
 })();

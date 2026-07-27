@@ -98,6 +98,33 @@ class EmployeeSessionIdleTests(unittest.TestCase):
             self.assertEqual(session["employee_id"], 9)
             log_mock.assert_not_called()
 
+    def test_public_homepage_idle_clears_quietly_without_login_redirect(self):
+        base = 1_700_000_000.0
+        expired_after = float(_idle_seconds() + 30)
+        with app.test_request_context("/", method="GET"):
+            session["employee_id"] = 7
+            session["employee_name"] = "Jane Doe"
+            session["employee_role"] = "employee"
+            session["employee_last_activity"] = base
+            with patch("app.time.time", return_value=base + expired_after):
+                with patch("app._log_hr_activity_safe") as log_mock:
+                    result = _enforce_employee_session_idle_timeout()
+            self.assertIsNone(result)
+            self.assertNotIn("employee_id", session)
+            log_mock.assert_called_once()
+
+    def test_public_homepage_does_not_extend_idle_timer(self):
+        base = 1_700_000_000.0
+        with app.test_request_context("/", method="GET"):
+            session["employee_id"] = 7
+            session["employee_last_activity"] = base
+            with patch("app.time.time", return_value=base + 60):
+                with patch("app._log_hr_activity_safe"):
+                    result = _enforce_employee_session_idle_timeout()
+            self.assertIsNone(result)
+            self.assertEqual(session["employee_id"], 7)
+            self.assertEqual(session["employee_last_activity"], base)
+
     def test_request_is_shop_branch_session_view_by_path(self):
         with app.test_request_context("/shops/4/analytics"):
             session["shop_id"] = 4
