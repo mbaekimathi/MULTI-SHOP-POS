@@ -10,8 +10,10 @@
   if (!POS_SID || !API) return;
   var LS_KEY = "pos_incoming_sr_sig_shop_" + POS_SID;
   var SNOOZE_KEY = "pos_incoming_sr_snooze_shop_" + POS_SID;
-  var SNOOZE_MS = 5 * 60 * 1000;
+  /** After Close, popup + sound return until Accept/Decline. */
+  var SNOOZE_MS = 30 * 1000;
   var POLL_MS = 8000;
+  var ALERT_SOUND_MS = 900;
 
   var modal = document.getElementById("pos-incoming-sr-modal");
   var detailEl = document.getElementById("pos-incoming-sr-detail");
@@ -36,6 +38,7 @@
 
   var alertSoundTimer = null;
   var alertAudioCtx = null;
+  var reopenTimer = null;
 
   function reviewUrl(requestId) {
     return "/shops/" + POS_SID + "/shop-pos/incoming-stock-requests/" + requestId + "/review";
@@ -80,31 +83,66 @@
     }
   }
 
-  function playSoftChime() {
+  function clearReopenTimer() {
+    if (reopenTimer) {
+      clearTimeout(reopenTimer);
+      reopenTimer = null;
+    }
+  }
+
+  function scheduleReopenAfterClose() {
+    clearReopenTimer();
+    reopenTimer = setTimeout(function () {
+      reopenTimer = null;
+      clearSnooze();
+      poll(true);
+    }, SNOOZE_MS);
+  }
+
+  function ensureAudioCtx() {
     try {
       var Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
+      if (!Ctx) return null;
       if (!alertAudioCtx) alertAudioCtx = new Ctx();
       if (alertAudioCtx.state === "suspended") {
         alertAudioCtx.resume().catch(function () {});
       }
-      var ctx = alertAudioCtx;
+      return alertAudioCtx;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function playTone(freq, durationSec, gainValue, when) {
+    var ctx = ensureAudioCtx();
+    if (!ctx) return;
+    try {
+      var t0 = ctx.currentTime + (when || 0);
       var o = ctx.createOscillator();
       var g = ctx.createGain();
       o.type = "sine";
-      o.frequency.value = 784;
-      g.gain.value = 0.035;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gainValue, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + durationSec);
       o.connect(g);
       g.connect(ctx.destination);
-      o.start();
-      o.stop(ctx.currentTime + 0.1);
+      o.start(t0);
+      o.stop(t0 + durationSec + 0.02);
     } catch (e) {}
+  }
+
+  /** Continuous alert burst until Accept/Decline completes. */
+  function playAlertBurst() {
+    playTone(932, 0.12, 0.11, 0);
+    playTone(784, 0.12, 0.1, 0.14);
+    playTone(1046, 0.14, 0.12, 0.28);
   }
 
   function startAlertSound() {
     stopAlertSound();
-    playSoftChime();
-    alertSoundTimer = setInterval(playSoftChime, 2200);
+    playAlertBurst();
+    alertSoundTimer = setInterval(playAlertBurst, ALERT_SOUND_MS);
   }
 
   function stopAlertSound() {
@@ -118,9 +156,11 @@
     opts = opts || {};
     if (!modal) return;
     if (on) {
+      clearReopenTimer();
       modal.classList.remove("hidden");
       modal.setAttribute("aria-hidden", "false");
       if (!opts.silent) startAlertSound();
+      else stopAlertSound();
     } else {
       modal.classList.add("hidden");
       modal.setAttribute("aria-hidden", "true");
@@ -240,6 +280,7 @@
 
   function handleApproveSuccess(resp) {
     clearSnooze();
+    clearReopenTimer();
     try {
       localStorage.removeItem(LS_KEY);
     } catch (e) {}
@@ -384,10 +425,11 @@
     if (!reqs.length) {
       if (allowEmpty) {
         showEmptyState();
-        setOpen(true, { silent: !!opts.silent });
+        setOpen(true, { silent: true });
         return;
       }
       clearSnooze();
+      clearReopenTimer();
       setOpen(false);
       showErr("");
       return;
@@ -449,13 +491,20 @@
   function openApprovalPopupFromBell() {
     if (!modal) return;
     clearSnooze();
+    clearReopenTimer();
     fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (res) {
         return res.json();
       })
       .then(function (data) {
         if (!data || !data.ok) return;
-        handleRequestsResponse(data.requests || [], { force: true, allowEmpty: true, silent: true });
+        var reqs = data.requests || [];
+        // Sound only when there is something to Accept/Decline.
+        handleRequestsResponse(reqs, {
+          force: true,
+          allowEmpty: true,
+          silent: !reqs.length,
+        });
       })
       .catch(function () {});
   }
@@ -518,8 +567,10 @@
         setBusy(false);
         if (!x.ok || !x.j || !x.j.ok) {
           showErr((x.j && x.j.error) || "Could not update this request.");
+          if (modal && !modal.classList.contains("hidden")) startAlertSound();
           return;
         }
+        clearReopenTimer();
         if (action === "approve") {
           handleApproveSuccess(x.j);
           return;
@@ -542,6 +593,7 @@
       .catch(function () {
         setBusy(false);
         showErr("Network error. Try again.");
+        if (modal && !modal.classList.contains("hidden")) startAlertSound();
       });
   }
 
@@ -576,7 +628,13 @@
 
   dismissBtn &&
     dismissBtn.addEventListener("click", function () {
-      if (window.__posIncomingSrCurrent) setSnooze();
+      if (window.__posIncomingSrCurrent) {
+        setSnooze();
+        setOpen(false);
+        scheduleReopenAfterClose();
+        return;
+      }
+      clearReopenTimer();
       setOpen(false);
     });
 

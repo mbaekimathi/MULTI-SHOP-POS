@@ -4,7 +4,8 @@
   if (!shopId || !API) return;
 
   var LS_KEY = "shop_sr_outcome_seen_" + shopId;
-  var INIT_KEY = "shop_sr_outcome_init_" + shopId;
+  var SEEDED_KEY = "shop_sr_outcome_seeded_" + shopId;
+  var POLL_MS = 8000;
   var modal = document.getElementById("shop-sr-outcome-modal");
   var titleEl = document.getElementById("shop-sr-outcome-title");
   var messageEl = document.getElementById("shop-sr-outcome-message");
@@ -15,32 +16,7 @@
 
   var queue = [];
   var current = null;
-
-  function getInitTs() {
-    try {
-      var ts = parseInt(localStorage.getItem(INIT_KEY) || "0", 10) || 0;
-      if (!ts) {
-        ts = Date.now();
-        localStorage.setItem(INIT_KEY, String(ts));
-      }
-      return ts;
-    } catch (e) {
-      return Date.now();
-    }
-  }
-
-  function alertCreatedMs(alert) {
-    var raw = alert && alert.created_at;
-    if (!raw) return 0;
-    var ms = Date.parse(String(raw).replace(" ", "T"));
-    return isFinite(ms) ? ms : 0;
-  }
-
-  function isFreshAlert(alert) {
-    var created = alertCreatedMs(alert);
-    if (!created) return true;
-    return created >= getInitTs() - 30000;
-  }
+  var seeded = false;
 
   function getSeenId() {
     try {
@@ -56,6 +32,23 @@
     } catch (e) {}
   }
 
+  function hasSeeded() {
+    if (seeded) return true;
+    try {
+      seeded = localStorage.getItem(SEEDED_KEY) === "1";
+    } catch (e) {
+      seeded = false;
+    }
+    return seeded;
+  }
+
+  function markSeeded() {
+    seeded = true;
+    try {
+      localStorage.setItem(SEEDED_KEY, "1");
+    } catch (e) {}
+  }
+
   function setOpen(on) {
     if (!modal) return;
     modal.classList.toggle("hidden", !on);
@@ -64,11 +57,11 @@
 
   function applyKind(kind) {
     if (!iconEl) return;
-    var cancelled = kind === "cancelled";
+    var bad = kind === "cancelled" || kind === "expired";
     iconEl.className =
       "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl " +
-      (cancelled ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400");
-    iconEl.innerHTML = cancelled
+      (bad ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400");
+    iconEl.innerHTML = bad
       ? '<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>'
       : '<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
   }
@@ -121,24 +114,50 @@
   }
 
   function enqueueNew(alerts) {
-    var seen = getSeenId();
-    var fresh = (alerts || [])
+    var list = (alerts || [])
       .filter(function (a) {
-        return a && a.id > seen && isFreshAlert(a);
+        return a && a.id;
       })
       .sort(function (a, b) {
         return a.id - b.id;
       });
+    if (!list.length) {
+      if (!hasSeeded()) markSeeded();
+      return;
+    }
+
+    // First visit with no prior history: remember the latest id so old alerts
+    // do not flood. Later polls only surface newer ids.
+    if (!hasSeeded() && getSeenId() <= 0) {
+      var maxId = list[list.length - 1].id;
+      setSeenId(maxId);
+      markSeeded();
+      return;
+    }
+    if (!hasSeeded()) markSeeded();
+
+    var seen = getSeenId();
+    var fresh = list.filter(function (a) {
+      return a.id > seen;
+    });
     if (!fresh.length) return;
+
+    var queuedIds = {};
+    queue.forEach(function (q) {
+      queuedIds[q.id] = true;
+    });
+    if (current) queuedIds[current.id] = true;
+
     fresh.forEach(function (a) {
-      queue.push(a);
+      if (!queuedIds[a.id]) queue.push(a);
     });
     showNext();
   }
 
   function poll() {
-    fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" } })
+    fetch(API, { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" })
       .then(function (res) {
+        if (!res.ok) return null;
         return res.json();
       })
       .then(function (data) {
@@ -157,7 +176,11 @@
     dismissCurrent();
   });
 
-  getInitTs();
-  setTimeout(poll, 1500);
-  setInterval(poll, 20000);
+  setTimeout(poll, 800);
+  setInterval(poll, POLL_MS);
+
+  // Resume quickly when cashier returns to the POS tab.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") poll();
+  });
 })();

@@ -21088,9 +21088,12 @@ def reject_stock_request(request_id: int):
 
 
 @app.route("/shops/<int:shop_id>/notifications/stock-request-alerts.json")
-@login_required
 def shop_stock_request_alerts_json(shop_id: int):
-    """Recent stock-request outcome alerts for popup on POS and shop pages."""
+    """Recent stock-request outcome alerts for popup on POS and shop pages.
+
+    Shop-password till sessions (no employee login) must also receive these so the
+    requesting shop POS can show Approve/Decline outcome popups live.
+    """
     shop = _get_shop_or_404(shop_id)
     gate = _require_shop_access(shop)
     if gate is not None:
@@ -21109,7 +21112,15 @@ def shop_stock_request_alerts_json(shop_id: int):
         else:
             ca = str(ca) if ca is not None else None
         title = (r.get("title") or "").strip()
-        cancelled = "cancel" in title.lower()
+        title_l = title.lower()
+        message_l = (r.get("message") or "").strip().lower()
+        dedupe = (r.get("dedupe_key") or "").strip().lower()
+        if "exp" in dedupe or "expir" in title_l:
+            kind = "expired"
+        elif any(w in title_l or w in message_l for w in ("declin", "cancel", "reject")):
+            kind = "cancelled"
+        else:
+            kind = "approved"
         out.append(
             {
                 "id": int(r.get("id") or 0),
@@ -21117,10 +21128,14 @@ def shop_stock_request_alerts_json(shop_id: int):
                 "message": (r.get("message") or "").strip(),
                 "link_url": (r.get("link_url") or "").strip() or None,
                 "created_at": ca,
-                "kind": "cancelled" if cancelled else "approved",
+                "kind": kind,
+                "dedupe_key": (r.get("dedupe_key") or "").strip() or None,
             }
         )
-    return jsonify({"ok": True, "alerts": out})
+    response = jsonify({"ok": True, "alerts": out})
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _shop_active_sku_count(shop_id: int) -> int:

@@ -21436,7 +21436,11 @@ def _find_pending_stock_request_duplicate(
 
 
 def list_shop_stock_request_alerts_for_shop(*, shop_id: int, limit: int = 20):
-    """Outcome alerts for a shop that submitted stock requests (approved or cancelled)."""
+    """Outcome alerts for a shop after stock requests are accepted, declined, or expired.
+
+    Includes both requester-side (`:rq`) and source-shop (`:src:`) review notifications
+    so either shop can show a live popup when the counterpart acts.
+    """
     shop_id = int(shop_id)
     limit = max(1, min(int(limit), 50))
     try:
@@ -21446,7 +21450,10 @@ def list_shop_stock_request_alerts_for_shop(*, shop_id: int, limit: int = 20):
                 SELECT id, title, message, link_url, created_at, dedupe_key
                 FROM app_notifications
                 WHERE shop_id = %s
-                  AND dedupe_key LIKE 'sr:rev:%:rq'
+                  AND (
+                    dedupe_key LIKE 'sr:rev:%%'
+                    OR dedupe_key LIKE 'sr:exp:%%'
+                  )
                 ORDER BY id DESC
                 LIMIT %s
                 """,
@@ -22138,34 +22145,48 @@ def review_stock_request(
                 payload=ev_payload,
             )
 
-            status_word = "approved" if approve else "cancelled"
             item_label = ((req.get("item_name") or "").strip() or f"Item #{int(req['item_id'])}")[:200]
             rq_shop = int(req["requesting_shop_id"])
             st = (req.get("source_type") or "").lower()
             src_sid = int(req["source_shop_id"] or 0)
             src_nm = ((req.get("source_shop_name") or "").strip() or (f"Shop #{src_sid}" if src_sid else "Company"))[:120]
+            rq_nm = ((req.get("requesting_shop_name") or "").strip() or f"Shop #{rq_shop}")[:120]
             if approve:
                 if st == "shop" and src_sid > 0:
-                    requester_title = "Stock request approved"
+                    requester_title = "Stock request accepted"
                     to_requester = (
-                        f"Request #{request_id}: {item_label} × {eff_qty} approved. "
-                        f"Stock was transferred from {src_nm} to your shop — levels updated at both shops."
+                        f"Accepted: {src_nm} approved your request #{request_id} for "
+                        f"{item_label} × {eff_qty}. Stock was transferred to your shop."
                     )
                 elif st == "company":
-                    requester_title = "Stock request approved"
+                    requester_title = "Stock request accepted"
                     to_requester = (
-                        f"Request #{request_id}: {item_label} × {eff_qty} approved. "
-                        "Stock was added to your shop from company inventory."
+                        f"Accepted: company approved your request #{request_id} for "
+                        f"{item_label} × {eff_qty}. Stock was added to your shop."
                     )
                 else:
-                    requester_title = "Stock request approved"
-                    to_requester = f"Request #{request_id}: {item_label} × {eff_qty} was approved."
+                    requester_title = "Stock request accepted"
+                    to_requester = (
+                        f"Accepted: request #{request_id} for {item_label} × {eff_qty} was approved."
+                    )
             else:
-                requester_title = "Stock request cancelled"
-                to_requester = (
-                    f"Request #{request_id} cancelled: {item_label} × {rqty}. "
-                    "The supplying party declined this request."
-                )
+                if st == "shop" and src_sid > 0:
+                    requester_title = "Stock request declined"
+                    to_requester = (
+                        f"Declined: {src_nm} declined your request #{request_id} for "
+                        f"{item_label} × {rqty}."
+                    )
+                elif st == "company":
+                    requester_title = "Stock request declined"
+                    to_requester = (
+                        f"Declined: company declined your request #{request_id} for "
+                        f"{item_label} × {rqty}."
+                    )
+                else:
+                    requester_title = "Stock request declined"
+                    to_requester = (
+                        f"Declined: request #{request_id} for {item_label} × {rqty} was declined."
+                    )
             link_requester = f"/shops/{rq_shop}/notifications"
             _insert_app_notification(
                 cur,
@@ -22177,23 +22198,22 @@ def review_stock_request(
                 link_url=link_requester[:500],
                 dedupe_key=f"sr:rev:{request_id}:rq",
             )
-            if st == "shop" and src_sid > 0:
-                rq_nm = ((req.get("requesting_shop_name") or "").strip() or f"Shop #{rq_shop}")[:120]
-                if approve:
-                    to_source = (
-                        f"Request #{request_id}: you transferred {item_label} × {eff_qty} to {rq_nm}. "
-                        "Stock levels were updated at both shops."
-                    )[:500]
-                    _insert_app_notification(
-                        cur,
-                        title="Stock transfer completed",
-                        message=to_source,
-                        employee_id=None,
-                        shop_id=src_sid,
-                        audience_role="all",
-                        link_url=f"/shops/{src_sid}/notifications"[:500],
-                        dedupe_key=f"sr:rev:{request_id}:src:{src_sid}",
-                    )
+            # Supplying shop: confirm completed transfers (accept). Decline only notifies the requester.
+            if st == "shop" and src_sid > 0 and approve:
+                to_source = (
+                    f"Accepted: you transferred {item_label} × {eff_qty} to {rq_nm} "
+                    f"(request #{request_id}). Stock levels were updated at both shops."
+                )[:500]
+                _insert_app_notification(
+                    cur,
+                    title="Stock transfer completed",
+                    message=to_source,
+                    employee_id=None,
+                    shop_id=src_sid,
+                    audience_role="all",
+                    link_url=f"/shops/{src_sid}/notifications"[:500],
+                    dedupe_key=f"sr:rev:{request_id}:src:{src_sid}",
+                )
             return True, ""
     except pymysql.Error as e:
         logger.warning("review_stock_request failed for request_id=%s: %s", request_id, e)
