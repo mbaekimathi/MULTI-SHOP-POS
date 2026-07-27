@@ -9,6 +9,8 @@
   {% set approved_n = approved_count|default(0) %}
   {% set declined_n = declined_count|default(0) %}
   {% set total_n = (stock_requests or [])|length %}
+  {% set outgoing = outgoing_requests or [] %}
+  {% set outgoing_pending_n = outgoing_pending_count|default(0) %}
 
   <div id="shop-notifications-page" class="rc-page space-y-6">
     <div class="rc-page-hero rc-card--pad">
@@ -17,13 +19,16 @@
           <p class="text-[10px] font-black uppercase tracking-[0.22em] text-[rgb(var(--rc-primary))]">Alerts &amp; requests</p>
           <h2 class="mt-1 text-xl font-bold text-[rgb(var(--rc-page-fg))] sm:text-2xl">Notifications</h2>
           <p class="mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
-            Incoming stock requests for {{ shop.shop_name }} — pending, approved and declined.
+            Incoming requests other shops sent to {{ shop.shop_name }}, plus items this shop has requested.
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
           <span class="inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-200 ring-1 ring-amber-400/15">
             <span class="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true"></span>
-            {{ pending_n }} pending
+            {{ pending_n }} incoming pending
+          </span>
+          <span class="inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-xs font-bold text-sky-200 ring-1 ring-sky-400/15">
+            {{ outgoing_pending_n }} my requests pending
           </span>
           <span class="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-200 ring-1 ring-emerald-400/15">
             {{ approved_n }} approved
@@ -38,7 +43,82 @@
     <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-5 py-4">
         <div>
-          <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Stock transfer requests</h3>
+          <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Items this shop requested</h3>
+          <p class="text-xs text-[rgb(var(--rc-muted))]">Outgoing requests submitted by {{ shop.shop_name }} — item, qty, source and status</p>
+        </div>
+        {% if outgoing_pending_n > 0 %}
+          <span class="rounded-full bg-sky-500/15 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-sky-200 ring-1 ring-sky-400/25">
+            {{ outgoing_pending_n }} awaiting reply
+          </span>
+        {% endif %}
+      </div>
+
+      {% if not outgoing %}
+        <div class="px-5 py-10 text-center">
+          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No outgoing stock requests yet.</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">When you request stock from company or another shop, the items appear here.</p>
+        </div>
+      {% else %}
+        <div class="overflow-x-auto">
+          <table class="rc-data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Request from</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>Requested by</th>
+                <th>Reviewed</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in outgoing %}
+                {% set st = (r.status or '')|lower %}
+                <tr>
+                  <td class="tabular-nums font-semibold text-[rgb(var(--rc-muted))]">{{ r.id }}</td>
+                  <td class="font-semibold">
+                    {% if r.request_type == 'return_to_company' %}
+                      Return — {{ r.item_name or ('Item #' ~ r.item_id) }}
+                    {% else %}
+                      {{ r.item_name or ('Item #' ~ r.item_id) }}
+                    {% endif %}
+                  </td>
+                  <td class="tabular-nums font-semibold">{{ r.qty }}</td>
+                  <td>
+                    {% if r.source_type == 'company' %}
+                      Company warehouse
+                    {% else %}
+                      {{ r.source_shop_name or ('Shop #' ~ (r.source_shop_id or '')) }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ring-1
+                      {% if st == 'pending' %}bg-amber-500/12 text-amber-200 ring-amber-400/25
+                      {% elif st == 'approved' %}bg-emerald-500/12 text-emerald-200 ring-emerald-400/25
+                      {% elif st in ('rejected', 'declined') %}bg-rose-500/12 text-rose-200 ring-rose-400/25
+                      {% else %}bg-slate-500/10 text-slate-300 ring-slate-400/20{% endif %}">
+                      {% if st == 'rejected' %}declined{% else %}{{ st|replace('_', ' ') }}{% endif %}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.created_at }}</td>
+                  <td class="text-[rgb(var(--rc-muted))]">{{ r.requested_by_name or '—' }}</td>
+                  <td class="whitespace-nowrap tabular-nums text-[rgb(var(--rc-muted))]">{{ r.reviewed_at or '—' }}</td>
+                  <td class="max-w-[12rem] text-[rgb(var(--rc-muted))]">{{ r.note or '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))]/80 px-5 py-4">
+        <div>
+          <h3 class="text-base font-bold text-[rgb(var(--rc-page-fg))]">Incoming stock requests</h3>
           <p class="text-xs text-[rgb(var(--rc-muted))]">All requests where another shop asked to receive stock from {{ shop.shop_name }}</p>
         </div>
         {% if pending_n > 0 %}
@@ -50,7 +130,7 @@
 
       {% if not stock_requests %}
         <div class="px-5 py-10 text-center">
-          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No stock requests yet.</p>
+          <p class="text-sm font-medium text-[rgb(var(--rc-muted))]">No incoming stock requests yet.</p>
           <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">When another shop requests stock from you, it will appear here.</p>
         </div>
       {% else %}
@@ -80,12 +160,12 @@
                   <td class="tabular-nums font-semibold text-[rgb(var(--rc-muted))]">{{ r.id }}</td>
                   <td class="font-semibold">
                     {% if r.request_type == 'return_to_company' %}
-                      Return — {{ r.item_name }}
+                      Return — {{ r.item_name or ('Item #' ~ r.item_id) }}
                     {% else %}
-                      {{ r.item_name }}
+                      {{ r.item_name or ('Item #' ~ r.item_id) }}
                     {% endif %}
                   </td>
-                  <td class="tabular-nums">{{ r.qty }}</td>
+                  <td class="tabular-nums font-semibold">{{ r.qty }}</td>
                   <td>{{ r.source_shop_name or shop.shop_name }}</td>
                   <td class="font-medium">{{ r.requesting_shop_name }}</td>
                   <td>
@@ -113,7 +193,7 @@
                           type="button"
                           class="js-sn-review btn-rc btn-rc-success px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
                           data-request-id="{{ r.id }}"
-                          data-item-name="{{ r.item_name|e }}"
+                          data-item-name="{{ (r.item_name or ('Item #' ~ r.item_id))|e }}"
                           data-qty="{{ r.qty }}"
                           data-requesting-shop="{{ r.requesting_shop_name|e }}"
                           data-max-qty="{{ r.qty if not r.source_shop_stock_qty else ([r.qty, r.source_shop_stock_qty]|min) }}"

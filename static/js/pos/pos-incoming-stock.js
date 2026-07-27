@@ -348,25 +348,30 @@
     resetReviewSteps();
     window.__posIncomingSrCurrent = r;
     detailEl.innerHTML = "";
-    var p1 = document.createElement("p");
-    p1.className = "leading-snug";
-    p1.innerHTML =
-      '<span class="font-semibold">#' +
-      esc(r.id) +
-      "</span> · " +
-      esc(r.requesting_shop_name || "Shop") +
-      ' requests <span class="font-semibold">' +
-      esc(r.item_name || "Item") +
-      '</span> <span class="tabular-nums">× ' +
-      esc(r.qty || 0) +
-      "</span>";
-    detailEl.appendChild(p1);
-    if (r.note) {
-      var pn = document.createElement("p");
-      pn.className = "mt-2 text-[11px] text-[rgb(var(--rc-muted))]";
-      pn.textContent = r.note;
-      detailEl.appendChild(pn);
+
+    function addRow(label, value, strong) {
+      var row = document.createElement("div");
+      row.className = "flex items-start justify-between gap-3";
+      var lab = document.createElement("span");
+      lab.className = "shrink-0 text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]";
+      lab.textContent = label;
+      var val = document.createElement("span");
+      val.className =
+        "min-w-0 text-right text-sm " +
+        (strong ? "font-bold text-[rgb(var(--rc-page-fg))]" : "font-medium text-[rgb(var(--rc-page-fg))]");
+      val.textContent = value == null || value === "" ? "—" : String(value);
+      row.appendChild(lab);
+      row.appendChild(val);
+      detailEl.appendChild(row);
     }
+
+    var itemLabel = (r.item_name || "").trim() || (r.item_id ? "Item #" + r.item_id : "Item");
+    addRow("Request", "#" + (r.id || "—"));
+    addRow("Item", itemLabel, true);
+    addRow("Qty requested", r.qty != null ? String(r.qty) : "—", true);
+    addRow("From shop", r.requesting_shop_name || "Shop");
+    if (r.note) addRow("Note", r.note);
+
     var rq = Number(r.qty);
     if (!isFinite(rq) || rq <= 0) rq = 0;
     var mx = typeof r.max_approve_qty === "number" ? r.max_approve_qty : 0;

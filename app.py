@@ -14487,8 +14487,11 @@ def shop_pos_incoming_stock_requests_json(shop_id: int):
         out.append(
             {
                 "id": int(r.get("id") or 0),
+                "item_id": int(r.get("item_id") or 0),
                 "requesting_shop_name": (r.get("requesting_shop_name") or "").strip(),
-                "item_name": (r.get("item_name") or "").strip(),
+                "item_name": (r.get("item_name") or "").strip() or (
+                    f"Item #{int(r.get('item_id') or 0)}" if int(r.get("item_id") or 0) else "Item"
+                ),
                 "qty": rq,
                 "requested_qty": rq,
                 "source_shop_stock_qty": src_avail,
@@ -20980,11 +20983,17 @@ def shop_notifications(shop_id: int):
         return redirect(url_for("shop_dashboard", shop_id=shop_id))
     role_key = (session.get("employee_role") or "employee").strip().lower()
     try:
-        from database import list_incoming_stock_requests_for_shop, can_fulfill_stock_request
+        from database import (
+            list_incoming_stock_requests_for_shop,
+            list_outgoing_stock_requests_for_shop,
+            can_fulfill_stock_request,
+        )
 
         stock_requests = list_incoming_stock_requests_for_shop(source_shop_id=shop_id, limit=300)
+        outgoing_requests = list_outgoing_stock_requests_for_shop(requesting_shop_id=shop_id, limit=300)
     except Exception:
         stock_requests = []
+        outgoing_requests = []
     for r in stock_requests or []:
         r["can_review"] = _can_user_review_stock_request(r, role_key=role_key, viewer_shop_id=shop_id)
         if (r.get("status") or "").lower() == "pending":
@@ -21001,13 +21010,18 @@ def shop_notifications(shop_id: int):
     declined_count = sum(
         1 for r in (stock_requests or []) if (r.get("status") or "").lower() in ("rejected", "declined")
     )
+    outgoing_pending_count = sum(
+        1 for r in (outgoing_requests or []) if (r.get("status") or "").lower() == "pending"
+    )
     return render_template(
         "shop_notifications.html",
         shop=shop,
         stock_requests=stock_requests,
+        outgoing_requests=outgoing_requests,
         pending_request_count=pending_request_count,
         approved_count=approved_count,
         declined_count=declined_count,
+        outgoing_pending_count=outgoing_pending_count,
         notification_count=pending_request_count,
         notification_scope=f"shop-{int(shop_id)}",
         theme_key=f"richcom-theme-shop-{shop['id']}",

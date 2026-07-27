@@ -21894,6 +21894,43 @@ def list_incoming_stock_requests_for_shop(*, source_shop_id: int, limit: int = 3
         return []
 
 
+def list_outgoing_stock_requests_for_shop(*, requesting_shop_id: int, limit: int = 300, status: Optional[str] = None):
+    """Stock requests submitted by this shop (items this shop asked for)."""
+    requesting_shop_id = int(requesting_shop_id)
+    limit = max(1, min(int(limit), 500))
+    status_filter = (status or "").strip().lower() or None
+    req_type_col = "r.request_type" if column_exists("shop_stock_requests", "request_type") else "'stock_in'"
+    status_sql = " AND r.status = %s" if status_filter else ""
+    status_params: tuple = (status_filter,) if status_filter else ()
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT r.id, r.requesting_shop_id, """ + req_type_col + """ AS request_type, r.source_type, r.source_shop_id,
+                       r.item_id, r.qty, r.status, r.note, r.requested_by_employee_id,
+                       r.reviewed_by_employee_id, r.review_note, r.created_at, r.reviewed_at,
+                       rq.shop_name AS requesting_shop_name,
+                       ss.shop_name AS source_shop_name,
+                       i.name AS item_name,
+                       req_emp.full_name AS requested_by_name,
+                       rev_emp.full_name AS reviewed_by_name
+                FROM shop_stock_requests r
+                JOIN shops rq ON rq.id = r.requesting_shop_id
+                LEFT JOIN shops ss ON ss.id = r.source_shop_id
+                JOIN items i ON i.id = r.item_id
+                LEFT JOIN employees req_emp ON req_emp.id = r.requested_by_employee_id
+                LEFT JOIN employees rev_emp ON rev_emp.id = r.reviewed_by_employee_id
+                WHERE r.requesting_shop_id = %s""" + status_sql + """
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT %s
+                """,
+                (requesting_shop_id,) + status_params + (limit,),
+            )
+            return cur.fetchall() or []
+    except pymysql.Error:
+        return []
+
+
 def list_incoming_pending_stock_requests_for_shop(*, source_shop_id: int, limit: int = 30):
     """Pending stock-in requests where another shop asked to receive stock from this shop (POS popup)."""
     source_shop_id = int(source_shop_id)
