@@ -204,7 +204,6 @@
                   <td class="max-w-[10rem] truncate px-3 py-3 text-xs text-[rgb(var(--rc-muted))] sm:px-4" title="{{ r.note or '' }}">{{ r.note or "—" }}</td>
                   <td class="px-3 py-3 text-right sm:px-4">
                     <div class="flex flex-wrap justify-end gap-1.5">
-                      <button type="button" class="js-payment-open btn-rc btn-rc-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}">Pay</button>
                       <button type="button" class="js-supply-edit btn-rc btn-rc-ghost rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name|e }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}" data-seller-name="{{ r.seller_name|e }}" data-seller-phone="{{ r.seller_phone|e }}" data-note="{{ (r.note or '')|e }}">Edit</button>
                       <button type="button" class="js-supply-delete btn-rc btn-rc-danger rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}">Del</button>
                     </div>
@@ -242,7 +241,6 @@
               </dl>
               {% if r.note %}<p class="mt-2 text-xs text-[rgb(var(--rc-muted))]"><span class="font-semibold">Note:</span> {{ r.note }}</p>{% endif %}
               <div class="mt-3 flex flex-wrap gap-2">
-                <button type="button" class="js-payment-open btn-rc btn-rc-primary flex-1 rounded-xl px-3 py-2 text-xs font-semibold" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}">Pay</button>
                 <button type="button" class="js-supply-edit btn-rc btn-rc-ghost rounded-xl px-3 py-2 text-xs font-semibold" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name|e }}" data-qty="{{ r.qty }}" data-buying-price="{{ r.buying_price }}" data-total-cost="{{ r.total_cost }}" data-amount-paid="{{ r.amount_paid }}" data-seller-name="{{ r.seller_name|e }}" data-seller-phone="{{ r.seller_phone|e }}" data-note="{{ (r.note or '')|e }}">Edit</button>
                 <button type="button" class="js-supply-delete btn-rc btn-rc-danger rounded-xl px-3 py-2 text-xs font-semibold" data-tx-id="{{ r.tx_id }}" data-tx-scope="{{ r.tx_scope or 'shop' }}" data-item-name="{{ r.item_name }}">Delete</button>
               </div>
@@ -325,36 +323,6 @@
           {% endfor %}
         </tbody>
       </table>
-    </div>
-
-    <div id="payment-modal" class="fixed inset-0 z-50 hidden">
-      <div class="absolute inset-0 bg-black/55 backdrop-blur-[2px]"></div>
-      <div class="relative mx-auto mt-8 w-[95%] max-w-lg rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-5 shadow-2xl sm:mt-16">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h4 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Record payment</h4>
-            <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Payment is applied to the oldest unpaid stock-in first, then spills forward.</p>
-          </div>
-          <button type="button" id="payment-modal-close" class="rounded-lg border border-[rgb(var(--rc-border))] px-2 py-1 text-xs">Close</button>
-        </div>
-        <div class="mt-4 grid gap-2 text-sm">
-          <div><span class="text-[rgb(var(--rc-muted))]">Item:</span> <span id="pay-item" class="font-semibold text-[rgb(var(--rc-page-fg))]"></span></div>
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Buying price</div><div id="pay-buying-price" class="font-semibold"></div></div>
-            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Qty</div><div id="pay-qty" class="font-semibold"></div></div>
-            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Line total</div><div id="pay-total" class="font-bold"></div></div>
-            <div class="rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2"><div class="text-[10px] uppercase text-[rgb(var(--rc-muted))]">Already paid</div><div id="pay-already" class="font-semibold tabular-nums"></div></div>
-          </div>
-        </div>
-        <form id="payment-form" class="mt-4">
-          <label class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]" for="pay-additional">Pay now</label>
-          <input id="pay-additional" name="additional_payment" type="number" min="0" step="0.01" autocomplete="off" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none" placeholder="0.00" />
-          <div class="mt-4 flex justify-end gap-2">
-            <button type="button" id="payment-cancel" class="btn-rc btn-rc-ghost px-3 py-2 text-xs">Cancel</button>
-            <button type="submit" class="btn-rc btn-rc-primary px-3 py-2 text-xs">Save payment</button>
-          </div>
-        </form>
-      </div>
     </div>
 
     <div id="pay-all-modal" class="fixed inset-0 z-50 hidden">
@@ -474,83 +442,6 @@
       document.addEventListener("input", function (ev) {
         if (!ev.target || ev.target.id !== "it-supplier-detail-search") return;
         filterDetailRows((ev.target.value || "").trim().toLowerCase());
-      });
-    })();
-
-    (function () {
-      var sellerName = {{ seller_name|tojson }};
-      var sellerPhone = {{ seller_phone|tojson }};
-      var filterShopId = {{ filter_shop_id|tojson }};
-      var paymentUrl = "/it_support/stock-reports/suppliers/seller/payment";
-
-      function postSupplierPayment(amount, onDone) {
-        var fd = new FormData();
-        fd.append("seller_name", sellerName);
-        fd.append("seller_phone", sellerPhone);
-        fd.append("additional_payment", String(amount));
-        if (filterShopId) fd.append("shop_id", String(filterShopId));
-        fetch(paymentUrl, { method: "POST", body: fd })
-          .then(function (res) { return res.json(); })
-          .then(function (data) {
-            if (!data || !data.ok) {
-              alert((data && data.error) || "Failed to update payment.");
-              return;
-            }
-            if (typeof onDone === "function") onDone(data);
-            else window.location.reload();
-          })
-          .catch(function () {
-            alert("Failed to update payment.");
-          });
-      }
-
-      var modal = document.getElementById("payment-modal");
-      var openBtns = document.querySelectorAll(".js-payment-open");
-      var closeBtn = document.getElementById("payment-modal-close");
-      var cancelBtn = document.getElementById("payment-cancel");
-      var form = document.getElementById("payment-form");
-      if (!modal || !openBtns.length || !form) return;
-
-      var additionalEl = document.getElementById("pay-additional");
-      var itemEl = document.getElementById("pay-item");
-      var buyingEl = document.getElementById("pay-buying-price");
-      var qtyEl = document.getElementById("pay-qty");
-      var totalEl = document.getElementById("pay-total");
-      var alreadyEl = document.getElementById("pay-already");
-
-      function fmt(v) { return Number(v || 0).toFixed(2); }
-      function parseNum(el) {
-        var s = (el && el.value) ? String(el.value).trim() : "";
-        if (s === "") return null;
-        var n = parseFloat(s);
-        return isNaN(n) ? null : n;
-      }
-      function openModal() { modal.classList.remove("hidden"); }
-      function closeModal() { modal.classList.add("hidden"); }
-
-      openBtns.forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          itemEl.textContent = btn.getAttribute("data-item-name") || "-";
-          buyingEl.textContent = fmt(btn.getAttribute("data-buying-price"));
-          qtyEl.textContent = btn.getAttribute("data-qty") || "0";
-          totalEl.textContent = fmt(btn.getAttribute("data-total-cost"));
-          alreadyEl.textContent = fmt(btn.getAttribute("data-amount-paid"));
-          additionalEl.value = "";
-          openModal();
-        });
-      });
-
-      if (closeBtn) closeBtn.addEventListener("click", closeModal);
-      if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
-
-      form.addEventListener("submit", function (e) {
-        e.preventDefault();
-        var add = parseNum(additionalEl);
-        if (add === null || add <= 0) {
-          alert("Enter a valid payment amount.");
-          return;
-        }
-        postSupplierPayment(add);
       });
     })();
 

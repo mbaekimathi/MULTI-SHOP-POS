@@ -283,8 +283,9 @@
 
     var target = options.target || resolveContentTarget(form);
     if (!target) {
-      if (typeof form.requestSubmit === "function") form.requestSubmit();
-      else form.submit();
+      // Native submit() bypasses the submit listener (avoids preventDefault loops).
+      // Do not use requestSubmit() here — it re-fires the same handler.
+      HTMLFormElement.prototype.submit.call(form);
       return Promise.resolve(false);
     }
 

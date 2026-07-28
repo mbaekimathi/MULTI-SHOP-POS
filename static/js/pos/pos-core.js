@@ -3736,19 +3736,24 @@ var saleType = "sale";
       function putOfflineStockIn(entry) {
         var doc = Object.assign({}, entry || {});
         doc.local_id = String(doc.local_id || ("sin-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)));
+        doc.client_txn_id = String(doc.client_txn_id || doc.local_id).slice(0, 64);
         doc.queued_at = doc.queued_at || new Date().toISOString();
         doc.attempts = parseInt(doc.attempts || 0, 10) || 0;
         doc.last_error = String(doc.last_error || "");
-        if (!idbSupported()) {
+        doc.next_retry_at = doc.next_retry_at || "";
+        function putStockInLocalStorage(d) {
           try {
             var rawSi = localStorage.getItem(OFFLINE_STOCKIN_KEY);
             var listSi = rawSi ? JSON.parse(rawSi) : [];
             if (!Array.isArray(listSi)) listSi = [];
-            listSi = listSi.filter(function (x) { return x && x.local_id !== doc.local_id; });
-            listSi.push(doc);
+            listSi = listSi.filter(function (x) { return x && x.local_id !== d.local_id; });
+            listSi.push(d);
             localStorage.setItem(OFFLINE_STOCKIN_KEY, JSON.stringify(listSi));
           } catch (e) {}
-          return Promise.resolve(doc);
+          return d;
+        }
+        if (!idbSupported()) {
+          return Promise.resolve(putStockInLocalStorage(doc));
         }
         return openOfflineDb().then(function (db) {
           return new Promise(function (resolve, reject) {
@@ -3757,6 +3762,8 @@ var saleType = "sale";
             tx.onerror = function () { reject(tx.error || new Error("Could not store offline stock-in")); };
             tx.objectStore(OFFLINE_DB_STOCKIN_STORE).put(doc);
           }).finally(function () { try { db.close(); } catch (e) {} });
+        }).catch(function () {
+          return putStockInLocalStorage(doc);
         });
       }
 
@@ -3815,11 +3822,20 @@ var saleType = "sale";
         offlineStockInSyncBusy = true;
         return listOfflineStockIns().then(function (rows) {
           if (!rows || !rows.length) return { synced: 0, failed: 0, remaining: 0 };
+          var nowMs = Date.now();
+          rows = rows.filter(function (row) {
+            var nr = String((row && row.next_retry_at) || "");
+            if (!nr) return true;
+            var t = Date.parse(nr);
+            return !isFinite(t) || t <= nowMs;
+          });
+          if (!rows.length) return { synced: 0, failed: 0, remaining: 0 };
           var synced = 0;
           var failed = 0;
           var queue = Promise.resolve();
           rows.forEach(function (row) {
             queue = queue.then(function () {
+              var txnId = String(row.client_txn_id || row.local_id || "").slice(0, 64);
               var fd = new FormData();
               fd.append("item_id", String(row.item_id || ""));
               fd.append("qty", String(row.qty || ""));
@@ -3828,6 +3844,7 @@ var saleType = "sale";
               fd.append("seller_name", String(row.seller_name || ""));
               fd.append("note", String(row.note || ""));
               fd.append("employee_code", String(row.employee_code || ""));
+              if (txnId) fd.append("client_txn_id", txnId);
               return fetch(OFFLINE_STOCK_IN_API, {
                 method: "POST",
                 body: fd,
@@ -3840,8 +3857,14 @@ var saleType = "sale";
                 return deleteOfflineStockIn(row.local_id).then(function () { synced++; });
               }).catch(function (err) {
                 failed++;
-                row.attempts = (parseInt(row.attempts || 0, 10) || 0) + 1;
+                var attempts = (parseInt(row.attempts || 0, 10) || 0) + 1;
+                var capped = Math.min(attempts, 8);
+                var baseMs = Math.min(30 * 60 * 1000, Math.pow(2, capped) * 1000);
+                var jitterMs = Math.floor(Math.random() * 1200);
+                row.attempts = attempts;
                 row.last_error = String((err && err.message) || err || "Unknown error");
+                row.next_retry_at = new Date(Date.now() + baseMs + jitterMs).toISOString();
+                row.client_txn_id = txnId || row.client_txn_id || row.local_id;
                 return putOfflineStockIn(row);
               });
             });
@@ -3862,19 +3885,24 @@ var saleType = "sale";
       function putOfflinePortionRefill(entry) {
         var doc = Object.assign({}, entry || {});
         doc.local_id = String(doc.local_id || ("ref-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)));
+        doc.client_txn_id = String(doc.client_txn_id || doc.local_id).slice(0, 64);
         doc.queued_at = doc.queued_at || new Date().toISOString();
         doc.attempts = parseInt(doc.attempts || 0, 10) || 0;
         doc.last_error = String(doc.last_error || "");
-        if (!idbSupported()) {
+        doc.next_retry_at = doc.next_retry_at || "";
+        function putRefillLocalStorage(d) {
           try {
             var rawRf = localStorage.getItem(OFFLINE_REFILL_KEY);
             var listRf = rawRf ? JSON.parse(rawRf) : [];
             if (!Array.isArray(listRf)) listRf = [];
-            listRf = listRf.filter(function (x) { return x && x.local_id !== doc.local_id; });
-            listRf.push(doc);
+            listRf = listRf.filter(function (x) { return x && x.local_id !== d.local_id; });
+            listRf.push(d);
             localStorage.setItem(OFFLINE_REFILL_KEY, JSON.stringify(listRf));
           } catch (eRfPut) {}
-          return Promise.resolve(doc);
+          return d;
+        }
+        if (!idbSupported()) {
+          return Promise.resolve(putRefillLocalStorage(doc));
         }
         return openOfflineDb().then(function (db) {
           return new Promise(function (resolve, reject) {
@@ -3883,6 +3911,8 @@ var saleType = "sale";
             tx.onerror = function () { reject(tx.error || new Error("Could not store offline portion refill")); };
             tx.objectStore(OFFLINE_DB_REFILL_STORE).put(doc);
           }).finally(function () { try { db.close(); } catch (e) {} });
+        }).catch(function () {
+          return putRefillLocalStorage(doc);
         });
       }
 
@@ -3942,16 +3972,26 @@ var saleType = "sale";
         offlinePortionRefillSyncBusy = true;
         return listOfflinePortionRefills().then(function (rows) {
           if (!rows || !rows.length) return { synced: 0, failed: 0, remaining: 0 };
+          var nowMs = Date.now();
+          rows = rows.filter(function (row) {
+            var nr = String((row && row.next_retry_at) || "");
+            if (!nr) return true;
+            var t = Date.parse(nr);
+            return !isFinite(t) || t <= nowMs;
+          });
+          if (!rows.length) return { synced: 0, failed: 0, remaining: 0 };
           var synced = 0;
           var failed = 0;
           var queue = Promise.resolve();
           rows.forEach(function (row) {
             queue = queue.then(function () {
+              var txnId = String(row.client_txn_id || row.local_id || "").slice(0, 64);
               var fd = new FormData();
               fd.append("item_id", String(row.item_id || ""));
               fd.append("qty", String(row.qty || ""));
               fd.append("note", String(row.note || ""));
               fd.append("employee_code", String(row.employee_code || ""));
+              if (txnId) fd.append("client_txn_id", txnId);
               return fetch(OFFLINE_REFILL_PORTIONS_API, {
                 method: "POST",
                 body: fd,
@@ -3964,8 +4004,14 @@ var saleType = "sale";
                 return deleteOfflinePortionRefill(row.local_id).then(function () { synced++; });
               }).catch(function (err) {
                 failed++;
-                row.attempts = (parseInt(row.attempts || 0, 10) || 0) + 1;
+                var attempts = (parseInt(row.attempts || 0, 10) || 0) + 1;
+                var capped = Math.min(attempts, 8);
+                var baseMs = Math.min(30 * 60 * 1000, Math.pow(2, capped) * 1000);
+                var jitterMs = Math.floor(Math.random() * 1200);
+                row.attempts = attempts;
                 row.last_error = String((err && err.message) || err || "Unknown error");
+                row.next_retry_at = new Date(Date.now() + baseMs + jitterMs).toISOString();
+                row.client_txn_id = txnId || row.client_txn_id || row.local_id;
                 return putOfflinePortionRefill(row);
               });
             });
@@ -4058,7 +4104,7 @@ var saleType = "sale";
             queued_at: e.queued_at,
           };
         }
-        return {
+        var saleBody = {
           sale_type: e.sale_type,
           payment_method: e.payment_method,
           cash_amount: e.cash_amount,
@@ -4074,6 +4120,12 @@ var saleType = "sale";
           offline_queue_sync: true,
           queued_at: e.queued_at,
         };
+        // Preserve held-order finalize so server skips stock deduction (already moved on hold).
+        var heldId = e.held_order_id;
+        if (heldId != null && heldId !== "" && Number(heldId) > 0) {
+          saleBody.held_order_id = Number(heldId);
+        }
+        return saleBody;
       }
 
       function syncOfflineSalesQueue(opts) {

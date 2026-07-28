@@ -7238,6 +7238,94 @@ def ensure_shop_pos_sales_client_txn_column() -> bool:
         return False
 
 
+def init_shop_pos_offline_replays_table() -> bool:
+    """Idempotency log for offline stock-in / kitchen-refill queue retries."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS shop_pos_offline_replays (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        shop_id INT NOT NULL,
+        client_txn_id VARCHAR(64) NOT NULL,
+        kind VARCHAR(32) NOT NULL,
+        result_json LONGTEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_shop_pos_offline_replay (shop_id, client_txn_id),
+        KEY idx_shop_pos_offline_replay_shop (shop_id),
+        KEY idx_shop_pos_offline_replay_kind (kind)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init shop_pos_offline_replays: %s", e)
+        return False
+
+
+def get_shop_pos_offline_replay(shop_id: int, client_txn_id: str) -> Optional[dict]:
+    """Return stored offline-replay result payload, or None."""
+    txid = (client_txn_id or "").strip()[:64]
+    if not txid:
+        return None
+    init_shop_pos_offline_replays_table()
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT result_json
+                FROM shop_pos_offline_replays
+                WHERE shop_id=%s AND client_txn_id=%s
+                LIMIT 1
+                """,
+                (int(shop_id), txid),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            raw = row.get("result_json")
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8", errors="replace")
+            if isinstance(raw, str):
+                try:
+                    parsed = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    return None
+                return parsed if isinstance(parsed, dict) else None
+            return raw if isinstance(raw, dict) else None
+    except pymysql.Error as e:
+        logger.warning("get_shop_pos_offline_replay error: %s", e)
+        return None
+
+
+def save_shop_pos_offline_replay(
+    shop_id: int,
+    client_txn_id: str,
+    kind: str,
+    result: dict,
+) -> bool:
+    """Persist a successful offline stock-in / refill response for idempotent retries."""
+    txid = (client_txn_id or "").strip()[:64]
+    if not txid or not isinstance(result, dict):
+        return False
+    kind_norm = (kind or "").strip().lower()[:32] or "unknown"
+    init_shop_pos_offline_replays_table()
+    try:
+        payload = json.dumps(result, ensure_ascii=False, default=str)
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO shop_pos_offline_replays (shop_id, client_txn_id, kind, result_json)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE result_json = VALUES(result_json), kind = VALUES(kind)
+                """,
+                (int(shop_id), txid, kind_norm, payload),
+            )
+        return True
+    except pymysql.Error as e:
+        logger.warning("save_shop_pos_offline_replay error: %s", e)
+        return False
+
+
 def ensure_shop_pos_sales_mpesa_receipt_column() -> bool:
     """Store Safaricom M-Pesa receipt code for POS STK/checkouts."""
     init_shop_pos_sales_table()
@@ -10882,6 +10970,132 @@ def list_all_pos_quotations_for_it(
     return out
 
 
+def init_item_lead_client_status_table() -> bool:
+    """Persist interested / not-interested flags for quotation item leads."""
+    sql = """
+    CREATE TABLE IF NOT EXISTS item_lead_client_status (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        item_key VARCHAR(220) NOT NULL,
+        item_name VARCHAR(200) NOT NULL DEFAULT '',
+        customer_phone VARCHAR(40) NOT NULL,
+        customer_name VARCHAR(190) NULL,
+        status ENUM('interested', 'not_interested') NOT NULL,
+        updated_by_employee_id INT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_item_lead_client (item_key, customer_phone),
+        KEY idx_item_lead_status (status, updated_at),
+        KEY idx_item_lead_item (item_key)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(sql)
+        logger.info("Table item_lead_client_status is ready.")
+        return True
+    except pymysql.Error as e:
+        logger.warning("Could not init item_lead_client_status: %s", e)
+        return False
+
+
+def list_item_lead_client_statuses(
+    status: Optional[str] = None,
+) -> list:
+    """Return item-lead client status rows; optionally filter by status."""
+    init_item_lead_client_status_table()
+    clauses = ["1=1"]
+    params: list = []
+    st = (status or "").strip().lower()
+    if st in ("interested", "not_interested"):
+        clauses.append("status = %s")
+        params.append(st)
+    where_sql = " AND ".join(clauses)
+    sql = f"""
+    SELECT id, item_key, item_name, customer_phone, customer_name, status,
+           updated_by_employee_id, updated_at, created_at
+    FROM item_lead_client_status
+    WHERE {where_sql}
+    ORDER BY updated_at DESC, id DESC
+    """
+    try:
+        with get_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        return [dict(r) for r in rows]
+    except pymysql.Error as e:
+        logger.warning("list_item_lead_client_statuses failed: %s", e)
+        return []
+
+
+def set_item_lead_client_status(
+    *,
+    item_key: str,
+    item_name: str,
+    customer_phone: str,
+    customer_name: Optional[str] = None,
+    status: str,
+    updated_by_employee_id: Optional[int] = None,
+) -> Tuple[bool, Optional[str]]:
+    """Upsert interested / not_interested for a client on an item lead."""
+    init_item_lead_client_status_table()
+    key = (item_key or "").strip()[:220]
+    phone = (customer_phone or "").strip()[:40]
+    name = (customer_name or "").strip()[:190] or None
+    item_nm = (item_name or "").strip()[:200]
+    st = (status or "").strip().lower()
+    if not key or not phone:
+        return False, "Item and customer phone are required."
+    if st not in ("interested", "not_interested"):
+        return False, "Invalid status."
+    sql = """
+    INSERT INTO item_lead_client_status
+        (item_key, item_name, customer_phone, customer_name, status, updated_by_employee_id)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        item_name = VALUES(item_name),
+        customer_name = COALESCE(VALUES(customer_name), customer_name),
+        status = VALUES(status),
+        updated_by_employee_id = VALUES(updated_by_employee_id),
+        updated_at = CURRENT_TIMESTAMP
+    """
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                sql,
+                (key, item_nm, phone, name, st, updated_by_employee_id),
+            )
+        return True, None
+    except pymysql.Error as e:
+        logger.warning("set_item_lead_client_status failed: %s", e)
+        return False, "Could not save lead status."
+
+
+def clear_item_lead_client_status(
+    *,
+    item_key: str,
+    customer_phone: str,
+) -> Tuple[bool, Optional[str]]:
+    """Remove a client status row (e.g. undo interested)."""
+    init_item_lead_client_status_table()
+    key = (item_key or "").strip()[:220]
+    phone = (customer_phone or "").strip()[:40]
+    if not key or not phone:
+        return False, "Item and customer phone are required."
+    try:
+        with get_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                DELETE FROM item_lead_client_status
+                WHERE item_key = %s AND customer_phone = %s
+                """,
+                (key, phone),
+            )
+        return True, None
+    except pymysql.Error as e:
+        logger.warning("clear_item_lead_client_status failed: %s", e)
+        return False, "Could not clear lead status."
+
+
 def create_shop_pos_sale(
     *,
     shop_id: int,
@@ -10901,6 +11115,7 @@ def create_shop_pos_sale(
     inventory_mode: str = "shop",
     client_txn_id: Optional[str] = None,
     skip_stock_deduction: bool = False,
+    allow_negative_stock: bool = False,
     mpesa_receipt_number: Optional[str] = None,
 ) -> Tuple[bool, Optional[str], Optional[int], Optional[str]]:
     """
@@ -10914,6 +11129,10 @@ def create_shop_pos_sale(
     pre-check or movement. This is used when finalizing a withhold-POS held order whose stock
     was already deducted incrementally via :func:`pos_held_order_save`. Default is False so
     existing Direct-POS callers retain their full inventory-validation behavior.
+
+    ``allow_negative_stock=True`` records the sale and deducts stock even when on-hand qty is
+    insufficient (qty may go negative). Used for offline queue replay where the till already
+    issued a receipt to the customer.
     """
     ensure_shop_credit_payments_schema()
     mode = (inventory_mode or "shop").strip().lower()
@@ -11092,9 +11311,10 @@ def create_shop_pos_sale(
 
             # Exactly one inventory pathway per sale — never validate shelf and portions together.
             # Skipped when stock has already been moved upstream (e.g. withhold-POS held-order finalize).
+            # Offline replay may allow negative stock so a printed offline receipt still lands in DB.
             if skip_stock_deduction:
                 pass
-            elif mode == "shop":
+            elif mode == "shop" and not allow_negative_stock:
                 for iid in sorted(need.keys()):
                     cur.execute(
                         """
@@ -11115,7 +11335,7 @@ def create_shop_pos_sale(
                         raise ValueError(
                             "Not enough stock at the shop for one or more items. Adjust quantities or stock."
                         )
-            elif mode in ("kitchen", "both"):
+            elif mode in ("kitchen", "both") and not allow_negative_stock:
                 # Mode "both": POS checkout consumes kitchen portions only; shelf qty is separate (Stock management).
                 for iid in sorted(need.keys()):
                     cur.execute(
@@ -11218,7 +11438,7 @@ def create_shop_pos_sale(
                         continue
                     shop_before = round(float(si.get("shop_stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
                     qshop = round(q, STOCK_QTY_DECIMAL_PLACES)
-                    if shop_before < qshop:
+                    if shop_before < qshop and not allow_negative_stock:
                         raise ValueError(
                             "Not enough stock at the shop for one or more items. Adjust quantities or stock."
                         )
@@ -11257,18 +11477,36 @@ def create_shop_pos_sale(
                     ks = cur.fetchone() or {}
                     if int(ks.get("sue") or 0) != 1:
                         continue
-                    cur.execute(
-                        """
-                        UPDATE shop_kitchen_portions
-                        SET portions_remaining = portions_remaining - %s
-                        WHERE shop_id=%s AND item_id=%s AND portions_remaining >= %s
-                        """,
-                        (qk, int(shop_id), int(iid), qk),
-                    )
-                    if int(cur.rowcount or 0) < 1:
-                        raise ValueError(
-                            "Not enough kitchen portions for one or more items. Adjust quantities or kitchen portions."
+                    if allow_negative_stock:
+                        cur.execute(
+                            """
+                            INSERT INTO shop_kitchen_portions (shop_id, item_id, portions_remaining)
+                            VALUES (%s, %s, 0)
+                            ON DUPLICATE KEY UPDATE portions_remaining = portions_remaining
+                            """,
+                            (int(shop_id), int(iid)),
                         )
+                        cur.execute(
+                            """
+                            UPDATE shop_kitchen_portions
+                            SET portions_remaining = portions_remaining - %s
+                            WHERE shop_id=%s AND item_id=%s
+                            """,
+                            (qk, int(shop_id), int(iid)),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            UPDATE shop_kitchen_portions
+                            SET portions_remaining = portions_remaining - %s
+                            WHERE shop_id=%s AND item_id=%s AND portions_remaining >= %s
+                            """,
+                            (qk, int(shop_id), int(iid), qk),
+                        )
+                        if int(cur.rowcount or 0) < 1:
+                            raise ValueError(
+                                "Not enough kitchen portions for one or more items. Adjust quantities or kitchen portions."
+                            )
 
             return True, None, sale_id, receipt_number
     except ValueError as e:
@@ -22464,6 +22702,7 @@ _EXPECTED_SCHEMA_TABLES = (
     "shop_stock_request_events",
     "app_notifications",
     "pos_held_orders",
+    "shop_pos_offline_replays",
     "hr_activity_log",
     "shop_day_openings",
 )
@@ -22515,6 +22754,7 @@ def init_schema() -> bool:
     ok_shop_stock_request_audit = ensure_shop_stock_request_audit_schema()
     ok_notifications = init_notifications_table()
     ok_pos_held_orders = init_pos_held_orders_table()
+    ok_offline_replays = init_shop_pos_offline_replays_table()
     ok_hr_activity_log = init_hr_activity_log_table()
     ok_shop_day_openings = init_shop_day_openings_table()
     steps_ok = (
@@ -22547,6 +22787,7 @@ def init_schema() -> bool:
         and ok_shop_stock_request_audit
         and ok_notifications
         and ok_pos_held_orders
+        and ok_offline_replays
         and ok_hr_activity_log
         and ok_shop_day_openings
     )

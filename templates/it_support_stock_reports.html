@@ -35,82 +35,145 @@
   {% set valuation_rows = valuation_rows or [] %}
   {% set highest_value_rows = highest_value_rows or [] %}
   {% set stagnant_rows = stagnant_rows or [] %}
-  <div class="mx-auto min-w-0 max-w-6xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4">
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-6 md:shadow-sm">
-      <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Stock reports</h2>
-      <p class="mt-2 text-sm text-[rgb(var(--rc-muted))]">
-        Choose a shop and period, then apply filters to load the report.
-        <a href="{{ url_for('it_support_stock_suppliers') }}" class="ml-1 font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Supplier buying analysis</a>
-      </p>
-      <form id="it-stock-reports-filter-form" method="get" action="{{ url_for('it_support_stock_reports') }}" class="mt-4 space-y-3 border-t border-[rgb(var(--rc-border))] pt-4">
+  {% set _fm = f.mode or 'single_day' %}
+  {% include "partials/shop_stock_workspace_assets.html" %}
+  <div class="sa-stock-analytics mx-auto min-w-0 max-w-6xl space-y-4" data-portal-live-root>
+    <section class="sa-stock-hero rounded-2xl border border-[rgb(var(--rc-border))] shadow-sm">
+      <div class="sa-stock-hero-top overflow-hidden rounded-t-2xl border-b border-[rgb(var(--rc-border))]/75 px-4 py-4 sm:px-6 sm:py-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0 flex-1">
+            <p class="sa-stock-hero-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-[rgb(var(--rc-muted))]">Stock workspace</p>
+            <h2 class="sa-stock-hero-title mt-1 text-xl font-bold tracking-tight text-[rgb(var(--rc-page-fg))] sm:text-2xl">Stock reports</h2>
+            <p class="sa-stock-hero-desc mt-2 max-w-xl text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
+              Company and shop stock balances, alerts, movement, and valuation.
+              <a href="{{ url_for('it_support_stock_suppliers') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Supplier buying analysis</a>
+            </p>
+          </div>
+          <div class="sa-stock-chips flex flex-wrap items-center gap-2 lg:justify-end" aria-live="polite">
+            {% if filters_applied %}
+              {% if _fm == 'single_day' %}
+              <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+                Day <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.single_day or '—' }}</span>
+              </span>
+              {% elif _fm == 'period' %}
+              <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+                Range <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.start_date or '—' }} – {{ f.end_date or '—' }}</span>
+              </span>
+              {% elif _fm == 'month' %}
+              <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+                Month <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.month or '—' }}</span>
+              </span>
+              {% elif _fm == 'year' %}
+              <span class="inline-flex items-center rounded-lg border border-amber-400/25 bg-amber-500/[0.08] px-2.5 py-1 text-xs font-semibold text-amber-300/95">
+                Year <span class="ml-1.5 tabular-nums text-[rgb(var(--rc-page-fg))]">{{ f.year or '—' }}</span>
+              </span>
+              {% endif %}
+              {% if shop_filter_name %}
+              <span class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop_filter_name }}</span>
+              {% else %}
+              <span class="inline-flex items-center rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-1 text-xs font-semibold text-[rgb(var(--rc-page-fg))]">All shops + company</span>
+              {% endif %}
+            {% endif %}
+            <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300/95">
+              <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+              Reports
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <form
+        id="it-stock-reports-filter-form"
+        method="get"
+        action="{{ url_for('it_support_stock_reports') }}"
+        data-portal-live-filter
+        data-portal-live-content="#portal-live-content"
+        class="sa-stock-filter sa-stock-live-filter portal-filter-toolbar--legacy border-t border-[rgb(var(--rc-border))]/60 px-4 py-4 sm:px-6"
+      >
         <input type="hidden" name="view" value="{{ selected_view or 'period_balance' }}" />
-        <div class="flex flex-wrap items-end gap-3">
-          <div class="min-w-[11rem] flex-1">
-            <label for="it-reports-shop" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Shop</label>
-            <select id="it-reports-shop" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm">
+        <div class="flex flex-wrap items-end gap-2.5">
+          <div class="w-full max-w-[14rem] shrink-0">
+            <label for="it-reports-shop" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Shop</label>
+            <select id="it-reports-shop" name="shop_id" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
               <option value="">All shops + company</option>
               {% for s in shops or [] %}
                 <option value="{{ s.id }}" {% if shop_filter_id and shop_filter_id == s.id %}selected{% endif %}>{{ s.shop_name or ('Shop #' ~ s.id) }}</option>
               {% endfor %}
             </select>
           </div>
-          {% if selected_view in ('valuation', 'highest_value') %}
-            <input type="hidden" name="mode" value="{{ f.mode or 'single_day' }}" />
-            <input type="hidden" name="single_day" value="{{ f.single_day or '' }}" />
-            <input type="hidden" name="start_date" value="{{ f.start_date or '' }}" />
-            <input type="hidden" name="end_date" value="{{ f.end_date or '' }}" />
-            <input type="hidden" name="month" value="{{ f.month or '' }}" />
-            <input type="hidden" name="year" value="{{ f.year or '' }}" />
-          {% else %}
-          <div class="min-w-[10rem] flex-1">
-            <label for="it-reports-mode" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Date mode</label>
-            <select id="it-reports-mode" name="mode" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm">
-              <option value="single_day" {% if (f.mode or 'single_day') == 'single_day' %}selected{% endif %}>Single day</option>
-              <option value="period" {% if (f.mode or '') == 'period' %}selected{% endif %}>Period</option>
-              <option value="month" {% if (f.mode or '') == 'month' %}selected{% endif %}>Month</option>
-              <option value="year" {% if (f.mode or '') == 'year' %}selected{% endif %}>Year</option>
+          <div class="w-full max-w-[9.5rem] shrink-0">
+            <label for="it-reports-mode" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Period</label>
+            <select id="it-reports-mode" name="mode" data-portal-filter-mode class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20">
+              <option value="single_day" {% if _fm == 'single_day' %}selected{% endif %}>Single day</option>
+              <option value="period" {% if _fm == 'period' %}selected{% endif %}>Period</option>
+              <option value="month" {% if _fm == 'month' %}selected{% endif %}>Month</option>
+              <option value="year" {% if _fm == 'year' %}selected{% endif %}>Year</option>
             </select>
           </div>
-          <div id="it-reports-f-day" class="min-w-[10rem] flex-1 {% if (f.mode or 'single_day') != 'single_day' %}hidden{% endif %}">
-            <label for="it-reports-single-day" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Day</label>
-            <input id="it-reports-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm" />
+          <div id="it-reports-f-day" data-stock-filter="single_day" data-portal-filter-panel="single_day" class="w-full max-w-[11.5rem] shrink-0 {% if _fm != 'single_day' %}hidden{% endif %}">
+            <label for="it-reports-single-day" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Day</label>
+            <input id="it-reports-single-day" type="date" name="single_day" value="{{ f.single_day or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
           </div>
-          <div id="it-reports-f-start" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-            <label for="it-reports-start" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Start</label>
-            <input id="it-reports-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm" />
+          <div id="it-reports-f-start" data-stock-filter="period" data-portal-filter-panel="period_start" class="w-full max-w-[11.5rem] shrink-0 {% if _fm != 'period' %}hidden{% endif %}">
+            <label for="it-reports-start" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">From</label>
+            <input id="it-reports-start" type="date" name="start_date" value="{{ f.start_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
           </div>
-          <div id="it-reports-f-end" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'period' %}hidden{% endif %}">
-            <label for="it-reports-end" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">End</label>
-            <input id="it-reports-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm" />
+          <div id="it-reports-f-end" data-stock-filter="period" data-portal-filter-panel="period_end" class="w-full max-w-[11.5rem] shrink-0 {% if _fm != 'period' %}hidden{% endif %}">
+            <label for="it-reports-end" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">To</label>
+            <input id="it-reports-end" type="date" name="end_date" value="{{ f.end_date or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
           </div>
-          <div id="it-reports-f-month" class="min-w-[10rem] flex-1 {% if (f.mode or '') != 'month' %}hidden{% endif %}">
-            <label for="it-reports-month" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Month</label>
-            <input id="it-reports-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm" />
+          <div id="it-reports-f-month" data-stock-filter="month" data-portal-filter-panel="month" class="w-full max-w-[11.5rem] shrink-0 {% if _fm != 'month' %}hidden{% endif %}">
+            <label for="it-reports-month" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Month</label>
+            <input id="it-reports-month" type="month" name="month" value="{{ f.month or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
           </div>
-          <div id="it-reports-f-year" class="min-w-[8rem] max-w-[11rem] flex-1 {% if (f.mode or '') != 'year' %}hidden{% endif %}">
-            <label for="it-reports-year" class="mb-1 block text-xs font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Year</label>
-            <input id="it-reports-year" type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm" />
+          <div id="it-reports-f-year" data-stock-filter="year" data-portal-filter-panel="year" class="w-full max-w-[8rem] shrink-0 {% if _fm != 'year' %}hidden{% endif %}">
+            <label for="it-reports-year" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Year</label>
+            <input id="it-reports-year" type="number" name="year" min="2000" max="2100" step="1" value="{{ f.year or '' }}" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none transition focus:border-[rgb(var(--rc-primary))]/45 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
           </div>
-          {% endif %}
           <div class="flex flex-wrap items-center gap-2 pb-0.5">
-            <button type="submit" class="btn-rc btn-rc-primary min-h-[44px] rounded-xl px-5 py-2.5 text-sm font-semibold sm:min-h-0">Apply filters</button>
-            {% if filters_applied %}
-              <a href="{{ url_for('it_support_stock_reports', view=selected_view or 'period_balance') }}" class="btn-rc btn-rc-ghost min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-semibold sm:min-h-0">Clear</a>
-            {% endif %}
+            <button type="submit" class="btn-rc btn-rc-primary portal-live-keep-submit min-h-[2.5rem] rounded-xl px-4 py-2 text-sm font-semibold">
+              Apply filters
+            </button>
+            <a href="{{ url_for('it_support_stock_reports', view=selected_view or 'period_balance') }}" class="btn-rc btn-rc-ghost min-h-[2.5rem] rounded-xl px-4 py-2 text-sm font-semibold">Clear</a>
           </div>
         </div>
       </form>
-    </div>
+    </section>
 
-    {% if not filters_applied %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-10 text-center max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-10 md:shadow-sm">
-      <h3 class="text-base font-semibold text-[rgb(var(--rc-page-fg))]">Filters required</h3>
-      <p class="mx-auto mt-2 max-w-md text-sm text-[rgb(var(--rc-muted))]">
-        Select a shop (or leave all shops) and a date range above, then click <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Apply filters</span> to load stock report data.
-      </p>
-    </div>
-    {% else %}
-      <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-6 md:shadow-sm">
+    <div id="portal-live-content" data-portal-live-content class="relative space-y-4">
+      {% if not filters_applied %}
+      <div class="rounded-2xl border border-dashed border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-12 text-center shadow-sm sm:px-8">
+        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Ready to load</p>
+        <h3 class="mt-2 text-base font-semibold text-[rgb(var(--rc-page-fg))]">Apply filters to load this report</h3>
+        <p class="mx-auto mt-2 max-w-md text-sm text-[rgb(var(--rc-muted))]">
+          Pick a shop (or leave all shops) and a date range above, then click <span class="font-semibold text-[rgb(var(--rc-page-fg))]">Apply filters</span>. After the first load, filter changes update automatically.
+        </p>
+      </div>
+      {% else %}
+      <div class="sa-stock-kpis grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Total valuation</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_valuation or 0) }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">{{ f.range_label or 'Selected period' }}</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Rows in view</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ active_row_count or 0 }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Current report tab</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Low stock</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-rose-400">{{ low_stock_count or 0 }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">At or below threshold</p>
+        </div>
+        <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-muted))]">Fast / stagnant</p>
+          <p class="mt-1 text-2xl font-black tabular-nums text-[rgb(var(--rc-page-fg))]">{{ fast_moving_count or 0 }} <span class="text-sm font-semibold text-[rgb(var(--rc-muted))]">/</span> {{ stagnant_count or 0 }}</p>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">Moved vs idle in period</p>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
         <p class="text-sm text-[rgb(var(--rc-muted))]">
           {% if shop_filter_name %}
             Viewing <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop_filter_name }}</span>.
@@ -133,237 +196,285 @@
             id="stock-reports-live-search"
             type="search"
             autocomplete="off"
-            placeholder="Search by item, category or description..."
+            data-portal-live-ignore="1"
+            placeholder="Search by item or category…"
             class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-base text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25 md:rounded-xl md:text-sm"
           />
         </div>
-        <div class="mt-4 border-t border-[rgb(var(--rc-border))] pt-4 md:rounded-xl md:border md:border-[rgb(var(--rc-border))] md:bg-[rgb(var(--rc-surface-2))] md:px-4 md:py-3 md:pt-4">
-          <div class="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">Total stock valuation</div>
-          <div class="mt-1 text-2xl font-extrabold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(total_valuation or 0) }}</div>
+      </div>
+
+      {% if selected_view == "period_balance" %}
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="mb-3 px-2 sm:px-0">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock balance report</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+            Per-item stock for <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or "the selected period" }}</span>.
+            {% if shop_filter_name %}Showing <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop_filter_name }}</span> only.{% else %}Totals combine company warehouse and all shops.{% endif %}
+          </p>
+        </div>
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <table class="sa-stock-data-table min-w-[44rem] w-full text-xs sm:min-w-[52rem] md:min-w-[800px] md:text-sm">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="text-right">Opening</th>
+                <th class="text-right">Stock in</th>
+                <th class="text-right">Stock out</th>
+                <th class="text-right">Stock sold</th>
+                <th class="text-right">Stock balance</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in period_balance_rows[:120] %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold shadow-[1px_0_0_rgb(var(--rc-border))]"><div class="max-w-[12rem] truncate sm:max-w-none">{{ r.name }}</div>{% if r.category %}<div class="text-[10px] font-normal text-[rgb(var(--rc-muted))] sm:text-xs">{{ r.category }}</div>{% endif %}</td>
+                  <td class="text-right tabular-nums">{{ r.opening_stock or 0 }}</td>
+                  <td class="text-right tabular-nums text-emerald-400">{{ r.stock_in or 0 }}</td>
+                  <td class="text-right tabular-nums text-amber-400">{{ r.stock_out or 0 }}</td>
+                  <td class="text-right tabular-nums">{{ r.stock_sold or 0 }}</td>
+                  <td class="text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ r.closing_stock or 0 }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="6" class="py-8 text-center text-[rgb(var(--rc-muted))]">No items found for this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
+      {% endif %}
 
-    {% if selected_view == "period_balance" %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock balance report</h3>
-      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-        Per-item stock for <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ f.range_label or "the selected period" }}</span>.
-        {% if shop_filter_name %}Showing <span class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ shop_filter_name }}</span> only.{% else %}Totals combine company warehouse and all shops.{% endif %}
-      </p>
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[44rem] w-full text-xs sm:min-w-[52rem] md:min-w-[800px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Opening</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock in</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock out</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock sold</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock balance</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% for r in period_balance_rows[:120] %}
+      {% if selected_view == "low_stock" %}
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="mb-3 px-2 sm:px-0">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Low stock alert</h3>
+          <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
+            Items with a <span class="font-semibold text-[rgb(var(--rc-page-fg))]">low-stock level above zero</span>
+            ({% if shop_filter_name %}shop override when set, else {% endif %}company level from
+            <a href="{{ url_for('it_support_company_stock_settings') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Company stock settings</a>)
+            where stock balance for {{ f.range_label or "the period" }} is at or below that level.
+          </p>
+        </div>
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <table class="sa-stock-data-table min-w-[48rem] w-full text-xs sm:min-w-[56rem] md:min-w-[880px] md:text-sm">
+            <thead>
               <tr>
-                <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 font-semibold shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3"><div class="max-w-[12rem] truncate sm:max-w-none">{{ r.name }}</div>{% if r.category %}<div class="text-[10px] font-normal text-[rgb(var(--rc-muted))] sm:text-xs">{{ r.category }}</div>{% endif %}</td>
-                <td class="px-2 py-2 text-right tabular-nums sm:px-3">{{ r.opening_stock or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums text-emerald-400 sm:px-3">{{ r.stock_in or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums text-amber-400 sm:px-3">{{ r.stock_out or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums sm:px-3">{{ r.stock_sold or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3">{{ r.closing_stock or 0 }}</td>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="text-right">Level</th>
+                <th class="text-right">Opening</th>
+                <th class="text-right">Stock in</th>
+                <th class="text-right">Stock out</th>
+                <th class="text-right">Stock sold</th>
+                <th class="text-right">Balance</th>
               </tr>
-            {% else %}
-              <tr><td colspan="6" class="px-3 py-8 text-center text-[rgb(var(--rc-muted))]">No items found for this period.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in low_stock_rows[:40] %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold shadow-[1px_0_0_rgb(var(--rc-border))]"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td>
+                  <td class="whitespace-nowrap text-right text-xs font-semibold text-[rgb(var(--rc-page-fg))] sm:text-sm">{{ r.low_stock_threshold }}</td>
+                  <td class="text-right tabular-nums">{{ r.opening_stock or 0 }}</td>
+                  <td class="text-right tabular-nums text-emerald-400">{{ r.stock_in or 0 }}</td>
+                  <td class="text-right tabular-nums text-amber-400">{{ r.stock_out or 0 }}</td>
+                  <td class="text-right tabular-nums">{{ r.stock_sold or 0 }}</td>
+                  <td class="text-right tabular-nums font-semibold text-rose-400">{{ r.closing_stock or 0 }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="7" class="py-8 text-center text-[rgb(var(--rc-muted))]">No low stock items. Set levels in <a href="{{ url_for('it_support_company_stock_settings') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Company stock settings</a>.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if selected_view == "low_stock" %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Low stock alert</h3>
-      <p class="mt-1 text-xs text-[rgb(var(--rc-muted))]">
-        Items with a <span class="font-semibold text-[rgb(var(--rc-page-fg))]">low-stock level above zero</span>
-        ({% if shop_filter_name %}shop override when set, else {% endif %}company level from
-        <a href="{{ url_for('it_support_company_stock_settings') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Company stock settings</a>)
-        where stock balance for {{ f.range_label or "the period" }} is at or below that level.
-      </p>
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[48rem] w-full text-xs sm:min-w-[56rem] md:min-w-[880px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr>
-              <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Level</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Opening</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock in</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock out</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock sold</th>
-              <th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Balance</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% for r in low_stock_rows[:40] %}
+      {% if selected_view == "fast_moving" %}
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="mb-3 px-2 sm:px-0">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Fast-moving (frequent updates)</h3>
+        </div>
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <table class="sa-stock-data-table min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
+            <thead>
               <tr>
-                <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 font-semibold shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td>
-                <td class="whitespace-nowrap px-2 py-2 text-right text-xs font-semibold text-[rgb(var(--rc-page-fg))] sm:px-3 sm:text-sm">{{ r.low_stock_threshold }}</td>
-                <td class="px-2 py-2 text-right tabular-nums sm:px-3">{{ r.opening_stock or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums text-emerald-400 sm:px-3">{{ r.stock_in or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums text-amber-400 sm:px-3">{{ r.stock_out or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums sm:px-3">{{ r.stock_sold or 0 }}</td>
-                <td class="px-2 py-2 text-right tabular-nums font-semibold text-rose-400 sm:px-3">{{ r.closing_stock or 0 }}</td>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="text-right">Moves</th>
+                <th class="text-right">Stock</th>
+                <th class="text-left">Updated</th>
               </tr>
-            {% else %}
-              <tr><td colspan="7" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No low stock items. Set levels in <a href="{{ url_for('it_support_company_stock_settings') }}" class="font-semibold text-[rgb(var(--rc-primary))] underline-offset-2 hover:underline">Company stock settings</a>.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in fast_moving_rows[:40] %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold shadow-[1px_0_0_rgb(var(--rc-border))]"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td>
+                  <td class="text-right">{{ r.tx_count or 0 }}</td>
+                  <td class="text-right">{{ r.stock_qty or 0 }}</td>
+                  <td class="max-w-[6rem] truncate text-[rgb(var(--rc-muted))] sm:max-w-none">{{ r.updated_at or "—" }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="py-8 text-center text-[rgb(var(--rc-muted))]">No fast-moving items.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if selected_view == "fast_moving" %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Fast-moving (frequent updates)</h3>
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr><th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Moves</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock</th><th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Updated</th></tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% for r in fast_moving_rows[:40] %}
-              <tr><td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 font-semibold shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td><td class="px-2 py-2 text-right sm:px-3">{{ r.tx_count or 0 }}</td><td class="px-2 py-2 text-right sm:px-3">{{ r.stock_qty or 0 }}</td><td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.updated_at or "—" }}</td></tr>
-            {% else %}
-              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No fast-moving items.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      {% if selected_view == "valuation" %}
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="mb-3 px-2 sm:px-0">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock valuation report</h3>
+        </div>
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <table class="sa-stock-data-table min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="text-right">Stock</th>
+                <th class="text-right">Avg buy</th>
+                <th class="text-right">Value</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in valuation_rows[:60] %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold shadow-[1px_0_0_rgb(var(--rc-border))]"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td>
+                  <td class="text-right">{{ r.stock_qty or 0 }}</td>
+                  <td class="text-right">{{ "%.2f"|format(r.avg_buying_price or 0) }}</td>
+                  <td class="text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="py-8 text-center text-[rgb(var(--rc-muted))]">No valuation rows.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if selected_view == "valuation" %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stock Valuation Report</h3>
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr><th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Avg buy</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Value</th></tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% for r in valuation_rows[:60] %}
-              <tr><td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 font-semibold shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td><td class="px-2 py-2 text-right sm:px-3">{{ r.stock_qty or 0 }}</td><td class="px-2 py-2 text-right sm:px-3">{{ "%.2f"|format(r.avg_buying_price or 0) }}</td><td class="px-2 py-2 text-right sm:px-3">{{ "%.2f"|format(r.stock_value or 0) }}</td></tr>
-            {% else %}
-              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No valuation rows.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      {% if selected_view == "highest_value" %}
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="mb-3 px-2 sm:px-0">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Highest value stock report</h3>
+        </div>
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <table class="sa-stock-data-table min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="text-right">Value</th>
+                <th class="text-right">Stock</th>
+                <th class="text-right">Moves</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in highest_value_rows[:40] %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold shadow-[1px_0_0_rgb(var(--rc-border))]"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td>
+                  <td class="text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td>
+                  <td class="text-right">{{ r.stock_qty or 0 }}</td>
+                  <td class="text-right">{{ r.tx_count or 0 }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="py-8 text-center text-[rgb(var(--rc-muted))]">No high value rows.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if selected_view == "highest_value" %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Highest Value Stock Report</h3>
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr><th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Value</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Moves</th></tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% for r in highest_value_rows[:40] %}
-              <tr><td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 font-semibold shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td><td class="px-2 py-2 text-right sm:px-3">{{ "%.2f"|format(r.stock_value or 0) }}</td><td class="px-2 py-2 text-right sm:px-3">{{ r.stock_qty or 0 }}</td><td class="px-2 py-2 text-right sm:px-3">{{ r.tx_count or 0 }}</td></tr>
-            {% else %}
-              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No high value rows.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      {% if selected_view == "stagnant" %}
+      <div class="sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-2 shadow-sm sm:p-4">
+        <div class="mb-3 px-2 sm:px-0">
+          <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stagnant / untouched stock report</h3>
+        </div>
+        <div class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <table class="sa-stock-data-table min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] text-left shadow-[1px_0_0_rgb(var(--rc-border))]">Item</th>
+                <th class="text-right">Stock</th>
+                <th class="text-right">Value</th>
+                <th class="text-left">Updated</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+              {% for r in stagnant_rows[:40] %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] font-semibold shadow-[1px_0_0_rgb(var(--rc-border))]"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td>
+                  <td class="text-right">{{ r.stock_qty or 0 }}</td>
+                  <td class="text-right">{{ "%.2f"|format(r.stock_value or 0) }}</td>
+                  <td class="max-w-[6rem] truncate text-[rgb(var(--rc-muted))] sm:max-w-none">{{ r.updated_at or "—" }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="py-8 text-center text-[rgb(var(--rc-muted))]">No stagnant rows.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
+      {% endif %}
+      {% endif %}
     </div>
-    {% endif %}
-
-    {% if selected_view == "stagnant" %}
-    <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-5 md:shadow-sm">
-      <h3 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Stagnant / Untouched Stock Report</h3>
-      <div class="mt-3 min-w-0 overflow-x-auto overscroll-x-contain">
-        <table class="min-w-[36rem] w-full text-xs sm:min-w-[44rem] md:min-w-[720px] md:text-sm">
-          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
-            <tr><th class="sticky left-0 z-10 bg-[rgb(var(--rc-surface-2))] px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3 sm:text-xs">Item</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Stock</th><th class="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Value</th><th class="px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wider sm:px-3 sm:text-xs">Updated</th></tr>
-          </thead>
-          <tbody class="divide-y divide-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
-            {% for r in stagnant_rows[:40] %}
-              <tr><td class="sticky left-0 z-10 bg-[rgb(var(--rc-surface))] px-2 py-2 font-semibold shadow-[1px_0_0_rgb(var(--rc-border))] sm:px-3"><div class="max-w-[10rem] truncate sm:max-w-none">{{ r.name }}</div></td><td class="px-2 py-2 text-right sm:px-3">{{ r.stock_qty or 0 }}</td><td class="px-2 py-2 text-right sm:px-3">{{ "%.2f"|format(r.stock_value or 0) }}</td><td class="max-w-[6rem] truncate px-2 py-2 text-[rgb(var(--rc-muted))] sm:max-w-none sm:px-3">{{ r.updated_at or "—" }}</td></tr>
-            {% else %}
-              <tr><td colspan="4" class="px-3 py-3 text-center text-[rgb(var(--rc-muted))]">No stagnant rows.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-    {% endif %}
   </div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  {% if selected_view not in ('valuation', 'highest_value') %}
   <script>
     (function () {
-      var mode = document.getElementById("it-reports-mode");
-      var day = document.getElementById("it-reports-f-day");
-      var start = document.getElementById("it-reports-f-start");
-      var end = document.getElementById("it-reports-f-end");
-      var month = document.getElementById("it-reports-f-month");
-      var year = document.getElementById("it-reports-f-year");
-      if (!mode) return;
-      function sync() {
-        var v = mode.value || "single_day";
-        if (day) day.classList.toggle("hidden", v !== "single_day");
-        if (start) start.classList.toggle("hidden", v !== "period");
-        if (end) end.classList.toggle("hidden", v !== "period");
-        if (month) month.classList.toggle("hidden", v !== "month");
-        if (year) year.classList.toggle("hidden", v !== "year");
+      function wireLiveSearch(root) {
+        var scope = root || document;
+        var input = scope.querySelector ? scope.querySelector("#stock-reports-live-search") : document.getElementById("stock-reports-live-search");
+        if (!input || input.getAttribute("data-sr-search-wired") === "1") return;
+        input.setAttribute("data-sr-search-wired", "1");
+        var bodies = Array.prototype.slice.call(
+          (scope.querySelectorAll ? scope : document).querySelectorAll("#portal-live-content table tbody")
+        );
+        if (!bodies.length) {
+          bodies = Array.prototype.slice.call(document.querySelectorAll("#portal-live-content table tbody"));
+        }
+        function applyFilter() {
+          var q = String(input.value || "").trim().toLowerCase();
+          bodies.forEach(function (body) {
+            var rows = Array.prototype.slice.call(body.querySelectorAll("tr"));
+            var visibleCount = 0;
+            rows.forEach(function (row) {
+              var cellCount = row.querySelectorAll("td").length;
+              if (!cellCount) return;
+              if (cellCount === 1) {
+                row.classList.toggle("hidden", !!q);
+                return;
+              }
+              var hay = String(row.textContent || "").toLowerCase();
+              var show = !q || hay.indexOf(q) !== -1;
+              row.classList.toggle("hidden", !show);
+              if (show) visibleCount += 1;
+            });
+            rows.forEach(function (row) {
+              if (row.querySelectorAll("td").length === 1) {
+                row.classList.toggle("hidden", !!q && visibleCount > 0);
+              }
+            });
+          });
+        }
+        input.addEventListener("input", applyFilter);
+        applyFilter();
       }
-      mode.addEventListener("change", sync);
-      sync();
+
+      function boot() {
+        wireLiveSearch(document.getElementById("portal-live-content") || document);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", boot);
+      } else {
+        boot();
+      }
+
+      document.addEventListener("portal-live-content-updated", function () {
+        boot();
+      });
     })();
   </script>
-  {% endif %}
-  {% if filters_applied %}
-  <script>
-    (function () {
-      var input = document.getElementById("stock-reports-live-search");
-      if (!input) return;
-      var bodies = Array.prototype.slice.call(document.querySelectorAll("table tbody"));
-      function applyFilter() {
-        var q = String(input.value || "").trim().toLowerCase();
-        bodies.forEach(function (body) {
-          var rows = Array.prototype.slice.call(body.querySelectorAll("tr"));
-          var visibleCount = 0;
-          rows.forEach(function (row) {
-            var cellCount = row.querySelectorAll("td").length;
-            if (!cellCount) return;
-            if (cellCount === 1) {
-              row.classList.toggle("hidden", !!q);
-              return;
-            }
-            var hay = String(row.textContent || "").toLowerCase();
-            var show = !q || hay.indexOf(q) !== -1;
-            row.classList.toggle("hidden", !show);
-            if (show) visibleCount += 1;
-          });
-          rows.forEach(function (row) {
-            if (row.querySelectorAll("td").length === 1) {
-              row.classList.toggle("hidden", !!q && visibleCount > 0);
-            }
-          });
-        });
-      }
-      input.addEventListener("input", applyFilter);
-      applyFilter();
-    })();
-  </script>
-  {% endif %}
 {% endblock %}

@@ -1,0 +1,378 @@
+{% extends "employee_layout.html" %}
+{% block title %}Item leads — {{ site_settings.company_name if site_settings else "Point of Sale" }}{% endblock %}
+{% block portal_page_title %}Item leads{% endblock %}
+{% block sidebar_links %}
+  {% include "partials/it_support_leads_sidebar_nav.html" %}
+{% endblock %}
+{% block employee_content %}
+  <div class="rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Item leads</h2>
+    <p class="mt-1 text-sm text-[rgb(var(--rc-muted))]">
+      Items requested across quotations, with total quantity. Open an item to see clients and phone numbers.
+      Mark <strong class="text-[rgb(var(--rc-page-fg))]">Interested</strong> to pin a client here, or
+      <strong class="text-[rgb(var(--rc-page-fg))]">Not interested</strong> to clear them from that item.
+    </p>
+  </div>
+
+  <div id="item-leads-interested" class="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 shadow-sm {% if not interested_clients %}hidden{% endif %}">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h3 class="text-sm font-bold uppercase tracking-wide text-emerald-900 dark:text-emerald-100">Interested clients</h3>
+      <p class="text-xs text-emerald-800/80 dark:text-emerald-200/80" id="item-leads-interested-count">
+        {{ interested_clients|length }} pinned
+      </p>
+    </div>
+    <ul id="item-leads-interested-list" class="mt-3 space-y-2">
+      {% for c in interested_clients %}
+        <li
+          class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-[rgb(var(--rc-surface))] px-3 py-2.5"
+          data-interested-row
+          data-item-key="{{ c.item_key }}"
+          data-phone="{{ c.customer_phone }}"
+        >
+          <div class="min-w-0">
+            <p class="font-semibold text-[rgb(var(--rc-page-fg))]">{{ c.customer_name }}</p>
+            <p class="text-sm tabular-nums text-[rgb(var(--rc-muted))]">{{ c.customer_phone }}</p>
+            <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">{{ c.item_name }}</p>
+          </div>
+          <button
+            type="button"
+            class="rounded-xl border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]"
+            data-clear-interested
+            data-item-key="{{ c.item_key }}"
+            data-item-name="{{ c.item_name }}"
+            data-phone="{{ c.customer_phone }}"
+            data-name="{{ c.customer_name }}"
+          >
+            Remove
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <form method="get" action="{{ url_for('it_support_item_leads') }}" id="leads-filter-form-it" data-portal-live-filter data-portal-live-content="#portal-live-content" class="portal-filter-toolbar--legacy mt-6 rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+      <div class="min-w-[11rem]">
+        <label for="lead-range-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Date filter</label>
+        <select name="range" id="lead-range-it" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30">
+          <option value="all" {% if leads_filter.filter_range == 'all' %}selected{% endif %}>All time</option>
+          <option value="day" {% if leads_filter.filter_range == 'day' %}selected{% endif %}>Single day</option>
+          <option value="period" {% if leads_filter.filter_range == 'period' %}selected{% endif %}>Period</option>
+          <option value="month" {% if leads_filter.filter_range == 'month' %}selected{% endif %}>Month</option>
+          <option value="year" {% if leads_filter.filter_range == 'year' %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div class="lead-filt-it lead-filt-it-day min-w-[11rem] {% if leads_filter.filter_range != 'day' %}hidden{% endif %}">
+        <label for="lead-date-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Day</label>
+        <input type="date" name="date" id="lead-date-it" value="{{ leads_filter.filter_date }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+      </div>
+      <div class="lead-filt-it lead-filt-it-period flex flex-wrap gap-3 {% if leads_filter.filter_range != 'period' %}hidden{% endif %}">
+        <div class="min-w-[11rem]">
+          <label for="lead-start-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">From</label>
+          <input type="date" name="start" id="lead-start-it" value="{{ leads_filter.filter_start }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+        </div>
+        <div class="min-w-[11rem]">
+          <label for="lead-end-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">To</label>
+          <input type="date" name="end" id="lead-end-it" value="{{ leads_filter.filter_end }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+        </div>
+      </div>
+      <div class="lead-filt-it lead-filt-it-month min-w-[12rem] {% if leads_filter.filter_range != 'month' %}hidden{% endif %}">
+        <label for="lead-month-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Month</label>
+        <input type="month" name="month" id="lead-month-it" value="{{ leads_filter.filter_month }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+      </div>
+      <div class="lead-filt-it lead-filt-it-year min-w-[9rem] {% if leads_filter.filter_range != 'year' %}hidden{% endif %}">
+        <label for="lead-year-it" class="mb-1 block text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Year</label>
+        <input type="number" name="year" id="lead-year-it" min="2000" max="2100" step="1" value="{{ leads_filter.filter_year }}" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-brand-500/30" />
+      </div>
+      <div class="flex gap-2">
+        <a href="{{ url_for('it_support_item_leads') }}" class="rounded-xl border border-[rgb(var(--rc-border))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))] portal-live-keep-submit">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  <div id="portal-live-content" data-portal-live-content class="mt-6 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] shadow-sm">
+    <div id="item-leads-clients-json" hidden>{{ clients_by_item_key|tojson }}</div>
+    {% if item_leads and item_leads|length > 0 %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-[rgb(var(--rc-border))] text-sm">
+          <thead class="bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-muted))]">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Item</th>
+              <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Quantity</th>
+              <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Quotes</th>
+              <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Clients</th>
+              <th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"><span class="sr-only">View clients</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[rgb(var(--rc-border))]">
+            {% for it in item_leads %}
+              <tr class="align-middle" data-item-row data-item-key="{{ it.item_key }}">
+                <td class="px-4 py-3 font-medium text-[rgb(var(--rc-page-fg))]">{{ it.item_name }}</td>
+                <td class="px-4 py-3 text-right font-semibold tabular-nums text-[rgb(var(--rc-page-fg))]">{{ it.total_qty }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-[rgb(var(--rc-muted))]">{{ it.quote_count }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-[rgb(var(--rc-muted))]" data-client-count>{{ it.client_count }}</td>
+                <td class="px-4 py-3 text-center">
+                  <button
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] transition hover:bg-[rgb(var(--rc-surface))]"
+                    title="View clients"
+                    aria-label="View clients for {{ it.item_name }}"
+                    data-item-view="{{ it.item_key }}"
+                    data-item-name="{{ it.item_name }}"
+                  >
+                    <svg class="h-5 w-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="p-8 text-center text-sm text-[rgb(var(--rc-muted))]">No quoted items in this range.</p>
+    {% endif %}
+  </div>
+
+  <dialog id="item-clients-dialog" class="w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0 text-[rgb(var(--rc-page-fg))] shadow-2xl backdrop:bg-slate-950/50">
+    <div class="border-b border-[rgb(var(--rc-border))] px-5 py-4">
+      <h3 class="text-lg font-bold">Clients requesting this item</h3>
+      <p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]" id="item-clients-dialog-sub"></p>
+    </div>
+    <div class="max-h-[min(65vh,28rem)] overflow-y-auto px-5 py-4">
+      <ul id="item-clients-dialog-list" class="space-y-3 text-sm"></ul>
+    </div>
+    <div class="flex flex-wrap items-center justify-end gap-3 border-t border-[rgb(var(--rc-border))] px-5 py-3">
+      <button type="button" id="item-clients-dialog-close" class="rounded-xl bg-[rgb(var(--rc-surface-2))] px-4 py-2 text-sm font-semibold text-[rgb(var(--rc-page-fg))] hover:opacity-90">Close</button>
+    </div>
+  </dialog>
+
+  <script>
+  (function () {
+    var STATUS_API = {{ url_for('api_it_support_item_leads_status')|tojson }};
+    var CLIENTS = {};
+    var rangeEl = document.getElementById("lead-range-it");
+    function syncIt() {
+      var v = (rangeEl && rangeEl.value) || "all";
+      document.querySelectorAll(".lead-filt-it").forEach(function (el) { el.classList.add("hidden"); });
+      if (v === "day") document.querySelectorAll(".lead-filt-it-day").forEach(function (el) { el.classList.remove("hidden"); });
+      if (v === "period") document.querySelectorAll(".lead-filt-it-period").forEach(function (el) { el.classList.remove("hidden"); });
+      if (v === "month") document.querySelectorAll(".lead-filt-it-month").forEach(function (el) { el.classList.remove("hidden"); });
+      if (v === "year") document.querySelectorAll(".lead-filt-it-year").forEach(function (el) { el.classList.remove("hidden"); });
+    }
+    if (rangeEl) rangeEl.addEventListener("change", syncIt);
+    syncIt();
+
+    function loadClientsFromDom() {
+      var el = document.getElementById("item-leads-clients-json");
+      if (!el) {
+        CLIENTS = {};
+        return;
+      }
+      try {
+        CLIENTS = JSON.parse(el.textContent || "{}") || {};
+      } catch (err) {
+        CLIENTS = {};
+      }
+    }
+    loadClientsFromDom();
+    document.addEventListener("portal-live-content-updated", loadClientsFromDom);
+
+    var dlg = document.getElementById("item-clients-dialog");
+    var listEl = document.getElementById("item-clients-dialog-list");
+    var subEl = document.getElementById("item-clients-dialog-sub");
+    var closeBtn = document.getElementById("item-clients-dialog-close");
+    var interestedWrap = document.getElementById("item-leads-interested");
+    var interestedList = document.getElementById("item-leads-interested-list");
+    var interestedCount = document.getElementById("item-leads-interested-count");
+    var activeItemKey = "";
+    var activeItemName = "";
+
+    function esc(s) {
+      return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+    }
+
+    function updateInterestedCount() {
+      if (!interestedList || !interestedCount || !interestedWrap) return;
+      var n = interestedList.querySelectorAll("[data-interested-row]").length;
+      interestedCount.textContent = n + " pinned";
+      interestedWrap.classList.toggle("hidden", n === 0);
+    }
+
+    function findByItemPhone(root, itemKey, phone) {
+      if (!root) return null;
+      var rows = root.querySelectorAll("[data-interested-row]");
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].getAttribute("data-item-key") === itemKey && rows[i].getAttribute("data-phone") === phone) {
+          return rows[i];
+        }
+      }
+      return null;
+    }
+
+    function upsertInterestedRow(payload) {
+      if (!interestedList) return;
+      var existing = findByItemPhone(interestedList, payload.item_key, payload.customer_phone);
+      if (existing) {
+        var nameEl = existing.querySelector("p.font-semibold");
+        var itemEl = existing.querySelector("p.text-xs");
+        if (nameEl) nameEl.textContent = payload.customer_name || "—";
+        if (itemEl) itemEl.textContent = payload.item_name || "Item";
+        return;
+      }
+      var li = document.createElement("li");
+      li.className = "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-[rgb(var(--rc-surface))] px-3 py-2.5";
+      li.setAttribute("data-interested-row", "");
+      li.setAttribute("data-item-key", payload.item_key);
+      li.setAttribute("data-phone", payload.customer_phone);
+      li.innerHTML =
+        '<div class="min-w-0">' +
+        '<p class="font-semibold text-[rgb(var(--rc-page-fg))]">' + esc(payload.customer_name || "—") + "</p>" +
+        '<p class="text-sm tabular-nums text-[rgb(var(--rc-muted))]">' + esc(payload.customer_phone) + "</p>" +
+        '<p class="mt-0.5 text-xs text-[rgb(var(--rc-muted))]">' + esc(payload.item_name || "Item") + "</p>" +
+        "</div>" +
+        '<button type="button" class="rounded-xl border border-[rgb(var(--rc-border))] px-3 py-1.5 text-xs font-semibold text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]" ' +
+        'data-clear-interested data-item-key="' + esc(payload.item_key) + '" data-item-name="' + esc(payload.item_name || "Item") + '" ' +
+        'data-phone="' + esc(payload.customer_phone) + '" data-name="' + esc(payload.customer_name || "—") + '">Remove</button>';
+      interestedList.insertBefore(li, interestedList.firstChild);
+      updateInterestedCount();
+    }
+
+    function removeInterestedRow(itemKey, phone) {
+      if (!interestedList) return;
+      var row = findByItemPhone(interestedList, itemKey, phone);
+      if (row) row.remove();
+      updateInterestedCount();
+    }
+
+    function removeClientFromItem(itemKey, phone) {
+      var clients = CLIENTS[itemKey] || [];
+      CLIENTS[itemKey] = clients.filter(function (c) {
+        return String(c.customer_phone) !== String(phone);
+      });
+      var rows = document.querySelectorAll("[data-item-row]");
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].getAttribute("data-item-key") === itemKey) {
+          var countEl = rows[i].querySelector("[data-client-count]");
+          if (countEl) countEl.textContent = String(CLIENTS[itemKey].length);
+          break;
+        }
+      }
+      if (activeItemKey === itemKey) renderClients(itemKey, activeItemName);
+    }
+
+    function postStatus(payload) {
+      return fetch(STATUS_API, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
+        body: JSON.stringify(payload),
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j && j.ok, data: j }; }); });
+    }
+
+    function renderClients(itemKey, itemName) {
+      activeItemKey = itemKey;
+      activeItemName = itemName || "Item";
+      var clients = CLIENTS[itemKey] || [];
+      if (subEl) {
+        subEl.textContent = activeItemName + " · " + clients.length + " client(s)";
+      }
+      if (!listEl) return;
+      if (!clients.length) {
+        listEl.innerHTML = '<li class="text-[rgb(var(--rc-muted))]">No clients left for this item.</li>';
+        return;
+      }
+      listEl.innerHTML = clients.map(function (c) {
+        var nm = (c && c.customer_name) ? String(c.customer_name) : "—";
+        var ph = (c && c.customer_phone) ? String(c.customer_phone) : "";
+        var qty = parseInt((c && c.qty) || 0, 10) || 0;
+        var shop = (c && c.shop_name) ? String(c.shop_name) : "";
+        var ch = (c && c.quote_channel) === "online" ? "Online" : "Walk-in";
+        var when = (c && c.last_created_at) ? String(c.last_created_at) : "";
+        return (
+          '<li class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] p-3" data-client-row data-phone="' + esc(ph) + '">' +
+          '<div class="flex flex-wrap items-start justify-between gap-3">' +
+          '<div class="min-w-0">' +
+          '<p class="font-semibold text-[rgb(var(--rc-page-fg))]">' + esc(nm) + "</p>" +
+          '<p class="mt-0.5 text-sm tabular-nums text-[rgb(var(--rc-muted))]">' + esc(ph || "—") + "</p>" +
+          '<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[rgb(var(--rc-muted))]">' +
+          '<span>Qty ×' + qty + "</span>" +
+          (shop ? "<span>" + esc(shop) + "</span>" : "") +
+          "<span>" + esc(ch) + "</span>" +
+          (when ? "<span>" + esc(when) + "</span>" : "") +
+          "</div></div>" +
+          '<div class="flex flex-wrap gap-2">' +
+          '<button type="button" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-200" data-lead-action="interested" data-item-key="' + esc(itemKey) + '" data-item-name="' + esc(activeItemName) + '" data-phone="' + esc(ph) + '" data-name="' + esc(nm) + '">Interested</button>' +
+          '<button type="button" class="rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[rgb(var(--rc-page-fg))] hover:bg-[rgb(var(--rc-surface-2))]" data-lead-action="not_interested" data-item-key="' + esc(itemKey) + '" data-item-name="' + esc(activeItemName) + '" data-phone="' + esc(ph) + '" data-name="' + esc(nm) + '">Not interested</button>' +
+          "</div></div></li>"
+        );
+      }).join("");
+    }
+
+    function openClients(itemKey, itemName) {
+      renderClients(itemKey, itemName);
+      if (dlg && typeof dlg.showModal === "function") dlg.showModal();
+    }
+
+    function handleLeadAction(btn) {
+      var action = btn.hasAttribute("data-clear-interested")
+        ? "clear"
+        : (btn.getAttribute("data-lead-action") || "");
+      var itemKey = btn.getAttribute("data-item-key") || "";
+      var itemName = btn.getAttribute("data-item-name") || "Item";
+      var phone = btn.getAttribute("data-phone") || "";
+      var name = btn.getAttribute("data-name") || "";
+      if (!itemKey || !phone || !action) return;
+      btn.disabled = true;
+      postStatus({
+        action: action,
+        item_key: itemKey,
+        item_name: itemName,
+        customer_phone: phone,
+        customer_name: name,
+      }).then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) {
+          window.alert((res.data && res.data.error) || "Could not update lead.");
+          return;
+        }
+        if (action === "interested") {
+          upsertInterestedRow({
+            item_key: itemKey,
+            item_name: itemName,
+            customer_phone: phone,
+            customer_name: name || "—",
+          });
+        } else if (action === "not_interested") {
+          removeClientFromItem(itemKey, phone);
+          removeInterestedRow(itemKey, phone);
+        } else if (action === "clear") {
+          removeInterestedRow(itemKey, phone);
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        window.alert("Could not update lead.");
+      });
+    }
+
+    document.addEventListener("click", function (e) {
+      var viewBtn = e.target && e.target.closest ? e.target.closest("[data-item-view]") : null;
+      if (viewBtn) {
+        openClients(viewBtn.getAttribute("data-item-view") || "", viewBtn.getAttribute("data-item-name") || "Item");
+        return;
+      }
+      var btn = e.target && e.target.closest
+        ? e.target.closest("[data-lead-action], [data-clear-interested]")
+        : null;
+      if (!btn) return;
+      handleLeadAction(btn);
+    });
+
+    if (closeBtn && dlg) closeBtn.addEventListener("click", function () { dlg.close(); });
+    if (dlg) dlg.addEventListener("click", function (e) {
+      if (e.target === dlg) dlg.close();
+    });
+  })();
+  </script>
+{% endblock %}

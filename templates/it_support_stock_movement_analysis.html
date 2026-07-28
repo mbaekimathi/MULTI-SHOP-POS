@@ -38,23 +38,25 @@
           {% endfor %}
         </select>
       </div>
-      <div class="w-full max-w-[8rem] shrink-0">
-        <label for="audit-direction" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Direction</label>
-        <select id="audit-direction" name="direction" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
-          <option value="" {% if not audit_direction %}selected{% endif %}>All</option>
-          <option value="in" {% if audit_direction == 'in' %}selected{% endif %}>In</option>
-          <option value="out" {% if audit_direction == 'out' %}selected{% endif %}>Out</option>
-        </select>
+      <div class="w-full max-w-[16rem] shrink-0" data-mv-seg-filter="direction">
+        <span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]" id="audit-direction-label">Direction</span>
+        <input type="hidden" id="audit-direction" name="direction" value="{{ audit_direction or '' }}" data-mv-seg-value />
+        <div class="inline-flex w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0.5" role="group" aria-labelledby="audit-direction-label">
+          <button type="button" data-mv-seg-opt="" class="min-h-[2.25rem] flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if not audit_direction %}bg-[rgb(var(--rc-primary))] text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if not audit_direction else 'false' }}">All</button>
+          <button type="button" data-mv-seg-opt="in" class="min-h-[2.25rem] flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if audit_direction == 'in' %}bg-emerald-600 text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if audit_direction == 'in' else 'false' }}">In</button>
+          <button type="button" data-mv-seg-opt="out" class="min-h-[2.25rem] flex-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if audit_direction == 'out' %}bg-rose-600 text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if audit_direction == 'out' else 'false' }}">Out</button>
+        </div>
       </div>
-      <div class="w-full max-w-[12rem] shrink-0">
-        <label for="audit-source" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Source</label>
-        <select id="audit-source" name="source" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-2.5 py-2 text-sm text-[rgb(var(--rc-page-fg))]">
-          <option value="" {% if not audit_source %}selected{% endif %}>All sources</option>
-          <option value="company" {% if audit_source == 'company' %}selected{% endif %}>Company</option>
-          <option value="purchase" {% if audit_source == 'purchase' %}selected{% endif %}>Buy and stock in</option>
-          <option value="manual" {% if audit_source == 'manual' %}selected{% endif %}>Manual / POS</option>
-          <option value="transfer" {% if audit_source == 'transfer' %}selected{% endif %}>Transfer</option>
-        </select>
+      <div class="w-full max-w-[28rem] shrink-0" data-mv-seg-filter="source">
+        <span class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]" id="audit-source-label">Source</span>
+        <input type="hidden" id="audit-source" name="source" value="{{ audit_source or '' }}" data-mv-seg-value />
+        <div class="flex w-full flex-wrap gap-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0.5" role="group" aria-labelledby="audit-source-label" data-mv-source-group>
+          <button type="button" data-mv-seg-opt="" data-mv-dirs="all" class="min-h-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if not audit_source %}bg-[rgb(var(--rc-primary))] text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if not audit_source else 'false' }}">All</button>
+          <button type="button" data-mv-seg-opt="company" data-mv-dirs="all" class="min-h-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if audit_source == 'company' %}bg-[rgb(var(--rc-primary))] text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if audit_source == 'company' else 'false' }}">Company</button>
+          <button type="button" data-mv-seg-opt="purchase" data-mv-dirs="in" class="min-h-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if audit_direction == 'out' %}hidden{% elif audit_source == 'purchase' %}bg-[rgb(var(--rc-primary))] text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if audit_source == 'purchase' else 'false' }}">Buy and stock in</button>
+          <button type="button" data-mv-seg-opt="manual" data-mv-dirs="all" class="min-h-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if audit_source == 'manual' %}bg-[rgb(var(--rc-primary))] text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if audit_source == 'manual' else 'false' }}">Manual / POS</button>
+          <button type="button" data-mv-seg-opt="transfer" data-mv-dirs="all" class="min-h-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition {% if audit_source == 'transfer' %}bg-[rgb(var(--rc-primary))] text-white shadow-sm{% else %}text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}" aria-pressed="{{ 'true' if audit_source == 'transfer' else 'false' }}">Transfer</button>
+        </div>
       </div>
       <div class="w-full max-w-[14rem] shrink-0" data-audit-item-filter>
         <label for="audit-item-combo" class="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-[rgb(var(--rc-muted))]">Item</label>
@@ -177,6 +179,129 @@
 
 {% block scripts %}
   {{ super() }}
+  <script>
+  (function () {
+    var page = document.querySelector("[data-mv-page]");
+    if (!page || page.getAttribute("data-mv-seg-wired") === "1") return;
+    page.setAttribute("data-mv-seg-wired", "1");
+    var form = page.querySelector("form[data-stock-apply-filter]");
+    if (!form) return;
+
+    var dirWrap = form.querySelector('[data-mv-seg-filter="direction"]');
+    var srcWrap = form.querySelector('[data-mv-seg-filter="source"]');
+    var shopSel = form.querySelector("#mv-shop");
+    var submitting = false;
+
+    function activeClass(opt) {
+      if (opt === "in") return "bg-emerald-600 text-white shadow-sm";
+      if (opt === "out") return "bg-rose-600 text-white shadow-sm";
+      return "bg-[rgb(var(--rc-primary))] text-white shadow-sm";
+    }
+
+    function idleClass() {
+      return "text-[rgb(var(--rc-muted))] hover:bg-[rgb(var(--rc-surface-2))] hover:text-[rgb(var(--rc-page-fg))]";
+    }
+
+    function paintSeg(wrap) {
+      if (!wrap) return;
+      var hidden = wrap.querySelector("[data-mv-seg-value]");
+      var val = hidden ? String(hidden.value || "") : "";
+      var isDir = wrap.getAttribute("data-mv-seg-filter") === "direction";
+      wrap.querySelectorAll("[data-mv-seg-opt]").forEach(function (btn) {
+        var opt = btn.getAttribute("data-mv-seg-opt") || "";
+        var on = opt === val;
+        var keepHidden = btn.classList.contains("hidden");
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+        btn.className =
+          "min-h-[2.25rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition " +
+          (isDir ? "flex-1 " : "") +
+          (on ? activeClass(opt) : idleClass()) +
+          (keepHidden ? " hidden" : "");
+      });
+    }
+
+    function syncSourceForDirection() {
+      if (!dirWrap || !srcWrap) return false;
+      var dirHidden = dirWrap.querySelector("[data-mv-seg-value]");
+      var srcHidden = srcWrap.querySelector("[data-mv-seg-value]");
+      var dir = dirHidden ? String(dirHidden.value || "") : "";
+      var src = srcHidden ? String(srcHidden.value || "") : "";
+      var cleared = false;
+      srcWrap.querySelectorAll("[data-mv-seg-opt]").forEach(function (btn) {
+        var dirs = (btn.getAttribute("data-mv-dirs") || "all").toLowerCase();
+        var allowed = dirs === "all" || dirs === dir || !dir;
+        btn.classList.toggle("hidden", !allowed);
+        if (!allowed && srcHidden && (btn.getAttribute("data-mv-seg-opt") || "") === src) {
+          srcHidden.value = "";
+          cleared = true;
+        }
+      });
+      if (src === "purchase" && dir === "out" && srcHidden) {
+        srcHidden.value = "";
+        cleared = true;
+      }
+      paintSeg(srcWrap);
+      return cleared;
+    }
+
+    function applyFiltersSoon() {
+      if (submitting) return;
+      submitting = true;
+      var spin = form.querySelector("[data-stock-apply-spin]");
+      var btn = form.querySelector("[data-stock-apply-btn]");
+      if (spin) spin.classList.remove("hidden");
+      if (btn) btn.disabled = true;
+      var overlay = page.querySelector("[data-mv-overlay]");
+      if (overlay) {
+        overlay.classList.remove("hidden");
+        overlay.classList.add("flex");
+      }
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.submit();
+    }
+
+    function wireSeg(wrap, onPick) {
+      if (!wrap) return;
+      var hidden = wrap.querySelector("[data-mv-seg-value]");
+      wrap.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest("[data-mv-seg-opt]") : null;
+        if (!btn || btn.classList.contains("hidden") || !wrap.contains(btn)) return;
+        e.preventDefault();
+        var next = btn.getAttribute("data-mv-seg-opt") || "";
+        if (hidden && String(hidden.value || "") === next) return;
+        if (hidden) hidden.value = next;
+        paintSeg(wrap);
+        if (typeof onPick === "function") onPick(next);
+        applyFiltersSoon();
+      });
+    }
+
+    wireSeg(dirWrap, function () {
+      syncSourceForDirection();
+      paintSeg(dirWrap);
+    });
+    wireSeg(srcWrap, function (next) {
+      if (next === "purchase" && dirWrap) {
+        var dirHidden = dirWrap.querySelector("[data-mv-seg-value]");
+        if (dirHidden && String(dirHidden.value || "") !== "in") {
+          dirHidden.value = "in";
+          paintSeg(dirWrap);
+        }
+        syncSourceForDirection();
+      }
+    });
+
+    syncSourceForDirection();
+    paintSeg(dirWrap);
+
+    if (shopSel && shopSel.getAttribute("data-mv-shop-wired") !== "1") {
+      shopSel.setAttribute("data-mv-shop-wired", "1");
+      shopSel.addEventListener("change", function () {
+        applyFiltersSoon();
+      });
+    }
+  })();
+  </script>
   <script>
   (function () {
     var root = document.querySelector("[data-audit-item-filter]");

@@ -10170,10 +10170,11 @@ def it_support_stock_profitability_analysis():
 @login_required
 def it_support_stock_reports():
     _it_support_or_super_admin_only()
-    # Only load report rows after the user applies filters (date and/or shop).
+    # Load after the user applies filters. Require a date field and/or shop so a bare
+    # `view=` / `mode=` link does not trigger a full catalog scan.
     filters_applied = any(
         (request.args.get(k) or "").strip()
-        for k in ("mode", "single_day", "start_date", "end_date", "month", "year", "shop_id")
+        for k in ("single_day", "start_date", "end_date", "month", "year", "shop_id")
     )
     analytics_filter = _build_analytics_filter()
     inv_mode = _global_pos_inventory_mode()
@@ -10412,7 +10413,16 @@ def it_support_stock_reports():
             elif selected_view == "stagnant":
                 stagnant_rows = _sort_stock_report_rows(stagnant_rows, rep_col, rep_asc)
     except Exception:
-        pass
+        logger.exception("it_support_stock_reports failed")
+
+    active_row_count = {
+        "period_balance": len(period_balance_rows),
+        "low_stock": len(low_stock_rows),
+        "fast_moving": len(fast_moving_rows),
+        "valuation": len(valuation_rows),
+        "highest_value": len(highest_value_rows),
+        "stagnant": len(stagnant_rows),
+    }.get(selected_view, 0)
 
     return render_template(
         "it_support_stock_reports.html",
@@ -10423,6 +10433,10 @@ def it_support_stock_reports():
         shops=shops_list,
         shop_filter_id=shop_filter_id,
         shop_filter_name=shop_filter_name,
+        active_row_count=active_row_count,
+        low_stock_count=len(low_stock_rows),
+        fast_moving_count=len(fast_moving_rows),
+        stagnant_count=len(stagnant_rows),
         period_balance_rows=period_balance_rows[:300],
         low_stock_rows=low_stock_rows[:120],
         fast_moving_rows=fast_moving_rows[:120],
@@ -13777,6 +13791,7 @@ def shop_pos_refill_kitchen_portions(shop_id: int):
     """Quick +qty refill of kitchen portions from the POS (kitchen/both mode only).
 
     Form fields: item_id, qty (positive int), employee_code (6 digits), note (optional).
+    Optional client_txn_id makes offline queue retries idempotent.
     Returns JSON for AJAX callers (X-Requested-With / Accept: application/json).
     """
     shop = _get_shop_or_404(shop_id)
@@ -13787,6 +13802,19 @@ def shop_pos_refill_kitchen_portions(shop_id: int):
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("Accept") or "")
     )
+    client_txn_id = (request.form.get("client_txn_id") or "").strip()[:64] or None
+    if client_txn_id:
+        try:
+            from database import get_shop_pos_offline_replay
+
+            existing = get_shop_pos_offline_replay(shop_id, client_txn_id)
+            if existing and existing.get("ok"):
+                if wants_json:
+                    return jsonify(existing)
+                flash(existing.get("message") or "Portion refill already recorded.", "success")
+                return redirect(url_for("shop_pos", shop_id=shop_id))
+        except Exception:
+            pass
     if _pos_inventory_mode(shop) not in ("kitchen", "both"):
         msg = "Kitchen portion refill is only available in kitchen/both inventory modes."
         if wants_json:
@@ -13836,15 +13864,24 @@ def shop_pos_refill_kitchen_portions(shop_id: int):
         return redirect(url_for("shop_pos", shop_id=shop_id))
 
     if wants_json:
-        return jsonify(
-            {
-                "ok": True,
-                "message": f"Added {qty} portion(s).",
-                "item_id": item_id,
-                "added": qty,
-                "portions_remaining": new_total,
-            }
-        )
+        payload = {
+            "ok": True,
+            "message": f"Added {qty} portion(s).",
+            "item_id": item_id,
+            "added": qty,
+            "portions_remaining": new_total,
+            "client_txn_id": client_txn_id,
+        }
+        if client_txn_id:
+            try:
+                from database import save_shop_pos_offline_replay
+
+                save_shop_pos_offline_replay(
+                    shop_id, client_txn_id, "portion_refill", payload
+                )
+            except Exception:
+                pass
+        return jsonify(payload)
     flash(f"Added {qty} portion(s).", "success")
     return redirect(url_for("shop_pos", shop_id=shop_id))
 
@@ -13994,6 +14031,19 @@ def shop_pos_stock_in(shop_id: int):
         request.headers.get("X-Requested-With") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("Accept") or "")
     )
+    client_txn_id = (request.form.get("client_txn_id") or "").strip()[:64] or None
+    if client_txn_id:
+        try:
+            from database import get_shop_pos_offline_replay
+
+            existing = get_shop_pos_offline_replay(shop_id, client_txn_id)
+            if existing and existing.get("ok"):
+                if wants_json:
+                    return jsonify(existing)
+                flash(existing.get("message") or "Stock-in already recorded.", "success")
+                return redirect(url_for("shop_pos", shop_id=shop_id))
+        except Exception:
+            pass
     if not _effective_printing_settings_for_shop(shop).get("pos_show_buy_items_link"):
         msg = "Buy items / stock-in from POS is disabled for this shop."
         if wants_json:
@@ -14275,18 +14325,25 @@ def shop_pos_stock_in(shop_id: int):
                     )
                 else:
                     stock_receipt_url = receipt_urls[0] if receipt_urls else None
-            return jsonify(
-                {
-                    "ok": True,
-                    "message": message,
-                    "tx_id": tx_ids[0] if tx_ids else None,
-                    "tx_ids": tx_ids,
-                    "receipt_url": stock_receipt_url,
-                    "receipt_urls": [stock_receipt_url] if stock_receipt_url else [],
-                    "saved_count": success_count,
-                    "errors": errors,
-                }
-            )
+            payload = {
+                "ok": True,
+                "message": message,
+                "tx_id": tx_ids[0] if tx_ids else None,
+                "tx_ids": tx_ids,
+                "receipt_url": stock_receipt_url,
+                "receipt_urls": [stock_receipt_url] if stock_receipt_url else [],
+                "saved_count": success_count,
+                "errors": errors,
+                "client_txn_id": client_txn_id,
+            }
+            if client_txn_id and success_count > 0 and success_count == len(lines):
+                try:
+                    from database import save_shop_pos_offline_replay
+
+                    save_shop_pos_offline_replay(shop_id, client_txn_id, "stock_in", payload)
+                except Exception:
+                    pass
+            return jsonify(payload)
         flash(message, "success" if not errors else "warning")
     return redirect(url_for("shop_pos", shop_id=shop_id))
 
@@ -15869,6 +15926,8 @@ def shop_pos_record_sale(shop_id: int):
             inventory_mode=_pos_inventory_mode(shop),
             client_txn_id=client_txn_id,
             skip_stock_deduction=held_order_id is not None,
+            # Offline till already printed a receipt; record the sale even if server stock drifted.
+            allow_negative_stock=bool(offline_queue_replay) and held_order_id is None,
             mpesa_receipt_number=mpesa_receipt_number or None,
         )
     except Exception:
@@ -16127,11 +16186,18 @@ def shop_pos_record_quote(shop_id: int):
     gate = _require_shop_access(shop)
     if gate is not None:
         return gate
-    hours_block = _shop_pos_sales_hours_block(shop)
-    if hours_block is not None:
-        return hours_block
 
     data = request.get_json(force=True, silent=True) or {}
+    # Offline-queued quotes replay with this flag / timestamp; do not block on opening hours
+    # (quote was already issued offline — same policy as record-sale replay).
+    offline_queue_replay = bool(data.get("offline_queue_sync")) or bool(
+        str(data.get("queued_at") or "").strip()
+    )
+    if not offline_queue_replay:
+        hours_block = _shop_pos_sales_hours_block(shop)
+        if hours_block is not None:
+            return hours_block
+
     if not _shop_pos_allow_quotations(shop):
         return jsonify({"ok": False, "error": "Quotations are disabled for this POS."}), 403
 
@@ -16351,6 +16417,217 @@ def it_support_leads():
         leads_filter=filt,
         leads_nav_active="list",
     )
+
+
+def _item_lead_key_from_line(ln: dict) -> tuple[str, str]:
+    """Return (item_key, display_name) for a quotation line."""
+    name = (ln.get("name") or "").strip() or "Item"
+    try:
+        iid = int(ln.get("id") or 0)
+    except (TypeError, ValueError):
+        iid = 0
+    if iid > 0:
+        return f"id:{iid}", name
+    return f"name:{(name or '').strip().lower()[:180]}", name
+
+
+def _aggregate_item_leads_from_quotes(quotes: list, dismissed: set) -> tuple[list, dict]:
+    """Aggregate quotation lines into item rows + per-item client lists.
+
+    ``dismissed`` is a set of (item_key, phone) pairs marked not_interested.
+    """
+    items: dict = {}
+    for q in quotes or []:
+        phone = (q.get("customer_phone") or "").strip()
+        cust_name = (q.get("customer_name") or "").strip()
+        qid = q.get("id")
+        created = q.get("created_at")
+        channel = (q.get("quote_channel") or "walkin").strip().lower()
+        shop_label = (
+            (q.get("shop_name") or "").strip()
+            or (f"Shop #{q.get('shop_id')}" if q.get("shop_id") else "Website")
+        )
+        for ln in q.get("lines") or []:
+            if not isinstance(ln, dict):
+                continue
+            key, display_name = _item_lead_key_from_line(ln)
+            try:
+                qty = int(ln.get("qty") or 0)
+            except (TypeError, ValueError):
+                qty = 0
+            if qty <= 0:
+                continue
+            bucket = items.get(key)
+            if not bucket:
+                bucket = {
+                    "item_key": key,
+                    "item_name": display_name,
+                    "total_qty": 0,
+                    "quote_count": 0,
+                    "clients": {},
+                }
+                items[key] = bucket
+            bucket["total_qty"] += qty
+            bucket["quote_count"] += 1
+            if not phone:
+                continue
+            if (key, phone) in dismissed:
+                continue
+            client = bucket["clients"].get(phone)
+            if not client:
+                client = {
+                    "customer_name": cust_name or "—",
+                    "customer_phone": phone,
+                    "qty": 0,
+                    "quote_count": 0,
+                    "last_quote_id": qid,
+                    "last_created_at": str(created or ""),
+                    "shop_name": shop_label,
+                    "quote_channel": channel,
+                }
+                bucket["clients"][phone] = client
+            client["qty"] += qty
+            client["quote_count"] += 1
+            if cust_name:
+                client["customer_name"] = cust_name
+            client["last_quote_id"] = qid
+            client["last_created_at"] = str(created or "")
+            client["shop_name"] = shop_label
+            client["quote_channel"] = channel
+
+    item_list = []
+    clients_by_key: dict = {}
+    for key, bucket in items.items():
+        clients = sorted(
+            bucket["clients"].values(),
+            key=lambda c: (-int(c.get("qty") or 0), (c.get("customer_name") or "").lower()),
+        )
+        clients_by_key[key] = clients
+        item_list.append(
+            {
+                "item_key": key,
+                "item_name": bucket["item_name"],
+                "total_qty": int(bucket["total_qty"]),
+                "quote_count": int(bucket["quote_count"]),
+                "client_count": len(clients),
+            }
+        )
+    item_list.sort(key=lambda r: (-int(r["total_qty"]), (r["item_name"] or "").lower()))
+    return item_list, clients_by_key
+
+
+@app.route("/it_support/leads/items")
+@login_required
+def it_support_item_leads():
+    _it_support_or_super_admin_only()
+    df, dt, filt = _leads_date_filter_from_request(request.args)
+    try:
+        from database import (
+            init_item_lead_client_status_table,
+            list_all_pos_quotations_for_it,
+            list_item_lead_client_statuses,
+        )
+
+        init_item_lead_client_status_table()
+        quotes = list_all_pos_quotations_for_it(limit=2000, date_from=df, date_to=dt)
+        status_rows = list_item_lead_client_statuses()
+    except Exception:
+        quotes = []
+        status_rows = []
+
+    dismissed = set()
+    interested_clients = []
+    for row in status_rows or []:
+        key = (row.get("item_key") or "").strip()
+        phone = (row.get("customer_phone") or "").strip()
+        st = (row.get("status") or "").strip().lower()
+        if not key or not phone:
+            continue
+        if st == "not_interested":
+            dismissed.add((key, phone))
+        elif st == "interested":
+            interested_clients.append(
+                {
+                    "item_key": key,
+                    "item_name": (row.get("item_name") or "").strip() or "Item",
+                    "customer_name": (row.get("customer_name") or "").strip() or "—",
+                    "customer_phone": phone,
+                    "updated_at": str(row.get("updated_at") or ""),
+                }
+            )
+
+    item_leads, clients_by_item_key = _aggregate_item_leads_from_quotes(quotes, dismissed)
+    return render_template(
+        "it_support_item_leads.html",
+        item_leads=item_leads,
+        clients_by_item_key=clients_by_item_key,
+        interested_clients=interested_clients,
+        leads_filter=filt,
+        leads_nav_active="items",
+    )
+
+
+@app.route("/api/it-support/item-leads/status", methods=["POST"])
+@login_required
+def api_it_support_item_leads_status():
+    _it_support_or_super_admin_only()
+    data = request.get_json(force=True, silent=True) or {}
+    item_key = (data.get("item_key") or "").strip()
+    item_name = (data.get("item_name") or "").strip()
+    phone = (data.get("customer_phone") or "").strip()
+    name = (data.get("customer_name") or "").strip() or None
+    action = (data.get("action") or data.get("status") or "").strip().lower()
+    if not item_key or not phone:
+        return jsonify({"ok": False, "error": "Item and customer phone are required."}), 400
+    emp_id = session.get("employee_id")
+    try:
+        emp_id_int = int(emp_id) if emp_id is not None else None
+    except (TypeError, ValueError):
+        emp_id_int = None
+    try:
+        from database import (
+            clear_item_lead_client_status,
+            set_item_lead_client_status,
+        )
+    except Exception:
+        return jsonify({"ok": False, "error": "Database unavailable."}), 503
+
+    if action in ("interested", "not_interested"):
+        ok, err = set_item_lead_client_status(
+            item_key=item_key,
+            item_name=item_name or "Item",
+            customer_phone=phone,
+            customer_name=name,
+            status=action,
+            updated_by_employee_id=emp_id_int,
+        )
+        if not ok:
+            return jsonify({"ok": False, "error": err or "Could not save."}), 400
+        return jsonify(
+            {
+                "ok": True,
+                "action": action,
+                "item_key": item_key,
+                "customer_phone": phone,
+                "customer_name": name or "—",
+                "item_name": item_name or "Item",
+            }
+        )
+
+    if action in ("clear", "undo", "remove"):
+        ok, err = clear_item_lead_client_status(item_key=item_key, customer_phone=phone)
+        if not ok:
+            return jsonify({"ok": False, "error": err or "Could not clear."}), 400
+        return jsonify(
+            {
+                "ok": True,
+                "action": "clear",
+                "item_key": item_key,
+                "customer_phone": phone,
+            }
+        )
+
+    return jsonify({"ok": False, "error": "Unknown action."}), 400
 
 
 @app.route("/it_support/leads/share-quotation")
