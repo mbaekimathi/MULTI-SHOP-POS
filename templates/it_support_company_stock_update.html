@@ -3,6 +3,7 @@
 {% block portal_page_title %}Company stock update{% endblock %}
 {% block employee_content %}
   {% set rows = stock_rows or [] %}
+  {% set sws = stock_workspace_settings or {} %}
   <div class="mx-auto min-w-0 max-w-7xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4">
     {% if pos_inventory_mode is defined and pos_inventory_mode == "kitchen" %}
     <div class="border-b border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-[rgb(var(--rc-page-fg))] md:rounded-2xl md:border md:border-amber-500/40 md:px-4 md:py-3 md:shadow-none">
@@ -254,17 +255,23 @@
       var lines = document.getElementById("lines");
       var manualOutRefunded = document.getElementById("manual_out_refunded");
       var manualOutRefundAmt = document.getElementById("manual_out_refund_amount");
+      var companyStockNoteWrap = document.getElementById("company-stock-note-wrap");
+      var companyStockNote = document.getElementById("company-stock-note");
       var applySellerPhone = document.getElementById("apply_seller_phone");
       var applySellerName = document.getElementById("apply_seller_name");
       var applySellerHint = document.getElementById("apply-seller-hint");
+      var workspaceSettings = {{ sws|tojson }};
       var shopNameById = {};
       {% for s in shops %}
       shopNameById["{{ s.id }}"] = {{ (s.shop_name or ("Shop " ~ s.id))|tojson }};
       {% endfor %}
 
       function syncManualOutRefund() {
-        var yes = manualOutRefunded && manualOutRefunded.value === "yes";
+        var refundsOn = !!workspaceSettings.require_manual_out_refund;
+        var yes = refundsOn && manualOutRefunded && manualOutRefunded.value === "yes";
+        if (manualOutRefunded) manualOutRefunded.classList.toggle("hidden", !refundsOn);
         if (manualOutRefundAmt) {
+          manualOutRefundAmt.classList.toggle("hidden", !refundsOn);
           manualOutRefundAmt.disabled = !yes;
           manualOutRefundAmt.required = !!yes;
         }
@@ -284,8 +291,14 @@
         var isManualOut = v === "manual_stock_out";
         var isShopOnly = isManualIn || isManualOut;
         var needsShop = isShopOnly || isCompanyToShop || isShopToCompany;
-        var showSupplierCard = isCompanyIn || isManualIn;
+        var showSupplierCard = isCompanyIn || (isManualIn && !!workspaceSettings.require_manual_in_supplier);
         var showBuyPay = isCompanyIn || isManualIn;
+        var requireNote =
+          (isCompanyToShop && !!workspaceSettings.require_request_stock_notes) ||
+          (isManualIn && !!workspaceSettings.require_manual_in_notes) ||
+          (isManualOut && !!workspaceSettings.require_manual_out_notes);
+        var optionalNoteAction = isCompanyIn || isCompanyOut || isShopToCompany || isTransfer;
+        var showNote = requireNote || optionalNoteAction;
 
         if (transferWrap) transferWrap.classList.toggle("hidden", !isTransfer);
         if (oneWrap) oneWrap.classList.toggle("hidden", !needsShop);
@@ -293,6 +306,14 @@
         if (companyOutReasonWrap) companyOutReasonWrap.classList.toggle("hidden", !isCompanyOut);
         if (manualOutWrap) manualOutWrap.classList.toggle("hidden", !isManualOut);
         if (manualInSupplierWrap) manualInSupplierWrap.classList.toggle("hidden", !showSupplierCard);
+        if (companyStockNoteWrap) companyStockNoteWrap.classList.toggle("hidden", !showNote);
+        if (companyStockNote) {
+          companyStockNote.required = requireNote;
+          if (!showNote) companyStockNote.value = "";
+        }
+        if (applySellerPhone) applySellerPhone.required = isManualIn && !!workspaceSettings.require_manual_in_supplier;
+        if (applySellerName) applySellerName.required = isManualIn && !!workspaceSettings.require_manual_in_supplier;
+        syncManualOutRefund();
 
         document.querySelectorAll(".manual-in-col").forEach(function (el) {
           el.classList.toggle("hidden", !showBuyPay);

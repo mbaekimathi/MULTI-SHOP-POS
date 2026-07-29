@@ -11,7 +11,8 @@
 {% endblock %}
 {% block employee_content %}
   {% set items = items or [] %}
-  <div class="mx-auto min-w-0 max-w-6xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4">
+  {% set sws = stock_workspace_settings or {} %}
+  <div class="shop-stock-settings-page mx-auto min-w-0 max-w-6xl max-md:-mx-4 sm:max-md:-mx-6 space-y-0 md:space-y-4">
     <div class="border-b border-[rgb(var(--rc-border))] px-4 py-4 max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:p-6 md:shadow-sm">
       <h2 class="text-lg font-semibold text-[rgb(var(--rc-page-fg))]">Company stock settings</h2>
       <p class="mt-2 max-w-prose text-sm leading-relaxed text-[rgb(var(--rc-muted))]">
@@ -20,6 +21,68 @@
         Use <span class="font-mono text-xs">0</span> to disable a threshold. Rows highlighted when current stock is at or below low stock (and low stock &gt; 0).
       </p>
     </div>
+
+    <form id="js-company-stock-workspace-settings-form" method="post" action="{{ url_for('it_support_company_stock_settings') }}" class="border-b border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 pb-4 max-md:bg-transparent md:rounded-2xl md:border md:p-4 md:shadow-sm">
+      <input type="hidden" name="save_scope" value="workspace" />
+      <div class="shop-stock-settings-intro flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-bold text-[rgb(var(--rc-page-fg))]">Stock update form fields</h3>
+          <p class="mt-0.5 text-xs leading-relaxed text-[rgb(var(--rc-muted))]">
+            <strong class="text-[rgb(var(--rc-page-fg))]">On</strong> — shown and required with quantity.
+            <strong class="text-[rgb(var(--rc-page-fg))]">Off</strong> — hidden on the company stock update form.
+          </p>
+        </div>
+        <div id="js-company-stock-settings-save-status" class="shop-stock-settings-save-pill" aria-live="polite">
+          <span class="shop-stock-settings-save-pill__dot" aria-hidden="true"></span>
+          <span class="shop-stock-settings-save-pill__text">Auto-save on</span>
+        </div>
+      </div>
+
+      <div class="shop-stock-settings-groups">
+        <div class="shop-stock-settings-group shop-stock-settings-group--request">
+          <p class="shop-stock-settings-group-label">Request stock</p>
+          <div class="shop-stock-settings-group-body">
+            <label class="shop-stock-settings-row">
+              <span class="shop-stock-settings-row-title">Notes</span>
+              <span class="shop-stock-settings-row-desc">When on, notes are shown and required.</span>
+              <input type="checkbox" name="require_request_stock_notes" value="1" class="rc-receipt-switch" {% if sws.require_request_stock_notes %}checked{% endif %} />
+            </label>
+          </div>
+        </div>
+
+        <div class="shop-stock-settings-group shop-stock-settings-group--in">
+          <p class="shop-stock-settings-group-label">Manual stock in</p>
+          <div class="shop-stock-settings-group-body">
+            <label class="shop-stock-settings-row">
+              <span class="shop-stock-settings-row-title">Supplier details</span>
+              <span class="shop-stock-settings-row-desc">When on, phone and seller are shown and required.</span>
+              <input type="checkbox" name="require_manual_in_supplier" value="1" class="rc-receipt-switch" {% if sws.require_manual_in_supplier %}checked{% endif %} />
+            </label>
+            <label class="shop-stock-settings-row">
+              <span class="shop-stock-settings-row-title">Notes</span>
+              <span class="shop-stock-settings-row-desc">When on, notes are shown and required.</span>
+              <input type="checkbox" name="require_manual_in_notes" value="1" class="rc-receipt-switch" {% if sws.require_manual_in_notes %}checked{% endif %} />
+            </label>
+          </div>
+        </div>
+
+        <div class="shop-stock-settings-group shop-stock-settings-group--out">
+          <p class="shop-stock-settings-group-label">Manual stock out</p>
+          <div class="shop-stock-settings-group-body">
+            <label class="shop-stock-settings-row">
+              <span class="shop-stock-settings-row-title">Refund</span>
+              <span class="shop-stock-settings-row-desc">When on, refund fields are shown. When off, they are hidden.</span>
+              <input type="checkbox" name="require_manual_out_refund" value="1" class="rc-receipt-switch" {% if sws.require_manual_out_refund %}checked{% endif %} />
+            </label>
+            <label class="shop-stock-settings-row">
+              <span class="shop-stock-settings-row-title">Notes</span>
+              <span class="shop-stock-settings-row-desc">When on, notes are shown and required.</span>
+              <input type="checkbox" name="require_manual_out_notes" value="1" class="rc-receipt-switch" {% if sws.require_manual_out_notes %}checked{% endif %} />
+            </label>
+          </div>
+        </div>
+      </div>
+    </form>
 
     {% if not items %}
       <div class="border-b border-[rgb(var(--rc-border))] px-4 py-8 text-center text-sm text-[rgb(var(--rc-muted))] max-md:bg-transparent md:rounded-2xl md:border md:bg-[rgb(var(--rc-surface))] md:px-5 md:shadow-sm">
@@ -125,6 +188,58 @@
 {% block scripts %}
   {{ super() }}
   <script>
+    (function () {
+      var form = document.getElementById("js-company-stock-workspace-settings-form");
+      var statusEl = document.getElementById("js-company-stock-settings-save-status");
+      if (!form) return;
+      var timer = null;
+
+      function setStatus(mode, text) {
+        if (!statusEl) return;
+        statusEl.classList.remove(
+          "shop-stock-settings-save-pill--saving",
+          "shop-stock-settings-save-pill--saved",
+          "shop-stock-settings-save-pill--error"
+        );
+        if (mode) statusEl.classList.add("shop-stock-settings-save-pill--" + mode);
+        var textEl = statusEl.querySelector(".shop-stock-settings-save-pill__text");
+        if (textEl) textEl.textContent = text;
+      }
+
+      function save() {
+        clearTimeout(timer);
+        setStatus("saving", "Saving…");
+        var data = new FormData();
+        data.append("save_scope", "workspace");
+        form.querySelectorAll('input[name^="require_"]').forEach(function (input) {
+          data.append(input.name, input.checked ? "1" : "0");
+        });
+        fetch(form.action, {
+          method: "POST",
+          credentials: "same-origin",
+          body: data,
+          headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" }
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error("save failed");
+            return response.json();
+          })
+          .then(function (result) {
+            if (!result || !result.ok) throw new Error("save failed");
+            setStatus("saved", "Auto-updated");
+            timer = setTimeout(function () { setStatus("", "Auto-save on"); }, 2500);
+          })
+          .catch(function () {
+            setStatus("error", "Save failed");
+            timer = setTimeout(function () { setStatus("", "Auto-save on"); }, 4000);
+          });
+      }
+
+      form.querySelectorAll('input[name^="require_"]').forEach(function (input) {
+        input.addEventListener("change", save);
+      });
+    })();
+
     (function () {
       var input = document.getElementById("company-stock-settings-live-search");
       if (!input) return;

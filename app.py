@@ -3012,9 +3012,45 @@ SHOP_STOCK_WORKSPACE_SETTING_KEYS = (
     "require_manual_out_notes",
 )
 
+COMPANY_STOCK_WORKSPACE_SETTINGS_JSON_KEY = "company_stock_workspace_settings_json"
+
 
 def _default_shop_stock_workspace_settings() -> dict:
     return {k: False for k in SHOP_STOCK_WORKSPACE_SETTING_KEYS}
+
+
+def _load_company_stock_workspace_settings() -> dict:
+    from database import get_site_settings
+
+    out = _default_shop_stock_workspace_settings()
+    raw = (
+        get_site_settings([COMPANY_STOCK_WORKSPACE_SETTINGS_JSON_KEY]).get(
+            COMPANY_STOCK_WORKSPACE_SETTINGS_JSON_KEY
+        )
+        or "{}"
+    )
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    if isinstance(data, dict):
+        for key in SHOP_STOCK_WORKSPACE_SETTING_KEYS:
+            if key in data:
+                out[key] = bool(data[key])
+    return out
+
+
+def _save_company_stock_workspace_settings(settings: dict) -> bool:
+    from database import set_site_settings
+
+    payload = {k: bool((settings or {}).get(k)) for k in SHOP_STOCK_WORKSPACE_SETTING_KEYS}
+    return set_site_settings(
+        {
+            COMPANY_STOCK_WORKSPACE_SETTINGS_JSON_KEY: json.dumps(
+                payload, separators=(",", ":")
+            )
+        }
+    )
 
 
 def _load_shop_stock_workspace_settings(shop: dict) -> dict:
@@ -11029,6 +11065,7 @@ def it_support_stock_supplier_stock_ins(item_id: int):
 def it_support_company_stock_settings():
     _it_support_or_super_admin_only()
     inv_mode = _global_pos_inventory_mode()
+    stock_workspace_settings = _load_company_stock_workspace_settings()
     try:
         from database import (
             get_shop_item_stock_movement_summary,
@@ -11074,6 +11111,19 @@ def it_support_company_stock_settings():
         items = []
 
     if request.method == "POST":
+        save_scope = (request.form.get("save_scope") or "levels").strip().lower()
+        if save_scope == "workspace":
+            settings = _shop_stock_workspace_settings_from_form()
+            ok = _save_company_stock_workspace_settings(settings)
+            if _request_wants_json():
+                if not ok:
+                    return jsonify({"ok": False, "error": "Could not save settings."}), 500
+                return jsonify({"ok": True, "settings": settings})
+            flash(
+                "Company stock update form settings saved." if ok else "Could not save settings.",
+                "success" if ok else "error",
+            )
+            return redirect(url_for("it_support_company_stock_settings"))
         if inv_mode == "both":
             flash("Company stock thresholds are not editable from this page in Both mode store stock items.", "warning")
             return redirect(url_for("it_support_company_stock_settings"))
@@ -11097,7 +11147,11 @@ def it_support_company_stock_settings():
             flash("Could not save. Ensure the database schema is current (restart app to run migrations).", "error")
         return redirect(url_for("it_support_company_stock_settings"))
 
-    return render_template("it_support_company_stock_settings.html", items=items)
+    return render_template(
+        "it_support_company_stock_settings.html",
+        items=items,
+        stock_workspace_settings=stock_workspace_settings,
+    )
 
 
 @app.route("/it_support/stock-settings")
@@ -11112,6 +11166,7 @@ def it_support_stock_settings():
 def it_support_company_stock_update():
     _it_support_or_super_admin_only()
     inv_mode = _global_pos_inventory_mode()
+    stock_workspace_settings = _load_company_stock_workspace_settings()
     try:
         from database import get_company_stock_status, list_shops, list_stock_manage_items
 
@@ -11148,6 +11203,15 @@ def it_support_company_stock_update():
             return redirect(url_for("it_support_company_stock_update"))
 
         note = (request.form.get("note") or "").strip().upper() or None
+        note_setting_by_action = {
+            "stock_in": "require_request_stock_notes",
+            "manual_stock_in": "require_manual_in_notes",
+            "manual_stock_out": "require_manual_out_notes",
+        }
+        note_setting = note_setting_by_action.get(action)
+        if note_setting and stock_workspace_settings.get(note_setting) and not note:
+            flash("A note is required for this stock action.", "error")
+            return redirect(url_for("it_support_company_stock_update"))
         item_ids = request.form.getlist("item_id[]")
         qtys = request.form.getlist("qty[]")
         buying_prices = request.form.getlist("buying_price[]")
@@ -11313,6 +11377,11 @@ def it_support_company_stock_update():
                     return redirect(url_for("it_support_company_stock_update"))
                 apply_sp = (request.form.get("apply_seller_phone") or "").strip()
                 apply_sn = (request.form.get("apply_seller_name") or "").strip().upper()
+                if stock_workspace_settings.get("require_manual_in_supplier") and (
+                    not apply_sp or not apply_sn
+                ):
+                    flash("Supplier phone and seller name are required for manual stock in.", "error")
+                    return redirect(url_for("it_support_company_stock_update"))
                 apply_pay = (request.form.get("apply_payment_status") or "").strip().lower()
                 allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
                 ensure_shop_items_for_shop(shop_id)
@@ -11351,8 +11420,19 @@ def it_support_company_stock_update():
             elif action == "manual_stock_out":
                 shop_id = request.form.get("shop_id", type=int)
                 reason = (request.form.get("manual_out_reason") or "").strip().lower()
-                refunded_raw = (request.form.get("manual_out_refunded") or "no").strip().lower()
-                refund_amount_raw = (request.form.get("manual_out_refund_amount") or "").strip()
+                refunds_enabled = bool(
+                    stock_workspace_settings.get("require_manual_out_refund")
+                )
+                refunded_raw = (
+                    (request.form.get("manual_out_refunded") or "no").strip().lower()
+                    if refunds_enabled
+                    else "no"
+                )
+                refund_amount_raw = (
+                    (request.form.get("manual_out_refund_amount") or "").strip()
+                    if refunds_enabled
+                    else ""
+                )
                 if not shop_id:
                     flash("Select a shop for manual stock out.", "error")
                     return redirect(url_for("it_support_company_stock_update"))
@@ -11426,6 +11506,7 @@ def it_support_company_stock_update():
         items=items,
         stock_rows=stock_rows,
         pos_inventory_mode=inv_mode,
+        stock_workspace_settings=stock_workspace_settings,
         item_last_buy_price={
             int(i.get("id") or 0): i.get("last_buying_price")
             for i in (items or [])
