@@ -4285,7 +4285,10 @@ var saleType = "sale";
       function cartLineHtml(line) {
         var qtyNum = parseFloat(line.qty);
         if (isNaN(qtyNum) || qtyNum <= 0) qtyNum = 1;
-        var cap = typeof line.stock === "number" && line.stock > 0 && line.stock < 999999999 ? line.stock : 0;
+        var cap =
+          posStockCapsEnforced() && typeof line.stock === "number" && line.stock > 0 && line.stock < 999999999
+            ? line.stock
+            : 0;
         var maxAttr = cap ? ' max="' + cap + '"' : "";
         var unitPrice = parseFloat(line.price);
         if (isNaN(unitPrice)) unitPrice = 0;
@@ -4628,7 +4631,7 @@ var saleType = "sale";
         if (i < 0) return;
         var curQty = parseFloat(lines[i].qty);
         if (isNaN(curQty)) curQty = 0;
-        if (delta > 0) {
+        if (delta > 0 && posStockCapsEnforced()) {
           var cap = lines[i].stock;
           if (typeof cap === "number" && cap > 0 && curQty >= cap) return;
         }
@@ -4662,7 +4665,7 @@ var saleType = "sale";
           return;
         }
         var stockCap = lines[i].stock;
-        if (typeof stockCap === "number" && stockCap > 0 && n > stockCap) n = stockCap;
+        if (posStockCapsEnforced() && typeof stockCap === "number" && stockCap > 0 && n > stockCap) n = stockCap;
         // Snap to 3 decimal places to avoid floating-point fuzz like 0.1+0.2=0.30000000000000004.
         n = Math.round(n * 1000) / 1000;
         lines[i].qty = n;
@@ -4702,7 +4705,7 @@ var saleType = "sale";
           return;
         }
         var stockCap = lines[i].stock;
-        if (typeof stockCap === "number" && stockCap > 0 && qty > stockCap) qty = stockCap;
+        if (posStockCapsEnforced() && typeof stockCap === "number" && stockCap > 0 && qty > stockCap) qty = stockCap;
         qty = Math.round(qty * 1000) / 1000;
         if (qty <= 0) {
           lines.splice(i, 1);
@@ -4800,11 +4803,12 @@ var saleType = "sale";
         if (isNaN(originalSellingPrice)) originalSellingPrice = price;
         if (originalSellingPrice < 0) originalSellingPrice = 0;
         var stock = posSellingCapFromItemCard(btn);
+        var enforceStock = posStockCapsEnforced();
         var lines = load();
         var i = lines.findIndex(function (l) {
           return l.id === id;
         });
-        if (stock === 0 && i < 0) {
+        if (enforceStock && stock === 0 && i < 0) {
           showPosToast((name ? name + " is out of stock." : "This item is out of stock.") + " Stock in or pick another item.");
           return;
         }
@@ -4812,7 +4816,7 @@ var saleType = "sale";
           var cap = lines[i].stock;
           var curQ = parseFloat(lines[i].qty);
           if (isNaN(curQ)) curQ = 0;
-          if (typeof cap === "number" && cap > 0 && curQ >= cap) return;
+          if (enforceStock && typeof cap === "number" && cap > 0 && curQ >= cap) return;
           lines[i].qty = Math.round((curQ + 1) * 1000) / 1000;
         } else {
           lines.push({
@@ -4911,6 +4915,42 @@ var saleType = "sale";
       function posQuoteModeActive() {
         var quoteEl = document.getElementById("pos-quote-only");
         return !!(quoteEl && quoteEl.checked);
+      }
+
+      /** Quotes move no stock, so shelf caps and the out-of-stock block apply to sale/credit only. */
+      function posStockCapsEnforced() {
+        return !posQuoteModeActive();
+      }
+
+      /** Re-align the cart with the active mode: quotes may exceed stock, sale/credit may not. */
+      function syncCartToStockPolicy() {
+        var note = "";
+        if (posStockCapsEnforced()) {
+          var lines = load();
+          var removed = 0;
+          var trimmed = 0;
+          for (var i = lines.length - 1; i >= 0; i--) {
+            var cap = parseFloat(lines[i].stock);
+            if (!isFinite(cap) || cap >= 999999999) continue;
+            var qty = parseFloat(lines[i].qty);
+            if (isNaN(qty)) qty = 0;
+            if (cap <= 0) {
+              lines.splice(i, 1);
+              removed++;
+            } else if (qty > cap) {
+              lines[i].qty = cap;
+              trimmed++;
+            }
+          }
+          if (removed || trimmed) {
+            save(lines);
+            note = removed
+              ? "Out-of-stock items were removed — they can only go on a quote."
+              : "Quantities were reduced to the stock on hand.";
+          }
+        }
+        render();
+        if (note) showPosToast(note);
       }
 
       function posQuoteWhatsappShareChecked() {
@@ -11278,6 +11318,7 @@ var saleType = "sale";
           if (qOnly) qOnly.checked = false;
           setSaleType("sale");
           refreshQuoteWhatsappShareUi();
+          syncCartToStockPolicy();
         });
       }
       if (creditBtn) {
@@ -11287,6 +11328,7 @@ var saleType = "sale";
           if (qOnly) qOnly.checked = false;
           setSaleType("credit");
           refreshQuoteWhatsappShareUi();
+          syncCartToStockPolicy();
         });
       }
       if (quoteModeBtn) {
@@ -11297,6 +11339,7 @@ var saleType = "sale";
           qOnly.checked = !qOnly.checked;
           setSaleType("sale");
           refreshQuoteWhatsappShareUi();
+          syncCartToStockPolicy();
         });
       }
       if (payCashBtn)
@@ -11343,6 +11386,7 @@ var saleType = "sale";
           refreshQuoteWhatsappShareUi();
           updateCustomerSectionState();
           updatePosCompulsoryPrinterWorkspaceLock();
+          syncCartToStockPolicy();
         });
       }
       var quoteWhatsappShareToggle = document.getElementById("pos-quote-whatsapp-share");
