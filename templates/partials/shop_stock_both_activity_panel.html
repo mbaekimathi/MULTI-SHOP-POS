@@ -14,7 +14,7 @@
 
 
 
-<section id="shop-store-activity" class="shop-mgmt-tabpanel sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
+<section id="shop-store-activity" role="tabpanel" aria-label="Activity log" class="shop-mgmt-tabpanel sa-stock-panel overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-5">
 
   <div class="sa-stock-panel-head flex flex-wrap items-center justify-between gap-2 border-b border-[rgb(var(--rc-border))]/80 pb-3">
 
@@ -52,7 +52,15 @@
 
     <div class="shop-mgmt-activity-toolbar mt-3 flex flex-wrap items-center gap-2">
 
-      <input id="shop-store-activity-search" type="search" autocomplete="off" placeholder="Search item, seller, note…" class="min-w-0 flex-1 rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-3 py-2 text-sm" />
+      <div class="relative min-w-0 flex-1">
+        <label for="shop-store-activity-search" class="sr-only">Search stock activity</label>
+        <span class="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[rgb(var(--rc-muted))]" aria-hidden="true">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </span>
+        <input id="shop-store-activity-search" type="search" autocomplete="off" placeholder="Type to filter by item, seller, reason or note…" aria-describedby="shop-store-activity-search-meta" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] py-2.5 pl-10 pr-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+      </div>
+
+      <button type="button" id="shop-store-activity-search-clear" class="btn-rc btn-rc-ghost hidden px-3 py-2 text-xs font-semibold">Clear</button>
 
       <div class="shop-mgmt-activity-filters inline-flex rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-1" role="group" aria-label="Filter by direction">
 
@@ -64,7 +72,7 @@
 
       </div>
 
-      <span class="sa-stock-count-badge text-xs font-semibold tabular-nums text-[rgb(var(--rc-muted))]"><span id="shop-store-activity-visible-count">{{ store_tx_count }}</span> / {{ store_tx_count }}</span>
+      <span id="shop-store-activity-search-meta" class="sa-stock-count-badge text-xs font-semibold tabular-nums text-[rgb(var(--rc-muted))]" aria-live="polite"><span id="shop-store-activity-visible-count">{{ store_tx_count }}</span> / {{ store_tx_count }} shown</span>
 
     </div>
 
@@ -72,7 +80,7 @@
 
     <div class="shop-mgmt-table-wrap mt-3 overflow-x-auto">
 
-      <table class="sa-stock-data-table min-w-[48rem] w-full text-sm">
+      <table class="sa-stock-data-table sa-stock-mgmt-table min-w-[48rem] w-full text-sm">
 
         <thead>
 
@@ -155,6 +163,8 @@
       </table>
 
     </div>
+
+    <p id="shop-store-activity-no-results" class="hidden rounded-xl border border-dashed border-[rgb(var(--rc-border))] p-6 text-center text-sm text-[rgb(var(--rc-muted))]">No activity matches the current filters.</p>
 
   {% endif %}
 

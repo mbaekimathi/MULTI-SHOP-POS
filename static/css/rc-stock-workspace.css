@@ -447,6 +447,7 @@
 
   .shop-mgmt-tabbed > .shop-mgmt-tabpanel { display: none; }
   .shop-mgmt-tabbed > .shop-mgmt-tabpanel.shop-mgmt-tabpanel--active { display: block; }
+  .shop-mgmt-tabbed > #shop-stock-request-warehouse.shop-mgmt-tabpanel--active { display: flex; }
 
   /* Section nav — high-contrast pill tabs */
   .shop-mgmt-section-nav {

@@ -4,7 +4,7 @@
 {% set req_request_notes = (stock_workspace_settings or {}).get('require_request_stock_notes') %}
 
 {% if item_count %}
-<form id="js-batch-request-stock-form" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=batch_view) }}" data-source-stock-url="{{ url_for('shop_stock_management_source_stock_json', shop_id=shop.id) }}" class="sa-stock-panel overflow-visible rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
+<form id="js-batch-request-stock-form" method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=batch_view) }}#shop-stock-request-warehouse" data-source-stock-url="{{ url_for('shop_stock_management_source_stock_json', shop_id=shop.id) }}" class="sa-stock-panel overflow-visible rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-4 shadow-sm sm:p-6">
   <input type="hidden" name="action" value="batch_request_stock" />
   <input type="hidden" name="view" value="{{ batch_view }}" />
 
@@ -35,10 +35,17 @@
     <div class="company-stock-update-main min-w-0 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))]">
       <div class="flex items-center justify-between gap-2 bg-[rgb(var(--rc-surface-2))] px-4 py-3">
         <h4 class="text-sm font-semibold text-[rgb(var(--rc-page-fg))]">Items and current stock</h4>
-        <span class="text-xs font-semibold tabular-nums text-[rgb(var(--rc-muted))]"><span id="js-stock-visible-count">{{ item_count }}</span> / {{ item_count }} shown</span>
+        <span id="js-stock-visible-meta" class="text-xs font-semibold tabular-nums text-[rgb(var(--rc-muted))]" aria-live="polite"><span id="js-stock-visible-count">{{ item_count }}</span> / {{ item_count }} shown</span>
       </div>
-      <div class="border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3">
-        <input type="search" id="js-batch-request-stock-search" autocomplete="off" placeholder="Search by item or category…" class="w-full rounded-lg border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] px-3 py-2.5 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/25" />
+      <div class="flex items-center gap-2 border-t border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] px-4 py-3">
+        <div class="relative min-w-0 flex-1">
+          <label for="js-batch-request-stock-search" class="sr-only">Search request-stock items</label>
+          <span class="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-[rgb(var(--rc-muted))]" aria-hidden="true">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </span>
+          <input type="search" id="js-batch-request-stock-search" autocomplete="off" placeholder="Type to filter by item or category…" aria-describedby="js-stock-visible-meta" class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] py-2.5 pl-10 pr-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20" />
+        </div>
+        <button type="button" id="js-batch-request-stock-search-clear" class="btn-rc btn-rc-ghost hidden px-3 py-2 text-xs font-semibold">Clear</button>
       </div>
       <div class="shop-mgmt-table-wrap sa-stock-mgmt-scroll min-w-0 overflow-x-auto overscroll-x-contain border-t border-[rgb(var(--rc-border))]">
         <table class="sa-stock-data-table sa-stock-mgmt-table min-w-[28rem] w-full text-xs md:text-sm">
@@ -71,6 +78,7 @@
           </tbody>
         </table>
       </div>
+      <p id="js-batch-request-stock-no-results" class="hidden border-t border-[rgb(var(--rc-border))] p-6 text-center text-sm text-[rgb(var(--rc-muted))]">No items match your search.</p>
       <p class="sa-stock-mgmt-table-scroll-hint shop-mgmt-scroll-hint px-4 py-2" aria-hidden="true">Swipe sideways to see all columns</p>
       <p id="js-source-stock-hint" class="sr-only">Request up to available source stock per item.</p>
     </div>

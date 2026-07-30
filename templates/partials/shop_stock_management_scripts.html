@@ -218,8 +218,9 @@
 
 <script>
   (function () {
-    function wireStoreStockSearch(searchInput, countEl, formEl) {
+    function wireStoreStockSearch(searchInput, countEl, formEl, clearBtn, emptyEl) {
       if (!searchInput || !formEl) return;
+      var tableWrap = formEl.querySelector(".shop-mgmt-bulk-table-scroll");
       function syncSearch() {
         var q = (searchInput.value || "").trim().toLowerCase();
         var visible = 0;
@@ -239,20 +240,35 @@
           catRow.classList.toggle("hidden", !!q && !visibleByCategory[catKey]);
         });
         if (countEl) countEl.textContent = String(visible);
+        if (clearBtn) clearBtn.classList.toggle("hidden", !q);
+        if (tableWrap) tableWrap.style.display = visible === 0 ? "none" : "";
+        if (emptyEl) emptyEl.classList.toggle("hidden", visible !== 0);
       }
       searchInput.addEventListener("input", syncSearch);
+      searchInput.addEventListener("search", syncSearch);
+      if (clearBtn) {
+        clearBtn.addEventListener("click", function () {
+          searchInput.value = "";
+          syncSearch();
+          searchInput.focus();
+        });
+      }
       syncSearch();
     }
 
     wireStoreStockSearch(
       document.getElementById("shop-store-in-search"),
       document.getElementById("shop-store-in-visible-count"),
-      document.getElementById("shop-store-bulk-form-in")
+      document.getElementById("shop-store-bulk-form-in"),
+      document.getElementById("shop-store-in-search-clear"),
+      document.getElementById("shop-store-in-no-results")
     );
     wireStoreStockSearch(
       document.getElementById("shop-store-out-search"),
       document.getElementById("shop-store-out-visible-count"),
-      document.getElementById("shop-store-bulk-form-out")
+      document.getElementById("shop-store-bulk-form-out"),
+      document.getElementById("shop-store-out-search-clear"),
+      document.getElementById("shop-store-out-no-results")
     );
   })();
 </script>
@@ -270,6 +286,8 @@
     var copyBtn = document.getElementById("shop-store-copy-in-rows");
     var feedback = document.getElementById("shop-store-copy-in-feedback");
     var sellerLookupUrl = {{ url_for('seller_lookup')|tojson }};
+    var supplierRequired = window.shopStockWsRequired("require_manual_in_supplier");
+    var notesRequired = window.shopStockWsRequired("require_manual_in_notes");
 
     function normalizePhoneValue(raw) {
       var val = String(raw || "").trim();
@@ -347,10 +365,13 @@
         var payRaw = String((applyPayment && applyPayment.value) || "").trim().toLowerCase();
         var payOk = payRaw === "pending_payment" || payRaw === "partially_paid" || payRaw === "paid";
         var noteVal = String((applyNote && applyNote.value) || "").trim().toUpperCase();
-        if (!pv || !nv || !payOk) {
+        if ((supplierRequired && (!pv || !nv)) || (notesRequired && !noteVal) || !payOk) {
           if (feedback) {
-            feedback.textContent =
-              "Fill supplier phone, seller name, and payment above before copying to rows.";
+            feedback.textContent = supplierRequired && (!pv || !nv)
+              ? "Fill supplier phone and seller name before copying to rows."
+              : notesRequired && !noteVal
+                ? "Fill the required note before copying to rows."
+                : "Select a payment status before copying to rows.";
           }
           return;
         }
@@ -379,7 +400,9 @@
         if (!copied) {
           feedback.textContent = "No rows updated - enter qty on target lines, then copy again.";
         } else {
-          feedback.textContent = "Copied supplier phone, seller, and payment to " + copied + " row(s) with quantity.";
+          var copiedFields = supplierRequired ? "supplier, payment" : "payment";
+          if (notesRequired) copiedFields += ", note";
+          feedback.textContent = "Copied " + copiedFields + " to " + copied + " row(s) with quantity.";
         }
       });
     }
@@ -412,19 +435,21 @@
         var payS = (pay && pay.value || "").trim().toLowerCase();
         var payOk = !!allowedPayVals[payS];
         var noteS = (note && note.value || "").trim();
-        var otherTouched = !!(bpS || plS || phS || payOk || noteS);
-
         if (typeof qPos === "number") {
           if (!bpS) {
             problems.push(label + ": buying price is required with quantity.");
             firstBad = firstBad || row;
           }
-          if (!phS) {
+          if (supplierRequired && !phS) {
             problems.push(label + ": supplier phone is required with quantity.");
             firstBad = firstBad || row;
           }
-          if (!plS) {
+          if (supplierRequired && !plS) {
             problems.push(label + ": seller name is required with quantity.");
+            firstBad = firstBad || row;
+          }
+          if (notesRequired && !noteS) {
+            problems.push(label + ": note is required with quantity.");
             firstBad = firstBad || row;
           }
           if (!payOk) {
@@ -434,8 +459,8 @@
         } else if (qPos === false) {
           problems.push(label + ": enter a valid positive quantity or clear this row.");
           firstBad = firstBad || row;
-        } else if (otherTouched) {
-          problems.push(label + ": enter quantity or clear buying price, seller, phone, and payment.");
+        } else if (plS || phS || noteS) {
+          problems.push(label + ": enter quantity or clear supplier and note fields.");
           firstBad = firstBad || row;
         }
       });
@@ -461,6 +486,8 @@
     var applyNote = document.getElementById("shop-store-out-apply-note");
     var copyBtn = document.getElementById("shop-store-copy-out-rows");
     var feedback = document.getElementById("shop-store-copy-out-feedback");
+    var refundsEnabled = window.shopStockWsRequired("require_manual_out_refund");
+    var notesRequired = window.shopStockWsRequired("require_manual_out_notes");
 
     function syncRefundRow(itemId) {
       var sel = formOut.querySelector('[name="out_refunded_' + itemId + '"]');
@@ -490,6 +517,10 @@
         if (feedback) feedback.textContent = "Choose Reason first (Return, Waste, or Display).";
         return;
       }
+      if (notesRequired && !noteVal) {
+        if (feedback) feedback.textContent = "Fill the required note before copying to rows.";
+        return;
+      }
 
       var copied = 0;
       formOut.querySelectorAll(".shop-store-row-out").forEach(function (row) {
@@ -503,14 +534,14 @@
         var refundedEl = row.querySelector('select[name="out_refunded_' + id + '"]');
         var noteEl = row.querySelector('input[name="out_note_' + id + '"]');
         if (reasonEl) reasonEl.value = reason;
-        if (refundedEl) refundedEl.value = refunded === "yes" ? "yes" : "no";
+        if (refundedEl && refundsEnabled) refundedEl.value = refunded === "yes" ? "yes" : "no";
         if (noteEl && noteVal) noteEl.value = noteVal;
         syncRefundRow(id);
       });
 
       if (!feedback) return;
       feedback.textContent = copied
-        ? "Copied reason/refund/note to " + copied + " row(s) with quantity."
+        ? "Copied reason" + (refundsEnabled ? "/refund" : "") + (notesRequired ? "/note" : "") + " to " + copied + " row(s) with quantity."
         : "No rows updated - enter qty out on target lines, then copy again.";
     });
   })();
@@ -613,6 +644,9 @@
     var sharedNoteWrap = form.querySelector(".js-request-stock-shared-note-wrap");
     var sharedNoteInput = document.getElementById("js-request-stock-batch-note");
     var searchInput = document.getElementById("js-batch-request-stock-search");
+    var searchClearBtn = document.getElementById("js-batch-request-stock-search-clear");
+    var searchEmptyEl = document.getElementById("js-batch-request-stock-no-results");
+    var requestTableWrap = form.querySelector(".shop-mgmt-table-wrap");
     var visibleCountEl = document.getElementById("js-stock-visible-count");
     var linesCountEl = document.getElementById("js-request-stock-lines-count");
     var submitCountEl = document.getElementById("js-request-stock-submit-count");
@@ -703,10 +737,21 @@
         catRow.style.display = visibleEmptyByCat[catKey] ? "" : "none";
       });
       if (visibleCountEl) visibleCountEl.textContent = String(visible);
+      if (searchClearBtn) searchClearBtn.classList.toggle("hidden", !q);
+      if (requestTableWrap) requestTableWrap.style.display = visible === 0 ? "none" : "";
+      if (searchEmptyEl) searchEmptyEl.classList.toggle("hidden", visible !== 0);
     }
 
     if (searchInput) {
       searchInput.addEventListener("input", syncBatchSearch);
+      searchInput.addEventListener("search", syncBatchSearch);
+      if (searchClearBtn) {
+        searchClearBtn.addEventListener("click", function () {
+          searchInput.value = "";
+          syncBatchSearch();
+          searchInput.focus();
+        });
+      }
       syncBatchSearch();
     }
 
@@ -1497,7 +1542,10 @@
 <script>
   (function () {
     var searchInput = document.getElementById("shop-store-activity-search");
+    var searchClearBtn = document.getElementById("shop-store-activity-search-clear");
     var countEl = document.getElementById("shop-store-activity-visible-count");
+    var emptyEl = document.getElementById("shop-store-activity-no-results");
+    var tableWrap = document.querySelector("#shop-store-activity .shop-mgmt-table-wrap");
     var rows = Array.prototype.slice.call(document.querySelectorAll(".js-activity-row"));
     var filters = Array.prototype.slice.call(document.querySelectorAll(".stk-activity-filter"));
     if (!rows.length) return;
@@ -1510,6 +1558,7 @@
         var on = (btn.getAttribute("data-activity-dir") || "all") === activeDir;
         btn.classList.toggle("shop-analytics-tab-active", on);
         btn.classList.toggle("text-[rgb(var(--rc-muted))]", !on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
       });
       syncActivity();
     }
@@ -1526,9 +1575,23 @@
         if (show) visible += 1;
       });
       if (countEl) countEl.textContent = String(visible);
+      var qActive = !!q;
+      if (searchClearBtn) searchClearBtn.classList.toggle("hidden", !qActive);
+      if (tableWrap) tableWrap.style.display = visible === 0 ? "none" : "";
+      if (emptyEl) emptyEl.classList.toggle("hidden", visible !== 0);
     }
 
-    if (searchInput) searchInput.addEventListener("input", syncActivity);
+    if (searchInput) {
+      searchInput.addEventListener("input", syncActivity);
+      searchInput.addEventListener("search", syncActivity);
+    }
+    if (searchClearBtn && searchInput) {
+      searchClearBtn.addEventListener("click", function () {
+        searchInput.value = "";
+        syncActivity();
+        searchInput.focus();
+      });
+    }
     filters.forEach(function (btn) {
       btn.addEventListener("click", function () {
         setDirFilter(btn.getAttribute("data-activity-dir") || "all");

@@ -87,16 +87,16 @@
             id="sim-item-search"
             type="search"
             autocomplete="off"
-            placeholder="Search by name, category or description…"
+            placeholder="Type to filter by name, category or description…"
+            aria-describedby="sim-item-search-meta"
             class="w-full rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface-2))] py-2.5 pl-10 pr-3 text-sm text-[rgb(var(--rc-page-fg))] outline-none focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
           />
         </div>
-        <div class="flex shrink-0 gap-2">
-          <button type="button" id="sim-item-search-btn" class="btn-rc btn-rc-primary px-5 py-2.5 text-sm font-semibold">Search</button>
+        <div class="flex shrink-0">
           <button type="button" id="sim-item-search-clear" class="btn-rc btn-rc-ghost hidden px-4 py-2.5 text-sm font-semibold">Clear</button>
         </div>
       </div>
-      <p id="sim-item-search-meta" class="mt-2 text-xs text-[rgb(var(--rc-muted))]" aria-live="polite"></p>
+      <p id="sim-item-search-meta" class="mt-2 text-xs text-[rgb(var(--rc-muted))]" aria-live="polite">{{ item_count }} item{% if item_count != 1 %}s{% endif %} available</p>
 
       <div class="mt-4 overflow-hidden rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))]">
         <div class="overflow-x-auto">
@@ -187,6 +187,7 @@
                         <div
                           class="shop-sell-price-cell"
                           data-sell-price="{{ sell_price_val }}"
+                          data-min-sell-price="{{ '%.2f'|format(item.price) }}"
                         >
                           <div class="shop-sell-price-view flex flex-wrap items-center gap-2">
                             <span class="font-semibold text-[rgb(var(--rc-page-fg))] tabular-nums">{{ sell_price_val }}</span>
@@ -208,7 +209,7 @@
                               type="number"
                               name="selling_price"
                               step="0.01"
-                              min="0"
+                              min="{{ '%.2f'|format(item.price) }}"
                               required
                               value="{{ sell_price_val }}"
                               inputmode="decimal"
@@ -216,6 +217,7 @@
                             />
                             <button type="submit" class="btn-rc btn-rc-primary px-3 py-1.5 text-xs font-bold uppercase tracking-wide">Save</button>
                             <button type="button" class="shop-sell-price-cancel-btn btn-rc btn-rc-ghost px-3 py-1.5 text-xs font-bold uppercase tracking-wide">Cancel</button>
+                            <span class="shop-sell-price-error hidden basis-full text-xs font-semibold text-rose-500">Minimum: {{ '%.2f'|format(item.price) }}</span>
                           </form>
                         </div>
                       {% else %}
@@ -325,10 +327,9 @@
   <script>
     (function () {
       var input = document.getElementById("sim-item-search");
-      var btn = document.getElementById("sim-item-search-btn");
       var clearBtn = document.getElementById("sim-item-search-clear");
       var meta = document.getElementById("sim-item-search-meta");
-      if (!input || !btn) return;
+      if (!input) return;
 
       function norm(s) {
         return (s || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -362,16 +363,17 @@
         if (clearBtn) clearBtn.classList.toggle("hidden", !q);
         if (meta) {
           if (!q) {
-            meta.textContent = "";
+            meta.textContent = rows.length + " item" + (rows.length === 1 ? "" : "s") + " available";
           } else {
             meta.textContent = visibleItems === 0
               ? "No items match your search."
-              : "Showing " + visibleItems + " matching item(s).";
+              : "Showing " + visibleItems + " matching item" + (visibleItems === 1 ? "" : "s") + ".";
           }
         }
       }
 
-      btn.addEventListener("click", applySearch);
+      input.addEventListener("input", applySearch);
+      input.addEventListener("search", applySearch);
       if (clearBtn) {
         clearBtn.addEventListener("click", function () {
           input.value = "";
@@ -379,12 +381,6 @@
           input.focus();
         });
       }
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          applySearch();
-        }
-      });
     })();
   </script>
   {% endif %}
@@ -576,8 +572,13 @@
         var view = cell.querySelector(".shop-sell-price-view");
         var form = cell.querySelector(".shop-sell-price-form");
         var input = cell.querySelector(".shop-sell-price-input");
+        var error = cell.querySelector(".shop-sell-price-error");
         var saved = cell.getAttribute("data-sell-price") || "";
-        if (input) input.value = saved;
+        if (input) {
+          input.value = saved;
+          input.setCustomValidity("");
+        }
+        if (error) error.classList.add("hidden");
         if (view) view.classList.remove("hidden");
         if (form) {
           form.classList.add("hidden");
@@ -614,6 +615,17 @@
         var cancelBtn = cell.querySelector(".shop-sell-price-cancel-btn");
         var form = cell.querySelector(".shop-sell-price-form");
         var input = cell.querySelector(".shop-sell-price-input");
+        var error = cell.querySelector(".shop-sell-price-error");
+        var minimum = parseFloat(cell.getAttribute("data-min-sell-price") || "0");
+
+        function validatePrice() {
+          if (!input) return true;
+          var value = parseFloat(input.value);
+          var valid = isFinite(value) && value >= minimum;
+          input.setCustomValidity(valid ? "" : "Selling price cannot be below the original price.");
+          if (error) error.classList.toggle("hidden", valid);
+          return valid;
+        }
 
         if (editBtn) {
           editBtn.addEventListener("click", function () {
@@ -625,11 +637,15 @@
             closeCell(cell);
           });
         }
+        if (input) input.addEventListener("input", validatePrice);
         if (form) {
-          form.addEventListener("submit", function () {
-            if (input) {
-              cell.setAttribute("data-sell-price", input.value);
+          form.addEventListener("submit", function (ev) {
+            if (!validatePrice()) {
+              ev.preventDefault();
+              input.reportValidity();
+              return;
             }
+            if (input) cell.setAttribute("data-sell-price", input.value);
           });
         }
       });

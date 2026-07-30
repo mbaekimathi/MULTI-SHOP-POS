@@ -30,7 +30,7 @@
 
   <div class="sa-stock-analytics shop-stock-mgmt-page">
 
-    <div class="sa-stock-workspace shop-stock-mgmt-workspace mt-2 flex flex-col gap-2 sm:mt-3 sm:gap-3">
+    <div class="sa-stock-workspace sa-stock-mgmt sa-stock-workspace--shop-portal shop-stock-mgmt-workspace mt-2 flex flex-col gap-2 sm:mt-3 sm:gap-3">
 
       {% include "partials/shop_stock_mgmt_shell_hero.html" %}
 
@@ -38,7 +38,7 @@
 
         <div class="shop-mgmt-tabbed flex flex-col gap-2 sm:gap-4">
 
-          <div id="shop-stock-request-warehouse" class="flex flex-col gap-2 sm:gap-4">
+          <div id="shop-stock-request-warehouse" role="tabpanel" aria-label="Request stock" class="shop-mgmt-tabpanel flex flex-col gap-2 sm:gap-4">
 
             {% include "partials/shop_stock_batch_request_form.html" %}
 
@@ -176,7 +176,7 @@
 
       var panels = stack.querySelectorAll(".shop-mgmt-tabpanel");
 
-      var tabIds = ["shop-store-items-catalog", "shop-store-stock-in", "shop-store-stock-out", "shop-store-activity"];
+      var tabIds = ["shop-stock-request-warehouse", "shop-store-items-catalog", "shop-store-stock-in", "shop-store-stock-out", "shop-store-activity"];
 
       var tabs = document.querySelectorAll(".shop-mgmt-tab");
 
@@ -186,7 +186,11 @@
 
         panels.forEach(function (panel) {
 
-          panel.classList.toggle("shop-mgmt-tabpanel--active", panel.id === id);
+          var on = panel.id === id;
+
+          panel.classList.toggle("shop-mgmt-tabpanel--active", on);
+
+          panel.setAttribute("aria-hidden", on ? "false" : "true");
 
         });
 
@@ -197,6 +201,10 @@
           var on = href === "#" + id;
 
           tab.classList.toggle("shop-analytics-tab-active", on);
+
+          tab.setAttribute("aria-selected", on ? "true" : "false");
+
+          tab.setAttribute("tabindex", on ? "0" : "-1");
 
         });
 
@@ -367,6 +375,34 @@
           if (location.hash !== href) location.hash = href;
 
           else syncFromHash();
+
+        });
+
+        tab.addEventListener("keydown", function (ev) {
+
+          var keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+
+          if (keys.indexOf(ev.key) === -1) return;
+
+          ev.preventDefault();
+
+          var tabList = Array.prototype.slice.call(tabs);
+
+          var current = tabList.indexOf(tab);
+
+          var next = ev.key === "Home" ? 0
+
+            : ev.key === "End" ? tabList.length - 1
+
+            : (current + (ev.key === "ArrowRight" ? 1 : -1) + tabList.length) % tabList.length;
+
+          var nextTab = tabList[next];
+
+          if (!nextTab) return;
+
+          location.hash = nextTab.getAttribute("href") || "#shop-store-items-catalog";
+
+          nextTab.focus();
 
         });
 

@@ -20373,6 +20373,11 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
 
             allowed_reasons = {"return", "waste", "display"}
             allowed_pay = frozenset({"pending_payment", "partially_paid", "paid"})
+            ws = _load_shop_stock_workspace_settings(shop)
+            require_supplier = bool(ws.get("require_manual_in_supplier"))
+            require_in_notes = bool(ws.get("require_manual_in_notes"))
+            refunds_enabled = bool(ws.get("require_manual_out_refund"))
+            require_out_notes = bool(ws.get("require_manual_out_notes"))
             errors: list[str] = []
             ops: list[dict] = []
 
@@ -20389,13 +20394,7 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     phone_raw = (request.form.get(f"in_seller_phone_{iid}") or "").strip()
                     pay_raw = (request.form.get(f"in_payment_status_{iid}") or "").strip().lower()
                     note_raw = (request.form.get(f"in_note_{iid}") or "").strip()
-                    pay_selected = pay_raw in allowed_pay
-                    partial_without_qty = bool(bp_raw or place or phone_raw or pay_selected or note_raw)
                     if not qty_raw:
-                        if partial_without_qty:
-                            errors.append(
-                                f"{label}: enter a stock-in quantity or clear buying price, seller, phone, payment, and note."
-                            )
                         continue
                     qty = normalize_stock_move_qty(qty_raw)
                     if qty is None:
@@ -20404,25 +20403,30 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     if not bp_raw:
                         errors.append(f"{label}: buying price is required when quantity is set.")
                         continue
-                    if not phone_raw:
+                    if require_supplier and not phone_raw:
                         errors.append(f"{label}: supplier phone is required when quantity is set.")
                         continue
-                    if not place:
+                    if require_supplier and not place:
                         errors.append(f"{label}: seller name is required when quantity is set.")
+                        continue
+                    if require_in_notes and not note_raw:
+                        errors.append(f"{label}: note is required when quantity is set.")
                         continue
                     if pay_raw not in allowed_pay:
                         errors.append(f"{label}: select payment (Not paid, Partially paid, or Paid).")
                         continue
                     payment_status = pay_raw
-                    place_final = place.upper()
-                    rn, rp = resolve_seller_name_and_phone(phone_raw, place)
-                    if not rn or not rp:
-                        errors.append(
-                            f"{label}: supplier phone must be valid (07… or 254…). If new, enter seller name in the seller field."
-                        )
-                        continue
-                    place_final = (rn or place).strip().upper()
-                    resolved_phone = rp
+                    place_final = None
+                    resolved_phone = None
+                    if require_supplier:
+                        rn, rp = resolve_seller_name_and_phone(phone_raw, place)
+                        if not rn or not rp:
+                            errors.append(
+                                f"{label}: supplier phone must be valid (07… or 254…). If new, enter seller name in the seller field."
+                            )
+                            continue
+                        place_final = (rn or place).strip().upper()
+                        resolved_phone = rp
                     try:
                         buying_price = float(bp_raw)
                         if buying_price < 0:
@@ -20449,7 +20453,11 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                 else:
                     qty_raw = (request.form.get(f"out_qty_{iid}") or "").strip()
                     reason = (request.form.get(f"out_reason_{iid}") or "").strip().lower()
-                    ram = (request.form.get(f"out_refund_amount_{iid}") or "").strip()
+                    ram = (
+                        (request.form.get(f"out_refund_amount_{iid}") or "").strip()
+                        if refunds_enabled
+                        else ""
+                    )
                     note_raw = (request.form.get(f"out_note_{iid}") or "").strip()
                     partial_out = reason in allowed_reasons or bool(ram) or bool(note_raw)
                     if not qty_raw:
@@ -20465,7 +20473,14 @@ def shop_stock_management(shop_id: int, mode: str | None = None, item_id: int | 
                     if reason not in allowed_reasons:
                         errors.append(f"{label}: choose a stock out reason.")
                         continue
-                    refunded_raw = (request.form.get(f"out_refunded_{iid}") or "").strip().lower()
+                    if require_out_notes and not note_raw:
+                        errors.append(f"{label}: note is required when quantity is set.")
+                        continue
+                    refunded_raw = (
+                        (request.form.get(f"out_refunded_{iid}") or "no").strip().lower()
+                        if refunds_enabled
+                        else "no"
+                    )
                     if refunded_raw not in ("yes", "no"):
                         errors.append(f"{label}: choose whether this line is refunded.")
                         continue
@@ -22197,8 +22212,23 @@ def shop_item_update_selling_price(shop_id: int, item_id: int):
         return redirect(url_for("shop_item_management", shop_id=shop_id))
 
     try:
-        from database import ensure_shop_items_for_shop, update_item_selling_price_for_shop
+        from database import (
+            ensure_shop_items_for_shop,
+            get_item_by_id,
+            update_item_selling_price_for_shop,
+        )
 
+        item = get_item_by_id(item_id)
+        if not item:
+            flash("Item not found.", "error")
+            return redirect(url_for("shop_item_management", shop_id=shop_id))
+        original_price = float(item.get("price") or 0)
+        if sp < original_price:
+            flash(
+                f"Selling price cannot be below the original price ({original_price:.2f}).",
+                "error",
+            )
+            return redirect(url_for("shop_item_management", shop_id=shop_id))
         ensure_shop_items_for_shop(shop_id)
         ok = update_item_selling_price_for_shop(shop_id=shop_id, item_id=item_id, selling_price=sp)
     except Exception:

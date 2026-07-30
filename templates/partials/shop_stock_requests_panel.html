@@ -80,7 +80,7 @@
 
                 {% if r.status == 'pending' and r.requesting_shop_id == shop.id %}
 
-                  <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view|default('auto')) }}" class="inline" onsubmit="return confirm('Cancel this pending request?');">
+                  <form method="post" action="{{ url_for('shop_stock_management', shop_id=shop.id, view=view|default('auto')) }}#shop-stock-request-warehouse" class="inline" onsubmit="return confirm('Cancel this pending request?');">
 
                     <input type="hidden" name="action" value="cancel_stock_request" />
 
