@@ -50,8 +50,10 @@
   {% set pos_is_both = (pos_inv == 'both') %}
   {% set inv_col_short = 'Kitchen upd.' if pos_is_kitchen else ('Stock upd.' if pos_is_shop else ('Kitchen+stk' if pos_is_both else 'POS inv.')) %}
   {% set inv_mobile_heading = 'Kitchen portion updates' if pos_is_kitchen else ('Stock updates' if pos_is_shop else ('Kitchen + stock updates' if pos_is_both else 'POS inventory')) %}
-  {% set cat_groups = (items|sort(attribute='category')|groupby('category')|list) if items else [] %}
-  {% set category_count = cat_groups|length %}
+  {% set sort_mode = sort_mode|default('category') %}
+  {% set cat_groups = display_groups if display_groups is defined else ((items|sort(attribute='category')|groupby('category')|list) if items else []) %}
+  {% set show_cat_headers = (sort_mode == 'category') %}
+  {% set category_count = category_count|default((cat_groups|length) if show_cat_headers else 0) %}
 
   <div class="mx-auto max-w-7xl space-y-6 px-1 sm:px-0">
     {# Hero #}
@@ -145,19 +147,36 @@
         </a>
       </div>
     {% else %}
-      {# Search #}
-      <div class="relative">
-        <label for="item-mgmt-search" class="sr-only">Search items</label>
-        <span class="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[rgb(var(--rc-muted))] motion-safe:transition-colors" aria-hidden="true">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        </span>
-        <input
-          id="item-mgmt-search"
-          type="search"
-          autocomplete="off"
-          placeholder="Search by name or category…"
-          class="w-full rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-3.5 pl-12 pr-4 text-sm text-[rgb(var(--rc-page-fg))] shadow-inner shadow-black/5 outline-none ring-0 transition-[border-color,box-shadow] duration-200 placeholder:text-[rgb(var(--rc-muted))] focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
-        />
+      {# Search + sort #}
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div class="relative min-w-0 flex-1">
+          <label for="item-mgmt-search" class="sr-only">Search items</label>
+          <span class="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[rgb(var(--rc-muted))]" aria-hidden="true">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </span>
+          <input
+            id="item-mgmt-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search by name or category…"
+            class="w-full rounded-2xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] py-3.5 pl-12 pr-4 text-sm text-[rgb(var(--rc-page-fg))] shadow-inner shadow-black/5 outline-none ring-0 transition-[border-color,box-shadow] duration-200 placeholder:text-[rgb(var(--rc-muted))] focus:border-[rgb(var(--rc-primary))]/50 focus:ring-2 focus:ring-[rgb(var(--rc-primary))]/20"
+          />
+        </div>
+        <div class="flex shrink-0 items-center gap-2" role="group" aria-label="Sort items">
+          <span class="text-xs font-semibold uppercase tracking-wide text-[rgb(var(--rc-muted))]">Sort</span>
+          <div class="inline-flex overflow-hidden rounded-xl border border-[rgb(var(--rc-border))] bg-[rgb(var(--rc-surface))] p-0.5 shadow-sm">
+            <a
+              href="{{ url_for('it_support_item_management', sort='category') }}"
+              class="rounded-lg px-3 py-2 text-xs font-semibold transition {% if sort_mode == 'category' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] shadow-sm ring-1 ring-[rgb(var(--rc-border))]{% else %}text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}"
+              {% if sort_mode == 'category' %}aria-current="true"{% endif %}
+            >Categories</a>
+            <a
+              href="{{ url_for('it_support_item_management', sort='name') }}"
+              class="rounded-lg px-3 py-2 text-xs font-semibold transition {% if sort_mode == 'name' %}bg-[rgb(var(--rc-surface-2))] text-[rgb(var(--rc-page-fg))] shadow-sm ring-1 ring-[rgb(var(--rc-border))]{% else %}text-[rgb(var(--rc-muted))] hover:text-[rgb(var(--rc-page-fg))]{% endif %}"
+              {% if sort_mode == 'name' %}aria-current="true"{% endif %}
+            >A–Z</a>
+          </div>
+        </div>
       </div>
       <p id="item-mgmt-search-meta" class="text-xs text-[rgb(var(--rc-muted))]" aria-live="polite"></p>
 
@@ -204,6 +223,7 @@
             </thead>
             <tbody class="divide-y divide-[rgb(var(--rc-border))]/80">
               {% for grp in cat_groups %}
+                {% if show_cat_headers %}
                 <tr class="im-cat-row bg-gradient-to-r from-[rgb(var(--rc-surface-2))]/90 to-[rgb(var(--rc-surface-2))]/40" data-im-cat="{{ (grp.grouper or '')|lower }}">
                   <td colspan="9" class="px-4 py-2.5">
                     <div class="flex items-center gap-2">
@@ -217,6 +237,7 @@
                     </div>
                   </td>
                 </tr>
+                {% endif %}
 
                 {% for item in grp.list %}
                   {% set search_blob = ((item.name or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.description or ''))|lower %}
@@ -354,7 +375,8 @@
       {# Mobile cards #}
       <div class="space-y-6 md:hidden">
         {% for grp in cat_groups %}
-          <section class="im-mobile-cat space-y-3" data-im-cat="{{ (grp.grouper or '')|lower }}" aria-label="Category {{ grp.grouper }}">
+          <section class="{% if show_cat_headers %}im-mobile-cat {% endif %}space-y-3" {% if show_cat_headers %}data-im-cat="{{ (grp.grouper or '')|lower }}" aria-label="Category {{ grp.grouper }}"{% endif %}>
+            {% if show_cat_headers %}
             <div class="flex items-center gap-2 px-1">
               <svg class="h-5 w-5 text-[rgb(var(--rc-primary))]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -362,6 +384,7 @@
               <h3 class="text-sm font-black uppercase tracking-[0.16em] text-[rgb(var(--rc-page-fg))]">{{ grp.grouper }}</h3>
               <span class="ml-auto text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--rc-muted))]">{{ grp.list|length }} item{% if grp.list|length != 1 %}s{% endif %}</span>
             </div>
+            {% endif %}
             {% for item in grp.list %}
               {% set search_blob = ((item.name or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.description or ''))|lower %}
               <article

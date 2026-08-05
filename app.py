@@ -8586,15 +8586,54 @@ def _require_shop_access(shop: dict):
 @login_required
 def it_support_item_management():
     _it_support_only()
+    sort_mode = (request.args.get("sort") or "category").strip().lower()
+    if sort_mode not in ("category", "name"):
+        sort_mode = "category"
     try:
         from database import list_items
 
-        items = list_items(limit=200)
+        items = list_items(limit=200) or []
     except Exception:
         items = []
+
+    display_groups = []
+    category_count = 0
+    if items:
+        category_count = len({str(it.get("category") or "").strip() for it in items})
+        if sort_mode == "name":
+            sorted_items = sorted(
+                items,
+                key=lambda it: (
+                    str(it.get("name") or "").casefold(),
+                    int(it.get("id") or 0),
+                ),
+            )
+            display_groups = [{"grouper": None, "list": sorted_items}]
+        else:
+            sorted_items = sorted(
+                items,
+                key=lambda it: (
+                    str(it.get("category") or "").casefold(),
+                    str(it.get("name") or "").casefold(),
+                    int(it.get("id") or 0),
+                ),
+            )
+            current_cat = object()
+            bucket = None
+            for it in sorted_items:
+                cat = it.get("category") or ""
+                if cat != current_cat:
+                    current_cat = cat
+                    bucket = {"grouper": cat, "list": []}
+                    display_groups.append(bucket)
+                bucket["list"].append(it)
+
     return render_template(
         "it_support_item_management.html",
         items=items,
+        display_groups=display_groups,
+        sort_mode=sort_mode,
+        category_count=category_count,
         pos_inventory_mode=_pos_inventory_mode_from_ps(_load_printing_settings()),
     )
 
