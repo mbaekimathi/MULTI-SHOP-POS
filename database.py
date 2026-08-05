@@ -3955,10 +3955,38 @@ def create_item(
 
 
 def list_items(limit: int = 200):
+    """
+    Catalog items for IT support lists.
+
+    ``stock_qty`` is company warehouse on-hand.
+    ``total_stock_qty`` is company warehouse + sum of shop_items.shop_stock_qty across all shops.
+    """
     sql = """
-    SELECT id, category, name, description, price, selling_price, image_path, stock_qty, stock_update_enabled, status, created_at
-    FROM items
-    ORDER BY created_at DESC
+    SELECT
+        i.id,
+        i.category,
+        i.name,
+        i.description,
+        i.price,
+        i.selling_price,
+        i.image_path,
+        i.stock_qty,
+        (
+            COALESCE(i.stock_qty, 0)
+            + COALESCE(
+                (
+                    SELECT SUM(si.shop_stock_qty)
+                    FROM shop_items si
+                    WHERE si.item_id = i.id
+                ),
+                0
+            )
+        ) AS total_stock_qty,
+        i.stock_update_enabled,
+        i.status,
+        i.created_at
+    FROM items i
+    ORDER BY i.created_at DESC
     LIMIT %s
     """
     with get_cursor() as cur:
@@ -20405,6 +20433,66 @@ def get_shop_stock_qty_map_for_item(item_id: int) -> dict:
         return out
     except pymysql.Error:
         return {}
+
+
+def get_item_stock_breakdown(item_id: int) -> Optional[dict]:
+    """
+    Company warehouse + per-shop stock for one catalog item.
+
+    Returns:
+      {
+        id, name, category,
+        company_stock_qty,
+        shops: [{id, name, code, qty}],
+        total_stock_qty,
+      }
+    or None if the item does not exist.
+    """
+    item = get_item_by_id(int(item_id))
+    if not item:
+        return None
+    try:
+        company_qty = round(float(item.get("stock_qty") or 0), STOCK_QTY_DECIMAL_PLACES)
+    except (TypeError, ValueError):
+        company_qty = 0.0
+    shop_qty_map = get_shop_stock_qty_map_for_item(int(item_id))
+    shops_out = []
+    shops_total = 0.0
+    try:
+        shops = list_shops(limit=500) or []
+    except Exception:
+        shops = []
+    for s in shops:
+        try:
+            sid = int(s.get("id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if sid <= 0:
+            continue
+        qty = shop_qty_map.get(sid, 0.0)
+        try:
+            qty = round(float(qty or 0), STOCK_QTY_DECIMAL_PLACES)
+        except (TypeError, ValueError):
+            qty = 0.0
+        shops_total += qty
+        shops_out.append(
+            {
+                "id": sid,
+                "name": (s.get("shop_name") or f"Shop {sid}").strip(),
+                "code": (s.get("shop_code") or "").strip(),
+                "qty": qty,
+            }
+        )
+    shops_out.sort(key=lambda r: (r.get("name") or "").lower())
+    total = round(company_qty + shops_total, STOCK_QTY_DECIMAL_PLACES)
+    return {
+        "id": int(item.get("id") or item_id),
+        "name": (item.get("name") or "").strip(),
+        "category": (item.get("category") or "").strip(),
+        "company_stock_qty": company_qty,
+        "shops": shops_out,
+        "total_stock_qty": total,
+    }
 
 
 def shop_request_stock_from_company(

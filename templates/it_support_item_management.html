@@ -172,7 +172,7 @@
                 <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">Name</th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Original</th>
                 <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Selling</th>
-                <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider">Stock</th>
+                <th class="px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-teal-300" title="Company warehouse + all shops">In Stock</th>
                 <th class="px-4 py-3.5 text-xs font-bold uppercase tracking-wider">
                   <div>Status</div>
                   <div class="mt-1.5 flex flex-wrap gap-1 font-semibold normal-case">
@@ -245,7 +245,18 @@
                     </td>
                     <td class="px-4 py-3.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.price) }}</td>
                     <td class="px-4 py-3.5 text-right tabular-nums font-semibold text-[rgb(var(--rc-page-fg))]">{{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</td>
-                    <td class="px-4 py-3.5 text-right tabular-nums font-medium text-[rgb(var(--rc-page-fg))]">{{ item.stock_qty }}</td>
+                    <td class="px-4 py-3.5 text-right">
+                      <button
+                        type="button"
+                        class="im-stock-open inline-flex items-center justify-end gap-1.5 rounded-lg bg-teal-600 px-2.5 py-1.5 text-sm tabular-nums font-bold text-white shadow-sm shadow-teal-900/25 ring-1 ring-teal-500/40 transition hover:bg-teal-500 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                        data-item-id="{{ item.id }}"
+                        data-item-name="{{ item.name }}"
+                        title="View stock by company and shops"
+                      >
+                        {{ item.total_stock_qty if item.total_stock_qty is not none else (item.stock_qty or 0) }}
+                        <svg class="h-3.5 w-3.5 text-teal-100" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
+                      </button>
+                    </td>
                     <td class="px-4 py-3.5">
                       <div class="flex flex-wrap items-center gap-2">
                         <form method="post" action="{{ url_for('it_support_item_toggle_status', item_id=item.id) }}" class="im-ajax-form inline" data-im-action="toggle-status" data-item-id="{{ item.id }}">
@@ -375,7 +386,13 @@
                     <div class="mt-2 flex flex-wrap gap-2 text-xs">
                       <span class="rounded-lg bg-[rgb(var(--rc-surface-2))] px-2 py-1 tabular-nums font-medium text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-border))]">Orig. {{ "%.2f"|format(item.price) }}</span>
                       <span class="rounded-lg bg-[rgb(var(--rc-primary))]/10 px-2 py-1 tabular-nums font-semibold text-[rgb(var(--rc-page-fg))] ring-1 ring-[rgb(var(--rc-primary))]/25">Sell {{ "%.2f"|format(item.selling_price if item.selling_price is not none else item.price) }}</span>
-                      <span class="rounded-lg bg-sky-500/10 px-2 py-1 tabular-nums font-medium text-sky-300 ring-1 ring-sky-400/20">Stock {{ item.stock_qty }}</span>
+                      <button
+                        type="button"
+                        class="im-stock-open rounded-lg bg-teal-600 px-2.5 py-1 text-xs tabular-nums font-bold text-white shadow-sm ring-1 ring-teal-500/40 transition hover:bg-teal-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                        data-item-id="{{ item.id }}"
+                        data-item-name="{{ item.name }}"
+                        title="View stock by company and shops"
+                      >In Stock {{ item.total_stock_qty if item.total_stock_qty is not none else (item.stock_qty or 0) }}</button>
                     </div>
                   </div>
                 </div>
@@ -434,6 +451,40 @@
   {{ super() }}
   {% if items %}
   <div id="im-ajax-toast" class="pointer-events-none fixed bottom-6 right-6 z-50 hidden max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg transition-opacity duration-300" role="status" aria-live="polite"></div>
+
+  <div
+    id="im-stock-modal"
+    class="fixed inset-0 z-[80] hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="im-stock-modal-title"
+    aria-hidden="true"
+  >
+    <div class="im-stock-modal-backdrop absolute inset-0 bg-slate-950/65 backdrop-blur-sm" data-im-stock-close aria-hidden="true"></div>
+    <div class="pointer-events-none absolute inset-0 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div class="pointer-events-auto relative flex max-h-[min(90dvh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-teal-500/30 bg-[rgb(var(--rc-surface))] shadow-2xl shadow-teal-950/40 ring-1 ring-teal-400/20 sm:rounded-2xl">
+        <div class="h-1.5 shrink-0 bg-gradient-to-r from-teal-500 via-cyan-400 to-emerald-400" aria-hidden="true"></div>
+        <div class="flex items-start justify-between gap-3 border-b border-teal-500/20 bg-gradient-to-br from-teal-600/20 via-cyan-500/10 to-transparent px-5 py-4">
+          <div class="min-w-0">
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-teal-300">Stock locations</p>
+            <h3 id="im-stock-modal-title" class="mt-1 truncate text-lg font-bold text-[rgb(var(--rc-page-fg))]">Item stock</h3>
+            <p id="im-stock-modal-sub" class="mt-0.5 text-xs font-medium text-teal-200/80">Company warehouse and all shops</p>
+          </div>
+          <button type="button" class="btn-rc shrink-0 rounded-xl bg-teal-600/20 p-2 text-teal-200 ring-1 ring-teal-400/30 transition hover:bg-teal-500/30 hover:text-white" data-im-stock-close aria-label="Close">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div id="im-stock-modal-body" class="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+          <p class="text-sm text-[rgb(var(--rc-muted))]">Loading…</p>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-t border-emerald-500/25 bg-gradient-to-r from-emerald-600/25 to-teal-600/20 px-5 py-3.5">
+          <span class="text-xs font-black uppercase tracking-wider text-emerald-200">Total in stock</span>
+          <span id="im-stock-modal-total" class="rounded-lg bg-emerald-500 px-3 py-1 text-base font-black tabular-nums text-white shadow-sm shadow-emerald-900/30">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var AJAX_HEADERS = {
@@ -447,6 +498,148 @@
       var toastEl = document.getElementById("im-ajax-toast");
       var toastTimer;
       var itemCount = {{ item_count|default(0) }};
+      var STOCK_BREAKDOWN_TMPL = {{ url_for('it_support_item_stock_breakdown', item_id=999999999)|tojson }};
+      var stockModal = document.getElementById("im-stock-modal");
+      var stockModalTitle = document.getElementById("im-stock-modal-title");
+      var stockModalSub = document.getElementById("im-stock-modal-sub");
+      var stockModalBody = document.getElementById("im-stock-modal-body");
+      var stockModalTotal = document.getElementById("im-stock-modal-total");
+      var stockFetchCtrl = null;
+
+      function stockBreakdownUrl(itemId) {
+        return String(STOCK_BREAKDOWN_TMPL).replace("999999999", String(itemId));
+      }
+
+      function formatQty(n) {
+        var x = Number(n);
+        if (!isFinite(x)) return "0";
+        if (Math.abs(x - Math.round(x)) < 1e-9) return String(Math.round(x));
+        return String(Math.round(x * 10000) / 10000);
+      }
+
+      function openStockModal(itemId, itemName) {
+        if (!stockModal) return;
+        stockModal.classList.remove("hidden");
+        stockModal.setAttribute("aria-hidden", "false");
+        document.documentElement.classList.add("overflow-hidden");
+        if (stockModalTitle) stockModalTitle.textContent = itemName || "Item stock";
+        if (stockModalSub) stockModalSub.textContent = "Loading stock locations…";
+        if (stockModalBody) stockModalBody.innerHTML = '<p class="text-sm text-[rgb(var(--rc-muted))]">Loading…</p>';
+        if (stockModalTotal) stockModalTotal.textContent = "—";
+        if (stockFetchCtrl) stockFetchCtrl.abort();
+        stockFetchCtrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+        var url = stockBreakdownUrl(itemId);
+        fetch(url, {
+          method: "GET",
+          credentials: "same-origin",
+          headers: AJAX_HEADERS,
+          signal: stockFetchCtrl ? stockFetchCtrl.signal : undefined,
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { okHttp: r.ok, j: j };
+            }).catch(function () {
+              return { okHttp: false, j: { ok: false, error: "Invalid server response." } };
+            });
+          })
+          .then(function (res) {
+            if (!res.okHttp || !res.j || !res.j.ok || !res.j.item) {
+              if (stockModalBody) {
+                stockModalBody.innerHTML = '<p class="text-sm text-rose-400">' +
+                  ((res.j && res.j.error) || "Could not load stock breakdown.") +
+                  "</p>";
+              }
+              return;
+            }
+            renderStockBreakdown(res.j.item);
+          })
+          .catch(function (err) {
+            if (err && err.name === "AbortError") return;
+            if (stockModalBody) {
+              stockModalBody.innerHTML = '<p class="text-sm text-rose-400">Could not load stock breakdown.</p>';
+            }
+          });
+      }
+
+      function renderStockBreakdown(item) {
+        if (stockModalTitle) stockModalTitle.textContent = item.name || "Item stock";
+        if (stockModalSub) {
+          stockModalSub.textContent = (item.category ? item.category + " · " : "") + "Company + all shops";
+        }
+        if (stockModalTotal) stockModalTotal.textContent = formatQty(item.total_stock_qty);
+        var rows = [];
+        rows.push(
+          '<div class="flex items-center justify-between gap-3 rounded-xl bg-teal-600 px-3.5 py-3 text-white shadow-md shadow-teal-900/30 ring-1 ring-teal-400/40">' +
+            '<div class="min-w-0">' +
+              '<div class="text-sm font-bold">Company warehouse</div>' +
+              '<div class="text-[10px] font-black uppercase tracking-wider text-teal-100/90">Company</div>' +
+            "</div>" +
+            '<div class="rounded-lg bg-white/20 px-3 py-1 text-lg font-black tabular-nums">' + formatQty(item.company_stock_qty) + "</div>" +
+          "</div>"
+        );
+        var shops = item.shops || [];
+        if (!shops.length) {
+          rows.push('<p class="mt-3 text-sm text-[rgb(var(--rc-muted))]">No shops registered.</p>');
+        } else {
+          rows.push('<ul class="mt-3 space-y-2">');
+          shops.forEach(function (s) {
+            var label = s.name || ("Shop " + s.id);
+            var qty = Number(s.qty) || 0;
+            var hasStock = qty > 0;
+            var code = s.code
+              ? '<span class="ml-1.5 rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider opacity-80">' +
+                String(s.code).replace(/</g, "&lt;") +
+                "</span>"
+              : "";
+            var rowCls = hasStock
+              ? "bg-emerald-600/90 text-white ring-1 ring-emerald-400/40 shadow-sm shadow-emerald-900/20"
+              : "bg-slate-600/80 text-slate-100 ring-1 ring-slate-400/25";
+            var qtyCls = hasStock
+              ? "bg-white/20 text-white"
+              : "bg-black/20 text-slate-200";
+            rows.push(
+              '<li class="flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 ' + rowCls + '">' +
+                '<div class="min-w-0 text-sm font-semibold truncate">' +
+                  String(label).replace(/</g, "&lt;") + code +
+                "</div>" +
+                '<div class="shrink-0 rounded-lg px-2.5 py-0.5 text-sm font-black tabular-nums ' + qtyCls + '">' +
+                  formatQty(s.qty) +
+                "</div>" +
+              "</li>"
+            );
+          });
+          rows.push("</ul>");
+        }
+        if (stockModalBody) stockModalBody.innerHTML = rows.join("");
+      }
+
+      function closeStockModal() {
+        if (!stockModal) return;
+        stockModal.classList.add("hidden");
+        stockModal.setAttribute("aria-hidden", "true");
+        document.documentElement.classList.remove("overflow-hidden");
+        if (stockFetchCtrl) {
+          stockFetchCtrl.abort();
+          stockFetchCtrl = null;
+        }
+      }
+
+      document.addEventListener("click", function (e) {
+        var openBtn = e.target && e.target.closest ? e.target.closest(".im-stock-open") : null;
+        if (openBtn) {
+          e.preventDefault();
+          openStockModal(openBtn.getAttribute("data-item-id"), openBtn.getAttribute("data-item-name"));
+          return;
+        }
+        if (e.target && e.target.closest && e.target.closest("[data-im-stock-close]")) {
+          closeStockModal();
+        }
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && stockModal && !stockModal.classList.contains("hidden")) {
+          closeStockModal();
+        }
+      });
 
       function showToast(msg, isError) {
         if (!toastEl || !msg) return;

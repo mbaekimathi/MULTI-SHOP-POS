@@ -8599,6 +8599,22 @@ def it_support_item_management():
     )
 
 
+@app.route("/it_support/item-management/items/<int:item_id>/stock-breakdown")
+@login_required
+def it_support_item_stock_breakdown(item_id: int):
+    """JSON: company + per-shop stock quantities for one catalog item."""
+    _it_support_only()
+    try:
+        from database import get_item_stock_breakdown
+
+        data = get_item_stock_breakdown(item_id)
+    except Exception:
+        data = None
+    if not data:
+        return jsonify({"ok": False, "error": "Item not found."}), 404
+    return jsonify({"ok": True, "item": data})
+
+
 @app.route("/it_support/item-management/register-item", methods=["GET", "POST"])
 @login_required
 def it_support_register_item():
